@@ -1,9 +1,9 @@
 #lang scribble/manual
 @require[@for-label[typed/cheat racket/base]]
 
-@title{Define Cheat Opaque Predicater to Satisfy Typed Racket}
+@title{Define Opaque Predicates to Cheat Typed Racket}
 @author{wargrey}
 
 @defmodule[typed/cheat]
 
-Package Description Here
+@italic{Sorry, but I will write it later as soon as I have time.}
