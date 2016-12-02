@@ -29,7 +29,7 @@
  [make-cheat-opaque? (All (FT) (->* ((U (-> Any Boolean) Byte)) ((Option Symbol)) (-> Any Boolean : #:+ FT)))])
 
 
-(define-syntax (define/cheat-opaque? stx)
+(define-syntax (define-cheat-opaque stx)
   (syntax-case stx []
     [(_ id #:=> FT arg)
      #'(define id : (-> Any Boolean : #:+ FT)
@@ -46,4 +46,4 @@
     [(_ % : Type% class-definition)
      (with-syntax ([%? (format-id #'% "~a?" (syntax-e #'%))])
        #'(begin (define % : Type% class-definition)
-                (define/cheat-opaque? %? #:is-a? Type% %)))]))
+                (define-cheat-opaque %? #:is-a? Type% %)))]))
