@@ -9,8 +9,7 @@
   #:read digimon-read
   #:read-syntax digimon-read-syntax
   #:language (digimon-smart-language 'digimon/gui 'digimon/digitama/worldx)
-  #:language-info '#("language-info.rkt" digimon-get-info ())
+  #:language-info '#(digimon/language-info digimon-get-info ())
   #:info digimon-info
-  #:module-wrapper digimon-wrapper
 
-  (require "language-info.rkt"))
+  (require digimon/language-info))

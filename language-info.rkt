@@ -20,9 +20,3 @@
     (case key
       [(drscheme:toolbar-buttons) (maybe-show-OC)]
       [else (use-default key default)])))
-
-(define digimon-wrapper
-  (lambda [read-module]
-    (define modstx (read-module))
-    (cond [(not (syntax? modstx)) modstx]
-          [else (writeln (syntax->datum modstx)) modstx])))
