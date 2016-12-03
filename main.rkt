@@ -1,11 +1,10 @@
 #lang typed/racket
 
 (provide (all-from-out typed/racket))
-(provide (all-from-out "cheat.rkt" "timer.rkt" "network.rkt"))
+(provide (all-from-out "cheat.rkt" "main.rkt"))
 
 (require "cheat.rkt")
-(require "timer.rkt")
-(require "network.rkt")
+(require "main.rkt")
 
 (module reader syntax/module-reader
   #:read digimon-read
