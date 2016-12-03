@@ -9,4 +9,4 @@
 (define version "1.0")
 (define pkg-authors '(wargrey))
 
-(define scribblings '(["digimon/tamer/handbook.scrbl" (main-doc)]))
+(define scribblings '(["tamer/handbook.scrbl" (main-doc)]))
