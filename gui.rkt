@@ -1,9 +1,9 @@
 #lang typed/racket/gui
 
 (provide (all-from-out typed/racket/gui)
-         (all-from-out "cheat.rkt"))
+         (all-from-out "main.rkt"))
 
-(require "cheat.rkt")
+(require "main.rkt")
 
 (module reader syntax/module-reader
   #:read digimon-read

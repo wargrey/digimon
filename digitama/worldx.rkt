@@ -1,6 +1,6 @@
 #lang typed/racket/gui/no-check
 
 (provide (all-from-out typed/racket/gui/no-check)
-         (all-from-out "cheat.rkt"))
+         (all-from-out "world.rkt"))
 
-(require "cheat.rkt")
+(require "world.rkt")

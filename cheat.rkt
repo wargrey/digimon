@@ -16,7 +16,7 @@
  "digitama/cheat.rkt"
  [make-cheat-opaque? (All (FT) (->* ((U (-> Any Boolean) Byte)) ((Option Symbol)) (-> Any Boolean : #:+ FT)))])
 
-
+;;; NOTE: Don't forget to keep the untyped macros consistent when modifying.
 (define-syntax (define-cheat-opaque stx)
   (syntax-case stx []
     [(_ id #:=> FT arg)
