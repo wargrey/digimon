@@ -1,6 +1,6 @@
 #lang scribble/manual
 
-@title[#:tag "digicore"]{Digitama: The (Typed) Core to Build the Digital World}
+@title[#:tag "digitama"]{Digitama: The (Typed) Core to Construct the Digital World}
 @author{wargrey}
 
 @italic{Sorry, but I will write it as soon as possible.}
