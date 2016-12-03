@@ -1,5 +1,5 @@
 #lang info
 
-(define collection "cheat")
+(define collection "digicore")
 (define scribblings '(["tamer/handbook.scrbl" (main-doc)]))
-(define pkg-desc "Define Opaque Predicates to Cheat Typed Racket")
+(define pkg-desc "The (typed) core to build the digital world")
