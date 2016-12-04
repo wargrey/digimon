@@ -1,9 +1,28 @@
 #lang typed/racket
 
+(provide (all-defined-out) Term-Color vim-colors Racket-Place-Status Racket-Thread-Status)
+
+(require typed/racket/random)
+
+(require "digitama/system.rkt")
+(require "digitama/sugar.rkt")
+
+(define-type EvtSelf (Rec Evt (Evtof Evt)))
+(define-type Place-EvtExit (Evtof (Pairof Place Integer)))
+(define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
+
+(define boot-time : Fixnum (current-milliseconds))
+(define digimon-system : (Parameterof Nothing Symbol)
+  (make-parameter (match (path->string (system-library-subpath #false))
+                    ;;; (system-type 'machine) might lead to "forbidden exec /bin/uname" 
+                    [(pregexp #px"solaris") 'illumos]
+                    [(pregexp #px"linux") 'linux]
+                    [_ (system-type 'os)])))
+
 (define /dev/stdin : Input-Port (current-input-port))
 (define /dev/stdout : Output-Port (current-output-port))
 (define /dev/stderr : Output-Port (current-error-port))
-(define /dev/log : Logger (make-logger 'digital-world #false))
+(define /dev/log : Logger (make-logger 'digital-world (current-logger)))
 (define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
 (define /dev/null : Output-Port (open-output-nowhere '/dev/null))
 
@@ -15,7 +34,6 @@
                    #false
                    void))
 
-#|
 (define /dev/urandom : Input-Port
   (make-input-port '/dev/urandom
                    (λ [[bs : Bytes]]
@@ -24,7 +42,6 @@
                        bsize))
                    #false
                    void))
-|#
 
 (void (print-boolean-long-form #true)
       (current-logger /dev/log)
@@ -33,3 +50,181 @@
       ;;; the compiler checks the bytecodes in the core collection
       ;;; which have already been compiled into <path:compiled/>.
       (use-compiled-file-paths (list (build-path "compiled"))))
+
+(define file-readable? : (-> Path-String Boolean)
+  (lambda [p]
+    (and (file-exists? p)
+         (memq 'read (file-or-directory-permissions p))
+         #true)))
+
+(define string-null? : (-> Any Boolean : #:+ String)
+  (lambda [str]
+    (and (string? str)
+         (string=? str ""))))
+
+(define object-name/symbol : (-> Any Symbol)
+  (lambda [v]
+    (define name (object-name v))
+    (or (and (symbol? name) name)
+        (string->symbol (format "<object-name:~a>" name)))))
+
+(define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread)) (Listof Continuation-Stack))
+  (lambda [[cm (current-continuation-marks)]]
+    ((inst map (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))) (Pairof (Option Symbol) Any))
+     (λ [[stack : (Pairof (Option Symbol) Any)]]
+       (define maybe-name (car stack))
+       (define maybe-srcinfo (cdr stack))
+       (cons (or maybe-name 'λ)
+             (and (srcloc? maybe-srcinfo)
+                  (let ([src (srcloc-source maybe-srcinfo)]
+                        [line (srcloc-line maybe-srcinfo)]
+                        [column (srcloc-column maybe-srcinfo)])
+                    (vector (if (symbol? src) src (~a src))
+                            (or line -1)
+                            (or column -1))))))
+     (cond [(continuation-mark-set? cm) (continuation-mark-set->context cm)]
+           [else (continuation-mark-set->context (continuation-marks cm))]))))
+
+(define-type Prefab-Message msg:log)
+(struct msg:log ([level : Log-Level] [brief : String] [detail : Any] [topic : Symbol])
+  #:prefab #:constructor-name make-prefab-message)
+
+(define dtrace-send : (-> Any Symbol String Any Void)
+  (lambda [topic level message urgent]
+    (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
+    (cond [(logger? topic) (log-message topic log-level message urgent)]
+          [(symbol? topic) (log-message (current-logger) log-level topic message urgent)]
+          [else (log-message (current-logger) log-level (object-name/symbol topic) message urgent)])))
+
+(define-values (dtrace-debug dtrace-info dtrace-warning dtrace-error dtrace-fatal)
+  (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any) #:rest Any Void)
+                  (lambda [#:topic [topic (current-logger)] #:urgent [urgent (current-continuation-marks)] msgfmt . messages]
+                    (dtrace-send topic level (if (null? messages) msgfmt (apply format msgfmt messages)) urgent)))])
+    (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
+
+(define dtrace-message : (-> Prefab-Message [#:logger Logger] [#:alter-topic (Option Symbol)] [#:detail-only? Boolean] Void)
+  (lambda [info #:logger [logger (current-logger)] #:alter-topic [topic #false] #:detail-only? [detail-only? #false]]
+    (log-message logger
+                 (msg:log-level info)
+                 (or topic (msg:log-topic info))
+                 (msg:log-brief info)
+                 (if detail-only? (msg:log-detail info) info))))
+
+(define exn->prefab-message : (-> exn [#:level Log-Level] [#:exn->detail (-> exn Any)] Prefab-Message)
+  (lambda [e #:level [level 'error] #:exn->detail [exn->detail (λ [[e : exn]] (continuation-mark->stacks (exn-continuation-marks e)))]]
+    (make-prefab-message level
+                         (exn-message e)
+                         (exn->detail e)
+                         (object-name/symbol e))))
+
+(define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
+(define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
+  (lambda [source-evt #:hint [hint the-synced-place-channel]]
+    (hint #false)
+    (wrap-evt source-evt ; do not work with guard evt since the maker may not be invoked
+              (λ [datum] (hint source-evt)
+                (cond [(not (place-message? datum)) datum]
+                      [else (let ([stream : Any (place-message-stream datum)])
+                              (match/handlers (if (bytes? stream) (with-input-from-bytes stream read) (box stream))
+                                [(? exn:fail:read? e) (exn->prefab-message e #:level 'fatal #:exn->detail (λ _ stream))]))])))))
+
+(define place-channel-send : (-> Place-Channel Any Void)
+  (lambda [dest datum]
+    (match datum
+      [(? place-message-allowed?) (place-channel-put dest datum)]
+      [(? exn?) (place-channel-put dest (exn->prefab-message datum))]
+      [(box (and (not (? bytes? v)) (? place-message-allowed? v))) (place-channel-put dest (place-message v))]
+      [_ (place-channel-put dest (place-message (with-output-to-bytes (thunk (write datum)))))])))
+
+(define place-channel-recv : (-> Place-Channel [#:timeout Nonnegative-Real] [#:hint (Parameterof (Option Place-Channel))] Any)
+  (lambda [channel #:timeout [s +inf.0] #:hint [hint the-synced-place-channel]]
+    ; Note: the `hint` can also be used to determine whether it is timeout or receiving #false
+    (sync/timeout/enable-break s (place-channel-evt channel #:hint hint))))
+
+(define place-channel-send/recv : (-> Place-Channel Any [#:timeout Nonnegative-Real] [#:hint (Parameterof (Option Place-Channel))] Any)
+  (lambda [channel datum #:timeout [s +inf.0] #:hint [hint the-synced-place-channel]]
+    (place-channel-send channel datum)
+    (place-channel-recv channel #:timeout s #:hint hint)))
+
+(define place-status : (-> Place (U 'running Integer))
+  (lambda [p]
+    (match (sync/timeout 0 (place-dead-evt p))
+      [(? false?) 'running]
+      [_ (place-wait p)])))
+
+(define place-wait-evt : (-> Place Place-EvtExit)
+  (lambda [p]
+    (wrap-evt (place-dead-evt p)
+              (λ _ (cons p (place-wait p))))))
+
+(define thread-mailbox-evt : (-> (Evtof Any))
+  (lambda []
+    (wrap-evt (thread-receive-evt)
+              (λ _ (thread-receive)))))
+
+(define call-as-normal-termination : (-> (-> Any) [#:atinit (-> Any)] [#:atexit (-> Any)] Void)
+  (lambda [#:atinit [atinit/0 void] main/0 #:atexit [atexit/0 void]]
+    (define exit-racket : (-> Any AnyValues) (exit-handler))
+    (define service-exit : (-> Any (Option Byte))
+      (match-lambda
+        ['FATAL 95]
+        ['ECONFIG 96]
+        ['ENOSERVICE 99]
+        ['EPERM 100]
+        [_ #false]))
+
+    (define (terminate [status : Any]) : Any
+      (parameterize ([exit-handler exit-racket])
+        (cond [(exact-nonnegative-integer? status) (exit (min status 255))]
+              [(service-exit status) => exit]
+              [else (exit 0)])))
+    
+    (parameterize ([exit-handler terminate])
+      (exit (with-handlers ([exn? (lambda [[e : exn]] (and (eprintf "~a~n" (exn-message e)) 'FATAL))]
+                            [void (lambda [e] (and (eprintf "(uncaught-exception-handler) => ~a~n" e) 'FATAL))])
+              (dynamic-wind (thunk (with-handlers ([exn? (lambda [[e : exn]] (atexit/0) (raise e))])
+                                     (atinit/0)))
+                            (thunk (main/0))
+                            (thunk (atexit/0))))))))
+
+(define vector-set-place-statistics! : (-> Racket-Place-Status Void)
+  (lambda [stat]
+    (vector-set-performance-stats! stat)
+    (vector-set! stat 10 (+ (vector-ref stat 10) (current-memory-use)))))
+
+(define vector-set-thread-statistics! : (-> Racket-Thread-Status Thread Void)
+  (lambda [stat thd]
+    (vector-set-performance-stats! stat thd)))
+
+(define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
+  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tmpeek]]
+    (make-input-port name
+                     (λ [[s : Bytes]] : (U EOF Exact-Positive-Integer)
+                       (define peeked : Natural (unbox iobox))
+                       (define r (peek-bytes! s peeked /dev/srcin))
+                       (set-box! iobox (+ peeked (if (number? r) r 1))) r)
+                     #false
+                     void)))
+
+(define immutable-guard : (-> Symbol (Any -> Nothing))
+  (lambda [pname]
+    (λ [pval] (error pname "Immutable Parameter: ~a" pval))))
+
+(define car.eval : (->* (Any) (Namespace) Any)
+  (lambda [sexp [ns (current-namespace)]]
+    (call-with-values (thunk (eval sexp ns))
+                      (λ result (car result)))))
+
+(define void.eval : (->* (Any) (Namespace) Void)
+  (lambda [sexp [ns (current-namespace)]]
+    (call-with-values (thunk (eval sexp ns)) void)))
+
+(define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
+  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (define rawmsg (apply format msgfmt vals))
+    (printf "~a" (if (terminal-port? (current-output-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
+
+(define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
+  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (define rawmsg (apply format msgfmt vals))
+    (eprintf "~a" (if (terminal-port? (current-error-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
