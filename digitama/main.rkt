@@ -9,7 +9,7 @@
 (require/provide racket/flonum racket/fixnum
                  "../system.rkt" "sugar.rkt")
 
-(require/provide
- "../format.rkt"
- "../timer.rkt"
- "../network.rkt")
+(require/provide "../uuid.rkt" "../format.rkt"
+                 "../timer.rkt" "../network.rkt")
+
+(require/provide "../ffi.rkt" "../openssl.rkt")
