@@ -9,17 +9,22 @@
 (require (prefix-in tr: typed-racket/language-info))
 (require typed-racket/private/oc-button)
 
-(define digimon-typechecking
-  (let ([var "Digimon_Lang"])
+(define digimon-lang
+  (let ([var "DIGIMON_LANG"])
     (cond [(not (eq? (system-type 'os) 'windows)) var]
           [else (string-downcase var)])))
 
 (define digimon-smart-language
-  (lambda [lang [no-check #false]]
-    (define lang-value (getenv digimon-typechecking))
-    (cond [(not lang-value) lang]
-          [(not (string-ci=? lang-value "no-check")) lang]
-          [else (or no-check (string->symbol (format "~a/no-check" lang)))])))
+  (let ([cache (box #false)])
+    (lambda [lang [no-check #false]]
+      (define lang-value
+        (or (unbox cache)
+            (let ([v (getenv digimon-lang)])
+              (cond [(not v) 'check]
+                    [else (let ([sym (string->symbol (string-downcase v))])
+                            (set-box! cache sym) sym)]))))
+      (cond [(not (eq? lang-value 'no-check)) lang]
+            [else (or no-check (string->symbol (format "~a/no-check" lang)))]))))
   
 (define digimon-info
   (lambda [key default use-default]
