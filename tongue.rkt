@@ -65,7 +65,7 @@
                               (match record
                                 [(cons (? symbol? word) (? string? content)) (hash-set dict word content)]
                                 [else (dtrace-warning #:topic topic "~a: ~s" tongue.rktl record) dict]))]
-                           [(exn? records) (dtrace-message (exn->prefab-message records) #:alter-topic topic) dictionary]
+                           [(exn? records) (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message records)) dictionary]
                            [else (dtrace-warning #:topic topic "~a: ~s" tongue.rktl records) dictionary]))))
       (hash-ref (hash-ref dicts tongue) word
                 (thunk (cond [(symbol=? tongue 'English) (string-replace (symbol->string word) "-" " ")]

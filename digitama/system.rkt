@@ -2,10 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "sugar.rkt")
-
 (define-type Term-Color (Option (U String Symbol Byte)))
-
 (define-type Racket-Place-Status (Vector Fixnum Fixnum Fixnum Natural Natural Natural Natural Natural Fixnum Fixnum Natural Natural))
 (define-type Racket-Thread-Status (Vector Boolean Boolean Boolean Natural))
 (define-type Vector-Set-Performance-Stats! (case-> [Racket-Place-Status -> Void]
@@ -14,7 +11,6 @@
 (require/typed/provide racket [vector-set-performance-stats! Vector-Set-Performance-Stats!])
 
 (struct place-message ([stream : Any]) #:prefab)
-(define infobase : (HashTable String Info-Ref) (make-hash))
 
 (define vim-colors : (HashTable String Byte)
   #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)
