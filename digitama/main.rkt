@@ -1,10 +1,6 @@
 #lang typed/racket
 
-(define-syntax (require/provide stx)
-  (syntax-case stx []
-    [(_ spec ...)
-     #'(begin (provide (all-from-out spec)) ...
-              (require spec) ...)]))
+(require "sugar.rkt")
 
 (require/provide racket/flonum racket/fixnum
                  "../system.rkt" "../tongue.rkt")

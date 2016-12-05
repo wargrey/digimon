@@ -18,6 +18,12 @@
                [#:struct (exn:fail:object exn:fail) ()
                 #:extra-constructor-name make-exn:fail:object])
 
+(define-syntax (require/provide stx)
+  (syntax-case stx []
+    [(_ spec ...)
+     #'(begin (provide (all-from-out spec)) ...
+              (require spec) ...)]))
+
 (define-syntax (require/typed/provide/batch stx)
   (syntax-case stx [id:]
     [(_ modpath [id: id ...] type-definition)
