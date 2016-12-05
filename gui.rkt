@@ -8,7 +8,7 @@
 (module reader syntax/module-reader
   #:read digimon-read
   #:read-syntax digimon-read-syntax
-  #:language (digimon-smart-language 'digimon/gui 'digimon/digitama/worldx)
+  #:language (digimon-smart-language 'digimon/gui 'digimon/gui/no-check)
   #:language-info '#(digimon/language-info digimon-get-info ())
   #:info digimon-info
 
