@@ -5,6 +5,8 @@
 
 (require "main.rkt")
 
+(require/provide/syntax racket/string racket/syntax syntax/parse racket/sequence)
+
 (module reader syntax/module-reader
   #:read digimon-read
   #:read-syntax digimon-read-syntax

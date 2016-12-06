@@ -2,9 +2,9 @@
 
 (provide (all-defined-out))
 
-(require (for-syntax racket/base))
 (require (for-syntax racket/string))
 (require (for-syntax racket/syntax))
+(require (for-syntax syntax/parse))
 
 (define-type (Identity Type) Type)
 (define-type Info-Ref (->* [Symbol] [(-> Any)] Any))
@@ -24,6 +24,12 @@
     [(_ spec ...)
      #'(begin (provide (all-from-out spec)) ...
               (require spec) ...)]))
+
+(define-syntax (require/provide/syntax stx)
+  (syntax-case stx []
+    [(_ spec ...)
+     #'(begin (provide (for-syntax (all-from-out spec))) ...
+              (require (for-syntax spec)) ...)]))
 
 (define-syntax (require/typed/provide/batch stx)
   (syntax-case stx [id:]

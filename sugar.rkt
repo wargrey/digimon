@@ -6,6 +6,8 @@
 (require "digitama/sugar.rkt")
 (require "digitama/cheat.rkt")
 
+(require/provide/syntax racket/base racket/string racket/syntax syntax/parse racket/sequence)
+
 (module reader syntax/module-reader
   #:read digimon-read
   #:read-syntax digimon-read-syntax

@@ -8,6 +8,8 @@
 (require "digitama/main.rkt")
 (require (submod "digitama/ffi.rkt" typed))
 
+(require/provide/syntax racket/string racket/syntax syntax/parse racket/sequence)
+
 (module reader syntax/module-reader
   #:read digimon-read
   #:read-syntax digimon-read-syntax

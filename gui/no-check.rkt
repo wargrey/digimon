@@ -7,6 +7,9 @@
          (subtract-in typed/racket/gui typed/private/no-check-helper)
          (subtract-in (except-in "../no-check.rkt" exn:fail:object) typed/private/no-check-helper))
 
+(provide (for-syntax (all-from-out racket/base racket/string racket/syntax syntax/parse racket/sequence)))
+(require (for-syntax racket/base racket/string racket/syntax syntax/parse racket/sequence))
+
 (module reader syntax/module-reader
   #:read digimon-read
   #:read-syntax digimon-read-syntax

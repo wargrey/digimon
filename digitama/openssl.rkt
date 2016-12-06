@@ -1,4 +1,4 @@
-#lang racket
+#lang digimon/ffi
 
 (provide (all-defined-out))
 (provide (all-from-out openssl/libcrypto))
@@ -12,8 +12,6 @@
 ;;; man hmac                                                                                     ;;;
 ;;; TODO: man EVP_EncryptInit for two way cryption                                               ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(require "ffi.rkt")
 
 (require openssl)
 (require openssl/libcrypto)
