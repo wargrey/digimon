@@ -7,5 +7,4 @@
                  "../system.rkt" "../tongue.rkt")
 
 (require/provide "../uuid.rkt" "../format.rkt"
-                 "../timer.rkt" "../network.rkt"
-                 "../openssl.rkt")
+                 "../network.rkt" "../openssl.rkt")
