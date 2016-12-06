@@ -3,7 +3,7 @@
 (provide (all-defined-out) bytes->hex-string hex-string->bytes)
 (provide (all-from-out typed/openssl))
 
-(require "ffi.rkt")
+(require (submod "digitama/ffi.rkt" typed))
 
 (require typed/openssl)
 (require (only-in typed/openssl/sha1 bytes->hex-string hex-string->bytes))
