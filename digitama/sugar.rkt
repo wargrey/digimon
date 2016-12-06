@@ -1,7 +1,8 @@
-#lang at-exp typed/racket
+#lang typed/racket
 
 (provide (all-defined-out))
 
+(require (for-syntax racket/base))
 (require (for-syntax racket/string))
 (require (for-syntax racket/syntax))
 

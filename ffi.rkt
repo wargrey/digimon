@@ -6,11 +6,4 @@
 (require "digitama/ffi.rkt")
 (require "digitama/main.rkt")
 
-(module reader syntax/module-reader
-  #:read digimon-read
-  #:read-syntax digimon-read-syntax
-  #:language 'digimon/ffi
-  #:language-info '#(digimon/language-info digimon-get-info ())
-  #:info digimon-info
-
-  (require digimon/language-info))
+(module reader syntax/module-reader digimon/ffi)
