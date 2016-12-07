@@ -10,6 +10,7 @@
 
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
+(define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
 (define boot-time : Fixnum (current-milliseconds))
@@ -69,11 +70,22 @@
     (or (and (symbol? name) name)
         (string->symbol (format "<object-name:~a>" name)))))
 
+(define typed-read : (All (a) (case-> [-> Any (-> Any Boolean : #:+ a) a]
+                                      [-> Any (Option (-> Any Boolean)) Any]
+                                      [-> Any Any]))
+  (lambda [src [type? #false]]
+    (define v : Any
+      (cond [(string? src) (read (open-input-string src))]
+            [(bytes? src) (read (open-input-bytes src))]
+            [(input-port? src) (read src)]
+            [else src]))
+    (cond [(false? type?) v]
+          [(type? v) v]
+          [else (raise-result-error 'typed-read (~a (object-name type?)) v)])))
+
 (define current-macroseconds : (-> Fixnum)
   (lambda []
     (fl->fx (real->double-flonum (* (current-inexact-milliseconds) 1000)))))
-
-(define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 
 (define timer-evt : (->* (Fixnum) (Fixnum) Timer-EvtSelf)
   (lambda [interval [basetime (current-milliseconds)]]

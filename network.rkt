@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/fixnum)
-(require "timer.rkt")
+(require "system.rkt")
 
 (define tcp-server : (-> Index (Input-Port Output-Port Index -> Any)
                          [#:max-allow-wait Natural] [#:localhost (Option String)]

@@ -275,6 +275,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ test
+  (require typed/db)
+
   (define-table p as P
     ([number     : String                 % 出版社编号 #:check (regexp-match? #px"^\\d+$" number)]
      [names      : (Option String)        % 出版社名称]
@@ -290,9 +292,16 @@
   (write-p (create-p #:number "123") o)
   (write-s (create-s #:titles (list "བོད་ཀྱི་བཅུ་ཕྲག་རིག་མཛོད་ཆེན་མོ") #:type 'Tibetan) o)
   
-  (with-handlers ([exn? displayln]) (read-s i))
+  #|(with-handlers ([exn? displayln]) (read-s i))
   (read-p i)
   (read-s i)
   
   (close-output-port o)
-  (read i))
+  (read i)|#
+
+  (define sqlite : Connection (sqlite3-connect #:database 'memory))
+  (define dbsystem : DBSystem (connection-dbsystem sqlite))
+
+  (query-exec sqlite "CREATE TABLE WhoCares(id UNIQUE, type, name, tbl_name, rootpage, sql);")
+
+  (disconnect sqlite))
