@@ -41,13 +41,12 @@
             [else (format "~a:~a.~a~a" m s padding ms)]))))
 
 (define-type/enum units : Unit 'KB 'MB 'GB 'TB)
-(define ~size : (case-> [Integer 'Bytes [#:precision (U Integer (List '= Integer))] -> String]
-                        [Flonum Unit [#:precision (U Integer (List '= Integer))] -> String])
-  (lambda [size unit #:precision [prcs '(= 3)]]
-    (if (symbol=? unit 'Bytes)
-        (cond [(< -1024 size 1024) (~n_w size "Byte")]
+(define ~size : (->* (Real) ((U 'Bytes Unit) #:precision (U Integer (List '= Integer))) String)
+  (lambda [size [unit 'Bytes] #:precision [prcs '(= 3)]]
+    (if (eq? unit 'Bytes)
+        (cond [(< -1024.0 size 1024.0) (~n_w (exact-round size) "Byte")]
               [else (~size (fl/ (real->double-flonum size) 1024.0) 'KB #:precision prcs)])
-        (let try-next-unit : String ([s : Flonum size] [us : (Option Unit*) (member unit units)])
+        (let try-next-unit : String ([s : Flonum (real->double-flonum size)] [us : (Option Unit*) (memq unit units)])
           (cond [(false? us) "Typed Racket is buggy if you see this message"]
-                [(or (fl< s 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
+                [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))

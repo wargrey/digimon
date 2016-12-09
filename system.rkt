@@ -64,24 +64,26 @@
     (and (string? str)
          (string=? str ""))))
 
-(define object-name/symbol : (-> Any Symbol)
+(define value-name : (-> Any Symbol)
   (lambda [v]
     (define name (object-name v))
     (or (and (symbol? name) name)
-        (string->symbol (format "<object-name:~a>" name)))))
+        (and name (string->symbol (format "<object-name:~a>" name)))
+        (string->symbol (format "<object-value:~a>" v)))))
 
-(define typed-read : (All (a) (case-> [-> Any (-> Any Boolean : #:+ a) a]
-                                      [-> Any (Option (-> Any Boolean)) Any]
-                                      [-> Any Any]))
-  (lambda [src [type? #false]]
+(define read/assert : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
+  (lambda [src type? #:from-string [? #true]]
     (define v : Any
-      (cond [(string? src) (read (open-input-string src))]
-            [(bytes? src) (read (open-input-bytes src))]
+      (cond [(and ? (string? src)) (read (open-input-string src))]
+            [(and ? (bytes? src)) (read (open-input-bytes src))]
+            [(or (path? src) (path-string? src)) (call-with-input-file src read)]
             [(input-port? src) (read src)]
             [else src]))
-    (cond [(false? type?) v]
-          [(type? v) v]
-          [else (raise-result-error 'typed-read (~a (object-name type?)) v)])))
+    (cond [(type? v) v]
+          [(not (eof-object? v)) (raise-result-error 'read/assert (~a (object-name type?)) v)]
+          [else (raise (make-exn:fail:read:eof (format "read/assert: ~a: unexpected <eof>" (object-name type?))
+                                               (current-continuation-marks)
+                                               null))])))
 
 (define current-macroseconds : (-> Fixnum)
   (lambda []
@@ -102,6 +104,11 @@
                        [(vector (? evt? next-alarm) (? fixnum? interval) (? fixnum? alarm-time))
                         (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
                         (wait-dotask-loop next-alarm)]))))))
+
+(define raise-unsupported-error : (-> Symbol String Any * Nothing)
+  (lambda [src str . argl]
+    (define message : String (if (null? argl) str (apply format str argl)))
+    (raise (make-exn:fail:unsupported (format "~a: ~a" src message) (current-continuation-marks)))))
 
 (define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread)) (Listof Continuation-Stack))
   (lambda [[cm (current-continuation-marks)]]
@@ -129,7 +136,7 @@
     (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
     (cond [(logger? topic) (log-message topic log-level message urgent)]
           [(symbol? topic) (log-message (current-logger) log-level topic message urgent)]
-          [else (log-message (current-logger) log-level (object-name/symbol topic) message urgent)])))
+          [else (log-message (current-logger) log-level (value-name topic) message urgent)])))
 
 (define-values (dtrace-debug dtrace-info dtrace-warning dtrace-error dtrace-fatal)
   (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any) #:rest Any Void)
@@ -150,7 +157,7 @@
     (make-prefab-message level
                          (exn-message e)
                          (exn->detail e)
-                         (object-name/symbol e))))
+                         (value-name e))))
 
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
 (define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
