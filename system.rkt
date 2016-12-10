@@ -71,6 +71,11 @@
         (and name (string->symbol (format "<object-name:~a>" name)))
         (string->symbol (format "<object-value:~a>" v)))))
 
+(define tee : (All (a) (-> a [#:printer (-> Any Output-Port Any)] Output-Port * a))
+  (lambda [v #:printer [<< pretty-print] . outs]
+    (for ([out (in-list (cons (current-output-port) outs))]) (<< v out))
+    v))
+
 (define read/assert : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
   (lambda [src type? #:from-string [? #true]]
     (define v : Any
