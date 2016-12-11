@@ -90,7 +90,7 @@
                                                (current-continuation-marks)
                                                null))])))
 
-(define current-macroseconds : (-> Fixnum)
+(define current-microseconds : (-> Fixnum)
   (lambda []
     (fl->fx (real->double-flonum (* (current-inexact-milliseconds) 1000)))))
 
