@@ -12,6 +12,21 @@
 
 (struct place-message ([stream : Any]) #:prefab)
 
+(define /dev/stdin : Input-Port (current-input-port))
+(define /dev/stdout : Output-Port (current-output-port))
+(define /dev/stderr : Output-Port (current-error-port))
+(define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
+(define /dev/null : Output-Port (open-output-nowhere '/dev/null))
+
+(define-values (digimon-waketime digimon-partner digimon-system)
+  (values (current-milliseconds)
+          (or (getenv "USER") (getenv "LOGNAME") #| daemon |# "root")
+          (match (path->string (system-library-subpath #false))
+            [(pregexp #px"solaris") 'illumos]
+            [(pregexp #px"linux") 'linux]
+            [_ (system-type 'os)])))
+
+
 (define vim-colors : (HashTable String Byte)
   #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)
                       ("darkred" . 1) ("darkgreen" . 2) ("darkyellow" . 3) ("darkblue" . 4) ("brown" . 5) ("darkmagenta" . 5)
@@ -37,3 +52,13 @@
                                             "^;" "" #:all? #false)
                             (if (false? fg) 39 (color-code (string-downcase (format "~a" fg))))
                             (if (false? bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))))
+
+(define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
+  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (define rawmsg (apply format msgfmt vals))
+    (printf "~a" (if (terminal-port? (current-output-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
+
+(define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
+  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (define rawmsg (apply format msgfmt vals))
+    (eprintf "~a" (if (terminal-port? (current-error-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))

@@ -9,6 +9,6 @@
 (define version "1.0")
 (define pkg-authors '(wargrey))
 
-(define raco-commands '(["wisemon" digimon/digivice/wisemon "manage workspace" 8]))
+(define raco-commands '(["wisemon" digimon/digivice/wisemon "a raco to manage the workspace" #false]))
 
 (define scribblings '(["tamer/digimon.scrbl" (main-doc)]))

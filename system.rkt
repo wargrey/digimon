@@ -1,6 +1,8 @@
 #lang typed/racket
 
-(provide (all-defined-out) Term-Color vim-colors Racket-Place-Status Racket-Thread-Status)
+(provide (all-defined-out) digimon-waketime digimon-partner digimon-system echof eechof)
+(provide /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null)
+(provide Term-Color Racket-Place-Status Racket-Thread-Status)
 
 (require typed/racket/random)
 (require racket/fixnum)
@@ -13,20 +15,7 @@
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
-(define boot-time : Fixnum (current-milliseconds))
-(define digimon-system : (Parameterof Nothing Symbol)
-  (make-parameter (match (path->string (system-library-subpath #false))
-                    ;;; (system-type 'machine) might lead to "forbidden exec /bin/uname" 
-                    [(pregexp #px"solaris") 'illumos]
-                    [(pregexp #px"linux") 'linux]
-                    [_ (system-type 'os)])))
-
-(define /dev/stdin : Input-Port (current-input-port))
-(define /dev/stdout : Output-Port (current-output-port))
-(define /dev/stderr : Output-Port (current-error-port))
 (define /dev/log : Logger (make-logger 'digital-world (current-logger)))
-(define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
-(define /dev/null : Output-Port (open-output-nowhere '/dev/null))
 
 (define /dev/zero : Input-Port
   (make-input-port '/dev/zero
@@ -50,7 +39,7 @@
         
       ;;; Ignore DrRacket's convention. But don't change "compiled" since
       ;;; the compiler checks the bytecodes in the core collection
-      ;;; which have already been compiled into <path:compiled/>.
+      ;;; which have already been compiled into <path:compiled>.
       (use-compiled-file-paths (list (build-path "compiled"))))
 
 (define file-readable? : (-> Path-String Boolean)
@@ -209,31 +198,6 @@
     (wrap-evt (thread-receive-evt)
               (λ _ (thread-receive)))))
 
-(define call-as-normal-termination : (-> (-> Any) [#:atinit (-> Any)] [#:atexit (-> Any)] Void)
-  (lambda [#:atinit [atinit/0 void] main/0 #:atexit [atexit/0 void]]
-    (define exit-racket : (-> Any AnyValues) (exit-handler))
-    (define service-exit : (-> Any (Option Byte))
-      (match-lambda
-        ['FATAL 95]
-        ['ECONFIG 96]
-        ['ENOSERVICE 99]
-        ['EPERM 100]
-        [_ #false]))
-
-    (define (terminate [status : Any]) : Any
-      (parameterize ([exit-handler exit-racket])
-        (cond [(exact-nonnegative-integer? status) (exit (min status 255))]
-              [(service-exit status) => exit]
-              [else (exit 0)])))
-    
-    (parameterize ([exit-handler terminate])
-      (exit (with-handlers ([exn? (lambda [[e : exn]] (and (eprintf "~a~n" (exn-message e)) 'FATAL))]
-                            [void (lambda [e] (and (eprintf "(uncaught-exception-handler) => ~a~n" e) 'FATAL))])
-              (dynamic-wind (thunk (with-handlers ([exn? (lambda [[e : exn]] (atexit/0) (raise e))])
-                                     (atinit/0)))
-                            (thunk (main/0))
-                            (thunk (atexit/0))))))))
-
 (define vector-set-place-statistics! : (-> Racket-Place-Status Void)
   (lambda [stat]
     (vector-set-performance-stats! stat)
@@ -253,6 +217,24 @@
                      #false
                      void)))
 
+(define call-as-normal-termination : (-> (-> Any) [#:atinit (-> Any)] [#:atexit (-> Any)] Void)
+  (lambda [#:atinit [atinit/0 void] main/0 #:atexit [atexit/0 void]]
+    (define exit-racket : (-> Any AnyValues) (exit-handler))
+    (define codes : (HashTable Symbol Byte) #hasheq((FATAL . 95) (ECONFIG . 96) (ENOSERVICE . 99) (EPERM . 100)))
+      
+    (define (terminate [status : Any]) : Any
+      (parameterize ([exit-handler exit-racket])
+        (cond [(exact-nonnegative-integer? status) (exit (min status 255))]
+              [(hash-ref codes status (thunk #false)) => exit]
+              [else (exit 0)])))
+    
+    (parameterize ([exit-handler terminate])
+      (exit (with-handlers ([exn? (λ [[e : exn]] (and (eprintf "~a~n" (exn-message e)) 'FATAL))]
+                            [void (λ [e] (and (eprintf "(uncaught-exception-handler) => ~a~n" e) 'FATAL))])
+              (dynamic-wind (thunk (with-handlers ([exn? (λ [[e : exn]] (atexit/0) (raise e))]) (atinit/0)))
+                            (thunk (main/0))
+                            (thunk (atexit/0))))))))
+
 (define immutable-guard : (-> Symbol (Any -> Nothing))
   (lambda [pname]
     (λ [pval] (error pname "Immutable Parameter: ~a" pval))))
@@ -265,13 +247,3 @@
 (define void.eval : (->* (Any) (Namespace) Void)
   (lambda [sexp [ns (current-namespace)]]
     (call-with-values (thunk (eval sexp ns)) void)))
-
-(define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
-  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg (apply format msgfmt vals))
-    (printf "~a" (if (terminal-port? (current-output-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
-
-(define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
-  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg (apply format msgfmt vals))
-    (eprintf "~a" (if (terminal-port? (current-error-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
