@@ -28,15 +28,13 @@
             [(pregexp #px"linux") 'linux]
             [_ (system-type 'os)])))
 
-(define #%info : (->* (Symbol) ((Option (-> Any))) Any)
+(define #%info : (->* (Symbol) ((-> Any)) Any)
   (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
-    (lambda [id [mkdefval #false]]
+    (lambda [id [mkdefval (thunk #false)]]
       (define digimon : String (current-digimon))
-      (define fdefval : (-> Any) (thunk (error '#%info "~a has no such property: ~a" digimon id)))
       (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (digimon-path 'zone)))))
-      (cond [(not (false? info-ref)) (info-ref id (or mkdefval fdefval))]
-            [(false? mkdefval) (fdefval)]
-            [else (mkdefval)]))))
+      (cond [(false? info-ref) (mkdefval)]
+            [else (info-ref id mkdefval)]))))
 
 (define digimon-path : (case-> [Symbol -> Path]
                                [Path-String Path-String * -> Path])
