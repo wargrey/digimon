@@ -33,28 +33,29 @@
     (lambda [id [mkdefval #false]]
       (define digimon : String (current-digimon))
       (define fdefval : (-> Any) (thunk (error '#%info "~a has no such property: ~a" digimon id)))
-      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (#%path 'digimon-zone)))))
+      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (digimon-path 'zone)))))
       (cond [(not (false? info-ref)) (info-ref id (or mkdefval fdefval))]
             [(false? mkdefval) (fdefval)]
             [else (mkdefval)]))))
 
-(define #%path : (case-> [Symbol -> Path]
-                         [Path-String Path-String * -> Path])
+(define digimon-path : (case-> [Symbol -> Path]
+                               [Path-String Path-String * -> Path])
   (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
     (lambda [path . paths]
       (define digimon : String (current-digimon))
       (define (get-zone) : Path (simplify-path (collection-file-path "." digimon) #false))
       (define (prefab-path [digimon-zone : Path] [path : Symbol]) : Path
         (case path
-          [(digimon-digivice digimon-digitama digimon-stone digimon-tamer) (build-path digimon-zone (symbol->string path))]
+          [(digivice digitama stone tamer) (build-path digimon-zone (symbol->string path))]
           [else (build-path digimon-zone "stone" (symbol->string path))]))
       (if (symbol? path)
           (hash-ref! cache (list digimon path)
                      (thunk (let* ([digimon-zone (hash-ref cache (list digimon 'zone) get-zone)]
+                                   [pathname (string->symbol (string-append "digimon-" (symbol->string path)))]
                                    [info-ref (get-info/full digimon-zone)])
-                              (cond [(eq? path 'digimon-zone) digimon-zone]
+                              (cond [(eq? path 'zone) digimon-zone]
                                     [(false? info-ref) (prefab-path digimon-zone path)]
-                                    [else (let ([tail (info-ref path (thunk #false))])
+                                    [else (let ([tail (info-ref pathname (thunk #false))])
                                             (cond [(false? tail) (prefab-path digimon-zone path)]
                                                   [(string? tail) (build-path digimon-zone tail)]
                                                   [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))))
