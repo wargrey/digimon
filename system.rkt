@@ -1,11 +1,12 @@
 #lang typed/racket
 
-(provide (all-defined-out) digimon-waketime digimon-partner digimon-system echof eechof)
-(provide /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null)
-(provide Term-Color Racket-Place-Status Racket-Thread-Status)
+(provide (all-defined-out) current-digimon digimon-waketime digimon-partner digimon-system #%path #%info)
+(provide /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null echof eechof)
+(provide Term-Color Racket-Place-Status Racket-Thread-Status Info-Ref)
+
+(require racket/fixnum)
 
 (require typed/racket/random)
-(require racket/fixnum)
 
 (require "digitama/system.rkt")
 (require "digitama/sugar.rkt")

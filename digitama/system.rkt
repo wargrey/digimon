@@ -1,14 +1,15 @@
 #lang typed/racket
 
-(provide (all-defined-out))
+(provide (all-defined-out) Info-Ref)
+
+(require typed/setup/getinfo)
+(require/typed/provide racket [vector-set-performance-stats! Vector-Set-Performance-Stats!])
 
 (define-type Term-Color (Option (U String Symbol Byte)))
 (define-type Racket-Place-Status (Vector Fixnum Fixnum Fixnum Natural Natural Natural Natural Natural Fixnum Fixnum Natural Natural))
 (define-type Racket-Thread-Status (Vector Boolean Boolean Boolean Natural))
 (define-type Vector-Set-Performance-Stats! (case-> [Racket-Place-Status -> Void]
                                                    [Racket-Thread-Status Thread -> Void]))
-
-(require/typed/provide racket [vector-set-performance-stats! Vector-Set-Performance-Stats!])
 
 (struct place-message ([stream : Any]) #:prefab)
 
@@ -18,6 +19,7 @@
 (define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
 (define /dev/null : Output-Port (open-output-nowhere '/dev/null))
 
+(define current-digimon : (Parameterof String) (make-parameter "digimon"))
 (define-values (digimon-waketime digimon-partner digimon-system)
   (values (current-milliseconds)
           (or (getenv "USER") (getenv "LOGNAME") #| daemon |# "root")
@@ -26,6 +28,39 @@
             [(pregexp #px"linux") 'linux]
             [_ (system-type 'os)])))
 
+(define #%info : (->* (Symbol) ((Option (-> Any))) Any)
+  (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
+    (lambda [id [mkdefval #false]]
+      (define digimon : String (current-digimon))
+      (define fdefval : (-> Any) (thunk (error '#%info "~a has no such property: ~a" digimon id)))
+      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (#%path 'digimon-zone)))))
+      (cond [(not (false? info-ref)) (info-ref id (or mkdefval fdefval))]
+            [(false? mkdefval) (fdefval)]
+            [else (mkdefval)]))))
+
+(define #%path : (case-> [Symbol -> Path]
+                         [Path-String Path-String * -> Path])
+  (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
+    (lambda [path . paths]
+      (define digimon : String (current-digimon))
+      (define (get-zone) : Path (simplify-path (collection-file-path "." digimon) #false))
+      (define (prefab-path [digimon-zone : Path] [path : Symbol]) : Path
+        (case path
+          [(digimon-digivice digimon-digitama digimon-stone digimon-tamer) (build-path digimon-zone (symbol->string path))]
+          [else (build-path digimon-zone "stone" (symbol->string path))]))
+      (if (symbol? path)
+          (hash-ref! cache (list digimon path)
+                     (thunk (let* ([digimon-zone (hash-ref cache (list digimon 'zone) get-zone)]
+                                   [info-ref (get-info/full digimon-zone)])
+                              (cond [(eq? path 'digimon-zone) digimon-zone]
+                                    [(false? info-ref) (prefab-path digimon-zone path)]
+                                    [else (let ([tail (info-ref path (thunk #false))])
+                                            (cond [(false? tail) (prefab-path digimon-zone path)]
+                                                  [(string? tail) (build-path digimon-zone tail)]
+                                                  [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))))
+          (hash-ref! cache (list* digimon path paths)
+                     (thunk (apply build-path (hash-ref cache (list digimon 'digimon-zone) get-zone)
+                                   path paths)))))))
 
 (define vim-colors : (HashTable String Byte)
   #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)

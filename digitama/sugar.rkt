@@ -7,13 +7,6 @@
 (require (for-syntax syntax/parse))
 
 (define-type (Identity Type) Type)
-(define-type Info-Ref (->* [Symbol] [(-> Any)] Any))
-
-(require/typed/provide setup/getinfo
-                       [get-info/full (-> Path-String
-                                          [#:namespace (Option Namespace)]
-                                          [#:bootstrap? Any]
-                                          (Option Info-Ref))])
 
 (require/typed racket/class
                [#:struct (exn:fail:object exn:fail) ()
