@@ -60,7 +60,7 @@
     [(_ [st:id argl ...] frmt:str v ...)
      #'(throw [st argl ...] (#%function) frmt v ...)]
     [(_ [st:id argl ...] src frmt:str v ...)
-     #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) v ...))]))
+     #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) argl ...))]))
 
 (define-syntax (defconsts stx)
   (syntax-case stx [:]
