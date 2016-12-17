@@ -33,20 +33,19 @@
 
 (define-syntax (#%full-module stx)
   #'(let ([rmp (variable-reference->resolved-module-path (#%variable-reference))])
-      (resolved-module-path-name (cast rmp Resolved-Module-Path))))
+      (if (false? rmp) '<nota-module> (resolved-module-path-name rmp))))
 
 (define-syntax (#%file stx)
   #'(let ([full (ann (#%full-module) (U Symbol Path))])
       (cond [(path? full) full]
-            [else (with-handlers ([exn:fail:contract? (const (current-directory))])
-                    ((inst car Path (Listof Symbol)) (cast full (Pairof Path (Listof Symbol)))))])))
+            [(pair? full) (car full)]
+            [else (current-directory)])))
 
 (define-syntax (#%module stx)
   #'(let ([full (ann (#%full-module) (U Symbol Path))])
-      (cond [(path? full) ((compose1 string->symbol path->string)
-                           (path-replace-extension (cast (file-name-from-path full) Path) ""))]
-            [else (with-handlers ([exn:fail:contract? (λ _ '<anonymous>)])
-                    (last (cdr (cast full (Pairof (U Path Symbol) (Listof Symbol))))))])))
+      (cond [(path? full) (string->symbol (path->string (path-replace-extension (cast (file-name-from-path full) Path) "")))]
+            [(pair? full) (last (cdr full))]
+            [else '<anonymous>])))
 
 (define-syntax (#%function stx)
   #'(let use-next-id : Symbol ([stacks (continuation-mark-set->context (current-continuation-marks))])
@@ -55,27 +54,17 @@
               (use-next-id (cdr stacks))))))
 
 (define-syntax (throw stx)
-  (syntax-case stx []
-    [(_ [st-id st-argl ...] message)
-     #'(raise (st-id message (current-continuation-marks) st-argl ...))]
-    [(_ [st-id st-argl ...] msgfmt fmtargl ...)
-     #'(throw [st-id st-argl ...] (format msgfmt fmtargl ...))]
-    [(_ st-id message)
-     #'(throw [st-id] message)]
-    [(_ st-id msgfmt message ...)
-     #'(throw [st-id] (format msgfmt message ...))]))
-
-(define-syntax (rethrow stx)
-  (syntax-case stx []
-    [(_ [st-id st-argl ...] prefix)
-     #'(lambda [[src : exn]]
-         (throw [st-id st-argl ...] (~a prefix #\: #\space (exn-message src))))]
-    [(_ [st-id st-argl ...] fmt argl ...)
-     #'(rethrow [st-id st-argl ...] (format fmt argl ...))]
-    [(_ st-id prefix)
-     #'(rethrow [st-id] prefix)]
-    [(_ st-id fmt argl ...)
-     #'(rethrow [st-id] (format fmt argl ...))]))
+  (syntax-parse stx
+    [(_ st:id rest ...)
+     #'(throw [st] rest ...)]
+    [(_ [st:id argl ...] message:str v ...)
+     #'(raise (st (string-append message (~a #\space v) ...) (current-continuation-marks) argl ...))]
+    [(_ [st:id argl ...] src frmt:str v ...)
+     #'(raise (st (format (string-append (~s src) ": " frmt) v ...) (current-continuation-marks) argl ...))]
+    [(_ [st:id argl ...] sym)
+     #'(raise (st (format "~a: ~a" (object-name st) sym) (current-continuation-marks) argl ...))]
+    [(_ [st:id argl ...])
+     #'(raise (st (format "~a" (object-name st)) (current-continuation-marks) argl ...))]))
 
 (define-syntax (defconsts stx)
   (syntax-case stx [:]
@@ -125,12 +114,12 @@
                 (struct const parent ([field : DataType] ...) #:prefab) ...
                 (define $*cs : (-> (U TypeU Type) (Listof Any) parent)
                   ;;; use `val` instead of `const` does not work.
-                  (lambda [sym argl] (case sym [(const) (apply const (cast argl (List DataType ...)))] ... [else (?parent (cast sym Type))])))
+                  (λ [sym argl] (case sym [(const) (apply const (cast argl (List DataType ...)))] ... [else (?parent (cast sym Type))])))
                 (define $:cs : (-> TypeU (Listof Primitive-Type))
                   (let ([cs : (HashTable TypeU (Listof Primitive-Type))
                          ((inst make-immutable-hasheq TypeU (Listof Primitive-Type))
                           (list (cons 'const (list 'DataType ...)) ...))])
-                    (lambda [sym] ((inst hash-ref TypeU (Listof Primitive-Type) (Listof Primitive-Type)) cs sym))))))]))
+                    (λ [sym] ((inst hash-ref TypeU (Listof Primitive-Type) (Listof Primitive-Type)) cs sym))))))]))
 
 (define-syntax (define/extract-λref stx)
   (syntax-case stx [:-]
@@ -208,10 +197,10 @@
 (define-syntax (match/handlers stx)
   (syntax-case stx [:]
     [(_ s-exp : type? match-clause ...)
-     #'(match (with-handlers ([exn? values]) s-exp)
+     #'(match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
          match-clause ...
          [(? type? no-error-value) no-error-value])]
     [(_ s-exp match-clause ...)
-     #'(match (with-handlers ([exn? values]) s-exp)
+     #'(match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
          match-clause ...
          [escaped-value escaped-value])]))
