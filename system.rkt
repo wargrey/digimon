@@ -16,7 +16,7 @@
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
-(define /dev/log : Logger (make-logger 'digimon (current-logger)))
+(define /dev/log : Logger (current-logger))
 (define /dev/dtrace : Logger (make-logger 'digimon #false))
 
 (define /dev/zero : Input-Port
@@ -37,7 +37,7 @@
                    void))
 
 (void (print-boolean-long-form #true)
-      (current-logger /dev/log)
+      (current-logger /dev/dtrace)
         
       ;;; Ignore DrRacket's convention. But don't change "compiled" since
       ;;; the compiler checks the bytecodes in the core collection
