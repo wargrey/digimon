@@ -16,7 +16,8 @@
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
-(define /dev/log : Logger (make-logger 'digital-world (current-logger)))
+(define /dev/log : Logger (make-logger 'digimon (current-logger)))
+(define /dev/dtrace : Logger (make-logger 'digimon #false))
 
 (define /dev/zero : Input-Port
   (make-input-port '/dev/zero
