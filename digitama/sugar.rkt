@@ -57,16 +57,10 @@
   (syntax-parse stx
     [(_ st:id rest ...)
      #'(throw [st] rest ...)]
-    [(_ [st:id argl ...] message:str)
-     #'(raise (st message (current-continuation-marks) argl ...))]
     [(_ [st:id argl ...] frmt:str v ...)
-     #'(raise (st (format (string-append (~s (#%function)) ": " frmt) v ...) (current-continuation-marks) argl ...))]
+     #'(throw [st argl ...] (#%function) frmt v ...)]
     [(_ [st:id argl ...] src frmt:str v ...)
-     #'(raise (st (format (string-append (~s src) ": " frmt) v ...) (current-continuation-marks) argl ...))]
-    [(_ [st:id argl ...] sym)
-     #'(raise (st (format "~a: ~a" (object-name st) sym) (current-continuation-marks) argl ...))]
-    [(_ [st:id argl ...])
-     #'(raise (st (format "~a: ~a" (object-name st) (#%function)) (current-continuation-marks) argl ...))]))
+     #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) v ...))]))
 
 (define-syntax (defconsts stx)
   (syntax-case stx [:]

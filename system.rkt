@@ -101,11 +101,6 @@
                         (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
                         (wait-dotask-loop next-alarm)]))))))
 
-(define raise-unsupported-error : (-> Symbol String Any * Nothing)
-  (lambda [src str . argl]
-    (define message : String (if (null? argl) str (apply format str argl)))
-    (raise (make-exn:fail:unsupported (format "~a: ~a" src message) (current-continuation-marks)))))
-
 (define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread)) (Listof Continuation-Stack))
   (lambda [[cm (current-continuation-marks)]]
     ((inst map (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))) (Pairof (Option Symbol) Any))
