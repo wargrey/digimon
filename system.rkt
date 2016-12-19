@@ -119,8 +119,8 @@
            [else (continuation-mark-set->context (continuation-marks cm))]))))
 
 (define-type Prefab-Message msg:log)
-(struct msg:log ([level : Log-Level] [brief : String] [detail : Any] [topic : Symbol])
-  #:prefab #:constructor-name make-prefab-message)
+(struct msg:log ([topic : Symbol] [level : Log-Level] [brief : String]) #:prefab #:constructor-name make-msg:log)
+(struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)] [detail : Any]) #:prefab #:constructor-name make-msg:exn)
 
 (define dtrace-send : (-> Any Symbol String Any Void)
   (lambda [topic level message urgent]
@@ -135,20 +135,19 @@
                     (dtrace-send topic level (if (null? messages) msgfmt (apply format msgfmt messages)) urgent)))])
     (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
 
-(define dtrace-message : (-> Prefab-Message [#:logger Logger] [#:alter-topic (Option Symbol)] [#:detail-only? Boolean] Void)
-  (lambda [info #:logger [logger (current-logger)] #:alter-topic [topic #false] #:detail-only? [detail-only? #false]]
+(define dtrace-message : (-> Prefab-Message [#:logger Logger] [#:alter-topic (Option Symbol)] Void)
+  (lambda [info #:logger [logger (current-logger)] #:alter-topic [topic #false]]
     (log-message logger
                  (msg:log-level info)
                  (or topic (msg:log-topic info))
                  (msg:log-brief info)
-                 (if detail-only? (msg:log-detail info) info))))
+                 info)))
 
-(define exn->prefab-message : (-> exn [#:level Log-Level] [#:exn->detail (-> exn Any)] Prefab-Message)
-  (lambda [e #:level [level 'error] #:exn->detail [exn->detail (λ [[e : exn]] (continuation-mark->stacks (exn-continuation-marks e)))]]
-    (make-prefab-message level
-                         (exn-message e)
-                         (exn->detail e)
-                         (value-name e))))
+(define exn->message : (-> exn [#:level Log-Level] [#:detail Any] Prefab-Message)
+  (lambda [e #:level [level 'error] #:detail [detail #false]]
+    (make-msg:exn (value-name e) level (exn-message e)
+                  (continuation-mark->stacks (exn-continuation-marks e))
+                  detail)))
 
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
 (define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
@@ -159,13 +158,13 @@
                 (cond [(not (place-message? datum)) datum]
                       [else (let ([stream : Any (place-message-stream datum)])
                               (match/handlers (if (bytes? stream) (with-input-from-bytes stream read) (box stream))
-                                [(? exn:fail:read? e) (exn->prefab-message e #:level 'fatal #:exn->detail (λ _ stream))]))])))))
+                                [(? exn:fail:read? e) (exn->message e #:level 'fatal #:detail stream)]))])))))
 
 (define place-channel-send : (-> Place-Channel Any Void)
   (lambda [dest datum]
     (match datum
       [(? place-message-allowed?) (place-channel-put dest datum)]
-      [(? exn?) (place-channel-put dest (exn->prefab-message datum))]
+      [(? exn?) (place-channel-put dest (exn->message datum))]
       [(box (and (not (? bytes? v)) (? place-message-allowed? v))) (place-channel-put dest (place-message v))]
       [_ (place-channel-put dest (place-message (with-output-to-bytes (thunk (write datum)))))])))
 
