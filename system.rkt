@@ -119,8 +119,8 @@
            [else (continuation-mark-set->context (continuation-marks cm))]))))
 
 (define-type Prefab-Message msg:log)
-(struct msg:log ([topic : Symbol] [level : Log-Level] [brief : String]) #:prefab #:constructor-name make-msg:log)
-(struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)] [detail : Any]) #:prefab #:constructor-name make-msg:exn)
+(struct msg:log ([topic : Symbol] [level : Log-Level] [brief : String]) #:prefab #:constructor-name make-log-message)
+(struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)] [detail : Any]) #:prefab #:constructor-name make-error-message)
 
 (define dtrace-send : (-> Any Symbol String Any Void)
   (lambda [topic level message urgent]
@@ -145,9 +145,9 @@
 
 (define exn->message : (-> exn [#:level Log-Level] [#:detail Any] Prefab-Message)
   (lambda [e #:level [level 'error] #:detail [detail #false]]
-    (make-msg:exn (value-name e) level (exn-message e)
-                  (continuation-mark->stacks (exn-continuation-marks e))
-                  detail)))
+    (make-error-message (value-name e) level (exn-message e)
+                        (continuation-mark->stacks (exn-continuation-marks e))
+                        detail)))
 
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
 (define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
