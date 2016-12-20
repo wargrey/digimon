@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require (for-syntax racket/string))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
@@ -47,7 +46,7 @@
             [(pair? full) (last (cdr full))]
             [else '<anonymous>])))
 
-(define-syntax (#%function stx)
+(define-syntax (#%function stx) ; class method has a symbol name looks like "[name] method in [class%]"
   #'(let use-next-id : Symbol ([stacks (continuation-mark-set->context (current-continuation-marks))])
       (if (null? stacks) 'λ
           (or (caar stacks)
@@ -116,79 +115,6 @@
                          ((inst make-immutable-hasheq TypeU (Listof Primitive-Type))
                           (list (cons 'const (list 'DataType ...)) ...))])
                     (λ [sym] ((inst hash-ref TypeU (Listof Primitive-Type) (Listof Primitive-Type)) cs sym))))))]))
-
-(define-syntax (define/extract-λref stx)
-  (syntax-case stx [:-]
-    [(_ ref :- (make Typeof) defines ...)
-     (with-syntax ([(extract ...)
-                    (for/list ([def-idl (in-list (syntax->list #'(defines ...)))])
-                      (syntax-case def-idl [: = =>]
-                        [([renamed-id key] : Type = def-exp => [fvalue ...])
-                         #'(define renamed-id : (Typeof Type)
-                             (make (match (ref 'key (thunk def-exp)) fvalue ...)))]
-                        [([renamed-id key] : Type => [fvalue ...] = def-exp)
-                         #'(define renamed-id : (Typeof Type)
-                             (make (with-handlers ([exn:misc:match? (const def-exp)])
-                                     (match (ref 'key void) fvalue ...))))]
-                        [([renamed-id key] : Type => [fvalue ...])
-                         #'(define renamed-id : (Typeof Type)
-                             (make (match (ref 'key void) fvalue ...)))]
-                        [([renamed-id key] : Type = def-exp)
-                         #'(define renamed-id : (Typeof Type)
-                             (make (cast (ref 'key (thunk def-exp)) Type)))]
-                        [([renamed-id key] : Type)
-                         #'(define renamed-id : (Typeof Type)
-                             (make (cast (ref 'key) Type)))]
-                        [(id : Type = def-exp => [fvalue ...])
-                         #'(define id : (Typeof Type)
-                             (make (match (ref 'id (thunk def-exp)) fvalue ...)))]
-                        [(id : Type => [fvalue ...] = def-exp)
-                         #'(define id : (Typeof Type)
-                             (make (with-handlers ([exn:misc:match? (const def-exp)])
-                                     (match (ref 'key void) fvalue ...))))]
-                        [(id : Type => [fvalue ...])
-                         #'(define id : (Typeof Type)
-                             (make (match (ref 'id void) fvalue ...)))]
-                        [(id : Type = def-exp)
-                         #'(define id : (Typeof Type)
-                             (make (cast (ref 'id (thunk def-exp)) Type)))]
-                        [(id : Type)
-                         #'(define id : (Typeof Type)
-                             (make (cast (ref 'id) Type)))]))])
-       #'(begin extract ...))]
-    [(_ ref defines ...)
-     #'(define/extract-λref ref :- (values Identity) defines ...)]))
-
-(define-syntax (define/extract-symtable stx)
-  (syntax-case stx []
-    [(_ (symtable-sexp ...) rest ...)
-     (with-syntax ([symtable (format-id #'symtable "~a" (gensym 'symboltable))])
-       #'(begin (define symtable : (HashTable Symbol Any) (symtable-sexp ...))
-                (define/extract-symtable symtable rest ...)))]
-    [(_ symtable rest ...)
-     (with-syntax ([table-ref (format-id #'symtable "~a" (gensym 'symtable))])
-       #'(begin (define table-ref : (->* (Symbol) ((Option (-> Any))) Any)
-                  (lambda [key [defval #false]]
-                    (hash-ref symtable key (or defval (thunk (error 'table-ref "no such key found in this symbol table: ~a" key))))))
-                (define/extract-λref table-ref rest ...)))]))
-
-(define-syntax (define/extract-info stx)
-  (syntax-case stx []
-    [(_ infodir rest ...)
-     (with-syntax ([info-ref (format-id #'info-ref "~a" (gensym 'inforef))])
-       #'(begin (define info-ref : Info-Ref
-                  (let ([ref (get-info/full infodir #:bootstrap? #true)])
-                    (if (false? ref) (throw [exn:fail:filesystem] "info.rkt not found in ~a" infodir) ref)))
-                (define/extract-λref info-ref rest ...)))]))
-
-(define-syntax (define/abstract stx)
-  (syntax-case stx []
-    [(_ (method-id args ...))
-     #'(define/public (method-id args ...)
-         (throw exn:fail:object
-                "~a@~a is an abstract method!"
-                'method-id
-                (object-name this)))]))
 
 (define-syntax (match/handlers stx)
   (syntax-case stx [:]
