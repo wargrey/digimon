@@ -26,6 +26,7 @@
 (define make-always-run (make-parameter #false))
 (define make-just-touch (make-parameter #false))
 (define make-trace-log (make-parameter #false))
+(define make-errno (make-parameter 1))
 
 (define make-restore-options!
   (lambda []
@@ -36,7 +37,8 @@
     (make-trace-log #false)
     (make-dry-run #false)
     (make-always-run #false)
-    (make-just-touch #false)))
+    (make-just-touch #false)
+    (make-errno 1)))
 
 (define make-set-verbose!
   (lambda []
@@ -352,6 +354,7 @@
 (define-values (flag-table --help --unknown)
   (values `[[usage-help ,(format "Carefully options are not exactly the same as those of GNU Make.~n")] ; make "~n" work
             [once-each [["-B" "--always-make"] ,(λ _ (make-always-run #true)) ["Unconditionally make all targets."]]
+                       [["-i" "--ignore-errors"] ,(λ _ (make-errno 0)) ["Do not tell shell there are errors."]]
                        [["-n" "--dry-run"] ,(λ _ (make-dry-run #true)) ["Just make without updating targets. [Except *.rkt]"]]
                        [["-s" "--silent"] ,(λ _ (current-output-port /dev/null)) ["Just make and only display errors."]]
                        [["-t" "--touch"] ,(λ _ (make-just-touch #true)) ["Touch targets instead of remaking them if it exists."]]
@@ -383,13 +386,13 @@
     (parameterize ([current-make-real-targets (map simple-form-path reals)]
                    [current-directory zone])
       (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" digimon))
-                    (thunk (for ([phony (in-list (if (null? phonies) (list "all") phonies))])
+                    (thunk (for/sum ([phony (in-list (if (null? phonies) (list "all") phonies))])
                              (parameterize ([current-make-phony-goal phony])
-                               (with-handlers ([exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (exit 1))])
+                               (with-handlers ([exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (make-errno))])
                                  (file-or-directory-modify-seconds zone (current-seconds))
                                  (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") info-ref)]
                                        [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk info-ref))]
-                                       [else (error 'make "I don't know how to make `~a`!" phony)])))))
+                                       [else (error 'make "I don't know how to make `~a`!" phony)]) 0))))
                     (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" digimon))))))
 
 (define main
