@@ -42,7 +42,7 @@
 
 (define-syntax (#%module stx)
   #'(let ([full (ann (#%full-module) (U Symbol Path))])
-      (cond [(path? full) (string->symbol (path->string (path-replace-extension (cast (file-name-from-path full) Path) "")))]
+      (cond [(path? full) (string->symbol (path->string (path-replace-extension (assert (file-name-from-path full) path?) "")))]
             [(pair? full) (last (cdr full))]
             [else '<anonymous>])))
 
