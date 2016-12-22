@@ -36,30 +36,33 @@
       (cond [(false? info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
 
-(define digimon-path : (case-> [Symbol -> Path]
-                               [Path-String Path-String * -> Path])
+(define digimon-path : (-> (U Symbol Path-String) Path-String * Path)
   (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
     (lambda [path . paths]
-      (define digimon : String (current-digimon))
       (define (get-zone) : Path (simplify-path (collection-file-path "." digimon) #false))
-      (define (prefab-path [digimon-zone : Path] [path : Symbol]) : Path
+      (define (map-path [digimon-zone : Path] [path : Symbol]) : Path
         (case path
           [(digivice digitama stone tamer) (build-path digimon-zone (symbol->string path))]
           [else (build-path digimon-zone "stone" (symbol->string path))]))
-      (if (symbol? path)
-          (hash-ref! cache (list digimon path)
-                     (thunk (let* ([digimon-zone (hash-ref cache (list digimon 'zone) get-zone)]
-                                   [pathname (string->symbol (string-append "digimon-" (symbol->string path)))]
-                                   [info-ref (get-info/full digimon-zone)])
-                              (cond [(eq? path 'zone) digimon-zone]
-                                    [(false? info-ref) (prefab-path digimon-zone path)]
-                                    [else (let ([tail (info-ref pathname (thunk #false))])
-                                            (cond [(false? tail) (prefab-path digimon-zone path)]
-                                                  [(string? tail) (build-path digimon-zone tail)]
-                                                  [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))))
-          (hash-ref! cache (list* digimon path paths)
-                     (thunk (apply build-path (hash-ref cache (list digimon 'digimon-zone) get-zone)
-                                   path paths)))))))
+      (define (prefab-path [digimon-zone : Path] [path : Symbol]) : Path
+        (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->string path))))
+        (define info-ref : (Option Info-Ref) (get-info/full digimon-zone))
+        (cond [(eq? path 'zone) digimon-zone]
+              [(false? info-ref) (map-path digimon-zone path)]
+              [else (let ([tail (info-ref fullpath (thunk #false))])
+                      (cond [(false? tail) (map-path digimon-zone path)]
+                            [(string? tail) (build-path digimon-zone tail)]
+                            [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))
+      (define digimon : String (current-digimon))
+      (hash-ref! cache (list* digimon path paths)
+                 (thunk (let ([zone : Path (hash-ref cache (list digimon 'digimon-zone) get-zone)])
+                          (cond [(symbol? path) (apply build-path (prefab-path zone path) paths)]
+                                [else (apply build-path zone path paths)])))))))
+
+(define digivice-path : (-> (U String Bytes) (U Symbol Path-String) Path-String * Path)
+  (lambda [suffix path . paths]
+    (define run-file : (Option Path) (file-name-from-path (find-system-path 'run-file)))
+    (build-path (apply digimon-path path paths) (path-replace-extension (assert run-file path?) suffix))))
 
 (define vim-colors : (HashTable String Byte)
   #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)
