@@ -385,7 +385,7 @@
       (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" digimon))
                     (thunk (for ([phony (in-list (if (null? phonies) (list "all") phonies))])
                              (parameterize ([current-make-phony-goal phony])
-                               (with-handlers ([exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) 1)])
+                               (with-handlers ([exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (exit 1))])
                                  (file-or-directory-modify-seconds zone (current-seconds))
                                  (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") info-ref)]
                                        [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk info-ref))]
