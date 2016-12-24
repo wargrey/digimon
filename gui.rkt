@@ -1,8 +1,9 @@
 #lang typed/racket/gui
 
-(provide (all-from-out typed/racket/gui)
+(provide (all-from-out typed/racket/gui typed/racket/snip)
          (all-from-out "main.rkt"))
 
+(require typed/racket/snip)
 (require "main.rkt")
 
 (require/provide/syntax racket/string racket/syntax syntax/parse racket/sequence)
