@@ -5,6 +5,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
+(define-type (Listof+ Type) (Pairof Type (Listof Type)))
 (define-type (Identity Type) Type)
 
 (require/typed racket/class
