@@ -13,6 +13,8 @@
     [(_ (opbox ...) (v ...)) #'(begin (fill-box! opbox v) ...)]
     [(_ opbox v) #'(when (box? opbox) (set-box! opbox (max 0 v)))]))
 
+(define-cheat-opaque subframe%? #:sub? Frame% frame%)
+
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
 (define-cheat-opaque mouse%? #:is-a? Mouse-Event% mouse-event%)
 (define-cheat-opaque keyboard%? #:is-a? Key-Event% key-event%)
