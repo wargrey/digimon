@@ -30,3 +30,21 @@
 (define size-n/s.cur : (Instance Cursor%) (make-object cursor% 'size-n/s))
 (define size-ne/sw.cur : (Instance Cursor%) (make-object cursor% 'size-ne/sw))
 (define size-nw/se.cur : (Instance Cursor%) (make-object cursor% 'size-nw/se))
+
+(define change-standard-style! : (-> (Instance Style-List%) [#:font (Instance Font%)] [#:fgcolor (Instance Color%)] Void)
+  (lambda [style-list #:font [text-font #false] #:fgcolor [text-color #false]]
+    (define standard-style : (Option (Instance Style<%>)) (send style-list find-named-style "Standard"))
+    (unless (false? standard-style)
+      (send standard-style set-delta
+            (let* ([style (make-object style-delta%)]
+                   [style (if (false? text-color) style (send style set-delta-foreground text-color))])
+              (cond [(false? text-font) style]
+                    [else (send* style
+                            (set-face (send text-font get-face))
+                            (set-family (send text-font get-family)))
+                     (send+ style
+                            (set-delta 'change-style (send text-font get-style))
+                            (set-delta 'change-weight (send text-font get-weight))
+                            (set-delta 'change-smoothing (send text-font get-smoothing))
+                            (set-delta 'change-underline (send text-font get-underlined))
+                            (set-delta 'change-size (min (exact-round (send text-font get-size)) 255)))]))))))
