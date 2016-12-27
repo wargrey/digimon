@@ -20,6 +20,11 @@
 (define /dev/null : Output-Port (open-output-nowhere '/dev/null))
 
 (define current-digimon : (Parameterof String) (make-parameter "digimon"))
+(define current-digivice : (Parameterof String)
+  (make-parameter (let ([run-file (file-name-from-path (find-system-path 'run-file))])
+                    (cond [(path? run-file) (path->string (path-replace-extension (assert run-file path?) ""))]
+                          [else "wisemon"]))))
+
 (define-values (digimon-waketime digimon-partner digimon-system)
   (values (current-milliseconds)
           (or (getenv "USER") (getenv "LOGNAME") #| daemon |# "root")
@@ -61,8 +66,7 @@
 
 (define digivice-path : (-> (U String Bytes) (U Symbol Path-String) Path-String * Path)
   (lambda [suffix path . paths]
-    (define run-file : (Option Path) (file-name-from-path (find-system-path 'run-file)))
-    (build-path (apply digimon-path path paths) (path-replace-extension (assert run-file path?) suffix))))
+    (build-path (apply digimon-path path paths) (path-add-extension (current-digivice) suffix))))
 
 (define vim-colors : (HashTable String Byte)
   #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)

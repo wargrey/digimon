@@ -1,6 +1,6 @@
 #lang typed/racket
 
-(provide (all-defined-out) current-digimon digimon-waketime digimon-partner digimon-system digimon-path digivice-path)
+(provide (all-defined-out) current-digimon current-digivice digimon-waketime digimon-partner digimon-system digimon-path digivice-path)
 (provide #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null echof eechof)
 (provide Racket-Place-Status Racket-Thread-Status Info-Ref)
 
