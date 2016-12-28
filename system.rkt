@@ -122,17 +122,17 @@
 (struct msg:log ([level : Log-Level] [brief : String] [detail : Any] [topic : Symbol]) #:prefab #:constructor-name make-log-message)
 (struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)]) #:prefab #:constructor-name make-error-message)
 
-(define dtrace-send : (-> Any Symbol String Any Void)
-  (lambda [topic level message urgent]
+(define dtrace-send : (->* (Any Symbol String Any) (Any) Void)
+  (lambda [topic level message urgent [prefix? #false]]
     (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
-    (cond [(logger? topic) (log-message topic log-level message urgent)]
-          [(symbol? topic) (log-message (current-logger) log-level topic message urgent)]
-          [else (log-message (current-logger) log-level (value-name topic) message urgent)])))
+    (cond [(logger? topic) (log-message topic log-level message urgent prefix?)]
+          [(symbol? topic) (log-message (current-logger) log-level topic message urgent prefix?)]
+          [else (log-message (current-logger) log-level (value-name topic) message urgent prefix?)])))
 
 (define-values (dtrace-debug dtrace-info dtrace-warning dtrace-error dtrace-fatal)
-  (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any) #:rest Any Void)
-                  (lambda [#:topic [topic (current-logger)] #:urgent [urgent (current-continuation-marks)] msgfmt . messages]
-                    (dtrace-send topic level (if (null? messages) msgfmt (apply format msgfmt messages)) urgent)))])
+  (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
+                  (λ [#:topic [t (current-logger)] #:urgent [u (current-continuation-marks)] #:prefix? [? #false] msgfmt . messages]
+                    (dtrace-send t level (if (null? messages) msgfmt (apply format msgfmt messages)) u ?)))])
     (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
 
 (define dtrace-message : (-> Log-Message [#:logger Logger] [#:alter-topic (Option Symbol)] Void)
