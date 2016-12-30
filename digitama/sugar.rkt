@@ -62,6 +62,30 @@
     [(_ [st:id argl ...] src frmt:str v ...)
      #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) argl ...))]))
 
+(define-syntax (define-struct stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id #:as ID (~optional (~seq #:with make-id))
+        (~optional (~seq #:undefined Uv uv? uv) #:defaults ([Uv #'Void] [uv? #'void?] [uv #'(void)]))
+        ([property : DataType info ...] ...) options ...)
+     (with-syntax* ([make-instance (or (attribute make-id) (format-id #'id "make-~a" (syntax-e #'id)))]
+                    [([property-filter ArgType defval ...] ...)
+                     (for/list ([field-info (in-list (syntax->list #'([property DataType info ...] ...)))])
+                       (syntax-parse field-info
+                         [(p T #:= dv #:~> Super fltr) #'[(let ([v : (U T Uv) fltr]) (if (uv? v) dv v)) (U Super Uv) uv]]
+                         [(p T #:= dv #:~> fltr) #'[(let ([v : (U T Uv) fltr]) (if (uv? v) dv v)) Any uv]]
+                         [(p T #:~> Super fltr) #'[fltr Super]]
+                         [(p T #:~> fltr) #'[fltr Any]]
+                         [(p T #:= dv) #'[(if (uv? p) dv p) (U T Uv) uv]]
+                         [(p T rest ...) #'[p T]]))]
+                    [(args ...)
+                     (for/fold ([args null])
+                               ([argument (in-list (syntax->list #'([property : ArgType defval ...] ...)))])
+                       (cons (datum->syntax argument (string->keyword (symbol->string (car (syntax->datum argument)))))
+                             (cons argument args)))])
+       #'(begin (struct id ([property : DataType] ...) options ...)
+                (define (make-instance args ...) : ID (id property-filter ...))
+                (define-type ID id)))]))
+
 (define-syntax (defconsts stx)
   (syntax-case stx [:]
     [(_ : Type [id val] ...)
