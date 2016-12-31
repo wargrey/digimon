@@ -202,6 +202,12 @@
   (lambda [stat thd]
     (vector-set-performance-stats! stat thd)))
 
+(define place-statistics : (-> Racket-Place-Status)
+  (lambda []
+    (define stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
+    (vector-set-place-statistics! stat)
+    stat))
+
 (define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
   (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tmpeek]]
     (make-input-port name
