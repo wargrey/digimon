@@ -18,6 +18,7 @@
 
 (define /dev/log : Logger (current-logger))
 (define /dev/dtrace : Logger (make-logger 'digimon #false))
+(define /dev/stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
 
 (define /dev/zero : Input-Port
   (make-input-port '/dev/zero
@@ -193,25 +194,21 @@
     (wrap-evt (thread-receive-evt)
               (λ _ (thread-receive)))))
 
-(define vector-set-place-statistics! : (-> Racket-Place-Status Void)
-  (lambda [stat]
+(define place-statistics! : (->* () (Racket-Place-Status) Racket-Place-Status)
+  (lambda [[stat /dev/stat]]
     (vector-set-performance-stats! stat)
-    (vector-set! stat 10 (+ (vector-ref stat 10) (current-memory-use)))))
-
-(define vector-set-thread-statistics! : (-> Racket-Thread-Status Thread Void)
-  (lambda [stat thd]
-    (vector-set-performance-stats! stat thd)))
-
-(define place-statistics! : (-> Racket-Place-Status)
-  (let ([stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0)])
-    (lambda []
-      (vector-set-place-statistics! stat)
-      stat)))
+    (vector-set! stat 10 (+ (vector-ref stat 10) (current-memory-use)))
+    stat))
 
 (define place-statistics : (-> Racket-Place-Status)
   (lambda []
     (define stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
-    (vector-set-place-statistics! stat)
+    (place-statistics! stat)
+    stat))
+
+(define thread-statistics! : (-> Racket-Thread-Status Thread Racket-Thread-Status)
+  (lambda [stat thd]
+    (vector-set-performance-stats! stat thd)
     stat))
 
 (define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
