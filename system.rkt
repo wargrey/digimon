@@ -202,6 +202,12 @@
   (lambda [stat thd]
     (vector-set-performance-stats! stat thd)))
 
+(define place-statistics! : (-> Racket-Place-Status)
+  (let ([stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0)])
+    (lambda []
+      (vector-set-place-statistics! stat)
+      stat)))
+
 (define place-statistics : (-> Racket-Place-Status)
   (lambda []
     (define stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
