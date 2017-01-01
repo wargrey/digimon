@@ -3,7 +3,7 @@
 (define collection 'use-pkg-name)
 (define pkg-desc "The (typed) core to construct the digital world")
 
-(define deps '("base" "typed-racket-lib" "typed-racket-more"))
+(define deps '("base" "make" "typed-racket-lib" "typed-racket-more"))
 (define build-deps '("scribble-lib" "racket-doc"))
 
 (define version "1.0")
