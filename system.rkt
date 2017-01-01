@@ -1,6 +1,7 @@
 #lang typed/racket
 
-(provide (all-defined-out) current-digimon current-digivice digimon-waketime digimon-partner digimon-system digimon-path digivice-path)
+(provide (all-defined-out) current-digimon current-digivice)
+(provide digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
 (provide Info-Ref #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null echof eechof)
 
 (require racket/fixnum)
@@ -13,13 +14,10 @@
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
-(define-type Racket-Place-Status (Vector Fixnum Fixnum Fixnum Natural Natural Natural Natural Natural Fixnum Fixnum Natural Natural))
-(define-type Racket-Thread-Status (Vector Boolean Boolean Boolean Natural))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
 (define /dev/log : Logger (make-logger 'digimon (current-logger)))
 (define /dev/dtrace : Logger (make-logger 'dtrace #false))
-(define /dev/stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
 
 (define /dev/zero : Input-Port
   (make-input-port '/dev/zero
@@ -195,22 +193,22 @@
     (wrap-evt (thread-receive-evt)
               (λ _ (thread-receive)))))
 
-(define place-statistics! : (->* () (Racket-Place-Status) Racket-Place-Status)
-  (lambda [[stat /dev/stat]]
-    (vector-set-performance-stats! stat)
-    (vector-set! stat 10 (+ (vector-ref stat 10) (current-memory-use)))
-    stat))
+(define place-statistics : (-> (Values Integer Integer Integer Integer Integer Integer))
+  (let ([stat : (Vectorof Integer) (vector 0 0 0 0 0 0 0 0 0 0 0 0)])
+    (lambda []
+      (vector-set-performance-stats! stat)
+      (values (vector-ref stat 0) (- (vector-ref stat 1) digimon-waketime) (vector-ref stat 2)
+              (vector-ref stat 3) (vector-ref stat 6) (+ (vector-ref stat 10) (current-memory-use))))))
 
-(define place-statistics : (-> Racket-Place-Status)
-  (lambda []
-    (define stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
-    (place-statistics! stat)
-    stat))
-
-(define thread-statistics! : (-> Racket-Thread-Status Thread Racket-Thread-Status)
-  (lambda [stat thd]
-    (vector-set-performance-stats! stat thd)
-    stat))
+(define thread-statistics : (->* () (Thread) (Values Boolean Boolean Boolean Natural))
+  (let ([stat : (Vectorof (U Boolean Integer)) (vector #false #false #false 0)])
+    (lambda [[thd (current-thread)]]
+      (vector-set-performance-stats! stat thd)
+      (values (and (vector-ref stat 0) #true)
+              (and (vector-ref stat 1) #true)
+              (and (vector-ref stat 2) #true)
+              (let ([bs : (U Boolean Integer) (vector-ref stat 3)])
+                (if (exact-nonnegative-integer? bs) bs 0))))))
 
 (define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
   (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tmpeek]]

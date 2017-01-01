@@ -2,6 +2,7 @@
 
 (provide (all-defined-out) Info-Ref)
 
+(require racket/fixnum)
 (require typed/setup/getinfo)
 
 (define-type Term-Color (Option (U String Symbol Byte)))
@@ -35,6 +36,10 @@
       (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (digimon-path 'zone)))))
       (cond [(false? info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
+
+(define digimon-uptime : (-> Fixnum)
+  (lambda []
+    (fx- (current-milliseconds) digimon-waketime)))
 
 (define digimon-path : (-> (U Symbol Path-String) Path-String * Path)
   (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
