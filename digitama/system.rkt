@@ -3,13 +3,8 @@
 (provide (all-defined-out) Info-Ref)
 
 (require typed/setup/getinfo)
-(require/typed/provide racket [vector-set-performance-stats! Vector-Set-Performance-Stats!])
 
 (define-type Term-Color (Option (U String Symbol Byte)))
-(define-type Racket-Place-Status (Vector Fixnum Fixnum Fixnum Natural Natural Natural Natural Natural Fixnum Fixnum Natural Natural))
-(define-type Racket-Thread-Status (Vector Boolean Boolean Boolean Natural))
-(define-type Vector-Set-Performance-Stats! (case-> [Racket-Place-Status -> Void]
-                                                   [Racket-Thread-Status Thread -> Void]))
 
 (struct place-message ([stream : Any]) #:prefab)
 

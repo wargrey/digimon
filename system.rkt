@@ -1,8 +1,7 @@
 #lang typed/racket
 
 (provide (all-defined-out) current-digimon current-digivice digimon-waketime digimon-partner digimon-system digimon-path digivice-path)
-(provide #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null echof eechof)
-(provide Racket-Place-Status Racket-Thread-Status Info-Ref)
+(provide Info-Ref #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null echof eechof)
 
 (require racket/fixnum)
 
@@ -14,10 +13,12 @@
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
+(define-type Racket-Place-Status (Vector Fixnum Fixnum Fixnum Natural Natural Natural Natural Natural Fixnum Fixnum Natural Natural))
+(define-type Racket-Thread-Status (Vector Boolean Boolean Boolean Natural))
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
-(define /dev/log : Logger (current-logger))
-(define /dev/dtrace : Logger (make-logger 'digimon #false))
+(define /dev/log : Logger (make-logger 'digimon (current-logger)))
+(define /dev/dtrace : Logger (make-logger 'dtrace #false))
 (define /dev/stat : Racket-Place-Status (vector 0 0 0 0 0 0 0 0 0 0 0 0))
 
 (define /dev/zero : Input-Port
