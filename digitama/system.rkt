@@ -37,7 +37,7 @@
       (cond [(false? info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
 
-(define digimon-uptime : (-> [#:now Fixnum] Fixnum)
+(define digimon-uptime : (-> [#:now Integer] Fixnum)
   (lambda [#:now [now (current-milliseconds)]]
     (fx- now digimon-waketime)))
 
