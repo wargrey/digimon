@@ -37,9 +37,9 @@
       (cond [(false? info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
 
-(define digimon-uptime : (-> Fixnum)
-  (lambda []
-    (fx- (current-milliseconds) digimon-waketime)))
+(define digimon-uptime : (-> [#:now Fixnum] Fixnum)
+  (lambda [#:now [now (current-milliseconds)]]
+    (fx- now digimon-waketime)))
 
 (define digimon-path : (-> (U Symbol Path-String) Path-String * Path)
   (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])

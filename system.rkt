@@ -197,8 +197,9 @@
   (let ([stat : (Vectorof Integer) (vector 0 0 0 0 0 0 0 0 0 0 0 0)])
     (lambda []
       (vector-set-performance-stats! stat)
-      (values (vector-ref stat 0) (- (vector-ref stat 1) digimon-waketime) (vector-ref stat 2)
-              (vector-ref stat 3) (vector-ref stat 6) (+ (vector-ref stat 10) (current-memory-use))))))
+      (values (vector-ref stat 0) (vector-ref stat 1) (vector-ref stat 2)
+              (vector-ref stat 3) (vector-ref stat 6)
+              (+ (vector-ref stat 10) (current-memory-use))))))
 
 (define thread-statistics : (->* () (Thread) (Values Boolean Boolean Boolean Natural))
   (let ([stat : (Vectorof (U Boolean Integer)) (vector #false #false #false 0)])
