@@ -1,10 +1,23 @@
 #lang typed/racket
 
-(provide (all-defined-out) Info-Ref)
+(provide (all-defined-out))
 
 (require racket/fixnum)
-(require typed/setup/getinfo)
 
+(require/typed
+ setup/getinfo
+ [get-info/full
+  (-> Path-String
+      [#:namespace (Option Namespace)]
+      [#:bootstrap? Any]
+      (Option Info-Ref))])
+
+(require/typed/provide
+ racket/base
+ [vector-set-performance-stats! (case-> [(Vectorof Integer) -> Void]
+                                        [(Vectorof (U Boolean Integer)) Thread -> Void])])
+
+(define-type Info-Ref (->* (Symbol) ((-> Any)) Any))
 (define-type Term-Color (Option (U String Symbol Byte)))
 
 (struct place-message ([stream : Any]) #:prefab)
