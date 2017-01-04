@@ -2,11 +2,9 @@
 
 (provide (all-from-out typed/racket))
 (provide (all-from-out "cheat.rkt" "digitama/main.rkt"))
-(provide (all-from-out (submod "digitama/ffi.rkt" typed)))
 
 (require "cheat.rkt")
 (require "digitama/main.rkt")
-(require (submod "digitama/ffi.rkt" typed))
 
 (require/provide/syntax racket/string racket/syntax syntax/parse racket/sequence)
 
