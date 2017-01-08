@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/fixnum)
+
 (require "system.rkt")
 
 (define tcp-server : (-> Index (Input-Port Output-Port Index -> Any)
@@ -10,7 +11,8 @@
                          [#:timeout (Option Fixnum)] [#:on-error (exn -> Any)] [#:custodian Custodian]
                          (Values (-> Void) Index))
   (lambda [port-hit on-connection #:max-allow-wait [maxwait (processor-count)] #:localhost [ip #false]
-                    #:timeout [timeout #false] #:on-error [on-error void] #:custodian [server-custodian (make-custodian)]]
+                    #:timeout [timeout #false] #:on-error [on-error void]
+                    #:custodian [server-custodian (make-custodian)]]
     (parameterize ([current-custodian server-custodian])
       (define /dev/tcp : TCP-Listener (tcp-listen port-hit maxwait #true ip))
       (define-values (localhost portno remote rport) (tcp-addresses /dev/tcp #true))
@@ -24,11 +26,11 @@
                             (thunk (unless (false? timeout)
                                      (timer-thread timeout (λ [server times] ; give the task a chance to live longer
                                                              (if (fx= times 1) (break-thread server) (close-session))))))
-                            (thunk (call-with-parameterization
-                                       saved-params-incaseof-transferring-continuation
-                                     (thunk (parameterize ([current-custodian (make-custodian)])
-                                              (with-handlers ([exn? on-error])
-                                                (on-connection /dev/tcpin /dev/tcpout portno))))))
+                            (thunk ((inst call-with-parameterization Any)
+                                    saved-params-incaseof-transferring-continuation
+                                    (thunk (parameterize ([current-custodian (make-custodian)])
+                                             (with-handlers ([exn? (λ [[e : exn]] (on-error e))])
+                                               (on-connection /dev/tcpin /dev/tcpout portno))))))
                             (thunk (close-session)))))))
         (wait-accept-handle-loop))
       (thread wait-accept-handle-loop)
