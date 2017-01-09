@@ -119,6 +119,7 @@
            [else (continuation-mark-set->context (continuation-marks cm))]))))
 
 (define-type Log-Message msg:log)
+(define-predicate message-level? Log-Level)
 (struct msg:log ([level : Log-Level] [brief : String] [detail : Any] [topic : Symbol]) #:prefab #:constructor-name make-log-message)
 (struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)]) #:prefab #:constructor-name make-error-message)
 
