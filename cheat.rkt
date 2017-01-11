@@ -1,18 +1,14 @@
-#lang typed/racket
+#lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) make-cheat-opaque?)
 
 (require typed/racket/unsafe)
 
+(require racket/class)
+(require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 
-(define-syntax (unsafe-require/typed/provide stx)
-  (syntax-case stx []
-    [(_ modpath [id Type] ...)
-     #'(begin (provide id ...)
-              (unsafe-require/typed modpath [id Type] ...))]))
-
-(unsafe-require/typed/provide
+(unsafe-require/typed
  "digitama/cheat.rkt"
  [make-cheat-opaque? (All (FT) (->* ((U (-> Any Boolean) Byte)) ((Option Symbol)) (-> Any Boolean : #:+ FT)))])
 
