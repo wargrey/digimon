@@ -67,7 +67,7 @@
     (for ([out (in-list (cons (current-output-port) outs))]) (<< v out))
     v))
 
-(define read/assert : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
+(define read:+? : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
   (lambda [src type? #:from-string [? #true]]
     (define v : Any
       (cond [(and ? (string? src)) (read (open-input-string src))]
@@ -76,10 +76,17 @@
             [(input-port? src) (read src)]
             [else src]))
     (cond [(type? v) v]
-          [(not (eof-object? v)) (raise-result-error 'read/assert (~a (object-name type?)) v)]
-          [else (raise (make-exn:fail:read:eof (format "read/assert: ~a: unexpected <eof>" (object-name type?))
+          [(not (eof-object? v)) (raise-result-error 'read:+? (~a (object-name type?)) v)]
+          [else (raise (make-exn:fail:read:eof (format "read:+?: ~a: unexpected <eof>" (object-name type?))
                                                (current-continuation-marks)
                                                null))])))
+
+(define hash-ref:+? : (All (a b) (->* (HashTableTop Any (-> Any Boolean : #:+ a)) ((-> b)) (U a b)))
+  (lambda [src key type? [defval #false]]
+    (define v : Any (if defval (hash-ref src key defval) (hash-ref src key)))
+    (cond [(type? v) v]
+          [(false? defval) (raise-result-error 'hash-ref:+? (~a (object-name type?)) v)]
+          [else (defval)])))
 
 (define current-microseconds : (-> Fixnum)
   (lambda []
