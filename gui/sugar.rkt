@@ -33,27 +33,38 @@
 (define size-ne/sw.cur : (Instance Cursor%) (make-object cursor% 'size-ne/sw))
 (define size-nw/se.cur : (Instance Cursor%) (make-object cursor% 'size-nw/se))
 
+(define change-style : (->* ((Instance Style<%>))
+                            (#:font (Option (Instance Font%))
+                             #:color (Option (Instance Color%))
+                             #:background-color (Option (Instance Color%)))
+                            (Instance Style<%>))
+  (lambda [style #:font [font #false] #:color [color #false] #:background-color [bgcolor #false]]
+    (send style set-delta
+          (let* ([style (make-object style-delta%)]
+                 [style (if (false? color) style (send style set-delta-foreground color))]
+                 [style (if (false? bgcolor) style (send style set-delta-background bgcolor))])
+            (cond [(false? font) style]
+                  [else (send* style
+                          (set-face (send font get-face))
+                          (set-family (send font get-family)))
+                        (send+ style
+                               (set-delta 'change-style (send font get-style))
+                               (set-delta 'change-weight (send font get-weight))
+                               (set-delta 'change-smoothing (send font get-smoothing))
+                               (set-delta 'change-underline (send font get-underlined))
+                               (set-delta 'change-size (min (exact-round (send font get-size)) 255)))])))
+    style))
+
 (define change-default-style! : (->* ((U (Instance Editor<%>) (Instance Style-List%)))
-                                      (#:font (Instance Font%) #:background-color (Instance Color%))
-                                      (Option (Instance Style<%>)))
+                                      (#:font (Option (Instance Font%))
+                                       #:color (Option (Instance Color%))
+                                       #:background-color (Option (Instance Color%)))
+                                      (Instance Style<%>))
   (lambda [src #:font [font #false] #:color [color #false] #:background-color [bgcolor #false]]
-    (define standard-style : (Option (Instance Style<%>))
-      (or (and (text%? src) (send (send src get-style-list) find-named-style (send src default-style-name)))
-          (and (pasteboard%? src) (send (send src get-style-list) find-named-style (send src default-style-name)))
-          (and (style-list%? src) (send src find-named-style "Standard"))))
-    (unless (false? standard-style)
-      (send standard-style set-delta
-            (let* ([style (make-object style-delta%)]
-                   [style (if (false? color) style (send style set-delta-foreground color))]
-                   [style (if (false? bgcolor) style (send style set-delta-background bgcolor))])
-              (cond [(false? font) style]
-                    [else (send* style
-                            (set-face (send font get-face))
-                            (set-family (send font get-family)))
-                          (send+ style
-                                 (set-delta 'change-style (send font get-style))
-                                 (set-delta 'change-weight (send font get-weight))
-                                 (set-delta 'change-smoothing (send font get-smoothing))
-                                 (set-delta 'change-underline (send font get-underlined))
-                                 (set-delta 'change-size (min (exact-round (send font get-size)) 255)))]))))
-    standard-style))
+    (define-values (style-list style-name)
+      (cond [(text%? src) (values (send src get-style-list) (send src default-style-name))]
+            [(pasteboard%? src) (values (send src get-style-list) (send src default-style-name))]
+            [else (values (if (style-list%? src) src (make-object style-list%)) "Standard")]))
+    (change-style #:font font #:color color #:background-color bgcolor
+                  (or (send style-list find-named-style style-name)
+                      (send style-list new-named-style style-name (send style-list basic-style))))))
