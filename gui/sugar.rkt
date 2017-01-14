@@ -16,6 +16,8 @@
 (define-cheat-opaque subframe%? #:sub? Frame% frame%)
 
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
+(define-cheat-opaque text%? #:is-a? Text% text%)
+(define-cheat-opaque style-list%? #:is-a? Style-List% style-list%)
 (define-cheat-opaque mouse%? #:is-a? Mouse-Event% mouse-event%)
 (define-cheat-opaque keyboard%? #:is-a? Key-Event% key-event%)
 
@@ -31,20 +33,27 @@
 (define size-ne/sw.cur : (Instance Cursor%) (make-object cursor% 'size-ne/sw))
 (define size-nw/se.cur : (Instance Cursor%) (make-object cursor% 'size-nw/se))
 
-(define change-standard-style! : (-> (Instance Style-List%) [#:font (Instance Font%)] [#:fgcolor (Instance Color%)] Void)
-  (lambda [style-list #:font [text-font #false] #:fgcolor [text-color #false]]
-    (define standard-style : (Option (Instance Style<%>)) (send style-list find-named-style "Standard"))
+(define change-default-style! : (->* ((U (Instance Editor<%>) (Instance Style-List%)))
+                                      (#:font (Instance Font%) #:background-color (Instance Color%))
+                                      (Option (Instance Style<%>)))
+  (lambda [src #:font [font #false] #:color [color #false] #:background-color [bgcolor #false]]
+    (define standard-style : (Option (Instance Style<%>))
+      (or (and (text%? src) (send (send src get-style-list) find-named-style (send src default-style-name)))
+          (and (pasteboard%? src) (send (send src get-style-list) find-named-style (send src default-style-name)))
+          (and (style-list%? src) (send src find-named-style "Standard"))))
     (unless (false? standard-style)
       (send standard-style set-delta
             (let* ([style (make-object style-delta%)]
-                   [style (if (false? text-color) style (send style set-delta-foreground text-color))])
-              (cond [(false? text-font) style]
+                   [style (if (false? color) style (send style set-delta-foreground color))]
+                   [style (if (false? bgcolor) style (send style set-delta-background bgcolor))])
+              (cond [(false? font) style]
                     [else (send* style
-                            (set-face (send text-font get-face))
-                            (set-family (send text-font get-family)))
-                     (send+ style
-                            (set-delta 'change-style (send text-font get-style))
-                            (set-delta 'change-weight (send text-font get-weight))
-                            (set-delta 'change-smoothing (send text-font get-smoothing))
-                            (set-delta 'change-underline (send text-font get-underlined))
-                            (set-delta 'change-size (min (exact-round (send text-font get-size)) 255)))]))))))
+                            (set-face (send font get-face))
+                            (set-family (send font get-family)))
+                          (send+ style
+                                 (set-delta 'change-style (send font get-style))
+                                 (set-delta 'change-weight (send font get-weight))
+                                 (set-delta 'change-smoothing (send font get-smoothing))
+                                 (set-delta 'change-underline (send font get-underlined))
+                                 (set-delta 'change-size (min (exact-round (send font get-size)) 255)))]))))
+    standard-style))
