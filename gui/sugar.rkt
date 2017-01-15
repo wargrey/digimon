@@ -4,6 +4,9 @@
 
 (require "../cheat.rkt")
 
+(define-type Snip (Instance Snip%))
+(define-type Editor-Snip (Instance Editor-Snip%))
+
 (define-syntax (fill-box! stx)
   (syntax-case stx [<= =]
     [(_ (w h d a t b) <= bmp) #'(fill-box! (w h d a t b) ((send bmp get-width) (send bmp get-height) 0 0 0 0))]
