@@ -1,6 +1,6 @@
 #lang typed/racket
 
-(provide speak digimon-tongue-paths current-tongue all-tongues default-tongue)
+(provide speak digimon-tongue-paths current-tongue all-tongues default-tongue default-fallback-tongue)
 
 (require "system.rkt")
 
@@ -36,6 +36,7 @@
               [else (check-next table/rest)])))))
 
 (define current-tongue : (Parameterof Symbol) (make-parameter (default-tongue)))
+(define default-fallback-tongue : (Parameterof Symbol) (make-parameter 'English))
 (define digimon-tongue-paths : (Parameterof (Listof Path-String)) (make-parameter null))
 
 (define all-tongues : (-> (Listof Symbol))
@@ -68,5 +69,5 @@
                            [(exn? records) (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message records)) dictionary]
                            [else (dtrace-warning #:topic topic "~a: ~s" tongue.rktl records) dictionary]))))
       (hash-ref (hash-ref dicts tongue) word
-                (thunk (cond [(symbol=? tongue 'English) (string-replace (symbol->string word) "-" " ")]
-                             [else (speak word #:in 'English)]))))))
+                (thunk (cond [(symbol=? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
+                             [else (speak word #:in (default-fallback-tongue))]))))))
