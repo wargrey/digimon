@@ -93,17 +93,17 @@
 
 (define-syntax (define-type/enum stx)
   (syntax-case stx [: quote]
-    [(_ id : TypeU (quote enum) ...)
-     #'(define-type/enum id : TypeU enum ...)]
-    [(_ id : TypeU [enum comments ...] ...)
-     #'(define-type/enum id : TypeU enum ...)]
-    [(_ id : TypeU enum ...)
+    [(_ id : TypeU (quote enum0) (quote enum) ...)
+     #'(define-type/enum id : TypeU enum0 enum ...)]
+    [(_ id : TypeU [enum0 comments0 ...] [enum comments ...] ...)
+     #'(define-type/enum id : TypeU enum0 enum ...)]
+    [(_ id : TypeU enum0 enum ...)
      (with-syntax ([id? (format-id #'id "belong-to-~a?" (syntax-e #'id))]
                    [id?* (format-id #'id "contained-in-~a?" (syntax-e #'id))]
                    [TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
-     #'(begin (define-type TypeU (U 'enum ...))
+     #'(begin (define-type TypeU (U 'enum0 'enum ...))
               (define-type TypeU* (Listof TypeU))
-              (define id : TypeU* (list 'enum ...))
+              (define id : (Pairof TypeU TypeU*) (cons 'enum0 (list 'enum ...)))
               (define-predicate id? TypeU)
               (define id?* : (-> (Listof Any) Boolean : #:+ TypeU*)
                 (λ [es] (andmap (λ [e] (id? e)) es)))))]))
