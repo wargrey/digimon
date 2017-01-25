@@ -98,10 +98,15 @@
     [(_ id : TypeU [enum comments ...] ...)
      #'(define-type/enum id : TypeU enum ...)]
     [(_ id : TypeU enum ...)
-     (with-syntax ([TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
+     (with-syntax ([id? (format-id #'id "belong-to-~a?" (syntax-e #'id))]
+                   [id?* (format-id #'id "contained-in-~a?" (syntax-e #'id))]
+                   [TypeU* (format-id #'TypeU "~a*" (syntax-e #'TypeU))])
      #'(begin (define-type TypeU (U 'enum ...))
               (define-type TypeU* (Listof TypeU))
-              (define id : TypeU* (list 'enum ...))))]))
+              (define id : TypeU* (list 'enum ...))
+              (define-predicate id? TypeU)
+              (define id?* : (-> (Listof Any) Boolean : #:+ TypeU*)
+                (λ [es] (andmap (λ [e] (id? e)) es)))))]))
 
 ;; prefab structures cannot be converted to contract in typed racket;
 ;; transparent structures are not allowed as place message.
