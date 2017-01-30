@@ -20,6 +20,7 @@
 
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
 (define-cheat-opaque text%? #:is-a? Text% text%)
+(define-cheat-opaque snip%? #:is-a? Snip% snip%)
 (define-cheat-opaque style-list%? #:is-a? Style-List% style-list%)
 (define-cheat-opaque mouse%? #:is-a? Mouse-Event% mouse-event%)
 (define-cheat-opaque keyboard%? #:is-a? Key-Event% key-event%)
