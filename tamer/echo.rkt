@@ -1,6 +1,6 @@
 #lang digimon
 
-(define-cheat-opaque bitmap%? #:is-a? (Class) object%)
+(require "../echo.rkt")
 
 (for ([color (in-list '(grey red green blue yellow magenta cyan))])
   (define-values [darkcolor lightcolor] (values (format "dark~a" color) (format "light~a" color)))

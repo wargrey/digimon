@@ -17,6 +17,7 @@
 (require setup/dirs)
 
 (require "../digitama/system.rkt")
+(require "../echo.rkt")
 (require "../format.rkt")
 
 (define current-make-real-targets (make-parameter null))
