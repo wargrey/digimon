@@ -141,8 +141,8 @@
                                               [c->racket (format-id #'enum "~a-c->racket" (syntax-e #'enum))]
                                               [racket->c (format-id #'enum "~a-racket->c" (syntax-e #'enum))])
                                   #'[_etype
-                                     (define (c->racket [c : Integer]) : Symbol (cast ((ctype-c->scheme _etype) c) Symbol))
-                                     (define (racket->c [r : Symbol]) : Integer (cast ((ctype-scheme->c _etype) r) Integer))])]))])
+                                     (define (c->racket [c : Integer]) : Symbol (assert ((ctype-c->scheme _etype) c) symbol?))
+                                     (define (racket->c [r : Symbol]) : Integer (assert ((ctype-scheme->c _etype) r) integer?))])]))])
          #'(begin (require/typed/provide modpath
                                          [_etypes CType]
                                          ...)
@@ -160,9 +160,11 @@
                                                  [racket->c (format-id #'bitmask "~a-racket->c" (syntax-e #'bitmask))])
                                      #'[_btype
                                         (define (c->racket [c : Natural]) : (Listof Symbol)
-                                          (cast ((ctype-c->scheme _btype) c) (Listof Symbol)))
+                                          (let ([r ((ctype-c->scheme _btype) c)])
+                                            (cond [(list? r) (filter symbol? r)]
+                                                  [else null])))
                                         (define (racket->c [r : (Listof Symbol)]) : Natural
-                                          (cast ((ctype-scheme->c _btype) r) Natural))])]))])
+                                          (assert ((ctype-scheme->c _btype) r) exact-nonnegative-integer?))])]))])
          #'(begin (require/typed/provide modpath
                                          [_btypes CType]
                                          ...)

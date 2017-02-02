@@ -86,11 +86,6 @@
                 (define (make-instance args ...) : ID (id property-filter ...))
                 (define-type ID id)))]))
 
-(define-syntax (defconsts stx)
-  (syntax-case stx [:]
-    [(_ : Type [id val] ...)
-     #'(begin (define id : Type val) ...)]))
-
 (define-syntax (define-type/enum stx)
   (syntax-case stx [: quote]
     [(_ id : TypeU (quote enum0) (quote enum) ...)
@@ -107,44 +102,6 @@
               (define-predicate id? TypeU)
               (define id?* : (-> (Listof Any) Boolean : #:+ TypeU*)
                 (λ [es] (andmap (λ [e] (id? e)) es)))))]))
-
-;; prefab structures cannot be converted to contract in typed racket;
-;; transparent structures are not allowed as place message.
-(define-type UInt32 Nonnegative-Fixnum)  ; this is a bit smaller than uint32
-(define-type UInt64 Nonnegative-Integer) ; this is larger than uint64
-(define-type MPInteger Integer)
-(define-type (nBytes n) Bytes)           ; the length is prefixed when n is String
-
-(define-type Primitive-Type (Rec PT (U Symbol (List 'Listof PT) (List 'nBytes (U Natural 'String 'Bytes)))))
-
-(define-syntax (define-type/consts stx)
-  (syntax-case stx [: of as]
-    [(_ cs : TypeU of Type (const val comments ...) ...)
-     (with-syntax ([$%cs (format-id #'cs "$%~a" (syntax-e #'cs))]
-                   [$#cs (format-id #'cs "$#~a" (syntax-e #'cs))])
-       #'(begin (define-type TypeU (U 'const ...))
-                (define $#cs : (-> TypeU Type)
-                  (let ([cs : (HashTable TypeU Type) ((inst make-immutable-hasheq TypeU Type) (list (cons 'const val) ...))])
-                    (lambda [sym] ((inst hash-ref TypeU Type Type) cs sym))))
-                (define $%cs : (-> Type (Option TypeU))
-                  (let ([cs : (HashTable Type TypeU) ((inst make-immutable-hasheq Type TypeU) (list (cons val 'const) ...))])
-                    (lambda [v] ((inst hash-ref Type TypeU False) cs v (lambda [] #false)))))))]
-    [(_ cs : TypeU of Type as parent (const val ([field : DataType] ...)) ...)
-     (with-syntax* ([$*cs (format-id #'cs "$*~a" (syntax-e #'cs))]
-                    [$:cs (format-id #'cs "$:~a" (syntax-e #'cs))]
-                    [?parent (format-id #'parent "?~a" (syntax-e #'parent))])
-       #'(begin (define-type/consts cs : TypeU of Type (const val) ...)
-                (struct parent () #:prefab)
-                (struct ?parent parent ([id : Type]) #:prefab)
-                (struct const parent ([field : DataType] ...) #:prefab) ...
-                (define $*cs : (-> (U TypeU Type) (Listof Any) parent)
-                  ;;; use `val` instead of `const` does not work.
-                  (λ [sym argl] (case sym [(const) (apply const (cast argl (List DataType ...)))] ... [else (?parent (cast sym Type))])))
-                (define $:cs : (-> TypeU (Listof Primitive-Type))
-                  (let ([cs : (HashTable TypeU (Listof Primitive-Type))
-                         ((inst make-immutable-hasheq TypeU (Listof Primitive-Type))
-                          (list (cons 'const (list 'DataType ...)) ...))])
-                    (λ [sym] ((inst hash-ref TypeU (Listof Primitive-Type) (Listof Primitive-Type)) cs sym))))))]))
 
 (define-syntax (match/handlers stx)
   (syntax-case stx [:]
