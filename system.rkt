@@ -55,6 +55,11 @@
     (and (string? str)
          (string=? str ""))))
 
+(define maybe? : (All (a) (-> (Option a) (-> a Boolean) Boolean))
+  (lambda [val ?]
+    (or (false? val)
+        (and val (? val)))))
+
 (define value-name : (-> Any Symbol)
   (lambda [v]
     (define name (object-name v))
