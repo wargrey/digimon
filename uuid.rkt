@@ -1,4 +1,4 @@
-#lang typed/racket
+#lang typed/racket/base
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; https://tools.ietf.org/html/rfc4122, A Universally Unique IDentifier (UUID) URN Namespace    ;;;
@@ -7,6 +7,10 @@
 (provide (all-defined-out))
 (provide (all-from-out typed/racket/random))
 
+(require racket/math)
+(require racket/format)
+(require racket/fixnum)
+
 (require typed/racket/random)
 
 (require "digitama/uuid.rkt")
@@ -14,8 +18,8 @@
 (define uuid:timestamp : (-> String)
   (lambda []
     (define version : Byte 1)
-    (define no-ieee-mac-bit : Natural #x80000)
-    (define utc:100ns : Natural (max (exact-round (* (current-inexact-milliseconds) 1000 10)) 0))
+    (define no-ieee-mac-bit : Fixnum #x80000)
+    (define utc:100ns : Integer (exact-round (* (current-inexact-milliseconds) 1000 10)))
     (define diff:1582-10-15 : Natural #x01B21DD213814000)
     (define ts : String (~a #:align 'right #:width 15 #:left-pad-string "0" (format "~x" (+ utc:100ns diff:1582-10-15))))
     (define time-low : String (substring ts 7 15))
@@ -25,19 +29,18 @@
     (define gc : Fixnum (current-gc-milliseconds))
     (format "~a-~a-~a~a-~x-~a~a" time-low time-mid version time-high (variant+clock-sequence)
             (~a #:align 'right #:width 5 #:left-pad-string "0"
-                (format "~x" (bitwise-ior no-ieee-mac-bit (bitwise-and #xffff gc))))
+                (format "~x" (fxior no-ieee-mac-bit (fxand #xFFFF gc))))
             (~a #:align 'right #:width 7 #:left-pad-string "0"
-                (format "~x" (bitwise-and #xfffffff pr+gc))))))
+                (format "~x" (fxand #xFFFFFFF pr+gc))))))
 
 (define uuid:random : (-> String)
   (lambda []
     (define version : Byte 4)
-    (define utc:us : Natural (max (exact-round (* (current-inexact-milliseconds) 1000)) 0))
+    (define utc:us : Integer (exact-round (* (current-inexact-milliseconds) 1000)))
     (define ts : String (~a #:align 'right #:width 15 #:left-pad-string "0" (format "~x" utc:us)))
     (define time-low : String (substring ts 7 15))
     (define time-mid : String (substring ts 3 7))
     (define time-high : String (substring ts 0 3))
     (format "~a-~a-~a~a-~x-~a" time-low time-mid version time-high (variant+clock-sequence)
-            (apply string-append (for/list : (Listof String) ([i (in-range 6)])
-                                   (define b : Byte (bytes-ref (crypto-random-bytes 1) 0))
+            (apply string-append (for/list : (Listof String) ([b (in-bytes (crypto-random-bytes 6))])
                                    (format (if (<= b #x0F) "0~x" "~x") b))))))
