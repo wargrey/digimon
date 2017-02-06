@@ -12,9 +12,9 @@
 
 (define errno : Natural
   (for/fold ([errno : Natural 0]) ([(uuid count) (in-hash uuids)])
-    (displayln uuid)
     (if (= count 1) errno (add1 errno))))
 
+uuids
+
 (unless (zero? errno)
-  (printf "~a duplicates~n" errno)
-  (exit errno))
+  (printf "~a duplicates~n" errno))
