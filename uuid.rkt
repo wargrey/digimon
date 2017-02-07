@@ -4,22 +4,21 @@
 ;;; https://tools.ietf.org/html/rfc4122, A Universally Unique IDentifier (UUID) URN Namespace    ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out) variant+clock-sequence))
 (provide (all-from-out typed/racket/random))
 
 (require racket/math)
 (require racket/format)
 (require racket/fixnum)
+(require racket/flonum)
 
 (require typed/racket/random)
-
-(require "digitama/uuid.rkt")
 
 (define uuid:timestamp : (-> String)
   (lambda []
     (define version : Byte 1)
     (define no-ieee-mac-bit : Fixnum #x80000)
-    (define utc:100ns : Integer (exact-round (* (current-inexact-milliseconds) 1000 10)))
+    (define utc:100ns : Integer (exact-round (fl* (current-inexact-milliseconds) 10000.0)))
     (define diff:1582-10-15 : Natural #x01B21DD213814000)
     (define ts : String (~a #:align 'right #:width 15 #:left-pad-string "0" (format "~x" (+ utc:100ns diff:1582-10-15))))
     (define time-low : String (substring ts 7 15))
@@ -44,3 +43,8 @@
     (format "~a-~a-~a~a-~x-~a" time-low time-mid version time-high (variant+clock-sequence)
             (apply string-append (for/list : (Listof String) ([b (in-bytes (crypto-random-bytes 6))])
                                    (format (if (<= b #x0F) "0~x" "~x") b))))))
+
+(define variant+clock-sequence : (-> Positive-Fixnum)
+  (lambda [] ; TODO: what if the clock is set backwards
+    (fxior #b1000000000000000 #| ensure the N is 8, 9, A, or B |#
+           (fxand (current-memory-use) #b11111111111111))))

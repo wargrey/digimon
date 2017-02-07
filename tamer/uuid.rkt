@@ -1,20 +1,35 @@
 #lang digimon
 
-(define uuids : (HashTable String Integer) (make-hash))
-  
-(for ([i (in-range 64)])
-  (define uuid : String (uuid:timestamp))
-  (hash-set! uuids uuid (add1 (hash-ref uuids uuid (const 0)))))
+(require "../main.rkt")
 
-(for ([i (in-range 64)])
-  (define uuid : String (uuid:random))
-  (hash-set! uuids uuid (add1 (hash-ref uuids uuid (const 0)))))
+(require typed/db)
 
-(define errno : Natural
-  (for/fold ([errno : Natural 0]) ([(uuid count) (in-hash uuids)])
-    (if (= count 1) errno (add1 errno))))
+; WARNING: This kind of tasks defeat futures!
 
-uuids
+(define-type UUID (Vector String Symbol Integer Integer))
 
-(unless (zero? errno)
-  (printf "~a duplicates~n" errno))
+(define :memory: : Connection (sqlite3-connect #:database 'memory))
+(query-exec :memory: "CREATE TABLE uuid (id TEXT PRIMARY KEY, type VARCHAR, fid NUMERIC, seq NUMERIC);")
+
+(define do-insert : (-> UUID Void)
+  (lambda [record]
+    (with-handlers ([exn:fail:sql? (λ [[e : exn:fail:sql]] (pretty-write (cons record (exn:fail:sql-info e)) /dev/stderr))])
+      (query-exec :memory:
+                  "INSERT INTO uuid (id, type, fid, seq) VALUES ($1, $2, $3, $4);"
+                  (vector-ref record 0) (symbol->string (vector-ref record 1))
+                  (vector-ref record 2) (vector-ref record 3)))))
+
+(define make-job : (-> (-> String) Index (-> (Listof UUID)))
+  (lambda [mkid fid]
+    (thunk (build-list 16 (λ [[seq : Index]] (vector (mkid) (value-name mkid) fid seq))))))
+
+(define uuids : (Listof (Listof (Futureof (Listof UUID))))
+  (for/list ([mkid (in-list (list uuid:timestamp uuid:random))])
+    (build-list (processor-count) (λ [[fid : Index]] (future (make-job mkid fid))))))
+
+(for ([jobs : (Listof (Futureof (Listof UUID))) (in-list uuids)])
+  (for ([workers : (Futureof (Listof UUID)) (in-list jobs)])
+    (map do-insert (touch workers))))
+
+(query-rows :memory: "SELECT * FROM uuid;")
+(disconnect :memory:)
