@@ -6,22 +6,26 @@
 
 ; WARNING: This kind of tasks defeat futures!
 
-(define-type UUID (Vector String Symbol Integer Integer))
+(define-type UUID (Vector String Symbol Integer Integer Integer String))
 
 (define :memory: : Connection (sqlite3-connect #:database 'memory))
-(query-exec :memory: "CREATE TABLE uuid (id TEXT PRIMARY KEY, type VARCHAR, fid NUMERIC, seq NUMERIC);")
+(query-exec :memory: "CREATE TABLE uuid (id TEXT PRIMARY KEY, type VARCHAR, fid NUMERIC, seq NUMERIC, gc NUMERIC, mem TEXT);")
 
 (define do-insert : (-> UUID Void)
   (lambda [record]
     (with-handlers ([exn:fail:sql? (λ [[e : exn:fail:sql]] (pretty-write (cons record (exn:fail:sql-info e)) /dev/stderr))])
       (query-exec :memory:
-                  "INSERT INTO uuid (id, type, fid, seq) VALUES ($1, $2, $3, $4);"
+                  "INSERT INTO uuid (id, type, fid, seq, gc, mem) VALUES ($1, $2, $3, $4, $5, $6);"
                   (vector-ref record 0) (symbol->string (vector-ref record 1))
-                  (vector-ref record 2) (vector-ref record 3)))))
+                  (vector-ref record 2) (vector-ref record 3)
+                  (vector-ref record 4) (vector-ref record 5)))))
 
 (define make-job : (-> (-> String) Index (-> (Listof UUID)))
   (lambda [mkid fid]
-    (thunk (build-list 16 (λ [[seq : Index]] (vector (mkid) (value-name mkid) fid seq))))))
+    (thunk (build-list 16 (λ [[seq : Index]] (collect-garbage 'incremental)
+                            (vector (mkid) (value-name mkid) fid seq
+                                    (current-gc-milliseconds)
+                                    (~size (current-memory-use))))))))
 
 (define uuids : (Listof (Listof (Futureof (Listof UUID))))
   (for/list ([mkid (in-list (list uuid:timestamp uuid:random))])
