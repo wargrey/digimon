@@ -8,6 +8,7 @@
 
 (define version "1.0")
 (define pkg-authors '(wargrey))
+(define test-omit-paths 'all)
 
 (define raco-commands '(["wisemon" digimon/digivice/wisemon "a raco to manage the workspace" #false]))
 
