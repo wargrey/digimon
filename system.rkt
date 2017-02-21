@@ -148,11 +148,13 @@
                     (dtrace-send t level (if (null? messages) msgfmt (apply format msgfmt messages)) u ?)))])
     (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
 
-(define dtrace-message : (-> Log-Message [#:logger Logger] [#:alter-topic (Option Symbol)] Void)
+(define dtrace-message : (-> Log-Message [#:logger Logger] [#:alter-topic (U Symbol Struct-TypeTop False)] Void)
   (lambda [info #:logger [logger (current-logger)] #:alter-topic [topic #false]]
     (log-message logger
                  (msg:log-level info)
-                 (or topic (msg:log-topic info))
+                 (cond [(false? topic) (msg:log-topic info)]
+                       [(symbol? topic) topic]
+                       [else (value-name topic)])
                  (msg:log-brief info)
                  info)))
 
