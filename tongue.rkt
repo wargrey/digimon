@@ -1,6 +1,7 @@
 #lang typed/racket
 
-(provide speak digimon-tongue-paths current-tongue all-tongues default-tongue default-fallback-tongue)
+(provide speak ~speak digimon-tongue-paths)
+(provide current-tongue all-tongues default-tongue default-fallback-tongue)
 
 (require "system.rkt")
 
@@ -71,3 +72,8 @@
       (hash-ref (hash-ref dicts tongue) word
                 (thunk (cond [(symbol=? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
                              [else (speak word #:in (default-fallback-tongue))]))))))
+
+(define ~speak : (-> Symbol [#:in Symbol] Any * String)
+  (lambda [word #:in [tongue (current-tongue)] . argl]
+    (cond [(null? argl) (speak word #:in tongue)]
+          [else (apply format (speak word #:in tongue) argl)])))
