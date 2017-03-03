@@ -17,6 +17,7 @@
     [(_ opbox v) #'(when (box? opbox) (set-box! opbox (max 0 v)))]))
 
 (define-cheat-opaque subframe%? #:sub? Frame% frame%)
+(define-cheat-opaque subdialog%? #:sub? Dialog% dialog%)
 
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
 (define-cheat-opaque text%? #:is-a? Text% text%)
