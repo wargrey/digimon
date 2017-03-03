@@ -16,15 +16,17 @@
     [(_ (opbox ...) (v ...)) #'(begin (fill-box! opbox v) ...)]
     [(_ opbox v) #'(when (box? opbox) (set-box! opbox (max 0 v)))]))
 
-(define-cheat-opaque subframe%? #:sub? Frame% frame%)
-(define-cheat-opaque subdialog%? #:sub? Dialog% dialog%)
-
+(define-cheat-opaque frame%? #:is-a? Frame% frame%)
+(define-cheat-opaque dialog%? #:is-a? Dialog% dialog%)
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
 (define-cheat-opaque text%? #:is-a? Text% text%)
 (define-cheat-opaque snip%? #:is-a? Snip% snip%)
 (define-cheat-opaque style-list%? #:is-a? Style-List% style-list%)
 (define-cheat-opaque mouse%? #:is-a? Mouse-Event% mouse-event%)
 (define-cheat-opaque keyboard%? #:is-a? Key-Event% key-event%)
+
+(define-cheat-opaque subframe%? #:sub? Frame% frame%)
+(define-cheat-opaque subdialog%? #:sub? Dialog% dialog%)
 
 (define default.cur : (Instance Cursor%) (make-object cursor% 'arrow))
 (define blank.cur : (Instance Cursor%) (make-object cursor% 'blank))
