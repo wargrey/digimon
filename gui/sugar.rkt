@@ -18,6 +18,8 @@
 
 (define-cheat-opaque frame%? #:is-a? Frame% frame%)
 (define-cheat-opaque dialog%? #:is-a? Dialog% dialog%)
+(define-cheat-opaque canvas%? #:is-a? Canvas% canvas%)
+(define-cheat-opaque editor-canvas%? #:is-a? Editor-Canvas% editor-canvas%)
 (define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
 (define-cheat-opaque text%? #:is-a? Text% text%)
 (define-cheat-opaque snip%? #:is-a? Snip% snip%)
