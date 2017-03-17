@@ -106,6 +106,8 @@
 
 (define compile-collection
   (lambda [digimon]
+    ; TODO: recieve log messages at verbose mode;
+    ; TODO: filter and colorize the message
     (parameterize ([setup-program-name (short-program+command-name)]
                    [make-launchers #false]
                    [make-docs #false]
