@@ -13,6 +13,8 @@
 (require dynext/link)
 (require dynext/file)
 
+(require setup/setup)
+(require setup/option)
 (require setup/getinfo)
 (require setup/dirs)
 
@@ -31,6 +33,8 @@
 
 (define make-restore-options!
   (lambda []
+    (parallel-workers (processor-count))
+    
     (make-print-dep-no-line #false)
     (make-print-checking #false)
     (make-print-reasons #false)
@@ -45,7 +49,8 @@
   (lambda []
     (for-each (λ [make-verbose] (make-verbose #true))
               (list make-print-dep-no-line make-print-checking
-                    make-print-reasons make-trace-log))))
+                    make-print-reasons make-trace-log verbose
+                    make-verbose compiler-verbose))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define hack-rule
@@ -93,8 +98,25 @@
                           (cond [(pair? handbook) (build-path (current-directory) (car handbook))]
                                 [else (raise-user-error 'info.rkt "malformed `scribblings`: ~a" handbook)])))])))
 
+(define do-compile
+  (lambda [pwd maybe-digimon info-ref]
+    (if (and maybe-digimon (> (parallel-workers) 1))
+        (compile-collection maybe-digimon)
+        (compile-directory pwd info-ref))))
+
+(define compile-collection
+  (lambda [digimon]
+    (parameterize ([setup-program-name (short-program+command-name)]
+                   [make-launchers #false]
+                   [make-docs #false]
+                   [make-info-domain #false]
+                   [make-foreign-libs #false]
+                   [call-install #false]
+                   [call-post-install #false])
+      (setup #:collections (list (list digimon))))))
+
 (define compile-directory
-  (lambda [cmpdir info-ref [round 1]]
+  (lambda [pwd info-ref [round 1]]
     (define again? (make-parameter #false))
     (define px.in (pregexp (path->string (current-directory))))
     (define traceln (curry printf "pass[~a]: ~a~n" round))
@@ -110,8 +132,8 @@
     (with-handlers ([exn? (λ [e] (error 'make "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (lambda [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
-        (compile-directory-zos cmpdir info-ref #:verbose #false #:skip-doc-sources? #true)))
-    (when (again?) (compile-directory cmpdir info-ref (add1 round)))))
+        (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
+    (when (again?) (compile-directory pwd info-ref (add1 round)))))
 
 (define smart-dependencies
   (lambda [entry [memory null]]
@@ -238,7 +260,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
-  (lambda [info-ref]
+  (lambda [maybe-digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
 
     (define (do-make rules0)
@@ -249,7 +271,7 @@
         (current-make-real-targets exts)))
     
     (do-make (make-native-library-rules info-ref))
-    (compile-directory (current-directory) info-ref)
+    (do-compile (current-directory) maybe-digimon info-ref)
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake premake))
@@ -257,7 +279,7 @@
         (dynamic-require modpath #false)
         ;;; the next two lines should useless but who knows
         (do-make (make-native-library-rules info-ref))
-        (compile-directory (current-directory) info-ref)))
+        (do-compile (current-directory) maybe-digimon info-ref)))
     
     (do-make (make-implicit-dist-rules info-ref))
 
@@ -287,7 +309,7 @@
         (dynamic-require modpath #false)))))
 
 (define make~clean:
-  (lambda [info-ref]
+  (lambda [maybe-digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
 
     (define (fclean dirty)
@@ -319,10 +341,10 @@
                                                   (current-directory) #:search-compiled? #true)))))
 
 (define make~check:
-  (lambda [info-ref]
+  (lambda [maybe-digimon info-ref]
     (let ([rules (map hack-rule (make-native-library-rules info-ref))])
       (unless (null? rules) (make/proc rules (map car rules))))
-    (compile-directory (current-directory) info-ref)
+    (do-compile (current-directory) maybe-digimon info-ref)
 
     (for ([handbook (in-list (if (null? (current-make-real-targets)) (find-digimon-handbooks info-ref) (current-make-real-targets)))])
       (define ./handbook (find-relative-path (current-directory) handbook))
@@ -360,7 +382,9 @@
                        [["-s" "--silent"] ,(λ _ (current-output-port /dev/null)) ["Just make and only display errors."]]
                        [["-t" "--touch"] ,(λ _ (make-just-touch #true)) ["Touch targets instead of remaking them if it exists."]]
                        [["-d" "--debug"] ,(λ _ (make-trace-log #true)) ["Print lots of debug information."]]
-                       [["-v" "--verbose"] ,(λ _ (make-set-verbose!)) ["Build with verbose messages."]]]]
+                       [["-v" "--verbose"] ,(λ _ (make-set-verbose!)) ["Build with verbose messages."]]
+                       [["-j" "--jobs"] ,(λ [flag n] (parallel-workers (max (or (string->number n) (processor-count)) 1)))
+                                        ["Use <n> parallel jobs." "n"]]]]
           (λ [-h] (foldl (λ [ph -h] (if (hash-has-key? fphonies (car ph)) (format "~a  ~a : ~a~n" -h (car ph) (cdr ph)) -h))
                          ((curry string-replace -h #px"  -- : .+?-h --'.")
                           ((curryr string-join (format "~n  ")
@@ -384,6 +408,7 @@
     (define digimon
       (or (and info-ref (let ([name (info-ref 'collection)]) (and (string? name) name)))
           (let-values ([(base pkg-name dir?) (split-path zone)]) pkg-name)))
+    (define maybe-digimon (with-handlers ([exn? (λ _ #false)]) (and (collection-file-path "info.rkt" digimon) digimon)))
     (parameterize ([current-make-real-targets (map simple-form-path reals)]
                    [current-directory zone])
       (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" digimon))
@@ -391,8 +416,8 @@
                              (parameterize ([current-make-phony-goal phony])
                                (with-handlers ([exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (make-errno))])
                                  (file-or-directory-modify-seconds zone (current-seconds))
-                                 (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") info-ref)]
-                                       [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk info-ref))]
+                                 (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") maybe-digimon info-ref)]
+                                       [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk maybe-digimon info-ref))]
                                        [else (error 'make "I don't know how to make `~a`!" phony)]) 0))))
                     (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" digimon))))))
 
