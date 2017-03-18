@@ -21,6 +21,7 @@
 (require "../digitama/system.rkt")
 (require "../echo.rkt")
 (require "../format.rkt")
+(require "../debug.rkt")
 
 (define current-make-real-targets (make-parameter null))
 (define current-make-phony-goal (make-parameter #false))
@@ -34,6 +35,7 @@
 (define make-restore-options!
   (lambda []
     (parallel-workers (processor-count))
+    (compiler-verbose #true)
     
     (make-print-dep-no-line #false)
     (make-print-checking #false)
@@ -49,8 +51,7 @@
   (lambda []
     (for-each (λ [make-verbose] (make-verbose #true))
               (list make-print-dep-no-line make-print-checking
-                    make-print-reasons make-trace-log verbose
-                    make-verbose compiler-verbose))))
+                    make-print-reasons make-trace-log))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define hack-rule
@@ -68,36 +69,6 @@
           (cond [(false? (make-just-touch)) f]
                 [else (thunk (file-or-directory-modify-seconds t (current-seconds) f))]))))
 
-(define trace-log
-  (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
-    (lambda []
-      (define log (sync/enable-break /dev/log))
-      (cond [(and (vector? log) (eof-object? (vector-ref log 2))) (make-restore-options!)]
-            [else (when (make-trace-log)
-                    (match log  
-                      [(vector level message urgent 'racket/contract) (void)]
-                      [(vector 'debug message _ _) (echof #:fgcolor 248 "racket: ~a~n" message)]
-                      [(vector 'info message _ _) (echof #:fgcolor 'cyan "racket: ~a~n" message)]
-                      [(vector 'warning message _ _) (echof #:fgcolor 'yellow "racket: ~a~n" message)]
-                      [_ (void)]))
-                  (trace-log)]))))
-
-(define find-digimon-files
-  (lambda [predicate start-path #:search-compiled? [search-compiled? #false]]
-    (define px.exclude
-      (let ([cmpls (remove-duplicates (map (λ [p] (path->string (file-name-from-path p))) (use-compiled-file-paths)))])
-        (pregexp (if search-compiled? "/\\.git$" (string-join #:before-first "/(\\.git|" #:after-last ")$" cmpls "|")))))
-    (filter predicate (sequence->list (in-directory start-path (curry (negate regexp-match?) px.exclude))))))
-
-(define find-digimon-handbooks
-  (lambda [info-ref]
-    (define maybe-handbooks (info-ref 'scribblings (thunk null)))
-    (cond [(not (list? maybe-handbooks)) (raise-user-error 'info.rkt "malformed `scribblings`: ~a" maybe-handbooks)]
-          [else (filter file-exists?
-                        (for/list ([handbook (in-list maybe-handbooks)])
-                          (cond [(pair? handbook) (build-path (current-directory) (car handbook))]
-                                [else (raise-user-error 'info.rkt "malformed `scribblings`: ~a" handbook)])))])))
-
 (define do-compile
   (lambda [pwd maybe-digimon info-ref]
     (if (and maybe-digimon (> (parallel-workers) 1))
@@ -106,16 +77,20 @@
 
 (define compile-collection
   (lambda [digimon]
-    ; TODO: recieve log messages at verbose mode;
-    ; TODO: filter and colorize the message
+    (define summary? #false)
+    (define (switch bstr) (when (regexp-match? #px"--- summary of errors ---"  bstr) (set! summary? #true)) bstr)
+    (define (colorize bstr) (term-colorize (if summary? 'red 248) #false null (bytes->string/utf-8 bstr)))
     (parameterize ([setup-program-name (short-program+command-name)]
                    [make-launchers #false]
                    [make-docs #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]
                    [call-install #false]
-                   [call-post-install #false])
-      (setup #:collections (list (list digimon))))))
+                   [call-post-install #false]
+                   [current-output-port (filter-write-output-port (current-output-port) switch)]
+                   [current-error-port (filter-write-output-port (current-error-port) colorize)])
+      (or (setup #:collections (list (list digimon)))
+          (error 'wisemon "compiling failed.")))))
 
 (define compile-directory
   (lambda [pwd info-ref [round 1]]
@@ -133,7 +108,7 @@
         [_ (traceln info)]))
     (with-handlers ([exn? (λ [e] (error 'make "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
-                     [error-display-handler (lambda [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
+                     [error-display-handler (λ [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
     (when (again?) (compile-directory pwd info-ref (add1 round)))))
 
@@ -170,13 +145,13 @@
 (define make-native-library-rules
   (lambda [info-ref]
     (define (include.h entry racket? [memory null])
-      (foldl (lambda [include memory]
+      (foldl (λ [include memory]
                (cond [(regexp-match #px#"<.+?>" include)
-                      => (lambda [header]
+                      => (λ [header]
                            (when (member #"<scheme.h>" header) (racket? #true))
                            memory)]
                      [(regexp-match #px#"\"(.+?)\"" include)
-                      => (lambda [header]
+                      => (λ [header]
                            (let ([subsrc (simplify-path (build-path (path-only entry) (bytes->string/utf-8 (cadr header))))])
                              (cond [(member subsrc memory) memory]
                                    [else (include.h subsrc racket? memory)])))]))
@@ -231,7 +206,7 @@
                                    "native" (system-library-subpath #false)
                                    (path-replace-extension (file-name-from-path c) (system-type 'so-suffix)))))
              (list (list tobj (include.h c racket?)
-                         (lambda [target]
+                         (λ [target]
                            (build-with-output-filter
                             (thunk (let ([cflags (list (format "-std=~a11" (if (racket?) "gnu" "c")) "-m64"
                                                        (format "-D__~a__" (digimon-system)))])
@@ -245,7 +220,7 @@
                                        ;      [else (xform #false c (unbox xform.c) -Is #:keep-lines? #true)]) ; gcc knows file lines
                                        (compile-extension #false c target -Is)))))))
                    (list t (list tobj)
-                         (lambda [target]
+                         (λ [target]
                            (build-with-output-filter
                             (thunk (let ([ldflags (dynamic-ldflags c)])
                                      (parameterize ([current-standard-link-libraries null]
@@ -291,10 +266,10 @@
         (dynamic-require modpath #false)
         (parameterize ([current-namespace (module->namespace modpath)])
           (do-make (foldr append null
-                          (filter (lambda [val] (with-handlers ([exn? (const #false)])
-                                                  (andmap (lambda [?] (and (andmap path-string? (cons (first ?) (second ?)))
-                                                                           (procedure-arity-includes? (third ?) 1))) val)))
-                                  (filter-map (lambda [var] (namespace-variable-value var #false (const #false)))
+                          (filter (λ [val] (with-handlers ([exn? (const #false)])
+                                                  (andmap (λ [?] (and (andmap path-string? (cons (first ?) (second ?)))
+                                                                      (procedure-arity-includes? (third ?) 1))) val)))
+                                  (filter-map (λ [var] (namespace-variable-value var #false (const #false)))
                                               (namespace-mapped-symbols))))))))
 
     (for ([submake (in-list submakes)])
@@ -335,7 +310,7 @@
                                                           '["maintainer" "dist" "clean" "mostly"]) "|")))
           (for ([var (in-list (namespace-mapped-symbols))]
                 #:when (regexp-match? px.filter (symbol->string var)))
-            (for-each fclean (map (lambda [val] (if (list? val) (car val) val))
+            (for-each fclean (map (λ [val] (if (list? val) (car val) val))
                                   (namespace-variable-value var #false (thunk null))))))))
     
     (for-each fclean (map car (make-implicit-dist-rules info-ref)))
@@ -361,7 +336,7 @@
             (parameterize ([exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!" ./handbook))])
               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
               (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,(file-name-from-path handbook))
-                             #:render-mixin (lambda [%] (html:render-multi-mixin (html:render-mixin %)))
+                             #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
                              #:dest-dir ,(build-path (path-only handbook) (car (use-compiled-file-paths)))
                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
                              #:quiet? #false #:warn-undefined? #false))))))))
@@ -433,7 +408,7 @@
      (λ [!voids . targets]
        (dynamic-wind (thunk (thread trace-log))
                      (thunk (let cd ([pwd (current-directory)])
-                              (cond [(get-info/full pwd) (exit (make-digimon pwd targets))]
+                              (cond [(get-info/full pwd) (exit (time-apply* (thunk (make-digimon pwd targets))))]
                                     [else (let-values ([(base name dir?) (split-path pwd)])
                                             (cond [(false? base) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit 1)]
                                                   [else (cd base)]))])))
@@ -442,4 +417,50 @@
      (compose1 exit display --help)
      (compose1 exit (const 1) --unknown (curryr string-trim #px"[()]") (curry format "~a") values))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define trace-log
+  (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
+    (lambda []
+      (define log (sync/enable-break /dev/log))
+      (cond [(and (vector? log) (eof-object? (vector-ref log 2))) (make-restore-options!)]
+            [else (when (make-trace-log)
+                    (define px.out #px"(locking|already-done)")
+                    (match log  
+                      [(vector level message urgent (or 'racket/contract 'optimizer 'place 'GC)) (void)]
+                      [(vector 'debug message _ _) (echof #:fgcolor 248 "~a~n" message)]
+                      [(vector 'info message _ _) (unless (regexp-match? px.out message) (echof #:fgcolor 'cyan "~a~n" message))]
+                      [(vector 'warning message _ _) (echof #:fgcolor 'yellow "~a~n" message)]
+                      [(vector (or 'error 'fatal) message _ _) (echof #:fgcolor 'red "~a~n" message)]
+                      [_ (void)]))
+                  (trace-log)]))))
+
+(define find-digimon-files
+  (lambda [predicate start-path #:search-compiled? [search-compiled? #false]]
+    (define px.exclude
+      (let ([cmpls (remove-duplicates (map (λ [p] (path->string (file-name-from-path p))) (use-compiled-file-paths)))])
+        (pregexp (if search-compiled? "/\\.git$" (string-join #:before-first "/(\\.git|" #:after-last ")$" cmpls "|")))))
+    (filter predicate (sequence->list (in-directory start-path (curry (negate regexp-match?) px.exclude))))))
+
+(define find-digimon-handbooks
+  (lambda [info-ref]
+    (define maybe-handbooks (info-ref 'scribblings (thunk null)))
+    (cond [(not (list? maybe-handbooks)) (raise-user-error 'info.rkt "malformed `scribblings`: ~a" maybe-handbooks)]
+          [else (filter file-exists?
+                        (for/list ([handbook (in-list maybe-handbooks)])
+                          (cond [(pair? handbook) (build-path (current-directory) (car handbook))]
+                                [else (raise-user-error 'info.rkt "malformed `scribblings`: ~a" handbook)])))])))
+
+(define filter-write-output-port
+  (lambda [/dev/stdout write-wrap [close? #false]]
+    (make-output-port (object-name /dev/stdout)
+                      /dev/stdout
+                      (λ [bytes start end flush? enable-break?]
+                        (define transformed (write-wrap (subbytes bytes start end)))
+                        (cond [(string? transformed) (write-string transformed /dev/stdout)]
+                              [(bytes? transformed) (write-bytes-avail* transformed /dev/stdout)])
+                        (- end start))
+                      (λ [] (unless (not close?) (close-output-port /dev/stdout)))
+                      #false #false #false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

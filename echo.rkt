@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide echof eechof)
+(provide (all-defined-out))
 
 (require racket/string)
 (require racket/bool)

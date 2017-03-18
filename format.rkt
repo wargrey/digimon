@@ -23,7 +23,7 @@
   (lambda [% #:precision [prcs '(= 2)]]
     (string-append (~r (fl* 100.0 %) #:precision prcs) "%")))
 
-(define ~uptime : (-> Fixnum String)
+(define ~uptime : (-> Integer String)
   (let ([~t : (-> Real String) (λ [n] (if (< n 10) (string-append "0" (number->string n)) (number->string n)))])
     (lambda [s]
       (let*-values ([(d s) (quotient/remainder s 86400)]
@@ -32,7 +32,7 @@
         (cond [(zero? d) (format "~a:~a:~a" (~t h) (~t m) (~t s))]
               [else (format "~a+~a:~a:~a" d (~t h) (~t m) (~t s))])))))
 
-(define ~gctime : (-> Fixnum String)
+(define ~gctime : (-> Integer String)
   (lambda [ms]
     (let*-values ([(s ms) (quotient/remainder ms 1000)]
                   [(m s) (quotient/remainder s 60)])
