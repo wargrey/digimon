@@ -76,33 +76,38 @@
         (compile-directory pwd info-ref))))
 
 (define compile-collection
-  (lambda [digimon]
+  (lambda [digimon [round 1]]
     (define summary? #false)
-    (define (switch bstr) (when (regexp-match? #px"--- summary of errors ---"  bstr) (set! summary? #true)) bstr)
-    (define (colorize bstr) (term-colorize (if summary? 'red 248) #false null (bytes->string/utf-8 bstr)))
+    (define (colorize-stdout bstr)
+      (when (= round 1)
+        (when (regexp-match? #px"--- summary of errors ---"  bstr) (set! summary? #true))
+        (term-colorize 248 #false null (bytes->string/utf-8 bstr))))
+    (define (colorize-stderr bstr)
+      (term-colorize (if summary? 'red 224) #false null (bytes->string/utf-8 bstr)))
+    (set!-values (again? compiling-round) (values #false round))
     (parameterize ([setup-program-name (short-program+command-name)]
                    [make-launchers #false]
-                   [make-docs #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]
                    [call-install #false]
                    [call-post-install #false]
-                   [current-output-port (filter-write-output-port (current-output-port) switch)]
-                   [current-error-port (filter-write-output-port (current-error-port) colorize)])
-      (or (setup #:collections (list (list digimon)))
-          (error 'wisemon "compiling failed.")))))
+                   [current-output-port (filter-write-output-port (current-output-port) colorize-stdout)]
+                   [current-error-port (filter-write-output-port (current-error-port) colorize-stderr)])
+      (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true)
+          (error 'wisemon "compiling failed.")))
+    (when again? (compile-collection digimon (add1 round)))))
 
 (define compile-directory
   (lambda [pwd info-ref [round 1]]
-    (define again? (make-parameter #false))
     (define px.in (pregexp (path->string (current-directory))))
-    (define traceln (curry printf "pass[~a]: ~a~n" round))
+    (define traceln (curry printf "round[~a]: ~a~n" round))
+    (set! again? #false)
     (define (filter-verbose info)
       (match info
         [(pregexp #px"checking:") (when (and (make-print-checking) (regexp-match? px.in info)) (traceln info))]
-        [(pregexp #px"compiling ") (again? #true)]
-        [(pregexp #px"done:") (when (regexp-match? px.in info) (traceln (string-replace info "done:" "processed")) (again? #true))]
-        [(pregexp #px"maybe-compile-zo starting") (traceln (string-replace info "maybe-compile-zo starting" "compiling"))]
+        [(pregexp #px"compiling ") (set! again? #true)]
+        [(pregexp #px"done:") (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
+        [(pregexp #px"maybe-compile-zo starting") (traceln info)]
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
         [(pregexp #px"(newer|skipping:)") (when (make-print-reasons) (traceln info))]
         [_ (traceln info)]))
@@ -110,7 +115,7 @@
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (λ [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
-    (when (again?) (compile-directory pwd info-ref (add1 round)))))
+    (when again? (compile-directory pwd info-ref (add1 round)))))
 
 (define smart-dependencies
   (lambda [entry [memory null]]
@@ -418,21 +423,32 @@
      (compose1 exit (const 1) --unknown (curryr string-trim #px"[()]") (curry format "~a") values))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; WARNING: parameters are thread specific.
+(define again? #false)
+(define compiling-round 1)
+
 (define trace-log
   (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
     (lambda []
       (define log (sync/enable-break /dev/log))
-      (cond [(and (vector? log) (eof-object? (vector-ref log 2))) (make-restore-options!)]
-            [else (when (make-trace-log)
-                    (define px.out #px"(locking|already-done)")
-                    (match log  
-                      [(vector level message urgent (or 'racket/contract 'optimizer 'place 'GC)) (void)]
-                      [(vector 'debug message _ _) (echof #:fgcolor 248 "~a~n" message)]
-                      [(vector 'info message _ _) (unless (regexp-match? px.out message) (echof #:fgcolor 'cyan "~a~n" message))]
-                      [(vector 'warning message _ _) (echof #:fgcolor 'yellow "~a~n" message)]
-                      [(vector (or 'error 'fatal) message _ _) (echof #:fgcolor 'red "~a~n" message)]
-                      [_ (void)]))
-                  (trace-log)]))))
+      (cond [(not (vector? log)) (trace-log)]
+            [(eof-object? (vector-ref log 2)) (make-restore-options!)]
+            [(memq (vector-ref log 3) '(racket/contract optimizer place GC)) (trace-log)]
+            [(eq? (vector-ref log 3) 'setup/parallel-build)
+             (define message (string-replace (vector-ref log 1) #px"^setup/parallel-build:\\s+" ""))
+             (define px.out #px"(locking|already-done)")
+             (unless (regexp-match? px.out message) (printf "round[~a]: ~a~n" compiling-round message))
+             (set! again? #true)
+             (trace-log)]
+            [(make-trace-log)
+             (match log  
+               [(vector 'debug message _ _) (echof #:fgcolor 248 "~a~n" message)]
+               [(vector 'info message _ _) (echof #:fgcolor 'cyan "~a~n" message)]
+               [(vector 'warning message _ _) (echof #:fgcolor 'yellow "~a~n" message)]
+               [(vector (or 'error 'fatal) message _ _) (echof #:fgcolor 'red "~a~n" message)]
+               [_ (void)])
+             (trace-log)]
+            [else (trace-log)]))))
 
 (define find-digimon-files
   (lambda [predicate start-path #:search-compiled? [search-compiled? #false]]
