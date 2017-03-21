@@ -435,9 +435,12 @@
             [(eof-object? (vector-ref log 2)) (make-restore-options!)]
             [(memq (vector-ref log 3) '(racket/contract optimizer place GC)) (trace-log)]
             [(eq? (vector-ref log 3) 'setup/parallel-build)
-             (define message (string-replace (vector-ref log 1) #px"^setup/parallel-build:\\s+" ""))
-             (define px.out #px"(locking|already-done)")
-             (unless (regexp-match? px.out message) (printf "round[~a]: ~a~n" compiling-round message))
+             (define pce (struct->vector (vector-ref log 2)))
+             (define ce (struct->vector (vector-ref pce 2)))
+             (unless (memq (vector-ref ce 3) '(locking already-done))
+               (if (eq? (vector-ref ce 3) 'finish-compile)
+                   (echof #:fgcolor 250 "round[~a]: processor[~a]: made: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))
+                   (printf "round[~a]: processor[~a]: making: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))))
              (set! again? #true)
              (trace-log)]
             [(make-trace-log)
