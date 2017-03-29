@@ -6,33 +6,30 @@
 
 (require "system.rkt")
 
-;; The first regexp is used in Windows and the second is used on other platforms.
-;; All regexps are compared to the result of (system-language+country).
-(define-type Tongue-Table (Listof (List Symbol Regexp Regexp)))
-(define default-table : Tongue-Table
-  '((English             #rx"^en_"        #rx"^English_")
-    (Spanish             #rx"^es_"        #rx"^Espanol_")
-    (German              #rx"^de_"        #rx"^German_")
-    (French              #rx"^fr_"        #rx"French_")
-    (Dutch               #rx"nl_"         #rx"^Netherlands_")
-    (Danish              #rx"^da_DK"      #rx"^Danish_")
-    (Portuguese          #rx"^pt_"        #rx"Portuguese_")
-    (Japanese            #rx"^ja_"        #rx"^Japan_")
-    (Traditional-Chinese #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
-    (Simplified-Chinese  #rx"^zh_CN"      #rx"Chinese_China")
-    (Russian             #rx"^ru_"        #rx"^Russian_")
-    (Ukrainian           #rx"^uk_"        #rx"^Ukrainian_")
-    (Korean              #rx"^ko_"        #rx"^Korean_")))
+(define default-tongue : (->* () ((-> Symbol Symbol)) Symbol)
+  (lambda [[lang-map identity]]
+    (define-type Tongue-Table (Listof (List Symbol Regexp Regexp)))
+    (define default-table : Tongue-Table
+      '((English             #rx"^en_"        #rx"^English_")
+        (Spanish             #rx"^es_"        #rx"^Espanol_")
+        (German              #rx"^de_"        #rx"^German_")
+        (French              #rx"^fr_"        #rx"French_")
+        (Dutch               #rx"nl_"         #rx"^Netherlands_")
+        (Danish              #rx"^da_DK"      #rx"^Danish_")
+        (Portuguese          #rx"^pt_"        #rx"Portuguese_")
+        (Japanese            #rx"^ja_"        #rx"^Japan_")
+        (Traditional-Chinese #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
+        (Simplified-Chinese  #rx"^zh_CN"      #rx"Chinese_China")
+        (Russian             #rx"^ru_"        #rx"^Russian_")
+        (Ukrainian           #rx"^uk_"        #rx"^Ukrainian_")
+        (Korean              #rx"^ko_"        #rx"^Korean_")))
 
-(define default-tongue : (-> Symbol)
-  (lambda []
     (let ([system-lang (system-language+country)])
       (let check-next : Symbol ([table : Tongue-Table default-table])
-        (match-define (list (list lang win unix) table/rest ...) table)
-        (cond [(regexp-match win system-lang) lang]
-              [(regexp-match unix system-lang) lang]
-              [(null? table/rest) 'English]
-              [else (check-next table/rest)])))))
+        (cond [(null? table) (lang-map 'English)]
+              [(regexp-match (cadar table) system-lang) (lang-map (caar table))]
+              [(regexp-match (caddar table) system-lang) (lang-map (caar table))]
+              [else (check-next (cdr table))])))))
 
 (define current-tongue : (Parameterof Symbol) (make-parameter (default-tongue)))
 (define default-fallback-tongue : (Parameterof Symbol) (make-parameter 'English))
