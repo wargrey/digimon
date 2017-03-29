@@ -56,7 +56,8 @@
                  (for/fold ([dictionary : (HashTable Symbol String) (make-immutable-hasheq)])
                            ([digimon-tongue (in-list (default-tongue-paths))])
                    (define tongue.rktl : Path (build-path digimon-tongue (~a tongue (default-tongue-extension))))
-                   (fold-tongue tongue.rktl dictionary))))
+                   (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message e)) dictionary)])
+                     (fold-tongue tongue.rktl dictionary)))))
     (hash-ref (hash-ref dicts tongue) word
               (thunk (cond [(symbol=? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
                            [else (speak word #:in (default-fallback-tongue))])))))
@@ -73,12 +74,11 @@
 (define default-fold-tongue : (-> Path (HashTable Symbol String) (HashTable Symbol String))
   (lambda [tongue.rktl dictionary]
     (define dictionary : (HashTable Symbol String) (make-immutable-hasheq))
-    (define records : Any (with-handlers ([exn? (λ [[e : exn]] e)]) (with-input-from-file tongue.rktl read)))
+    (define records : Any (with-input-from-file tongue.rktl read))
     (cond [(list? records)
            (for/fold ([dict : (HashTable Symbol String) dictionary])
                      ([record (in-list records)])
              (match record
                [(cons (? symbol? word) (? string? content)) (hash-set dict word content)]
                [else (dtrace-warning #:topic topic "~a: ~s" tongue.rktl record) dict]))]
-          [(exn? records) (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message records)) dictionary]
           [else (dtrace-warning #:topic topic "~a: ~s" tongue.rktl records) dictionary])))
