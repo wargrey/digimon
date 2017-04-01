@@ -297,7 +297,7 @@
     (define (fclean dirty)
       (void (cond [(file-exists? dirty) (delete-file dirty)]
                   [(directory-exists? dirty) (delete-directory dirty)])
-            (printf "make: deleted ~a.~n" (simplify-path dirty))))
+            (printf "make: deleted ~a~n" (simplify-path dirty))))
 
     (when (member (current-make-phony-goal) '["distclean" "maintainer-clean"])
       (for ([submake (in-list submakes)])
