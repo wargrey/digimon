@@ -7,7 +7,6 @@
 
 (require (prefix-in tr: typed-racket/typed-reader))
 (require (prefix-in tr: typed-racket/language-info))
-(require typed-racket/private/oc-button)
 
 (define digimon-lang
   (let ([var "DIGIMON_LANG"])
@@ -29,5 +28,5 @@
 (define digimon-info
   (lambda [key default use-default]
     (case key
-      [(drscheme:toolbar-buttons) (maybe-show-OC)]
+      [(drracket:opt-in-toolbar-buttons) '(optimization-coach)]
       [else (use-default key default)])))
