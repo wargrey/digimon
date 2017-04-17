@@ -6,23 +6,27 @@
 
 (require "system.rkt")
 
+; https://www.w3.org/International/questions/qa-lang-2or3.en.html
+; https://www.w3.org/International/articles/language-tags
+; http://www.iana.org/assignments/language-subtag-registry/language-subtag-registry
+
 (define default-tongue : (->* () ((-> Symbol Symbol)) Symbol)
   (lambda [[lang-map identity]]
     (define-type Tongue-Table (Listof (List Symbol Regexp Regexp)))
     (define default-table : Tongue-Table
-      '((English             #rx"^en_"        #rx"^English_")
-        (Spanish             #rx"^es_"        #rx"^Espanol_")
-        (German              #rx"^de_"        #rx"^German_")
-        (French              #rx"^fr_"        #rx"French_")
-        (Dutch               #rx"nl_"         #rx"^Netherlands_")
-        (Danish              #rx"^da_DK"      #rx"^Danish_")
-        (Portuguese          #rx"^pt_"        #rx"Portuguese_")
-        (Japanese            #rx"^ja_"        #rx"^Japan_")
-        (Traditional-Chinese #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
-        (Simplified-Chinese  #rx"^zh_CN"      #rx"Chinese_China")
-        (Russian             #rx"^ru_"        #rx"^Russian_")
-        (Ukrainian           #rx"^uk_"        #rx"^Ukrainian_")
-        (Korean              #rx"^ko_"        #rx"^Korean_")))
+      '((en      #rx"^en_"        #rx"^English_")
+        (es      #rx"^es_"        #rx"^Espanol_")
+        (de      #rx"^de_"        #rx"^German_")
+        (fr      #rx"^fr_"        #rx"French_")
+        (nl      #rx"nl_"         #rx"^Netherlands_")
+        (da      #rx"^da_DK"      #rx"^Danish_")
+        (pt      #rx"^pt_"        #rx"Portuguese_")
+        (ja      #rx"^ja_"        #rx"^Japan_")
+        (zh-Hant #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
+        (zh-Hans #rx"^zh_CN"      #rx"Chinese_China")
+        (ru      #rx"^ru_"        #rx"^Russian_")
+        (uk      #rx"^uk_"        #rx"^Ukrainian_")
+        (ko      #rx"^ko_"        #rx"^Korean_")))
 
     (let ([system-lang (system-language+country)])
       (let check-next : Symbol ([table : Tongue-Table default-table])
