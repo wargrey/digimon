@@ -62,8 +62,8 @@
                    (define tongue.rktl : Path (build-path digimon-tongue (~a tongue (default-tongue-extension))))
                    (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message e)) dictionary)])
                      (fold-tongue tongue.rktl dictionary)))))
-    (hash-ref (hash-ref dicts tongue) word
-              (thunk (cond [(symbol=? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
+    (hash-ref (hash-ref dicts tongue) word ; TODO: is it neccessary to downcase the word?
+              (thunk (cond [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
                            [else (speak word #:in (default-fallback-tongue))])))))
 
 (define ~speak : (-> Symbol [#:in Symbol] Any * String)
