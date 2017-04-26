@@ -125,11 +125,6 @@
      (cond [(continuation-mark-set? cm) (continuation-mark-set->context cm)]
            [else (continuation-mark-set->context (continuation-marks cm))]))))
 
-(define-type Log-Message msg:log)
-(define-predicate message-level? Log-Level)
-(struct msg:log ([level : Log-Level] [brief : String] [detail : Any] [topic : Symbol]) #:prefab #:constructor-name make-log-message)
-(struct msg:exn msg:log ([stacks : (Listof Continuation-Stack)]) #:prefab #:constructor-name make-error-message)
-
 (define dtrace-send : (->* (Any Symbol String Any) (Any) Void)
   (lambda [topic level message urgent [prefix? #false]]
     (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
@@ -143,20 +138,10 @@
                     (dtrace-send t level (if (null? messages) msgfmt (apply format msgfmt messages)) u ?)))])
     (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
 
-(define dtrace-message : (-> Log-Message [#:logger Logger] [#:alter-topic (U Symbol Struct-TypeTop False)] Void)
-  (lambda [info #:logger [logger (current-logger)] #:alter-topic [topic #false]]
-    (log-message logger
-                 (msg:log-level info)
-                 (cond [(false? topic) (msg:log-topic info)]
-                       [(symbol? topic) topic]
-                       [else (value-name topic)])
-                 (msg:log-brief info)
-                 info)))
-
-(define exn->message : (-> exn [#:level Log-Level] [#:detail Any] Log-Message)
+(define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
   (lambda [e #:level [level 'error] #:detail [detail #false]]
-    (make-error-message level (exn-message e) detail (value-name e)
-                        (continuation-mark->stacks (exn-continuation-marks e)))))
+    (vector level (exn-message e) detail (value-name e)
+            (continuation-mark->stacks (exn-continuation-marks e)))))
 
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
 (define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
