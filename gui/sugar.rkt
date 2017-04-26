@@ -1,8 +1,10 @@
 #lang typed/racket/gui
 
 (provide (all-defined-out))
+(provide (all-from-out "../digitama/sugar.rkt"))
 
 (require "../cheat.rkt")
+(require "../digitama/sugar.rkt")
 
 (define-type Snip (Instance Snip%))
 (define-type Editor-Snip (Instance Editor-Snip%))
