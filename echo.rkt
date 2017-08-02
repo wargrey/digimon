@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/bool)
 
 (define-type Term-Color (Option (U String Symbol Byte)))
 
@@ -30,8 +29,8 @@
                                                 [{"hidden" "password"} (string-append effects ";8")]
                                                 [else (error 'tarminal-colorize "Unsupported Terminal Attribute: ~a" attr)]))
                                             "^;" "" #:all? #false)
-                            (if (false? fg) 39 (color-code (string-downcase (format "~a" fg))))
-                            (if (false? bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))))
+                            (if (not fg) 39 (color-code (string-downcase (format "~a" fg))))
+                            (if (not bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))))
 
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]

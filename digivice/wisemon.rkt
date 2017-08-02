@@ -164,7 +164,7 @@
              (call-with-input-file* entry (curry regexp-match* #px"(?<=#include )[<\"].+?.h[\">]"))))
     (define (dynamic-ldflags c)
       (for/fold ([ldflags (list* "-m64" "-shared"
-                                 (cond [(false? (symbol=? (digimon-system) 'macosx)) null]
+                                 (cond [(false? (eq? digimon-system 'macosx)) null]
                                        [else (list "-L/usr/local/lib" (~a "-F" (find-lib-dir)) "-framework" "Racket")]))])
                 ([line (in-list (file->lines c))]
                  #:when (regexp-match? #px"#include <" line))
@@ -174,11 +174,11 @@
                       (for/fold ([ld-++ ldflags])
                                 ([flags (in-port read (open-input-string ld))]
                                  #:when (pair? flags) #| filter out empty list |#)
-                        (match (cons (digimon-system) (and hint (map string->symbol (string-split hint ":"))))
+                        (match (cons digimon-system (and hint (map string->symbol (string-split hint ":"))))
                           [(list 'macosx 'framework) ; /* ld:framework: (IOKit) */
                            (append ld-++ (let ([-fw (list (~a #\- hint))])
                                            (add-between (map ~a flags) -fw #:splice? #true #:before-first -fw)))]
-                          [(cons _ (or (? false?) (? (curry memq (digimon-system))))) ; /* ld: (ssh2) or ld:illumos: (kstat) */
+                          [(cons _ (or (? false?) (? (curry memq digimon-system)))) ; /* ld: (ssh2) or ld:illumos: (kstat) */
                            (append ld-++ (map (curry ~a "-l") flags))]
                           [_ ldflags])))])))
     (define (build-with-output-filter build/0)
@@ -214,7 +214,7 @@
                          (λ [target]
                            (build-with-output-filter
                             (thunk (let ([cflags (list (format "-std=~a11" (if (racket?) "gnu" "c")) "-m64"
-                                                       (format "-D__~a__" (digimon-system)))])
+                                                       (format "-D__~a__" digimon-system))])
                                      (parameterize ([current-extension-compiler-flags (append cflags (current-extension-compiler-flags))]
                                                     [current-extension-preprocess-flags
                                                      (append cflags (current-extension-preprocess-flags))])
@@ -231,7 +231,7 @@
                                      (parameterize ([current-standard-link-libraries null]
                                                     [current-extension-linker-flags ldflags])
                                        (link-extension #false (list tobj) target)
-                                       (case (system-type 'os)
+                                       (case digimon-system
                                          [(macosx) (let ([image (format "Racket.framework/Versions/~a_~a/Racket"
                                                                         (version) (system-type 'gc))])
                                                      (define change-path (format "~a -change ~a ~a ~a"

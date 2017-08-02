@@ -1,9 +1,13 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide (all-defined-out))
 
 (require typed/setup/getinfo)
+
 (require racket/fixnum)
+(require racket/port)
+(require racket/path)
+(require racket/match)
 
 (struct place-message ([stream : Any]) #:prefab)
 
@@ -29,10 +33,10 @@
 
 (define #%info : (->* (Symbol) ((-> Any)) Any)
   (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
-    (lambda [id [mkdefval (thunk #false)]]
+    (lambda [id [mkdefval (λ [] #false)]]
       (define digimon : String (current-digimon))
-      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (thunk (get-info/full (digimon-path 'zone)))))
-      (cond [(false? info-ref) (mkdefval)]
+      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (λ [] (get-info/full (digimon-path 'zone)))))
+      (cond [(not info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
 
 (define digimon-uptime : (-> [#:now Integer] Fixnum)
@@ -51,16 +55,16 @@
         (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->string path))))
         (define info-ref : (Option Info-Ref) (get-info/full digimon-zone))
         (cond [(eq? path 'zone) digimon-zone]
-              [(false? info-ref) (map-path digimon-zone path)]
-              [else (let ([tail (info-ref fullpath (thunk #false))])
-                      (cond [(false? tail) (map-path digimon-zone path)]
+              [(not info-ref) (map-path digimon-zone path)]
+              [else (let ([tail (info-ref fullpath (λ [] #false))])
+                      (cond [(not tail) (map-path digimon-zone path)]
                             [(string? tail) (build-path digimon-zone tail)]
                             [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))
       (define digimon : String (current-digimon))
       (hash-ref! cache (list* digimon path paths)
-                 (thunk (let ([zone : Path (hash-ref cache (list digimon 'digimon-zone) get-zone)])
-                          (cond [(symbol? path) (apply build-path (prefab-path zone path) paths)]
-                                [else (apply build-path zone path paths)])))))))
+                 (λ [] (let ([zone : Path (hash-ref cache (list digimon 'digimon-zone) get-zone)])
+                         (cond [(symbol? path) (apply build-path (prefab-path zone path) paths)]
+                               [else (apply build-path zone path paths)])))))))
 
 (define digivice-path : (-> (U String Bytes) (U Symbol Path-String) Path-String * Path)
   (lambda [suffix path . paths]

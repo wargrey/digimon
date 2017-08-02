@@ -1,7 +1,7 @@
 #lang info
 
 (define collection 'use-pkg-name)
-(define pkg-desc "The (typed) core to construct the digital world")
+(define pkg-desc "Lorem Ipsum")
 
 (define deps '("base" "make" "cext-lib" "dynext-lib" "typed-racket-lib" "typed-racket-more"))
 (define build-deps '("scribble-lib" "racket-doc"))
@@ -10,6 +10,6 @@
 (define pkg-authors '(wargrey))
 (define test-omit-paths 'all)
 
-(define raco-commands '(["wisemon" digimon/digivice/wisemon "a raco to manage the workspace" #false]))
+(define raco-commands '(["wisemon" digimon/digivice/wisemon "yet another `make` utility" #false]))
 
 (define scribblings '(["tamer/digimon.scrbl" (main-doc)]))

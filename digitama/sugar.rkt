@@ -1,7 +1,10 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide (all-defined-out))
 
+(require racket/match)
+
+(require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
@@ -33,7 +36,7 @@
 
 (define-syntax (#%full-module stx)
   #'(let ([rmp (variable-reference->resolved-module-path (#%variable-reference))])
-      (if (false? rmp) '<nota-module> (resolved-module-path-name rmp))))
+      (if (not rmp) '<nota-module> (resolved-module-path-name rmp))))
 
 (define-syntax (#%file stx)
   #'(let ([full (ann (#%full-module) (U Symbol Path))])

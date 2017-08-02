@@ -1,13 +1,17 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide (all-defined-out))
 (provide (all-from-out typed/racket/date))
+(provide (all-from-out racket/format))
+(provide (all-from-out racket/pretty))
 
 (require "digitama/sugar.rkt")
 (require "digitama/plural.rkt")
 
+(require racket/format)
 (require racket/flonum)
-(require racket/fixnum)
+(require racket/pretty)
+(require racket/math)
 
 (require typed/racket/date)
 
@@ -47,6 +51,6 @@
         (cond [(< -1024.0 size 1024.0) (~n_w (exact-round size) "Byte")]
               [else (~size (fl/ (real->double-flonum size) 1024.0) 'KB #:precision prcs)])
         (let try-next-unit : String ([s : Flonum (real->double-flonum size)] [us : (Option Unit*) (memq unit units)])
-          (cond [(false? us) "Typed Racket is buggy if you see this message"]
+          (cond [(not us) "Typed Racket is buggy if you see this message"]
                 [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))

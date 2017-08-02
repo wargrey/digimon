@@ -1,8 +1,10 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide (all-defined-out))
 
 (require racket/fixnum)
+(require racket/future)
+(require racket/tcp)
 
 (require "system.rkt")
 
@@ -19,19 +21,19 @@
       (define saved-params-incaseof-transferring-continuation : Parameterization (current-parameterization))
       (define (wait-accept-handle-loop) : Void
         (parameterize ([current-custodian (make-custodian server-custodian)])
-          (define close-session : (-> Void) (thunk (custodian-shutdown-all (current-custodian))))
+          (define close-session : (-> Void) (λ [] (custodian-shutdown-all (current-custodian))))
           (with-handlers ([exn:fail:network? (λ [[e : exn]] (on-error e) (close-session))])
             (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break /dev/tcp))
-            (thread (thunk ((inst dynamic-wind Any)
-                            (thunk (unless (false? timeout)
-                                     (timer-thread timeout (λ [server times] ; give the task a chance to live longer
-                                                             (if (fx= times 1) (break-thread server) (close-session))))))
-                            (thunk ((inst call-with-parameterization Any)
-                                    saved-params-incaseof-transferring-continuation
-                                    (thunk (parameterize ([current-custodian (make-custodian)])
-                                             (with-handlers ([exn? (λ [[e : exn]] (on-error e))])
-                                               (on-connection /dev/tcpin /dev/tcpout portno))))))
-                            (thunk (close-session)))))))
+            (thread (λ [] ((inst dynamic-wind Any)
+                           (λ [] (unless (not timeout)
+                                   (timer-thread timeout (λ [server times] ; give the task a chance to live longer
+                                                           (if (fx= times 1) (break-thread server) (close-session))))))
+                           (λ [] ((inst call-with-parameterization Any)
+                                  saved-params-incaseof-transferring-continuation
+                                  (λ [] (parameterize ([current-custodian (make-custodian)])
+                                          (with-handlers ([exn? (λ [[e : exn]] (on-error e))])
+                                            (on-connection /dev/tcpin /dev/tcpout portno))))))
+                           (λ [] (close-session)))))))
         (wait-accept-handle-loop))
       (thread wait-accept-handle-loop)
-      (values (thunk (custodian-shutdown-all server-custodian)) portno))))
+      (values (λ [] (custodian-shutdown-all server-custodian)) portno))))

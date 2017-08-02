@@ -1,8 +1,14 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide speak ~speak)
 (provide current-tongue all-tongues default-tongue default-fallback-tongue)
 (provide default-tongue-paths default-tongue-extension default-tongue-fold)
+
+(require racket/path)
+(require racket/list)
+(require racket/string)
+(require racket/format)
+(require racket/match)
 
 (require "system.rkt")
 
@@ -11,7 +17,7 @@
 ; http://www.iana.org/assignments/language-subtag-registry/language-subtag-registry
 
 (define default-tongue : (->* () ((-> Symbol Symbol)) Symbol)
-  (lambda [[lang-map identity]]
+  (lambda [[lang-map values]]
     (define-type Tongue-Table (Listof (List Symbol Regexp Regexp)))
     (define default-table : Tongue-Table
       '((en      #rx"^en_"        #rx"^English_")
@@ -63,8 +69,8 @@
                    (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message e)) dictionary)])
                      (fold-tongue tongue.rktl dictionary)))))
     (hash-ref (hash-ref dicts tongue) word ; TODO: is it neccessary to downcase the word?
-              (thunk (cond [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
-                           [else (speak word #:in (default-fallback-tongue))])))))
+              (λ [] (cond [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
+                          [else (speak word #:in (default-fallback-tongue))])))))
 
 (define ~speak : (-> Symbol [#:in Symbol] Any * String)
   (lambda [word #:in [tongue (current-tongue)] . argl]

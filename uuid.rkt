@@ -7,7 +7,6 @@
 (provide (all-defined-out))
 (provide (all-from-out typed/racket/random))
 
-(require racket/math)
 (require racket/format)
 (require racket/fixnum)
 (require racket/flonum)

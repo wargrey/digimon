@@ -1,5 +1,5 @@
-# Digimon: The \(Typed\) Core to Construct the Digital World
+# Digimon: Lorem Ipsum
 
 wargrey
 
-_Sorry, I will write the documentation when it is ready to use. _
+_Sorry, but it is not recommend to use this package directly._

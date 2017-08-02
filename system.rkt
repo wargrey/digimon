@@ -1,10 +1,14 @@
-#lang typed/racket
+#lang typed/racket/base
 
 (provide (all-defined-out) current-digimon current-digivice)
 (provide digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
 (provide #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null)
 
 (require racket/fixnum)
+(require racket/format)
+(require racket/match)
+(require racket/port)
+(require racket/place)
 
 (require typed/racket/random)
 
@@ -57,7 +61,7 @@
 
 (define maybe? : (All (a) (-> (Option a) (-> a Boolean) Boolean))
   (lambda [val ?]
-    (or (false? val)
+    (or (not val)
         (and val (? val)))))
 
 (define value-name : (-> Any Symbol)
@@ -85,7 +89,7 @@
   (lambda [src key type? [defval #false]]
     (define v : Any (if defval (hash-ref src key defval) (hash-ref src key)))
     (cond [(type? v) v]
-          [(false? defval) (raise-result-error 'hash-ref:+? (~a (object-name type?)) v)]
+          [(not defval) (raise-result-error 'hash-ref:+? (~a (object-name type?)) v)]
           [else (defval)])))
 
 (define current-microseconds : (-> Fixnum)
@@ -102,11 +106,11 @@
 (define timer-thread : (-> Fixnum (-> Thread Fixnum Any) [#:basetime Fixnum] Thread)
   (lambda [interval on-timer #:basetime [basetime (current-milliseconds)]]
     (define thdsrc : Thread (current-thread))
-    (thread (thunk (let wait-dotask-loop ([evt (timer-evt interval basetime)])
-                     (match (sync/enable-break evt)
-                       [(vector (? evt? next-alarm) (? fixnum? interval) (? fixnum? alarm-time))
-                        (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
-                        (wait-dotask-loop next-alarm)]))))))
+    (thread (λ [] (let wait-dotask-loop ([evt (timer-evt interval basetime)])
+                    (match (sync/enable-break evt)
+                      [(vector (? evt? next-alarm) (? fixnum? interval) (? fixnum? alarm-time))
+                       (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
+                       (wait-dotask-loop next-alarm)]))))))
 
 (define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread)) (Listof Continuation-Stack))
   (lambda [[cm (current-continuation-marks)]]
@@ -160,7 +164,7 @@
       [(? place-message-allowed?) (place-channel-put dest datum)]
       [(? exn?) (place-channel-put dest (exn->message datum))]
       [(box (and (not (? bytes? v)) (? place-message-allowed? v))) (place-channel-put dest (place-message v))]
-      [_ (place-channel-put dest (place-message (with-output-to-bytes (thunk (write datum)))))])))
+      [_ (place-channel-put dest (place-message (with-output-to-bytes (λ [] (write datum)))))])))
 
 (define place-channel-recv : (-> Place-Channel [#:timeout Nonnegative-Real] [#:hint (Parameterof (Option Place-Channel))] Any)
   (lambda [channel #:timeout [s +inf.0] #:hint [hint the-synced-place-channel]]
@@ -174,9 +178,7 @@
 
 (define place-status : (-> Place (U 'running Integer))
   (lambda [p]
-    (match (sync/timeout 0 (place-dead-evt p))
-      [(? false?) 'running]
-      [_ (place-wait p)])))
+    (if (sync/timeout 0 (place-dead-evt p)) (place-wait p) 'running)))
 
 (define place-wait-evt : (-> Place Place-EvtExit)
   (lambda [p]
@@ -224,15 +226,15 @@
     (define (terminate [status : Any]) : Any
       (parameterize ([exit-handler exit-racket])
         (cond [(exact-nonnegative-integer? status) (exit (min status 255))]
-              [(hash-ref codes status (thunk #false)) => exit]
+              [(hash-ref codes status (λ [] #false)) => exit]
               [else (exit 0)])))
     
     (parameterize ([exit-handler terminate])
       (exit (with-handlers ([exn? (λ [[e : exn]] (and (eprintf "~a~n" (exn-message e)) 'FATAL))]
                             [void (λ [e] (and (eprintf "(uncaught-exception-handler) => ~a~n" e) 'FATAL))])
-              (dynamic-wind (thunk (with-handlers ([exn? (λ [[e : exn]] (atexit/0) (raise e))]) (atinit/0)))
-                            (thunk (main/0))
-                            (thunk (atexit/0))))))))
+              (dynamic-wind (λ [] (with-handlers ([exn? (λ [[e : exn]] (atexit/0) (raise e))]) (atinit/0)))
+                            (λ [] (main/0))
+                            (λ [] (atexit/0))))))))
 
 (define immutable-guard : (-> Symbol (Any -> Nothing))
   (lambda [pname]
@@ -240,9 +242,9 @@
 
 (define car.eval : (->* (Any) (Namespace) Any)
   (lambda [sexp [ns (current-namespace)]]
-    (call-with-values (thunk (eval sexp ns))
+    (call-with-values (λ [] (eval sexp ns))
                       (λ result (car result)))))
 
 (define void.eval : (->* (Any) (Namespace) Void)
   (lambda [sexp [ns (current-namespace)]]
-    (call-with-values (thunk (eval sexp ns)) void)))
+    (call-with-values (λ [] (eval sexp ns)) void)))
