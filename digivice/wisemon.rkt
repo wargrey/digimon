@@ -19,6 +19,7 @@
 (require setup/dirs)
 
 (require "../digitama/system.rkt")
+(require "../digitama/collection.rkt")
 (require "../echo.rkt")
 (require "../format.rkt")
 (require "../debug.rkt")
@@ -384,13 +385,13 @@
           (curry eechof #:fgcolor 'lightred "make: I don't know what does `~a` mean!~n")))
 
 (define make-digimon
-  (λ [zone info-ref reals phonies]
-    (define collection (info-ref 'collection))
-    (if (eq? collection 'multi)
-        (for ([subzone (in-list (directory-list zone #:build? #true))])
-          (define subinfo-ref (get-info/full subzone))
-          (and subinfo-ref (make-digimon subzone subinfo-ref reals phonies)))
-        (let ([digimons (list (if (symbol? collection) (let-values ([(_b pkg-name _?) (split-path zone)]) pkg-name) collection))])
+  (λ [infos reals phonies]
+    (if (pair? infos)
+        (for ([subinfo (in-list (cdr infos))])
+          (make-digimon subinfo reals phonies))
+        (let ([zone (pkg-info-zone infos)]
+              [info-ref (pkg-info-ref infos)]
+              [digimons (list (pkg-info-name infos))])
           (parameterize ([current-make-real-targets (map simple-form-path reals)]
                          [current-directory zone])
             (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (car digimons)))
@@ -413,14 +414,10 @@
      flag-table
      (λ [!voids . targets]
        (dynamic-wind (thunk (thread trace-log))
-                     (thunk (let cd ([pwd (current-directory)])
-                              (define info-ref (get-info/full pwd))
-                              (if (not info-ref)
-                                  (let-values ([(base name dir?) (split-path pwd)])
-                                    (cond [(false? base) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit 1)]
-                                          [else (cd base)]))
-                                  (let-values ([(reals phonies) (partition filename-extension targets)])
-                                    (exit (time-apply* (thunk (make-digimon pwd info-ref reals phonies))))))))
+                     (thunk (let ([digimons (collection-info)])
+                              (cond [(not digimons) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit 1)]
+                                    [else (let-values ([(reals phonies) (partition filename-extension targets)])
+                                            (exit (time-apply* (thunk (make-digimon digimons reals phonies)))))])))
                      (thunk (log-message (current-logger) 'info 'make "Job Done!" eof))))
      '["phony-target|file-path"]
      (compose1 exit display --help)

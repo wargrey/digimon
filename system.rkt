@@ -48,12 +48,6 @@
       ;;; which have already been compiled into <path:compiled>.
       (use-compiled-file-paths (list (build-path "compiled"))))
 
-(define file-readable? : (-> Path-String Boolean)
-  (lambda [p]
-    (and (file-exists? p)
-         (memq 'read (file-or-directory-permissions p))
-         #true)))
-
 (define string-null? : (-> Any Boolean : #:+ String)
   (lambda [str]
     (and (string? str)

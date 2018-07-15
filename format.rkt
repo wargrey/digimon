@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) plural)
 (provide (all-from-out typed/racket/date))
 (provide (all-from-out racket/format))
 (provide (all-from-out racket/pretty))
@@ -14,12 +14,6 @@
 (require racket/math)
 
 (require typed/racket/date)
-
-(define plural : (-> Integer String String)
-  (lambda [n word]
-    (define dict : (HashTable String String) #hash(("story" . "stories") ("Story" . "Stories")))
-    (cond [(= n 1) word]
-          [else (hash-ref dict word (λ _ (string-append word "s")))])))
 
 (define ~n_w : (-> Integer String String)
   (lambda [count word]
