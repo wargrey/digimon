@@ -147,7 +147,8 @@
                                   #:title    "Literate Programming - Issues and Problems"
                                   #:author   (authors "Kurt Nørmark")
                                   #:date     "1998"
-                                  #:location (dissertation-location #:institution "Department of Computer Science Aalborg University" #:degree "Lektor")
+                                  #:location (dissertation-location #:institution "Department of Computer Science Aalborg University"
+                                                                    #:degree "Lektor")
                                   #:url      "http://people.cs.aau.dk/~normark/litpro/issues-and-problems.html"))])
     (lambda [#:index? [index? #true] . bibentries]
       (define appendix-style (make-style 'index '(grouper)))
@@ -183,9 +184,11 @@
                                     (cond [(regexp-match #px"^λ\\s+(.+)" line)
                                            => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
                                           [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
-                                           => (λ [pieces] (match-let ([(list _ indt ctxt) pieces]) ; (markdown listitem needs at least 1 char after "+ "
-                                                            (list (format ">   ~a+ ~a" indt open-book#)  ; before breaking line if "[~a](~a)" is longer
-                                                                  (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))] ; then 72 chars.)
+                                           ; markdown listitem requires at least 1 char after "+ " before
+                                           ; breaking line if "[~a](~a)" is longer then 72 chars.
+                                           => (λ [pieces] (match-let ([(list _ indt ctxt) pieces])
+                                                            (list (format ">   ~a+ ~a" indt open-book#)
+                                                                  (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))]
                                           [(regexp-match #px"^(\\s+)λ\\d+(.\\d)*\\s+(.+?)\\s*$" line)
                                            => (λ [pieces] (format ">   ~a+ ~a~a" (list-ref pieces 1) bookmark# (list-ref pieces 3)))]
                                           [(regexp-match #px"^$" line) (summary? #true)]
@@ -280,6 +283,7 @@
 (define tamer-smart-summary
   (lambda []
     (define story-snapshot (tamer-story))
+    (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
      (λ [get set]
        (if (member 'markdown (get 'scribble:current-render-mode '(html)))
@@ -290,157 +294,166 @@
               (define (story-ref htag)
                 (filter-map (λ [scnr] (hash-ref (hash-ref (get 'scenario make-hash) htag make-hash) (cdr scnr) #false))
                             (reverse (hash-ref handbook-stories htag null))))
-              (nested #:style (make-style "boxed" null)
-                      (filebox (if (module-path? story-snapshot)
-                                   (italic (seclink "tamer-book" (string open-book#)) ~
-                                           (~a "Behaviors in " (tamer-story->tag story-snapshot)))
-                                   (italic (string books#) ~
-                                           (~a "Behaviors of " (current-digimon))))
-                               (let ([base (if (module-path? story-snapshot)
-                                               (story-ref (tamer-story->tag story-snapshot))
-                                               (for/list ([story (in-list (reverse (hash-ref handbook-stories books# null)))])
-                                                 (cons story (with-handlers ([exn:fail:contract? (const null)])
-                                                               (apply append (map cdr (story-ref story)))))))])
-                                 (define statuses (map ~result (list test-error test-failure test-todo test-skip)))
-                                 (define items (for/list ([spec (in-list base)])
-                                                 ;;; also see (tamer-note)
-                                                 (define-values (local# desc)
-                                                   (cond [(string? (car spec)) (values bookmark# (car spec))] ;;; testsuite
-                                                         [else (values page# (unbox (car spec)))])) ;;; toplevel testcase
-                                                 (define status (car (or (ormap (curryr member (cdr spec)) statuses)
-                                                                         (list (~result struct:test-success)))))
-                                                 (if (module-path? story-snapshot)
-                                                     (list (elem (italic (string local#)) ~
-                                                                 (elemref desc (racketkeywordfont (literal desc))))
-                                                           (elemref desc status #:underline? #false))
-                                                     (let ([stts (make-parameter status)])
-                                                       (echof #:fgcolor 'lightyellow (~a desc #:width 64 #:pad-string "." #:limit-marker "......"))
-                                                       (echof #:fgcolor (~fgcolor status) "~a~n" status)
-                                                       (for ([msg (in-list (cdr spec))])
-                                                         (cond [(and (member msg statuses) msg)
-                                                                => stts]
-                                                               [(and (regexp-match? #px"»»" msg) msg)
-                                                                => (curry eechof #:fgcolor 'darkgrey "~a~n")]
-                                                               [(and (string? (car spec)) msg)
-                                                                => (curry eechof  "~a~n"
-                                                                          #:fgcolor (~fgcolor (stts))
-                                                                          #:attributes (if (string=? (stts) (~result test-error)) '(inverse) null))]))
-                                                       (list (elem (italic (string book#)) ~ (secref (car spec)))
-                                                             (seclink (car spec) status #:underline? #false))))))
-                                 (match-define (list success failure error skip todo reals gcs cpus)
-                                   (for/list ([meta (in-list (list 'success 'failure 'error 'skip 'todo 'real 'gc 'cpu))])
-                                     (define pool (get meta make-hash))
-                                     (if (module-path? story-snapshot)
-                                         (hash-ref pool story-snapshot 0)
-                                         (foldl + 0 (hash-values pool)))))
-                                 (match-define (list real cpu-gc gc cpu)
-                                   (map (compose1 (curry ~r #:precision '(= 3)) (curry * 0.001))
-                                        (list reals (- cpus gcs) gcs cpus)))
-                                 (define briefs
-                                   (let ([population (+ success failure error skip todo)])
-                                     (if (zero? population)
-                                         (list "No particular test!")
-                                         (list (format "~a% tests successful."
-                                                       (~r #:precision '(= 2) (/ (* (+ success skip) 100) population)))
-                                               (format "~a, ~a, ~a, ~a, ~a, ~a."
-                                                 (~w=n (length base) (if story-snapshot "Scenario" "Story"))
-                                                 (~w=n population "Test") (~w=n failure "Failure") (~w=n error "Error")
-                                                 (~w=n skip "Skip") (~w=n todo "TODO"))
-                                               (format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
-                                                       real cpu-gc gc cpu)))))
-                                 (unless (module-path? story-snapshot)
-                                   (for ([brief (in-list (cons "" briefs))])
+              (parameterize ([current-digimon raco-setup-forget-my-digimon])
+                (nested #:style (make-style "boxed" null)
+                        (filebox (if (module-path? story-snapshot)
+                                     (italic (seclink "tamer-book" (string open-book#)) ~
+                                             (~a "Behaviors in " (tamer-story->tag story-snapshot)))
+                                     (italic (string books#) ~
+                                             (~a "Behaviors of " (current-digimon))))
+                                 (let ([base (cond [(module-path? story-snapshot) (story-ref (tamer-story->tag story-snapshot))]
+                                                   [else (for/list ([story (in-list (reverse (hash-ref handbook-stories books# null)))])
+                                                           (cons story (with-handlers ([exn:fail:contract? (const null)])
+                                                                         (apply append (map cdr (story-ref story))))))])])
+                                   (define statuses (map ~result (list test-error test-failure test-todo test-skip)))
+                                   (define items (for/list ([spec (in-list base)])
+                                                   ;;; also see (tamer-note)
+                                                   (define-values (local# desc)
+                                                     (cond [(string? (car spec)) (values bookmark# (car spec))] ;;; testsuite
+                                                           [else (values page# (unbox (car spec)))])) ;;; toplevel testcase
+                                                   (define status (car (or (ormap (curryr member (cdr spec)) statuses)
+                                                                           (list (~result struct:test-success)))))
+                                                   (if (module-path? story-snapshot)
+                                                       (list (elem (italic (string local#)) ~
+                                                                   (elemref desc (racketkeywordfont (literal desc))))
+                                                             (elemref desc status #:underline? #false))
+                                                       (let ([head (~a desc #:width 64 #:pad-string "." #:limit-marker "......")]
+                                                             [stts (make-parameter status)])
+                                                         (echof #:fgcolor 'lightyellow head)
+                                                         (echof #:fgcolor (~fgcolor status) "~a~n" status)
+                                                         (for ([msg (in-list (cdr spec))])
+                                                           (cond [(and (member msg statuses) msg)
+                                                                  => stts]
+                                                                 [(and (regexp-match? #px"»»" msg) msg)
+                                                                  => (curry eechof #:fgcolor 'darkgrey "~a~n")]
+                                                                 [(and (string? (car spec)) msg)
+                                                                  => (curry eechof  "~a~n"
+                                                                            #:fgcolor (~fgcolor (stts))
+                                                                            #:attributes (cond [(string=? (stts) (~result test-error)) '(inverse)]
+                                                                                               [else null]))]))
+                                                         (list (elem (italic (string book#)) ~ (secref (car spec)))
+                                                               (seclink (car spec) status #:underline? #false))))))
+                                   (match-define (list success failure error skip todo reals gcs cpus)
+                                     (for/list ([meta (in-list (list 'success 'failure 'error 'skip 'todo 'real 'gc 'cpu))])
+                                       (define pool (get meta make-hash))
+                                       (if (module-path? story-snapshot)
+                                           (hash-ref pool story-snapshot 0)
+                                           (foldl + 0 (hash-values pool)))))
+                                   (match-define (list real cpu-gc gc cpu)
+                                     (map (compose1 (curry ~r #:precision '(= 3)) (curry * 0.001))
+                                          (list reals (- cpus gcs) gcs cpus)))
+                                   (define briefs
+                                     (let ([population (+ success failure error skip todo)])
+                                       (if (zero? population)
+                                           (list "No particular test!")
+                                           (list (format "~a% tests successful."
+                                                   (~r #:precision '(= 2) (/ (* (+ success skip) 100) population)))
+                                                 (format "~a, ~a, ~a, ~a, ~a, ~a."
+                                                   (~w=n (length base) (if story-snapshot "Scenario" "Story"))
+                                                   (~w=n population "Test") (~w=n failure "Failure") (~w=n error "Error")
+                                                   (~w=n skip "Skip") (~w=n todo "TODO"))
+                                                 (format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
+                                                   real cpu-gc gc cpu)))))
+                                   (unless (module-path? story-snapshot)
+                                     (for ([brief (in-list (cons "" briefs))])
                                      (echof #:fgcolor 'lightcyan "~a~n" brief)))
-                                 (let ([summaries (add-between (map racketoutput briefs) (linebreak))])
-                                   (cond [(null? items) summaries]
-                                         [else (cons (tabular items #:style 'boxed #:column-properties '(left right))
-                                                     summaries)]))))))))))))
+                                   (let ([summaries (add-between (map racketoutput briefs) (linebreak))])
+                                     (cond [(null? items) summaries]
+                                           [else (cons (tabular items #:style 'boxed #:column-properties '(left right))
+                                                       summaries)])))))))))))))
 
 (define tamer-note
   (lambda [unit-vars . notes]
     (define story-snapshot (tamer-story))
+    (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
      (λ [get set]
-       (define htag (tamer-story->tag story-snapshot))
-       (unless (get 'scenario #false) (set 'scenario (make-hash)))
-       (define scenarios (hash-ref! (get 'scenario make-hash) htag make-hash))
-       (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
-                    (for/list ([unit-var (in-list (if (list? unit-vars) unit-vars (list unit-vars)))])
-                      (define-values (/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout))
-                      (parameterize ([tamer-story story-snapshot]
-                                     [current-readtable readwrotten]
-                                     [current-input-port /dev/tamer/stdin])
-                        (define unit (tamer-require unit-var))
-                        (define unit-spec (make-parameter null))
-                        (thread (λ _ (dynamic-wind (thunk (collect-garbage))
-                                                   (thunk (parameterize ([current-error-port /dev/tamer/stdout]
-                                                                         [current-output-port /dev/tamer/stdout])
-                                                            (define-values (brief cpu real gc) (time-apply prove (list unit)))
-                                                            (define-values (success failure error skip todo)
-                                                              (values (summary-success (car brief))
-                                                                      (summary-failure (car brief))
-                                                                      (summary-error (car brief))
-                                                                      (summary-skip (car brief))
-                                                                      (summary-todo (car brief))))
-                                                            (for ([meta (in-list (list 'cpu 'real 'gc 'success 'failure 'error 'skip 'todo))]
-                                                                  [delta (in-list (list cpu real gc success failure error skip todo))])
-                                                              (unless (get meta #false) (set meta (make-hash)))
-                                                              (define pool (get meta make-hash))
-                                                              (hash-set! pool (tamer-story) (+ (hash-ref pool (tamer-story) 0) delta)))
-                                                            (if (zero? (+ failure error))
-                                                                (printf "~n~a wall seconds.~n" (~r (/ real 1000.0) #:precision '(= 3)))
-                                                                (printf "~n~a ~a~n" (~n_w failure "failure") (~n_w error "error")))))
-                                                   (thunk (close-output-port /dev/tamer/stdout)))))
-                        ((compose1 (curryr add-between (linebreak)) (curry filter-not void?))
-                         (for/list ([line (in-port read-line)])
-                           (cond [(regexp-match #px"^λ\\s+(.+)" line)
-                                  => (λ [pieces] (let ([ctxt (list-ref pieces 1)])
-                                                   (unit-spec (list ctxt)) ; Testsuite
-                                                   (nonbreaking (racketmetafont (italic (string open-book#)) ~ (elemtag ctxt (literal ctxt))))))]
-                                 [(regexp-match #px"^\\s+λ(\\d+(.\\d)*)\\s+(.+?)\\s*$" line)
-                                  => (λ [pieces] (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal (list-ref pieces 3))))))]
-                                 [(regexp-match #px"^(\\s*)(.+?)\\s+(\\d+) - (.+?)\\s*$" line)
-                                  => (λ [pieces] (match-let ([(list _ spc stts idx ctxt) pieces])
-                                                   (when (string=? spc "") (unit-spec (list (box ctxt)))) ; Toplevel testcase
-                                                   (unless (string=? stts (~result struct:test-success))
-                                                     (unit-spec (cons ctxt (cons stts (unit-spec)))))
-                                                   (nonbreaking ((if (string=? spc "") (curry elemtag ctxt) elem)
-                                                                 stts (racketkeywordfont ~ (italic idx)) (racketcommentfont ~ (literal ctxt))))))]
-                                 [(regexp-match #px"^\\s*»» (.+?)?:?\\s+(.+?)\\s*$" line)
-                                  => (λ [pieces] (match-let ([(list _ key val) pieces])
-                                                   (unit-spec (cons (string-trim line) (unit-spec)))
-                                                   (cond [(member key '("message"))
-                                                          (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
-                                                                (string backhand#) ~ (italic (literal val)))]
-                                                         [(member key '("SKIP" "TODO"))
-                                                          (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
-                                                                (string backhand#) ~ (racketparenfont key ":") ~ (italic (literal val)))]
-                                                         [(member key '("exn" "exception"))
-                                                          (elem (racketvalfont (string macroscope#)) ~
-                                                                (racket #,(let ([ev (fix (read (open-input-string val)))]
-                                                                                [tr (curryr call-with-input-string read-line)])
-                                                                            (vector-set! ev 1 (tr (vector-ref ev 1))) ev)))]
-                                                         [(regexp-match? #px"param:\\d+" key)
-                                                          (elem (racketvalfont (string crystal-ball#)) ~
-                                                                (racket #,(fix (read (open-input-string val)))))])))]
-                                 [(regexp-match #px"^\\s*»»» \\s+(expected|given|received):\\s+(.+?)\\s*$" line)
-                                  ; only for errors that have multilined messages.
-                                  => (λ [pieces] (and (unit-spec (cons (string-trim line) (unit-spec)))
-                                                      (elem (racketvalfont (string paw#)) ~
-                                                            (let ([message (list-ref pieces 2)])
-                                                              (racket #,(fix (with-handlers ([exn? (λ _ message)])
-                                                                               (read (open-input-string message)))))))))]
-                                 [(regexp-match #px"^$" line) (hash-set! scenarios unit (reverse (unit-spec)))]
-                                 [(hash-has-key? scenarios unit)
-                                  (nonbreaking (elem (string pin#) ~ ((if (regexp-match? #px"error" line) racketerror racketresultfont) line) ~
-                                                     (seclink (tamer-story->tag (tamer-story)) ~
-                                                              (string house-garden#) (smaller (string cat#)))))]))))))))))
-
+       (parameterize ([current-digimon raco-setup-forget-my-digimon])
+         (define htag (tamer-story->tag story-snapshot))
+         (unless (get 'scenario #false) (set 'scenario (make-hash)))
+         (define scenarios (hash-ref! (get 'scenario make-hash) htag make-hash))
+         (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
+                      (for/list ([unit-var (in-list (if (list? unit-vars) unit-vars (list unit-vars)))])
+                        (define-values (/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout))
+                        (parameterize ([tamer-story story-snapshot]
+                                       [current-readtable readwrotten]
+                                       [current-input-port /dev/tamer/stdin])
+                          (define unit (tamer-require unit-var))
+                          (define unit-spec (make-parameter null))
+                          (thread (λ _ (dynamic-wind (thunk (collect-garbage))
+                                                     (thunk (parameterize ([current-error-port /dev/tamer/stdout]
+                                                                           [current-output-port /dev/tamer/stdout])
+                                                              (define-values (brief cpu real gc) (time-apply prove (list unit)))
+                                                              (define-values (success failure error skip todo)
+                                                                (values (summary-success (car brief))
+                                                                        (summary-failure (car brief))
+                                                                        (summary-error (car brief))
+                                                                        (summary-skip (car brief))
+                                                                        (summary-todo (car brief))))
+                                                              (for ([meta (in-list (list 'cpu 'real 'gc 'success 'failure 'error 'skip 'todo))]
+                                                                    [delta (in-list (list cpu real gc success failure error skip todo))])
+                                                                (unless (get meta #false) (set meta (make-hash)))
+                                                                (define pool (get meta make-hash))
+                                                                (hash-set! pool (tamer-story) (+ (hash-ref pool (tamer-story) 0) delta)))
+                                                              (if (zero? (+ failure error))
+                                                                  (printf "~n~a wall seconds.~n" (~r (/ real 1000.0) #:precision '(= 3)))
+                                                                  (printf "~n~a ~a~n" (~n_w failure "failure") (~n_w error "error")))))
+                                                     (thunk (close-output-port /dev/tamer/stdout)))))
+                          ((compose1 (curryr add-between (linebreak)) (curry filter-not void?))
+                           (for/list ([line (in-port read-line)])
+                             (cond [(regexp-match #px"^λ\\s+(.+)" line)
+                                    => (λ [pieces] (let ([ctxt (list-ref pieces 1)])
+                                                     (unit-spec (list ctxt)) ; Testsuite
+                                                     (nonbreaking (racketmetafont (italic (string open-book#)) ~
+                                                                                  (elemtag ctxt (literal ctxt))))))]
+                                   [(regexp-match #px"^\\s+λ(\\d+(.\\d)*)\\s+(.+?)\\s*$" line)
+                                    => (λ [pieces] (nonbreaking (racketoutput (italic (string bookmark#)) ~
+                                                                              (larger (literal (list-ref pieces 3))))))]
+                                   [(regexp-match #px"^(\\s*)(.+?)\\s+(\\d+) - (.+?)\\s*$" line)
+                                    => (λ [pieces] (match-let ([(list _ spc stts idx ctxt) pieces])
+                                                     (when (string=? spc "") (unit-spec (list (box ctxt)))) ; Toplevel testcase
+                                                     (unless (string=? stts (~result struct:test-success))
+                                                       (unit-spec (cons ctxt (cons stts (unit-spec)))))
+                                                     (nonbreaking ((if (string=? spc "") (curry elemtag ctxt) elem)
+                                                                   stts (racketkeywordfont ~ (italic idx))
+                                                                   (racketcommentfont ~ (literal ctxt))))))]
+                                   [(regexp-match #px"^\\s*»» (.+?)?:?\\s+(.+?)\\s*$" line)
+                                    => (λ [pieces] (match-let ([(list _ key val) pieces])
+                                                     (unit-spec (cons (string-trim line) (unit-spec)))
+                                                     (cond [(member key '("message"))
+                                                            (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
+                                                                  (string backhand#) ~ (italic (literal val)))]
+                                                           [(member key '("SKIP" "TODO"))
+                                                            (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
+                                                                  (string backhand#) ~ (racketparenfont key ":") ~ (italic (literal val)))]
+                                                           [(member key '("exn" "exception"))
+                                                            (elem (racketvalfont (string macroscope#)) ~
+                                                                  (racket #,(let ([ev (fix (read (open-input-string val)))]
+                                                                                  [tr (curryr call-with-input-string read-line)])
+                                                                              (vector-set! ev 1 (tr (vector-ref ev 1))) ev)))]
+                                                           [(regexp-match? #px"param:\\d+" key)
+                                                            (elem (racketvalfont (string crystal-ball#)) ~
+                                                                  (racket #,(fix (read (open-input-string val)))))])))]
+                                   [(regexp-match #px"^\\s*»»» \\s+(expected|given|received):\\s+(.+?)\\s*$" line)
+                                    ; only for errors that have multilined messages.
+                                    => (λ [pieces] (and (unit-spec (cons (string-trim line) (unit-spec)))
+                                                        (elem (racketvalfont (string paw#)) ~
+                                                              (let ([message (list-ref pieces 2)])
+                                                                (racket #,(fix (with-handlers ([exn? (λ _ message)])
+                                                                                 (read (open-input-string message)))))))))]
+                                   [(regexp-match #px"^$" line) (hash-set! scenarios unit (reverse (unit-spec)))]
+                                   [(hash-has-key? scenarios unit)
+                                    (nonbreaking (elem (string pin#) ~ ((if (regexp-match? #px"error" line) racketerror racketresultfont) line) ~
+                                                       (seclink (tamer-story->tag (tamer-story)) ~
+                                                                (string house-garden#) (smaller (string cat#)))))])))))))))))
+  
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1]]
     (define story-snapshot (tamer-story))
+    (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (thunk* (parameterize ([tamer-story story-snapshot])
+     (thunk* (parameterize ([tamer-story story-snapshot]
+                            [current-digimon raco-setup-forget-my-digimon])
                (define /path/file (simplify-path (if (symbol? path) (dynamic-require/expose (tamer-story) path) path)))
                (nested #:style (make-style "boxed" null)
                        (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
@@ -450,8 +463,10 @@
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxend [pxend #false] #:greedy? [greedy? #false]]
     (define story-snapshot (tamer-story))
+    (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (thunk* (parameterize ([tamer-story story-snapshot])
+     (thunk* (parameterize ([tamer-story story-snapshot]
+                            [current-digimon raco-setup-forget-my-digimon])
                (define /path/file (simplify-path (if (symbol? path) (dynamic-require/expose (tamer-story) path) path)))
                (define-values (line0 contents)
                  (call-with-input-file* /path/file
