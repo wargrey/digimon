@@ -11,6 +11,7 @@
 (require racket/format)
 (require racket/flonum)
 (require racket/pretty)
+(require racket/string)
 (require racket/math)
 
 (require typed/racket/date)
@@ -54,3 +55,26 @@
           (cond [(not us) "Typed Racket is buggy if you see this message"]
                 [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))
+
+(define ~hexstring : (-> Any String)
+  (lambda [val]
+    (cond [(integer? val) (~r val #:base 16)]
+          [(bytes? val) (format "~a" (regexp-match* #px".." (bytes->hex-string val)))]
+          [(boolean? val) (~hexstring (if val 1 0))]
+          [else (~hexstring (string->bytes/utf-8 (~a val)))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bytes->hex-string : (-> Bytes String)
+  (let ([digit (λ [[b : Byte]] : Integer (if (< b 10) (+ b 48 #;#\0) (+ b 87 #;(- #\a - 10))))])
+    (lambda [bstr]
+      (let* ([len (bytes-length bstr)]
+             [bstr2 (make-bytes (* len 2))])
+        (for ([i (in-range len)])
+          (let ([c (bytes-ref bstr i)])
+            (bytes-set! bstr2 (* 2 i) (digit (arithmetic-shift c -4)))
+            (bytes-set! bstr2 (+ (* 2 i) 1) (digit (bitwise-and c #xF)))))
+        (bytes->string/latin-1 bstr2)))))
+
+(define symb0x->number : (-> Symbol (Option Number))
+  (lambda [hex]
+    (string->number (string-replace (symbol->string hex) "0x" "") 16)))

@@ -217,8 +217,7 @@
                             (thunk (let ([cflags (list (format "-std=~a11" (if (racket?) "gnu" "c")) "-m64"
                                                        (format "-D__~a__" digimon-system))])
                                      (parameterize ([current-extension-compiler-flags (append cflags (current-extension-compiler-flags))]
-                                                    [current-extension-preprocess-flags
-                                                     (append cflags (current-extension-preprocess-flags))])
+                                                    [current-extension-preprocess-flags (append cflags (current-extension-preprocess-flags))])
                                        ; meanwhile `xform` is buggy
                                        ;(define xform.c (box (build-path (path-only target) (file-name-from-path c))))
                                        (define -Is (list (current-directory) "/usr/local/include"))

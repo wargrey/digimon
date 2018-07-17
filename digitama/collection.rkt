@@ -31,7 +31,7 @@
          info-ref
          (let ([collection (and info-ref (info-ref 'collection))])
            (cond [(string? collection) (pkg-info info-ref zone collection)]
-                 [(eq? collection 'use-pkg-name) (pkg-info info-ref zone (dirname dir))]
+                 [(eq? collection 'use-pkg-name) (pkg-info info-ref zone (dirname zone))]
                  [else (let subcollection-info ([subdirs : (Listof Path) (directory-list zone #:build? #true)]
                                                 [subinfos : (Listof pkg-info) null])
                          (cond [(null? subdirs) (cons info-ref (reverse subinfos))]

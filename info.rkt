@@ -3,7 +3,7 @@
 (define collection 'use-pkg-name)
 (define pkg-desc "Lorem Ipsum")
 
-(define deps '("base" "make" "cext-lib" "dynext-lib" "typed-racket-lib" "typed-racket-more"))
+(define deps '("base" "make" "cext-lib" "dynext-lib" "scribble-lib" "rackunit-lib" "typed-racket-lib" "typed-racket-more"))
 (define build-deps '("scribble-lib" "racket-doc"))
 
 (define version "1.0")
