@@ -69,7 +69,7 @@
                    (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-warning #:topic topic "~a: ~a" tongue.rktl (exn-message e)) dictionary)])
                      (fold-tongue tongue.rktl dictionary)))))
     (hash-ref (hash-ref dicts tongue) word ; TODO: is it neccessary to downcase the word?
-              (λ [] (cond [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
+              (λ [] (cond [(eq? tongue (default-fallback-tongue)) (string-titlecase (string-replace (symbol->string word) "-" " "))]
                           [else (speak word #:in (default-fallback-tongue))])))))
 
 (define ~speak : (-> Symbol [#:in Symbol] Any * String)

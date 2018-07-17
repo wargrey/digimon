@@ -93,7 +93,7 @@
                          (list (hyperlink (~github (current-digimon)) (string house-garden#))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
-                             [else (list (literal (speak 'tamer-handbook) ":") ~
+                             [else (list (literal (speak '|tamer's-handbook|) ":") ~
                                          (current-digimon))])))
               (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun)))))))]))
 
