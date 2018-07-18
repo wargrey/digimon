@@ -23,29 +23,29 @@
   (lambda [[lang-map values]]
     (define-type Tongue-Table (Listof (List Symbol Regexp Regexp)))
     (define default-table : Tongue-Table
-      '((English             #rx"^en_"        #rx"^English_")
-        (Espanol             #rx"^es_"        #rx"^Espanol_")
-        (German              #rx"^de_"        #rx"^German_")
-        (French              #rx"^fr_"        #rx"French_")
-        (Netherlands         #rx"nl_"         #rx"^Netherlands_")
-        (Danish              #rx"^da_DK"      #rx"^Danish_")
-        (Portuguese          #rx"^pt_"        #rx"Portuguese_")
-        (Japanese            #rx"^ja_"        #rx"^Japan_")
-        (Traditional-Chinese #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
-        (Simplified-Chiese   #rx"^zh_CN"      #rx"Chinese_China")
-        (Russian             #rx"^ru_"        #rx"^Russian_")
-        (Ukrainian           #rx"^uk_"        #rx"^Ukrainian_")
-        (Korean              #rx"^ko_"        #rx"^Korean_")))
+      '((en      #rx"^en_"        #rx"^English_")
+        (es      #rx"^es_"        #rx"^Espanol_")
+        (de      #rx"^de_"        #rx"^German_")
+        (fr      #rx"^fr_"        #rx"French_")
+        (nl      #rx"nl_"         #rx"^Netherlands_")
+        (da      #rx"^da_DK"      #rx"^Danish_")
+        (pt      #rx"^pt_"        #rx"Portuguese_")
+        (ja      #rx"^ja_"        #rx"^Japan_")
+        (zh-Hant #rx"^zh_(HK|TW)" #rx"Chinese_(Hong|Taiwan)")
+        (zh-Hans #rx"^zh_CN"      #rx"Chinese_China")
+        (ru      #rx"^ru_"        #rx"^Russian_")
+        (uk      #rx"^uk_"        #rx"^Ukrainian_")
+        (ko      #rx"^ko_"        #rx"^Korean_")))
 
     (let ([system-lang (system-language+country)])
       (let check-next : Symbol ([table : Tongue-Table default-table])
-        (cond [(null? table) (lang-map 'English)]
+        (cond [(null? table) (lang-map 'en)]
               [(regexp-match (cadar table) system-lang) (lang-map (caar table))]
               [(regexp-match (caddar table) system-lang) (lang-map (caar table))]
               [else (check-next (cdr table))])))))
 
 (define current-tongue : (Parameterof Symbol) (make-parameter (default-tongue)))
-(define default-fallback-tongue : (Parameterof Symbol) (make-parameter 'English))
+(define default-fallback-tongue : (Parameterof Symbol) (make-parameter 'en))
 (define default-tongue-paths : (Parameterof (Listof Path-String)) (make-parameter null))
 
 (define tongue-list : (-> (Listof Symbol))
