@@ -1,0 +1,8 @@
+((handbook . "驯兽师手册")
+ (story . "故事")
+ (scenario . "场景")
+ (reference . "参考文献")
+ (appendix . "附录")
+ (bibliography . "参考条目")
+ (digimon . "相关项目")
+ (index . "索引"))

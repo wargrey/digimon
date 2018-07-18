@@ -53,7 +53,11 @@
   (syntax-case stx [scribble +]
     [(_ scribble)
      #'(let ([modpath (quote-module-path)])
-         (enter-digimon-zone!) ;; TODO: why it must enter again?
+         ;;; WARNING
+         ;; Scribble modules are isolated from each other,
+         ;; thus we have to enter the zone every time we start a new document.
+         (enter-digimon-zone!)
+         
          (cond [(path? modpath) (tamer-story (tamer-story->modpath modpath))]
                [else (let ([story (tamer-story->modpath (cadr modpath))])
                        (tamer-story story)
@@ -93,7 +97,7 @@
                          (list (hyperlink (~github (current-digimon)) (string house-garden#))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
-                             [else (list (literal (speak '|tamer's-handbook|) ":") ~
+                             [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                          (current-digimon))])))
               (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun)))))))]))
 
@@ -107,17 +111,17 @@
               (tamer-cite ~cite)
               (title #:tag (tamer-story->tag (tamer-story))
                      #:style #,(attribute s)
-                     (literal (speak 'handbook-story) ":") ~ contents ...))]))
+                     (literal (speak 'story #:dialect 'tamer) ":") ~ contents ...))]))
 
 (define handbook-scenario
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
     (section #:tag tag #:style style
-             (literal (speak 'handbook-scenario) ":") ~ pre-contents)))
+             (literal (speak 'scenario #:dialect 'tamer) ":") ~ pre-contents)))
 
 (define handbook-reference
   (lambda []
     (list ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                             #:sec-title (speak 'handbook-reference))
+                             #:sec-title (speak 'reference #:dialect 'tamer))
           (let ([zone-snapshots (filter-not false? (list (tamer-zone)))])
             (make-traverse-block (thunk* (for-each close-eval zone-snapshots))))
           (tamer-story #false))))
@@ -153,14 +157,18 @@
     (lambda [#:index? [index? #true] . bibentries]
       (define appendix-style (make-style 'index '(grouper)))
       ((curry filter-not void?)
-       (list (part #false '((part "handbook-appendix")) (list (speak 'handbook-appendix)) (make-style 'index '(unnumbered reverl)) null null
-                   (list (part #f '((part "handbook-digimon")) (list (speak 'handbook-digimon)) appendix-style null null null)
+       (list (part #false '((part "handbook-appendix"))
+                   (list (speak 'appendix #:dialect 'tamer))
+                   (make-style 'index '(unnumbered reverl)) null null
+                   (list (part #f '((part "handbook-digimon"))
+                               (list (speak 'digimon #:dialect 'tamer))
+                               appendix-style null null null)
                          (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
                                       [style appendix-style]
-                                      [title-content (list (speak 'handbook-bibliography))])))
+                                      [title-content (list (speak 'bibliography #:dialect 'tamer))])))
              (unless (false? index?)
                (struct-copy part (index-section #:tag "handbook-index")
-                            [title-content (list (speak 'handbook-index))])))))))
+                            [title-content (list (speak 'index #:dialect 'tamer))])))))))
 
 (define handbook-smart-table
   (lambda []
