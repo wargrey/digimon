@@ -1,4 +1,4 @@
-#lang at-exp digimon
+#lang digimon
 
 (provide (all-defined-out))
 
