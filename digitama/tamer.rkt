@@ -4,14 +4,16 @@
 
 (require rackunit)
 
+(require racket/sandbox)
 (require racket/undefined)
 (require syntax/location)
 
 (require setup/xref)
 (require setup/dirs)
+(require scribble/core)
 (require scribble/xref)
 (require scribble/manual)
-(require scribble/core)
+(require scribble/example)
 
 (require "monad.rkt")
 (require "../echo.rkt")
@@ -44,6 +46,21 @@
     [(_ story-sexp)
      #'(let ([modpath (with-handlers ([exn? (λ [e] (quote-source-file))]) (cadr story-sexp))])
          (path->string (find-relative-path (digimon-path 'tamer) modpath)))]))
+
+(define tamer-story->modpath
+  (lambda [story-path]
+    `(submod ,story-path tamer story)))
+
+(define make-tamer-zone
+  (lambda [zone]
+    (define tamer-module
+      (cond [(module-declared? zone #true) zone]
+            [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
+               (and (file-exists? tamer.rkt) tamer.rkt)) => values]
+            [else (collection-file-path "tamer.rkt" "digimon")]))
+    (dynamic-require tamer-module #false)
+    (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
+      (make-base-eval #:pretty-print? #true))))
 
 (struct summary (success failure error skip todo) #:prefab)
 

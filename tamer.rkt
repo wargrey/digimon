@@ -5,7 +5,6 @@
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
-(require racket/sandbox)
 (require rackunit)
 
 (require scribble/core)
@@ -43,14 +42,7 @@
                    [exit-handler $?])
       (apply routine arglist))))
 
-(define make-tamer-zone
-  (lambda [zone]
-    (define tamer-module (if (module-declared? zone #true) zone (build-path (digimon-path 'tamer) "tamer.rkt")))
-    (dynamic-require tamer-module #false)
-    (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
-      (make-base-eval #:pretty-print? #true))))
-
-(define-syntax (tamer-taming-start stx)
+(define-syntax (tamer-taming-start! stx)
   (syntax-case stx [scribble +]
     [(_ scribble)
      #'(let ([modpath (quote-module-path)])
@@ -64,7 +56,7 @@
                        (tamer-story story)
                        (tamer-zone (make-tamer-zone story)))]))]
     [(_)
-     #'(begin (tamer-taming-start scribble)
+     #'(begin (tamer-taming-start! scribble)
               (module+ main (call-as-normal-termination tamer-prove)))]))
 
 (define-syntax (define-bib stx)
@@ -105,7 +97,7 @@
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:style s:expr)) contents ...)
-     #`(begin (tamer-taming-start scribble)
+     #`(begin (tamer-taming-start! scribble)
               (define-cite ~cite ~cites ~reference #:style number-style)
               (tamer-reference ~reference)
               (tamer-cites ~cites)
@@ -243,6 +235,10 @@
                               #:eval (tamer-zone)
                               s-exps ...)))))]))
 
+(define tamer-story-space
+  (lambda []
+    (module->namespace (tamer-story))))
+
 (define tamer-require
   (lambda [name]
     (define htag (tamer-story->tag (tamer-story)))
@@ -252,10 +248,6 @@
                                    story))])
       (dict-ref units name (thunk (raise (make-exn:fail:contract:variable (format "'~a has not yet defined!" name)
                                                                           (current-continuation-marks) name)))))))
-
-(define tamer-story->modpath
-  (lambda [story-path]
-    `(submod ,story-path tamer story)))
 
 (define tamer-prove
   (lambda []
@@ -527,8 +519,8 @@
    [$? (Parameterof Any)]
    [$shell (-> (-> Any * Void) Any * Any)]
    [register-handbook-finalizer (-> (-> Any) Void)]
-   [tamer-story->modpath (-> Path-String (U Module-Path (List* 'submod Module-Path (Listof Symbol))))]
    [tamer-prove (-> Natural)]
+   [tamer-story-space (-> Namespace)]
    [todo (-> String Any * Nothing)]
    [skip (-> String Any * Nothing)])
 
