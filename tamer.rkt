@@ -1,7 +1,8 @@
 #lang racket
 
 (provide (all-defined-out) skip todo)
-(provide (all-from-out racket rackunit scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
+(provide (all-from-out racket rackunit))
+(provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (require racket/sandbox)

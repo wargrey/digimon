@@ -146,7 +146,7 @@
     (delay-test (test-case (format "(~a ⧴ ~a)" name (object-name e))
                            (raise e) #| no thunk, make test-error |#))))
 
-(define tr-d (λ [p] (string-replace p (digimon-path 'zone) "")))
+(define tr-d (λ [p] (string-replace p (path->string (digimon-path 'zone)) "")))
 (define tr-if-path (λ [p] (if (path? p) (build-path (tr-d (format "~a" p))) p)))
 
 (define readwrotten
