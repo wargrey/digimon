@@ -239,6 +239,10 @@
   (lambda []
     (module->namespace (tamer-story))))
 
+(define tamer-story-require
+  (lambda [name]
+    (namespace-variable-value name #true #false (tamer-story-space))))
+
 (define tamer-require
   (lambda [name]
     (define htag (tamer-story->tag (tamer-story)))
@@ -521,6 +525,7 @@
    [register-handbook-finalizer (-> (-> Any) Void)]
    [tamer-prove (-> Natural)]
    [tamer-story-space (-> Namespace)]
+   [tamer-story-require (-> Symbol Any)]
    [todo (-> String Any * Nothing)]
    [skip (-> String Any * Nothing)])
 
