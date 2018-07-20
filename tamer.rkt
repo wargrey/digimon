@@ -94,6 +94,11 @@
                                          (current-digimon))])))
               (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun)))))))]))
 
+(define-syntax (handbook-title/pkg-desc stx)
+  (syntax-parse stx #:literals []
+    [(_ pre-contents ...)
+     #'(handbook-title (#%info 'pkg-desc))]))
+
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:style s:expr)) contents ...)
