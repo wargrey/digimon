@@ -52,6 +52,12 @@
             [(pair? full) (last (cdr full))]
             [else '<anonymous>])))
 
+(define-syntax (#%modules stx)
+  #'(let ([full (ann (#%full-module) (U Symbol Path (Pairof Path (Listof Symbol))))])
+      (cond [(path? full) (list (string->symbol (path->string (path-replace-extension full ""))))]
+            [(pair? full) (cons (string->symbol (path->string (path-replace-extension (car full) ""))) (cdr full))]
+            [else (list '<anonymous>)])))
+
 (define-syntax (#%line stx)
   #`(quote #,(syntax-line stx)))
 
