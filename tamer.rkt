@@ -81,13 +81,14 @@
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
      #'(begin (enter-digimon-zone!)
-              (title #:tag "tamer-book" #:version (format "~a[~a]" (version) (#%info 'version (const "Baby")))
+              (title #:tag "tamer-book"
+                     #:version (format "~a[~a]" (version) (#%info 'version (const "Baby")))
                      #:style (let* ([tamer.css (collection-file-path "tamer.css" "digimon" "stone")]
                                     [this.css (build-path (digimon-path 'stone) "tamer.css")])
                                (make-style #false (map make-css-addition (remove-duplicates (filter file-exists? (list tamer.css this.css))))))
-                     (if (symbol=? (object-name (current-input-port)) '/dev/null)
+                     #;(if (symbol=? (object-name (current-input-port)) '/dev/null)
                          (list (hyperlink (~url (current-digimon)) (string house-garden#)))
-                         (list (hyperlink (~github (current-digimon)) (string house-garden#))))
+                         (list (hyperlink (~github (current-digimon) (car (#%info 'pkg-authors (const (list digimon-partner))))) (string house-garden#))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -158,7 +159,7 @@
        (list (part #false '((part "handbook-appendix"))
                    (list (speak 'appendix #:dialect 'tamer))
                    (make-style 'index '(unnumbered reverl)) null null
-                   (list (part #f '((part "handbook-digimon"))
+                   (list #;(part #f '((part "handbook-digimon"))
                                (list (speak 'digimon #:dialect 'tamer))
                                appendix-style null null null)
                          (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))

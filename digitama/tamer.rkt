@@ -155,8 +155,8 @@
     (format "http://~a/~~~a:~a" (#%info 'pkg-domain) (#%info 'pkg-idun) digimon)))
 
 (define ~github
-  (lambda [projname]
-    (format "https://github.com/digital-world/~a" projname)))
+  (lambda [projname username]
+    (format "https://github.com/~a/~a" username projname)))
   
 (define exn->test-case
   (lambda [name e]
