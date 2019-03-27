@@ -1,45 +1,47 @@
 #lang typed/racket
 
-(provide (all-defined-out) bytes->hex-string hex-string->bytes)
-(provide (all-from-out typed/openssl))
+(provide (all-defined-out))
 
-(require (submod "digitama/ffi.rkt" typed))
+(require typed/racket/unsafe)
 
-(require typed/openssl)
-(require (only-in typed/openssl/sha1 bytes->hex-string hex-string->bytes))
+(module unsafe racket/base
+  (provide (all-defined-out))
 
-(require/typed/provide/pointers
- "digitama/openssl.rkt"
- [EVP_MD_CTX* EVP_MD_CTX*?]
- [EVP_MD* EVP_MD*?]
- [ENGINE* ENGINE*?])
+  (require racket/port)
+  
+  (require (for-syntax racket/base))
+  (require (for-syntax racket/syntax))
+  
+  (require "digitama/openssl.rkt")
 
-(require/typed/provide/batch
- "digitama/openssl.rkt"
- (id: md5 mdc2 ripemd160 dss dss1
-      sha1 sha224 sha256 sha384 sha512)
- EVP_MD*)
+  (define-syntax (define-crypto-md stx)
+    (syntax-case stx []
+      [(_ id ...)
+       (with-syntax ([(racket-id ...) (for/list ([md-name (in-list (syntax->list #'(id ...)))])
+                                        (datum->syntax md-name (format-id #'racket-id "evp-~a" (syntax-e md-name))))])
+         #'(begin (define racket-id (EVP_get_digestbyname 'id)) ...))]))
 
-(require/typed/provide
- "digitama/openssl.rkt"
- [openssl-lib-versions (Listof String)]
- [EVP_get_digestbyname (-> Symbol (Option EVP_MD*))]
- [make-EVP_MD_CTX (-> EVP_MD_CTX*)]
- [~EVP_MD_CTX (-> EVP_MD_CTX* Void)]
- [EVP_DigestInit_ex (-> EVP_MD_CTX* EVP_MD* Boolean)]
- [EVP_DigestUpdate (-> EVP_MD_CTX* Bytes Boolean)]
- [EVP_DigestFinal_ex (-> EVP_MD_CTX* Bytes)]
- [HMAC (-> EVP_MD* Bytes Bytes Bytes)])
+  (define openctx (make-EVP_MD_CTX))
+  
+  (define HASH
+    (lambda [md-name . messages]
+      (define md (EVP_get_digestbyname md-name))
 
-(define openctx : EVP_MD_CTX* (make-EVP_MD_CTX))
-(define HASH : (-> EVP_MD* Any * Bytes)
-  (lambda [md . messages]
-    (EVP_DigestInit_ex openctx md)
-    (for ([datum (in-list messages)])
-      (define message : Bytes
-        (cond [(bytes? datum) datum]
-              [(string? datum) (string->bytes/utf-8 datum)]
-              [(input-port? datum) (port->bytes datum)]
-              [else (with-output-to-bytes (thunk (write datum)))]))
-      (EVP_DigestUpdate openctx message))
-    (EVP_DigestFinal_ex openctx)))
+      (define-crypto-md sha1 sha224 sha256)
+      
+      (EVP_DigestInit_ex openctx md)
+      
+      (for ([datum (in-list messages)])
+        (define message
+          (cond [(bytes? datum) datum]
+                [(string? datum) (string->bytes/utf-8 datum)]
+                [(input-port? datum) (port->bytes datum)]
+                [else (with-output-to-bytes (λ [] (write datum)))]))
+        
+        (EVP_DigestUpdate openctx message))
+      
+      (EVP_DigestFinal_ex openctx))))
+
+(unsafe-require/typed/provide
+ (submod "." unsafe)
+ [HASH (-> Symbol Any * Bytes)])

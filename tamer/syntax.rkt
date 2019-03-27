@@ -34,10 +34,3 @@
       [(_ who-cares ...)
        (for/list ([s (in-syntax #'(who-cares ...))]) (syntax-e s))
        #'(void)])))
-
-(module t6 digimon/ffi
-  (define-syntax (t stx)
-    (syntax-parse stx
-      [(_ who-cares ...)
-       (for/list ([s (in-syntax #'(who-cares ...))]) (syntax-e s))
-       #'(void)])))

@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 (provide (all-from-out "../digitama/sugar.rkt"))
 
-(require "../cheat.rkt")
 (require "../digitama/sugar.rkt")
 
 (define-type Snip (Instance Snip%))
@@ -17,20 +16,6 @@
     [(_ (opbox ...) = v) #'(begin (fill-box! opbox v) ...)]
     [(_ (opbox ...) (v ...)) #'(begin (fill-box! opbox v) ...)]
     [(_ opbox v) #'(when (box? opbox) (set-box! opbox (max 0 v)))]))
-
-(define-cheat-opaque frame%? #:is-a? Frame% frame%)
-(define-cheat-opaque dialog%? #:is-a? Dialog% dialog%)
-(define-cheat-opaque canvas%? #:is-a? Canvas% canvas%)
-(define-cheat-opaque editor-canvas%? #:is-a? Editor-Canvas% editor-canvas%)
-(define-cheat-opaque pasteboard%? #:is-a? Pasteboard% pasteboard%)
-(define-cheat-opaque text%? #:is-a? Text% text%)
-(define-cheat-opaque snip%? #:is-a? Snip% snip%)
-(define-cheat-opaque style-list%? #:is-a? Style-List% style-list%)
-(define-cheat-opaque mouse%? #:is-a? Mouse-Event% mouse-event%)
-(define-cheat-opaque keyboard%? #:is-a? Key-Event% key-event%)
-
-(define-cheat-opaque subframe%? #:sub? Frame% frame%)
-(define-cheat-opaque subdialog%? #:sub? Dialog% dialog%)
 
 (define default.cur : (Instance Cursor%) (make-object cursor% 'arrow))
 (define blank.cur : (Instance Cursor%) (make-object cursor% 'blank))
@@ -66,7 +51,7 @@
                                (set-delta 'change-size (min (exact-round (send font get-size)) 255)))])))
     style))
 
-(define change-default-style! : (->* ((U (Instance Editor<%>) (Instance Style-List%)))
+#;(define change-default-style! : (->* ((U (Instance Editor<%>) (Instance Style-List%)))
                                       (#:font (Option (Instance Font%))
                                        #:color (Option (Instance Color%))
                                        #:background-color (Option (Instance Color%)))

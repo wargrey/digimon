@@ -1,10 +1,9 @@
 #lang typed/racket/base
 
 (provide (all-from-out typed/racket/base))
-(provide (all-from-out "digitama/sugar.rkt" "digitama/cheat.rkt"))
+(provide (all-from-out "digitama/sugar.rkt"))
 
 (require "digitama/sugar.rkt")
-(require "digitama/cheat.rkt")
 
 (require/provide/syntax racket/base racket/string racket/syntax syntax/parse racket/sequence)
 
