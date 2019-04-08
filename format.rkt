@@ -83,9 +83,10 @@
                    (~r b #:base 2 #:min-width 8 #:pad-string "0"))
                  sep)))
 
-(define symb0x->number : (-> Symbol (Option Number))
+(define symb0x->number : (-> Symbol (Option Integer))
   (lambda [hex]
-    (string->number (substring (symbol->string hex) 2) 16)))
+    (define maybe-integer : (Option Number) (string->number (substring (symbol->string hex) 2) 16))
+    (and (exact-integer? maybe-integer) maybe-integer)))
 
 (define number->symb0x : (-> Integer Symbol)
   (lambda [mphex]
