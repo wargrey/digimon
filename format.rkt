@@ -71,16 +71,22 @@
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define byte->hex-string : (-> Byte String)
+  (lambda [b]
+    (~r b #:base 16 #:min-width 2 #:pad-string "0")))
+
+(define byte->bin-string : (-> Byte String)
+  (lambda [b]
+    (~r b #:base 2 #:min-width 8 #:pad-string "0")))
+
 (define bytes->hex-string : (-> Bytes [#:separator String] String)
   (lambda [bstr #:separator [sep ""]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr)])
-                   (~r b #:base 16 #:min-width 2 #:pad-string "0"))
+    (string-join (for/list : (Listof String) ([b (in-bytes bstr)]) (byte->hex-string b))
                  sep)))
 
 (define bytes->bin-string : (-> Bytes [#:separator String] String)
   (lambda [bstr #:separator [sep ""]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr)])
-                   (~r b #:base 2 #:min-width 8 #:pad-string "0"))
+    (string-join (for/list : (Listof String) ([b (in-bytes bstr)]) (byte->bin-string b))
                  sep)))
 
 (define symb0x->number : (-> Symbol (Option Integer))
