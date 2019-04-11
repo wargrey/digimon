@@ -472,7 +472,7 @@
                                            (string-trim (file->string /path/file) #:left? #false #:right? #true)))))))))
 
 (define tamer-racketbox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxend [pxend #false] #:greedy? [greedy? #false]]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
     (define story-snapshot (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
@@ -489,22 +489,57 @@
                               (if (zero? end)
                                   (values line0 (cons lang (reverse contents)))
                                   (values line0 (cons lang (take (reverse contents) end))))]
-                             [(and (regexp? pxend) (false? (null? contents)) (regexp-match? pxend line))
-                              ; end line itself is excluded
+                             [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                              ; the stop line itself is excluded
                               (if (false? greedy?)
                                   (values line0 (cons lang (reverse contents)))
                                   (read-next lang line0 (cons line contents) (length contents)))]
                              [(regexp-match? #px"^#lang .+$" line)
                               (read-next line (add1 line0) contents end)]
-                             [(and (string? lang) (null? contents) (regexp-match pxstart line))
+                             [(and lang (null? contents) (regexp-match pxstart line))
                               (read-next lang line0 (list line) end)]
-                             [(false? (null? contents)) ; still search the end line greedily
+                             [(pair? contents) ; still search the end line greedily
                               (read-next lang line0 (cons line contents) end)]
-                             [else ; still search for the first line
+                             [else ; still search the start line
                               (read-next lang (add1 line0) contents end)])))))
                (nested #:style (make-style "boxed" null)
                        (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
                                 (codeblock #:line-numbers line0 #:keep-lang-line? #false
+                                           (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                        (string-join contents (string #\newline)))))))))))
+
+(define tamer-filebox/region
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
+    (define story-snapshot (tamer-story))
+    (define raco-setup-forget-my-digimon (current-digimon))
+    (make-traverse-block
+     (thunk* (parameterize ([tamer-story story-snapshot]
+                            [current-digimon raco-setup-forget-my-digimon])
+               (define /path/file (simplify-path (if (symbol? path) (dynamic-require/expose (tamer-story) path) path)))
+               (define-values (line0 contents)
+                 (call-with-input-file* /path/file
+                   (lambda [in.rkt]
+                     (let read-next ([line0 1] [contents null] [end 0])
+                       (define line (read-line in.rkt))
+                       ; if it does not work, please check whether your pxstart and pxend are pregexps first.
+                       (cond [(eof-object? line)
+                              (if (zero? end)
+                                  (values line0 (reverse contents))
+                                  (values line0 (take (reverse contents) end)))]
+                             [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                              ; the stop line itself is excluded
+                              (if (false? greedy?)
+                                  (values line0 (reverse contents))
+                                  (read-next line0 (cons line contents) (length contents)))]
+                             [(and (null? contents) (regexp-match pxstart line))
+                              (read-next line0 (list line) end)]
+                             [(pair? contents) ; still search the end line greedily
+                              (read-next line0 (cons line contents) end)]
+                             [else ; still search the start line
+                              (read-next (add1 line0) contents end)])))))
+               (nested #:style (make-style "boxed" null)
+                       (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                                (codeblock #:line-numbers line0 #:keep-lang-line? #true
                                            (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                         (string-join contents (string #\newline)))))))))))
 
