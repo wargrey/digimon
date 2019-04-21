@@ -97,3 +97,12 @@
 (define number->symb0x : (-> Integer Symbol)
   (lambda [mphex]
     (string->symbol (string-append "0x" (number->string mphex 16)))))
+
+(define symb0b->number : (-> Symbol (Option Integer))
+  (lambda [bin]
+    (define maybe-integer : (Option Number) (string->number (substring (symbol->string bin) 2) 2))
+    (and (exact-integer? maybe-integer) maybe-integer)))
+
+(define number->symb0b : (-> Integer Symbol)
+  (lambda [mpbin]
+    (string->symbol (string-append "0b" (number->string mpbin 2)))))
