@@ -20,6 +20,17 @@
           [(<= end-hint end-max) end-hint]
           [else end-max])))
 
+(define network-natural-bytes++ : (->* (Bytes) (Natural Natural) Void)
+  (lambda [mpint [start 0] [end0 0]]
+    (define end : Index (bytes-range-end mpint start end0))
+
+    (let i++ ([idx : Fixnum (- end 1)])
+      (when (>= idx start)
+        (let ([v (bytes-ref mpint idx)])       
+          (cond [(< v #xFF) (bytes-set! mpint idx (+ v 1))]
+                [else (bytes-set! mpint idx 0)
+                      (i++ (- idx 1))]))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define integer->network-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
