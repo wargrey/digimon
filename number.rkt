@@ -3,12 +3,31 @@
 (provide (all-defined-out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
+  (lambda [pool0 size offset0 [b #x00] [fill? #false]]
+    (cond [(not pool0) (values (make-bytes size b) 0)]
+          [else (let* ([end-idx (bytes-length pool0)]
+                       [start (if (< offset0 end-idx) offset0 end-idx)])
+                  (unless(not fill?)
+                    (for ([idx (in-range start (+ start size))])
+                      (bytes-set! pool0 idx b)))
+                  (values pool0 start))])))
+
+(define bytes-range-end : (-> Bytes Natural Natural Index)
+  (lambda [bs start end-hint]
+    (define end-max : Index (bytes-length bs))
+    (cond [(<= end-hint start) end-max]
+          [(<= end-hint end-max) end-hint]
+          [else end-max])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define integer->network-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
-  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset 0]]
-    (define bsize : Nonnegative-Fixnum (max bsize0 (integer-bytes-length mpint)))
-    (define bmpint : Bytes (or bmpint0 (make-bytes bsize #x00)))
+  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
+    (define isize : Index (integer-bytes-length mpint))
+    (define bsize : Index (if (<= isize bsize0) bsize0 isize))
+    (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
     
-    (let integer->octets ([sth : Nonnegative-Fixnum (assert (+ bsize offset) index?)]
+    (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
                           [mpint : Integer mpint])
       (define sth-8 : Fixnum (- sth 8))
       (define sth-4 : Fixnum (- sth 4))
@@ -28,7 +47,7 @@
 
 (define network-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (assert (if (<= end0 start) (bytes-length bmpint) end0) index?))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (let octets->integer ([idx : Index (assert start index?)]
                           [x : Integer (if (>= (bytes-ref bmpint start) #b10000000) -1 0)])
@@ -42,11 +61,12 @@
             [else x]))))
 
 (define natural->network-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
-  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset 0]]
-    (define bsize : Nonnegative-Fixnum (max bsize0 (natural-bytes-length mpint)))
-    (define bmpint : Bytes (or bmpint0 (make-bytes bsize #x00)))
+  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
+    (define nsize : Index (natural-bytes-length mpint))
+    (define bsize : Index (if (<= nsize bsize0) bsize0 nsize))
+    (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
     
-    (let integer->octets ([sth : Nonnegative-Fixnum (assert (+ bsize offset) index?)]
+    (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
                           [mpint : Natural mpint])
       (define sth-8 : Fixnum (- sth 8))
       (define sth-4 : Fixnum (- sth 4))
@@ -66,7 +86,7 @@
 
 (define network-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (assert (if (<= end0 start) (bytes-length bmpint) end0) index?))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (let octets->integer ([idx : Index (assert start index?)]
                           [x : Natural 0])
