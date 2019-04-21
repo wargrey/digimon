@@ -15,14 +15,21 @@
 
 (define bytes-range-end : (-> Bytes Natural Natural Index)
   (lambda [bs start end-hint]
+    ; NOTE: this implementation may conceal bugs when decoding integers following mismatched length tag
     (define end-max : Index (bytes-length bs))
     (cond [(<= end-hint start) end-max]
           [(<= end-hint end-max) end-hint]
           [else end-max])))
 
+(define unsafe-bytes-range-end : (-> Bytes Natural Natural Index)
+  (lambda [bs start end-hint]
+    (define end-max : Index (bytes-length bs))
+    (cond [(<= end-hint start) end-max]
+          [else (assert end-hint index?)])))
+
 (define network-natural-bytes++ : (->* (Bytes) (Natural Natural) Void)
   (lambda [mpint [start 0] [end0 0]]
-    (define end : Index (bytes-range-end mpint start end0))
+    (define end : Index (unsafe-bytes-range-end mpint start end0))
 
     (let i++ ([idx : Fixnum (- end 1)])
       (when (>= idx start)
@@ -58,7 +65,7 @@
 
 (define network-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (bytes-range-end bmpint start end0))
+    (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
     (let octets->integer ([idx : Index (assert start index?)]
                           [x : Integer (if (>= (bytes-ref bmpint start) #b10000000) -1 0)])
@@ -97,7 +104,7 @@
 
 (define network-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (bytes-range-end bmpint start end0))
+    (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
     (let octets->integer ([idx : Index (assert start index?)]
                           [x : Natural 0])
