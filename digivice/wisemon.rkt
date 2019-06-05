@@ -191,7 +191,7 @@
                                                                                (list #px"^compile-extension:\\s+\\(" "cc:  ")
                                                                                (list #px"^link-extension:\\s+\\("    "ld:  ")
                                                                                (list #px"^change-runtime-path:\\s+"  "dyn: ")
-                                                                               (list (path->string (current-directory)) ".")
+                                                                               (list (path->string (current-directory)) "./")
                                                                                (list #px"( -o .+?( |$))|(\\)$)" ""))))
                                             (eechof #:fgcolor 'yellow "~a~n" line))))))
       (dynamic-wind (thunk (void '(if build/0 runs in thread then make will not be stopped by the failure)))
