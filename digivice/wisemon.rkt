@@ -201,6 +201,7 @@
                     (thunk (void (flush-output /dev/ctool/stdout)
                                  (close-output-port /dev/ctool/stdout)
                                  (thread-wait rewriter)))))
+    (define stone-dir (path->string (digimon-path 'stone)))
     (foldl append null
            (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
              (define racket? (make-parameter #false))
@@ -208,9 +209,12 @@
                (values (build-path (path-only c) (car (use-compiled-file-paths))
                                    "native" (system-library-subpath #false)
                                    (append-object-suffix (extract-base-filename/c (file-name-from-path c))))
-                       (build-path (path-only c) (car (use-compiled-file-paths))
-                                   "native" (system-library-subpath #false)
-                                   (path-replace-extension (file-name-from-path c) (system-type 'so-suffix)))))
+                       (if (string-prefix? (path->string c) stone-dir)
+                           (build-path (path-only c) (system-library-subpath #false)
+                                       (path-replace-extension (file-name-from-path c) (system-type 'so-suffix)))
+                           (build-path (path-only c) (car (use-compiled-file-paths))
+                                       "native" (system-library-subpath #false)
+                                       (path-replace-extension (file-name-from-path c) (system-type 'so-suffix))))))
              (list (list tobj (include.h c racket?)
                          (λ [target]
                            (build-with-output-filter
@@ -392,8 +396,9 @@
               [info-ref (pkg-info-ref infos)]
               [digimons (list (pkg-info-name infos))])
           (parameterize ([current-make-real-targets (map simple-form-path reals)]
+                         [current-digimon (car digimons)]
                          [current-directory zone])
-            (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (car digimons)))
+            (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (current-digimon)))
                           (thunk (for/sum ([phony (in-list (if (null? phonies) (list "all") phonies))])
                                    (parameterize ([current-make-phony-goal phony])
                                      (with-handlers ([exn:break? (λ [e] 130)]
@@ -402,7 +407,7 @@
                                        (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
                                              [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk digimons info-ref))]
                                              [else (error 'make "I don't know how to make `~a`!" phony)]) 0))))
-                          (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (car digimons)))))))))
+                          (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))))))
 
 (define main
   (lambda [argument-list]
