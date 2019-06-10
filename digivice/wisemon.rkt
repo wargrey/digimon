@@ -403,7 +403,7 @@
                                    (parameterize ([current-make-phony-goal phony])
                                      (with-handlers ([exn:break? (λ [e] 130)]
                                                      [exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (make-errno))])
-                                       (file-or-directory-modify-seconds zone (current-seconds))
+                                       (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
                                        (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
                                              [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk digimons info-ref))]
                                              [else (error 'make "I don't know how to make `~a`!" phony)]) 0))))
