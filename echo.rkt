@@ -35,9 +35,11 @@
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
-    (printf "~a" (if (terminal-port? (current-output-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
+    (define colorize? (and (terminal-port? (current-output-port)) (eq? (system-type 'os) 'unix)))
+    (printf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
-    (eprintf "~a" (if (terminal-port? (current-error-port)) (term-colorize fg bg attrs rawmsg) rawmsg))))
+    (define colorize? (and (terminal-port? (current-output-port)) (eq? (system-type 'os) 'unix)))
+    (eprintf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
