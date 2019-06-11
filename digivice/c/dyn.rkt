@@ -23,14 +23,14 @@
     (define cc (current-extension-compiler))
     
     (and (path? cc)
-         (dynext-binary-name cc))))
+         (dyn-binary-name cc))))
 
 (define c-linker
   (lambda []
     (define ld (current-extension-linker))
     
     (and (path? ld)
-         (dynext-binary-name ld))))
+         (dyn-binary-name ld))))
 
 (define c-object-destination
   (lambda [c contained-in-package?]
@@ -51,10 +51,10 @@
 (define c-include-paths
   (lambda [cc system]
     (append (case cc
-              [(cl) (dynext-msvc-include)]
+              [(cl) (dyn-msvc-include)]
               [else null])
             (case system
-              [(macosx) "/usr/local/include"]
+              [(macosx) (list "/usr/local/include")]
               [else null]))))
 
 (define c-compiler-flags
@@ -69,7 +69,7 @@
     (define -shared
       (append (case ld
                 [(ld) (list "-shared")]
-                [(cl) (map (λ [lib] (format "/LIBPATH:~a" lib)) (dynext-msvc-library))]
+                [(cl) (map (λ [lib] (format "/LIBPATH:~a" lib)) (dyn-msvc-library))]
                 [else null])
               (case system
                 [(macosx) (list "-L/usr/local/lib" (~a "-F" (find-lib-dir)) "-framework" "Racket")]
@@ -109,7 +109,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bindir-path (build-path "bin"))
 
-(define (dynext-binary-name bin)
+(define (dyn-binary-name bin)
   (string->symbol (path->string (path-replace-extension (file-name-from-path bin) #""))))
 
 (define (dynext-msvc-root+arch)
@@ -123,12 +123,12 @@
                   (cond [(equal? name bindir-path) (cons parent arch)]
                         [else (search-root parent)])))))))
 
-(define (dynext-msvc-include)
+(define (dyn-msvc-include)
   (define root+arch (dynext-msvc-root+arch))
   (cond [(not root+arch) null]
         [else (list (build-path (car root+arch) "include"))]))
 
-(define (dynext-msvc-library)
+(define (dyn-msvc-library)
   (define root+arch (dynext-msvc-root+arch))
   (cond [(not root+arch) null]
         [else (list (build-path (car root+arch) "lib" (cdr root+arch)))]))

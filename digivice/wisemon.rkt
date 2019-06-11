@@ -12,7 +12,7 @@
 (require setup/option)
 (require setup/dirs)
 
-(require "cext/dynext.rkt")
+(require "c/dyn.rkt")
 
 (require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
