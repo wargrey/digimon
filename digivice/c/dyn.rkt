@@ -72,7 +72,7 @@
                 [(cl) (map (λ [lib] (format "/LIBPATH:~a" lib)) (dyn-msvc-library))]
                 [else null])
               (case system
-                [(macosx) (list "-L/usr/local/lib" (~a "-F" (find-lib-dir)) "-framework" "Racket")]
+                [(macosx) (list "-L/usr/local/lib")]
                 [(illumos) (list "-m64")]
                 [else null])))
     (for/fold ([ldflags -shared])

@@ -186,17 +186,7 @@
                             (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
                                      (parameterize ([current-standard-link-libraries null]
                                                     [current-extension-linker-flags (append ldflags (current-extension-linker-flags))])
-                                       (link-extension #false (list tobj) target)
-                                       (when (not contained-in-package?)
-                                         (case digimon-system
-                                           [(macosx)
-                                            (let ([image (format "Racket.framework/Versions/~a_~a/Racket" (version) (system-type 'gc))])
-                                              (define change-path
-                                                (format "~a -change ~a ~a ~a"
-                                                  (find-executable-path "install_name_tool")
-                                                  image (format "~a/~a" (find-lib-dir) image) t))
-                                              (printf "change-runtime-path: ~a~n" change-path) ; this will be redirected
-                                              (system change-path))])))))))))))))
+                                       (link-extension #false (list tobj) target))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
