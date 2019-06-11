@@ -6,17 +6,13 @@
 (require raco/command-name)
 
 (require compiler/cm)
-(require compiler/xform)
 (require compiler/compiler)
-
-(require dynext/compile)
-(require dynext/link)
-(require dynext/file)
 
 (require setup/setup)
 (require setup/option)
-(require setup/getinfo)
 (require setup/dirs)
+
+(require "cext/dynext.rkt")
 
 (require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
@@ -24,6 +20,7 @@
 (require "../format.rkt")
 (require "../debug.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define current-make-real-targets (make-parameter null))
 (define current-make-phony-goal (make-parameter #false))
 
@@ -150,38 +147,6 @@
 
 (define make-native-library-rules
   (lambda [info-ref]
-    (define (include.h entry racket? [memory null])
-      (foldl (λ [include memory]
-               (cond [(regexp-match #px#"<.+?>" include)
-                      => (λ [header]
-                           (when (member #"<scheme.h>" header) (racket? #true))
-                           memory)]
-                     [(regexp-match #px#"\"(.+?)\"" include)
-                      => (λ [header]
-                           (let ([subsrc (simplify-path (build-path (path-only entry) (bytes->string/utf-8 (cadr header))))])
-                             (cond [(member subsrc memory) memory]
-                                   [else (include.h subsrc racket? memory)])))]))
-             (append memory (list entry))
-             (call-with-input-file* entry (curry regexp-match* #px"(?<=#include )[<\"].+?.h[\">]"))))
-    (define (dynamic-ldflags c)
-      (for/fold ([ldflags (list* "-m64" "-shared"
-                                 (cond [(false? (eq? digimon-system 'macosx)) null]
-                                       [else (list "-L/usr/local/lib" (~a "-F" (find-lib-dir)) "-framework" "Racket")]))])
-                ([line (in-list (file->lines c))]
-                 #:when (regexp-match? #px"#include <" line))
-        (define modeline (regexp-match #px".+ld:(\\w+)?:?([^*]+)(\\*/)?$" line))
-        (cond [(false? modeline) ldflags #| In the future it will support "-L" and `pkg-config` |#]
-              [else (match-let ([(list _ hint ld _) modeline])
-                      (for/fold ([ld-++ ldflags])
-                                ([flags (in-port read (open-input-string ld))]
-                                 #:when (pair? flags) #| filter out empty list |#)
-                        (match (cons digimon-system (and hint (map string->symbol (string-split hint ":"))))
-                          [(list 'macosx 'framework) ; /* ld:framework: (IOKit) */
-                           (append ld-++ (let ([-fw (list (~a #\- hint))])
-                                           (add-between (map ~a flags) -fw #:splice? #true #:before-first -fw)))]
-                          [(cons _ (or (? false?) (? (curry memq digimon-system)))) ; /* ld: (ssh2) or ld:illumos: (kstat) */
-                           (append ld-++ (map (curry ~a "-l") flags))]
-                          [_ ldflags])))])))
     (define (build-with-output-filter build/0)
       (define-values (/dev/ctool/stdin /dev/ctool/stdout) (make-pipe))
       (define rewriter (thread (thunk (for ([line (in-lines /dev/ctool/stdin)])
@@ -204,45 +169,34 @@
     (define stone-dir (path->string (digimon-path 'stone)))
     (foldl append null
            (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
-             (define racket? (make-parameter #false))
-             (define-values [tobj t]
-               (values (build-path (path-only c) (car (use-compiled-file-paths))
-                                   "native" (system-library-subpath #false)
-                                   (append-object-suffix (extract-base-filename/c (file-name-from-path c))))
-                       (if (string-prefix? (path->string c) stone-dir)
-                           (build-path (path-only c) (system-library-subpath #false)
-                                       (path-replace-extension (file-name-from-path c) (system-type 'so-suffix)))
-                           (build-path (path-only c) (car (use-compiled-file-paths))
-                                       "native" (system-library-subpath #false)
-                                       (path-replace-extension (file-name-from-path c) (system-type 'so-suffix))))))
-             (list (list tobj (include.h c racket?)
+             (define-values (cc ld) (values (c-compiler) (c-linker)))
+             (define contained-in-package? (string-prefix? (path->string c) stone-dir))
+             (define tobj (c-object-destination c contained-in-package?))
+             (define t (c-library-destination c contained-in-package?))
+             (list (list tobj (include.h c)
                          (λ [target]
                            (build-with-output-filter
-                            (thunk (let ([cflags (list (format "-std=~a11" (if (racket?) "gnu" "c")) "-m64"
-                                                       (format "-D__~a__" digimon-system))])
+                            (thunk (let ([cflags (c-compiler-flags cc digimon-system)])
                                      (parameterize ([current-extension-compiler-flags (append cflags (current-extension-compiler-flags))]
                                                     [current-extension-preprocess-flags (append cflags (current-extension-preprocess-flags))])
-                                       ; meanwhile `xform` is buggy
-                                       ;(define xform.c (box (build-path (path-only target) (file-name-from-path c))))
-                                       (define -Is (list (current-directory) "/usr/local/include"))
-                                       ;(cond [(false? (racket?)) (set-box! xform.c c)]
-                                       ;      [else (xform #false c (unbox xform.c) -Is #:keep-lines? #true)]) ; gcc knows file lines
-                                       (compile-extension #false c target -Is)))))))
+                                       (compile-extension #false c target (c-include-paths cc digimon-system))))))))
                    (list t (list tobj)
                          (λ [target]
                            (build-with-output-filter
-                            (thunk (let ([ldflags (dynamic-ldflags c)])
+                            (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
                                      (parameterize ([current-standard-link-libraries null]
-                                                    [current-extension-linker-flags ldflags])
+                                                    [current-extension-linker-flags (append ldflags (current-extension-linker-flags))])
                                        (link-extension #false (list tobj) target)
-                                       (case digimon-system
-                                         [(macosx) (let ([image (format "Racket.framework/Versions/~a_~a/Racket"
-                                                                        (version) (system-type 'gc))])
-                                                     (define change-path (format "~a -change ~a ~a ~a"
-                                                                                 (find-executable-path "install_name_tool")
-                                                                                 image (format "~a/~a" (find-lib-dir) image) t))
-                                                     (printf "change-runtime-path: ~a~n" change-path) ; this will be redirected
-                                                     (system change-path))]))))))))))))
+                                       (when (not contained-in-package?)
+                                         (case digimon-system
+                                           [(macosx)
+                                            (let ([image (format "Racket.framework/Versions/~a_~a/Racket" (version) (system-type 'gc))])
+                                              (define change-path
+                                                (format "~a -change ~a ~a ~a"
+                                                  (find-executable-path "install_name_tool")
+                                                  image (format "~a/~a" (find-lib-dir) image) t))
+                                              (printf "change-runtime-path: ~a~n" change-path) ; this will be redirected
+                                              (system change-path))])))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
