@@ -74,7 +74,7 @@
   (lambda [cc system]
     (append (case cc
               [(gcc) (list "-std=c11" "-m64" "-D_POSIX_C_SOURCE=200809L")]
-              [(cl) (list "/NOLOGO")]
+              [(cl) (list "/nologo" "-D_LAMBDA=__declspec(dllexport)")]
               [else null])
             (list (format "-D__~a__" system)))))
 
