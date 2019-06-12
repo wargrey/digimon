@@ -167,9 +167,11 @@
                                  (close-output-port /dev/ctool/stdout)
                                  (thread-wait rewriter)))))
     (define stone-dir (path->string (digimon-path 'stone)))
+    (define-values (cc ld) (values (c-compiler) (c-linker)))
+    (define this-envs (environment-variables-copy (current-environment-variables)))
+    (c-set-environment-variables! this-envs cc ld digimon-system)
     (foldl append null
            (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
-             (define-values (cc ld) (values (c-compiler) (c-linker)))
              (define contained-in-package? (string-prefix? (path->string c) stone-dir))
              (define tobj (c-object-destination c contained-in-package?))
              (define t (c-library-destination c contained-in-package?))
@@ -177,15 +179,17 @@
                          (λ [target]
                            (build-with-output-filter
                             (thunk (let ([cflags (c-compiler-flags cc digimon-system)])
-                                     (parameterize ([current-extension-compiler-flags (append cflags (current-extension-compiler-flags))]
-                                                    [current-extension-preprocess-flags (append cflags (current-extension-preprocess-flags))])
+                                     (parameterize ([current-extension-compiler-flags (append (current-extension-compiler-flags) cflags)]
+                                                    [current-extension-preprocess-flags (append (current-extension-preprocess-flags) cflags)]
+                                                    [current-environment-variables this-envs])
                                        (compile-extension #false c target (c-include-paths cc digimon-system))))))))
                    (list t (list tobj)
                          (λ [target]
                            (build-with-output-filter
                             (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
                                      (parameterize ([current-standard-link-libraries null]
-                                                    [current-extension-linker-flags (append ldflags (current-extension-linker-flags))])
+                                                    [current-extension-linker-flags (append (current-extension-linker-flags) ldflags)]
+                                                    [current-environment-variables this-envs])
                                        (link-extension #false (list tobj) target))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

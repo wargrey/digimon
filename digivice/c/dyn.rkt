@@ -7,6 +7,7 @@
 (require racket/file)
 (require racket/bool)
 (require racket/list)
+(require racket/bytes)
 (require racket/string)
 
 (require racket/match)
@@ -16,6 +17,8 @@
 (require setup/dirs)
 
 (require dynext)
+
+(require digimon/digitama/system)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-compiler
@@ -48,6 +51,16 @@
                     (path-replace-extension (file-name-from-path c) (system-type 'so-suffix))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define c-set-environment-variables!
+  (lambda [e cc ld system]
+    (case ld
+      [(cl)
+       ; `cl.exe` does not have any way to specify the lib paths but passing `/LIBPATH:`s to `link.exe`
+       ; in which case linker options are required to be placed after file names and CL options,
+       ; this requirement is against the current implementation of `dynext/link`.
+       (let ([libpath (bytes-join (map path->bytes (dyn-msvc-library)) #";")])
+         (environment-variables-set! e #"LIB" libpath))])))
+
 (define c-include-paths
   (lambda [cc system]
     (append (case cc
@@ -61,21 +74,22 @@
   (lambda [cc system]
     (append (case cc
               [(gcc) (list "-std=c11" "-m64" "-D_POSIX_C_SOURCE=200809L")]
+              [(cl) (list "/NOLOGO")]
               [else null])
             (list (format "-D__~a__" system)))))
 
 (define c-linker-flags
   (lambda [c ld system]
-    (define -shared
+    (define -flags
       (append (case ld
                 [(ld) (list "-shared")]
-                [(cl) (map (λ [lib] (format "/LIBPATH:~a" lib)) (dyn-msvc-library))]
+                [(cl) (list "/nologo")]
                 [else null])
               (case system
                 [(macosx) (list "-L/usr/local/lib")]
                 [(illumos) (list "-m64")]
                 [else null])))
-    (for/fold ([ldflags -shared])
+    (for/fold ([ldflags -flags])
               ([line (in-list (file->lines c))] #:when (regexp-match? #px"#include\\s+<" line))
       (define modeline (regexp-match #px".+ld:(\\w+)?:?([^*]+)(\\*/)?$" line))
       (cond [(not modeline) ldflags #| TODO: deal with "-L" and `pkg-config` |#]
@@ -124,11 +138,23 @@
                         [else (search-root parent)])))))))
 
 (define (dyn-msvc-include)
-  (define root+arch (dynext-msvc-root+arch))
-  (cond [(not root+arch) null]
-        [else (list (build-path (car root+arch) "include"))]))
+  (append (let ([root+arch (dynext-msvc-root+arch)])
+            (cond [(not root+arch) null]
+                  [else (list (build-path (car root+arch) "include"))]))
+          (let ([sdkroot (#%info 'msvc-sdk-root)]
+                [sdk-lib (#%info 'msvc-sdk-library)])
+            (cond [(or (not sdkroot) (not sdk-lib)) null]
+                  [else (list (build-path sdkroot "Include" sdk-lib "shared")
+                              (build-path sdkroot "Include" sdk-lib "um")
+                              (build-path sdkroot "Include" sdk-lib "ucrt"))]))))
 
 (define (dyn-msvc-library)
   (define root+arch (dynext-msvc-root+arch))
-  (cond [(not root+arch) null]
-        [else (list (build-path (car root+arch) "lib" (cdr root+arch)))]))
+  (define arch (cdr root+arch))
+  (append (cond [(not root+arch) null]
+                [else (list (build-path (car root+arch) "lib" arch))])
+          (let ([sdkroot (#%info 'msvc-sdk-root)]
+                [sdk-lib (#%info 'msvc-sdk-library)])
+            (cond [(or (not sdkroot) (not sdk-lib)) null]
+                  [else (list (build-path sdkroot "Lib" sdk-lib "um" arch)
+                              (build-path sdkroot "Lib" sdk-lib "ucrt" arch))]))))
