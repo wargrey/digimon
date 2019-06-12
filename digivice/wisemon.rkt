@@ -162,35 +162,38 @@
       (dynamic-wind (thunk (void '(if build/0 runs in thread then make will not be stopped by the failure)))
                     (thunk (parameterize ([current-output-port /dev/ctool/stdout]
                                           [current-error-port /dev/ctool/stdout])
-                               (build/0)))
+                             (build/0)))
                     (thunk (void (flush-output /dev/ctool/stdout)
                                  (close-output-port /dev/ctool/stdout)
                                  (thread-wait rewriter)))))
-    (define stone-dir (path->string (digimon-path 'stone)))
-    (define-values (cc ld) (values (c-compiler) (c-linker)))
-    (define this-envs (environment-variables-copy (current-environment-variables)))
-    (c-set-environment-variables! this-envs cc ld digimon-system)
-    (foldl append null
-           (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
-             (define contained-in-package? (string-prefix? (path->string c) stone-dir))
-             (define tobj (c-object-destination c contained-in-package?))
-             (define t (c-library-destination c contained-in-package?))
-             (list (list tobj (include.h c)
-                         (λ [target]
-                           (build-with-output-filter
-                            (thunk (let ([cflags (c-compiler-flags cc digimon-system)])
-                                     (parameterize ([current-extension-compiler-flags (append (current-extension-compiler-flags) cflags)]
-                                                    [current-extension-preprocess-flags (append (current-extension-preprocess-flags) cflags)]
-                                                    [current-environment-variables this-envs])
-                                       (compile-extension #false c target (c-include-paths cc digimon-system))))))))
-                   (list t (list tobj)
-                         (λ [target]
-                           (build-with-output-filter
-                            (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
-                                     (parameterize ([current-standard-link-libraries null]
-                                                    [current-extension-linker-flags (append (current-extension-linker-flags) ldflags)]
-                                                    [current-environment-variables this-envs])
-                                       (link-extension #false (list tobj) target))))))))))))
+    
+    (define cs (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))
+    (cond [(null? cs) null]
+          [else (let-values ([(stone-dir) (path->string (digimon-path 'stone))]
+                             [(this-envs) (environment-variables-copy (current-environment-variables))]
+                             [(cc ld) (values (c-compiler) (c-linker))])
+                  (c-set-environment-variables! this-envs cc ld digimon-system)
+                  (foldl append null
+                         (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
+                           (define contained-in-package? (string-prefix? (path->string c) stone-dir))
+                           (define tobj (c-object-destination c contained-in-package?))
+                           (define t (c-library-destination c contained-in-package?))
+                           (list (list tobj (include.h c)
+                                       (λ [target]
+                                         (build-with-output-filter
+                                          (thunk (let ([cflags (c-compiler-flags cc digimon-system)])
+                                                   (parameterize ([current-extension-compiler-flags (append (current-extension-compiler-flags) cflags)]
+                                                                  [current-extension-preprocess-flags (append (current-extension-preprocess-flags) cflags)]
+                                                                  [current-environment-variables this-envs])
+                                                     (compile-extension #false c target (c-include-paths cc digimon-system))))))))
+                                 (list t (list tobj)
+                                       (λ [target]
+                                         (build-with-output-filter
+                                          (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
+                                                   (parameterize ([current-standard-link-libraries null]
+                                                                  [current-extension-linker-flags (append (current-extension-linker-flags) ldflags)]
+                                                                  [current-environment-variables this-envs])
+                                                     (link-extension #false (list tobj) target)))))))))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
