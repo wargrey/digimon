@@ -17,29 +17,30 @@
     (define color-code : (-> String [#:bgcolor? Boolean] String)
       (lambda [color #:bgcolor? [bg? #false]]
         (format "~a8;5;~a" (if bg? 4 3) (if (regexp-match? #px"\\d+" color) color (hash-ref vim-colors color)))))
-    (regexp-replace #px"^(\\s*)(.+?)(\\s*)$" content
-                    (format "\\1\033[~a;~a;~am\\2\033[0m\\3"
-                            (string-replace (for/fold : String ([effects ""]) ([attr : Symbol (in-list attrs)])
-                                              (case (string-downcase (format "~a" attr))
-                                                [{"bold" "bright"} (string-append effects ";1")]
-                                                [{"dim"} (string-append effects ";2")]
-                                                [{"underline" "undercurl"} (string-append effects ";4")]
-                                                [{"blink"} (string-append effects ";5")]
-                                                [{"reverse" "inverse"} (string-append effects ";7")]
-                                                [{"hidden" "password"} (string-append effects ";8")]
-                                                [else (error 'tarminal-colorize "Unsupported Terminal Attribute: ~a" attr)]))
-                                            "^;" "" #:all? #false)
-                            (if (not fg) 39 (color-code (string-downcase (format "~a" fg))))
-                            (if (not bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))))
+    (cond [(eq? (system-type 'os) 'windows) content]
+          [else (regexp-replace #px"^(\\s*)(.+?)(\\s*)$" content
+                                (format "\\1\033[~a;~a;~am\\2\033[0m\\3"
+                                  (string-replace (for/fold : String ([effects ""]) ([attr : Symbol (in-list attrs)])
+                                                    (case (string-downcase (format "~a" attr))
+                                                      [{"bold" "bright"} (string-append effects ";1")]
+                                                      [{"dim"} (string-append effects ";2")]
+                                                      [{"underline" "undercurl"} (string-append effects ";4")]
+                                                      [{"blink"} (string-append effects ";5")]
+                                                      [{"reverse" "inverse"} (string-append effects ";7")]
+                                                      [{"hidden" "password"} (string-append effects ";8")]
+                                                      [else (error 'tarminal-colorize "Unsupported Terminal Attribute: ~a" attr)]))
+                                                  "^;" "" #:all? #false)
+                                  (if (not fg) 39 (color-code (string-downcase (format "~a" fg))))
+                                  (if (not bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))])))
 
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
-    (define colorize? (and (terminal-port? (current-output-port)) (not (eq? (system-type 'os) 'windows))))
+    (define colorize? (terminal-port? (current-output-port)))
     (printf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
-    (define colorize? (and (terminal-port? (current-output-port)) (not (eq? (system-type 'os) 'windows))))
+    (define colorize? (terminal-port? (current-error-port)))
     (eprintf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
