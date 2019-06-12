@@ -59,10 +59,10 @@
 
 (define c-compiler-flags
   (lambda [cc system]
-    (list* (format "-D__~a__" system)
-           (case cc
-             [(gcc) (list "-std=c11" "-m64")]
-             [else null]))))
+    (append (case cc
+              [(gcc) (list "-std=c11" "-m64" "-D_POSIX_C_SOURCE=200809L")]
+              [else null])
+            (list (format "-D__~a__" system)))))
 
 (define c-linker-flags
   (lambda [c ld system]
