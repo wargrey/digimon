@@ -17,8 +17,11 @@
     [(_ libname
         (~optional (~seq #:global? ?:expr) #:defaults ([? #'#true]))
         (~optional (~seq #:on-fail on-fail:expr) #:defaults ([on-fail #'#false])))
-     #'(ffi-lib #:global? ? #:fail on-fail
-                (let* ([rkt (resolved-module-path-name (variable-reference->resolved-module-path (#%variable-reference)))]
-                       [compiled (build-path (path-only rkt) "compiled" "native" (system-library-subpath #false) libname)]
-                       [shipped (build-path (path-only rkt) (system-library-subpath #false) libname)])
-                  (if (file-exists? compiled) compiled shipped)))]))
+     #'(let ([modpath (variable-reference->module-source (#%variable-reference))]
+             [libpath (system-library-subpath #false)])
+         (if (not (path? modpath)) ; when distributed as a standalone executable
+             (ffi-lib #:global? ? #:fail on-fail (build-path libpath libname))
+             (let ([this-root (path-only modpath)])
+               (ffi-lib (build-path this-root "compiled" "native" libpath libname)
+                        #:global? ? #:fail (λ [] (ffi-lib (build-path this-root libpath libname)
+                                                          #:global? ? #:fail on-fail))))))]))
