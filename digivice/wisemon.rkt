@@ -189,8 +189,8 @@
                                  (list t (list tobj)
                                        (λ [target]
                                          (build-with-output-filter
-                                          (thunk (let ([ldflags (c-linker-flags c ld digimon-system)])
-                                                   (parameterize ([current-standard-link-libraries null]
+                                          (thunk (let ([ldflags (c-linker-flags ld digimon-system)])
+                                                   (parameterize ([current-standard-link-libraries (c-linker-libraries c ld digimon-system)]
                                                                   [current-extension-linker-flags (append (current-extension-linker-flags) ldflags)]
                                                                   [current-environment-variables this-envs])
                                                      (link-extension #false (list tobj) target)))))))))))])))

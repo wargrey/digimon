@@ -79,30 +79,34 @@
             (list (format "-D__~a__" system)))))
 
 (define c-linker-flags
+  (lambda [ld system]
+    (append (case ld
+              [(ld) (list "-shared")]
+              [(cl) (list "/nologo")]
+              [else null])
+            (case system
+              [(macosx) (list "-L/usr/local/lib")]
+              [(illumos) (list "-m64")]
+              [else null]))))
+
+(define c-linker-libraries
   (lambda [c ld system]
-    (define -flags
-      (append (case ld
-                [(ld) (list "-shared")]
-                [(cl) (list "/nologo")]
-                [else null])
-              (case system
-                [(macosx) (list "-L/usr/local/lib")]
-                [(illumos) (list "-m64")]
-                [else null])))
-    (for/fold ([ldflags -flags])
+    (for/fold ([ldflags null])
               ([line (in-list (file->lines c))] #:when (regexp-match? #px"#include\\s+<" line))
       (define modeline (regexp-match #px".+ld:(\\w+)?:?([^*]+)(\\*/)?$" line))
       (cond [(not modeline) ldflags #| TODO: deal with "-L" and `pkg-config` |#]
-            [else (match-let ([(list _ hint ld _) modeline])
+            [else (match-let ([(list _ hint ls _) modeline])
                     (for/fold ([ld-++ ldflags])
-                              ([flags (in-port read (open-input-string ld))]
-                               #:when (pair? flags) #| filter out empty list |#)
+                              ([libraries (in-port read (open-input-string ls))]
+                               #:when (pair? libraries) #| filter out empty list |#)
                       (match (cons system (and hint (map string->symbol (string-split hint ":"))))
                         [(list 'macosx 'framework) ; /* ld:framework: (IOKit) */
                          (append ld-++ (let ([-fw (list (~a #\- hint))])
-                                         (add-between (map ~a flags) -fw #:splice? #true #:before-first -fw)))]
+                                         (add-between (map ~a libraries) -fw #:splice? #true #:before-first -fw)))]
+                        [(list 'windows 'library) ; /* ld:library: (Userevn) */
+                         (append ld-++ (map (λ [l] (format "~a.lib" l)) libraries))]
                         [(cons _ (or (? false?) (? (curry memq system)))) ; /* ld: (ssh2) or ld:illumos: (kstat) */
-                         (append ld-++ (map (curry ~a "-l") flags))]
+                         (append ld-++ (map (curry ~a "-l") libraries))]
                         [_ ldflags])))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
