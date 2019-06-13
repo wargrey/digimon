@@ -133,8 +133,7 @@
 (define (dynext-msvc-root+arch)
   (define cc (current-extension-compiler))
   (and (path? cc)
-       (let-values ([(parent arch dir?) (split-path (path-only cc))]
-                    [(bin) (build-path "bin")])
+       (let-values ([(parent arch dir?) (split-path (path-only cc))])
          (let search-root ([dir parent])
            (and (path? dir)
                 (let-values ([(parent name dir?) (split-path dir)])
