@@ -37,10 +37,14 @@
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
     (define colorize? (terminal-port? (current-output-port)))
-    (printf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
+
+    (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
+             (current-output-port))))
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg (apply format msgfmt vals))
     (define colorize? (terminal-port? (current-error-port)))
-    (eprintf "~a" (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg))))
+
+    (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
+             (current-error-port))))

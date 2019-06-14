@@ -1,7 +1,12 @@
 #lang typed/racket/base
 
-(require "../compiler.rkt")
+(require racket/list)
 
+(require "../compiler.rkt")
+(require "../linker.rkt")
+(require "../modeline.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-cpp-macros : CC-CPP-Macros
   (lambda [system]
     (list "-DF_LAMBDA="
@@ -17,13 +22,41 @@
 
 (define gcc-include-paths : CC-Includes
   (lambda [system]
-    null))
+    (case system
+      [(macosx) (list "-I/usr/local/include")]
+      [else null])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define gcc-linker-flags : LD-Flags
+  (lambda [system]
+    (case system
+      [(macosx) (list "-bundle" "-flat_namespace" "-undefined" "suppress")]
+      [(illumos) (list "-fPIC" "-shared" "-m64")]
+      [else (list "-fPIC" "-shared")])))
+
+(define gcc-linker-libpaths : LD-Libpaths
+  (lambda [system]
+    (case system
+      [(macosx) (list "-L/usr/local/lib")]
+      [else null])))
+
+(define gcc-linker-libraries : LD-Libraries
+  (lambda [modelines system]
+    (apply append
+           (for/list : (Listof (Listof String)) ([mdl (in-list modelines)])
+             (define kw : Symbol (or (c:mdl:ld-keyword mdl) system))
+             (define ls : (Listof String) (c:mdl:ld-libraries mdl))
+             (cond [(eq? system kw)
+                    (map (λ [l] (format "-l~a" l)) ls)]  ; /* ld: (ssh2) or ld:illumos: (kstat) */
+                   [(and (eq? system 'macosx) (eq? kw 'framework)) ; /* ld:framework: IOKit */
+                    (let ([-fw "-framework"])
+                      (cons -fw (add-between ls -fw)))]
+                   [else null])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (unless (eq? (system-type 'os) 'windows)
-  (c-register-compiler 'gcc
-                       (make-cc 'gcc
-                                '(flags macros includes infile outfile)
-                                gcc-cpp-macros
-                                gcc-compile-flags
-                                gcc-include-paths)))
+  (c-register-compiler 'gcc '(flags macros includes infile "-o" outfile)
+                       #:macros gcc-cpp-macros #:flags gcc-compile-flags #:includes gcc-include-paths)
+  
+  (c-register-linker 'gcc '(flags libpath libraries infiles "-o" outfile)
+                     #:flags gcc-linker-flags #:libpaths gcc-linker-libpaths #:libraries gcc-linker-libraries))

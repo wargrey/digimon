@@ -12,7 +12,7 @@
 (require setup/option)
 (require setup/dirs)
 
-(require "c/dyn.rkt")
+(require "../cc.rkt")
 
 (require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
@@ -147,53 +147,16 @@
 
 (define make-native-library-rules
   (lambda [info-ref]
-    (define (build-with-output-filter build/0)
-      (define-values (/dev/ctool/stdin /dev/ctool/stdout) (make-pipe))
-      (define rewriter (thread (thunk (for ([line (in-lines /dev/ctool/stdin)])
-                                        (if (regexp-match? #px"^(xform-cpp|compile-extension|link-extension|change-runtime-path):" line)
-                                            (echof #:fgcolor 'cyan "~a~n"
-                                                   (regexp-replaces line (list (list #px"^xform-cpp:\\s+\\("         "cpp: ")
-                                                                               (list #px"^compile-extension:\\s+\\(" "cc:  ")
-                                                                               (list #px"^link-extension:\\s+\\("    "ld:  ")
-                                                                               (list #px"^change-runtime-path:\\s+"  "dyn: ")
-                                                                               (list (path->string (current-directory)) "./")
-                                                                               (list #px"( -o .+?( |$))|(\\)$)" ""))))
-                                            (eechof #:fgcolor 'yellow "~a~n" line))))))
-      (dynamic-wind (thunk (void '(if build/0 runs in thread then make will not be stopped by the failure)))
-                    (thunk (parameterize ([current-output-port /dev/ctool/stdout]
-                                          [current-error-port /dev/ctool/stdout])
-                             (build/0)))
-                    (thunk (void (flush-output /dev/ctool/stdout)
-                                 (close-output-port /dev/ctool/stdout)
-                                 (thread-wait rewriter)))))
-    
     (define cs (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))
     (cond [(null? cs) null]
-          [else (let-values ([(stone-dir) (path->string (digimon-path 'stone))]
-                             [(this-envs) (environment-variables-copy (current-environment-variables))]
-                             [(cc ld) (values (c-compiler) (c-linker))])
-                  (c-set-environment-variables! this-envs cc ld digimon-system)
+          [else (let-values ([(stone-dir) (path->string (digimon-path 'stone))])
                   (foldl append null
                          (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
                            (define contained-in-package? (string-prefix? (path->string c) stone-dir))
                            (define tobj (c-object-destination c contained-in-package?))
                            (define t (c-library-destination c contained-in-package?))
-                           (list (list tobj (include.h c)
-                                       (λ [target]
-                                         (build-with-output-filter
-                                          (thunk (let ([cflags (c-compiler-flags cc digimon-system)])
-                                                   (parameterize ([current-extension-compiler-flags (append (current-extension-compiler-flags) cflags)]
-                                                                  [current-extension-preprocess-flags (append (current-extension-preprocess-flags) cflags)]
-                                                                  [current-environment-variables this-envs])
-                                                     (compile-extension #false c target (c-include-paths cc digimon-system))))))))
-                                 (list t (list tobj)
-                                       (λ [target]
-                                         (build-with-output-filter
-                                          (thunk (let ([ldflags (c-linker-flags ld digimon-system)])
-                                                   (parameterize ([current-standard-link-libraries (c-linker-libraries c ld digimon-system)]
-                                                                  [current-extension-linker-flags (append (current-extension-linker-flags) ldflags)]
-                                                                  [current-environment-variables this-envs])
-                                                     (link-extension #false (list tobj) target)))))))))))])))
+                           (list (list tobj (c-include-headers c) (λ [target] (c-compile c target)))
+                                 (list t (list tobj) (λ [target] (c-link tobj target #:modelines (c-source-modelines c))))))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
