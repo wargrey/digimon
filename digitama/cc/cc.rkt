@@ -17,14 +17,16 @@
 (define c-compiler-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))
   (lambda [compilers]
     (cond [(pair? compilers) compilers]
-          [(eq? os 'windows) '(msvc)]
-          [else '(gcc)])))
+          [(eq? os 'macosx) '(clang gcc)]
+          [(eq? os 'unix) '(gcc clang)]
+          [else '(msvc)])))
 
 (define c-linker-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))
   (lambda [linkers]
     (cond [(pair? linkers) linkers]
-          [(eq? os 'windows) '(msvc)]
-          [else '(gcc)])))
+          [(eq? os 'macosx) '(clang gcc)]
+          [(eq? os 'unix) '(gcc clang)]
+          [else '(msvc)])))
 
 (define c-find-binary-path : (-> Symbol (Option Path))
   (lambda [basename]

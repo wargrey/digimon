@@ -17,6 +17,7 @@
 (require "digitama/system.rkt")
 
 ; register toolchains
+(require "digitama/cc/toolchain/clang.rkt")
 (require "digitama/cc/toolchain/gcc.rkt")
 (require "digitama/cc/toolchain/msvc.rkt")
 
