@@ -32,17 +32,3 @@
                            (cond [(null? libraries) (read-modeline seniledom)]
                                  [else (read-modeline (cons (make-c:mdl:ld keyword libraries) seniledom))]))]
                         [_ (read-modeline seniledom)])]))))))
-
-#;(let ([hint (cadr modeline)])
-    (for/fold ([ld-++ null])
-              ([libraries (in-port read (open-input-string ls))]
-               #:when (pair? libraries) #| filter out empty list |#)
-      (match (and hint (map string->symbol (string-split hint ":")))
-        [(list 'framework) ; /* ld:framework: (IOKit) */
-         (append ld-++ (let ([-fw (list (~a #\- hint))])
-                         (add-between (map ~a libraries) -fw #:splice? #true #:before-first -fw)))]
-        [(list 'library) ; /* ld:library: (Userevn) */
-         (append ld-++ (map (λ [l] (format "~a.lib" l)) libraries))]
-        [else ; /* ld: (ssh2) or ld:illumos: (kstat) */
-         (append ld-++ (map (curry ~a "-l") libraries))]
-        [_ null])))

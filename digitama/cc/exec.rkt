@@ -40,5 +40,6 @@
 
       (let ([status (subprocess-status c-toolchain)])
         (unless (eq? status 0)
-          (raise-user-error 'exec "~a terminated with exit code ~a"
-                            (file-name-from-path program) status))))))
+          (let ([basename (file-name-from-path program)])
+            (raise-user-error (string->symbol (path->string (assert basename path?)))
+                              "exit status: ~a" status)))))))

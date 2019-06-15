@@ -4,6 +4,7 @@
 
 (require "../compiler.rkt")
 (require "../linker.rkt")
+(require "../modeline.rkt")
 
 (require "../../system.rkt")
 
@@ -52,8 +53,12 @@
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
-  (lambda [modelines system]
-    null))
+  (lambda [modeline system]
+    (define kw : Symbol (or (c:mdl:ld-keyword modeline) system))
+    (define ls : (Listof String) (c:mdl:ld-libraries modeline))
+    
+    (cond [(not (memq kw (list 'static system))) null]
+          [else (map (λ [[l : String]] (string-append l ".lib")) ls)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bindir-path : Path (build-path "bin"))
@@ -78,12 +83,19 @@
   (lambda [subpath . subpaths]
     (string-append "/LIBPATH:" (path->string (apply build-path subpath subpaths)))))
 
+(define msvc-make-outfile : (-> String LD-IO-File-Flag)
+  (lambda [flag]
+    (λ [dest system]
+      (list (string-append "/" flag (if (path? dest) (path->string dest) dest))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (when (eq? (system-type 'os) 'windows)
-  (c-register-compiler 'msvc '(flags macros includes infile "/Fefile" outfile) 
+  (c-register-compiler 'msvc '(flags macros includes infile outfile) 
                        #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
+                       #:outfile (msvc-make-outfile "Fo")
                        #:basename msvc-basename)
   
-  (c-register-linker 'msvc '(flags infiles libraries "/Fofile" outfile "/link" libpath)
+  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
                      #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
+                     #:outfile (msvc-make-outfile "Fe")
                      #:basename msvc-basename))

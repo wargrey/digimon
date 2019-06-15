@@ -9,7 +9,7 @@
 
 (define-type LD-Flags (-> Symbol (Listof String)))
 (define-type LD-Libpaths (-> Symbol (Listof String)))
-(define-type LD-Libraries (-> (Listof C-LD-Modeline) Symbol (Listof String)))
+(define-type LD-Libraries (-> C-LD-Modeline Symbol (Listof String)))
 
 (define-type LD-IO-File-Flag (-> Path-String Symbol (Listof String)))
 

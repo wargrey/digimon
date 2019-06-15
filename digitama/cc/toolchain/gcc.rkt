@@ -41,17 +41,15 @@
       [else null])))
 
 (define gcc-linker-libraries : LD-Libraries
-  (lambda [modelines system]
-    (apply append
-           (for/list : (Listof (Listof String)) ([mdl (in-list modelines)])
-             (define kw : Symbol (or (c:mdl:ld-keyword mdl) system))
-             (define ls : (Listof String) (c:mdl:ld-libraries mdl))
-             (cond [(eq? system kw)
-                    (map (λ [l] (format "-l~a" l)) ls)]  ; /* ld: (ssh2) or ld:illumos: (kstat) */
-                   [(and (eq? system 'macosx) (eq? kw 'framework)) ; /* ld:framework: IOKit */
-                    (let ([-fw "-framework"])
-                      (cons -fw (add-between ls -fw)))]
-                   [else null])))))
+  (lambda [modeline system]
+    (define kw : Symbol (or (c:mdl:ld-keyword modeline) system))
+    (define ls : (Listof String) (c:mdl:ld-libraries modeline))
+    (cond [(eq? system kw)
+           (map (λ [[l : String]] (string-append "-l" l)) ls)]  ; /* ld: (ssh2) or ld:illumos: (kstat) */
+          [(and (eq? system 'macosx) (eq? kw 'framework))       ; /* ld:framework: IOKit */
+           (let ([-fw "-framework"])
+             (cons -fw (add-between ls -fw)))]
+          [else null])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (unless (eq? (system-type 'os) 'windows)

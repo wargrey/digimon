@@ -60,7 +60,8 @@
                             (case layout
                               [(flags) ((ld-flags linker) digimon-system)]
                               [(libpath) ((ld-libpaths linker) digimon-system)]
-                              [(libraries) ((ld-libraries linker) (filter c:mdl:ld? modelines) digimon-system)]
+                              [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
+                                                           ((ld-libraries linker) mdl digimon-system)))]
                               [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system)]
                                                [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
                                                                      ((ld-infile linker) f digimon-system)))])]
