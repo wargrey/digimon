@@ -8,18 +8,19 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 
-(define-syntax (define-file-loader stx)
+(define-syntax (define-file-reader stx)
   (syntax-case stx [lambda λ]
     [(_ id #:+ Type #:lambda do-read)
-     #'(define id : (-> Path-String [#:mode (U 'binary 'text)] Type)
+     #'(define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
          (let ([up-to-dates : (HashTable Path (Pairof Nonnegative-Fixnum Type)) (make-hash)]
                [read-datum : (-> Input-Port Type) do-read])
-           (lambda [src #:mode [mode-flag 'binary]]
+           (lambda [src #:mode [mode-flag 'binary] #:count-lines? [count-lines? (port-count-lines-enabled)]]
              (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds src))
              (define src-key : Path (simplify-path src))
              (define mdatum : (Option (Pairof Nonnegative-Fixnum Type)) (hash-ref up-to-dates src-key (λ [] #false)))
              (cond [(and mdatum (<= mtime (car mdatum))) (cdr mdatum)]
-                   [else (let ([datum (call-with-input-file* src read-datum #:mode mode-flag)])
+                   [else (let ([datum (parameterize ([port-count-lines-enabled count-lines?])
+                                        (call-with-input-file* src read-datum #:mode mode-flag))])
                            (hash-set! up-to-dates src-key (cons mtime datum))
                            datum)]))))]
     [(_ id #:+ Type (lambda [/dev/stdin] body ...))
@@ -28,9 +29,9 @@
                   (lambda [/dev/stdin]
                     body ...))
 
-                (define-file-loader id* #:+ Type #:lambda id)))]
+                (define-file-reader id* #:+ Type #:lambda id)))]
     [(_ id #:+ Type (λ [/dev/stdin] body ...))
-     #'(define-file-loader id #:+ Type (lambda [/dev/stdin] body ...))]))
+     #'(define-file-reader id #:+ Type (lambda [/dev/stdin] body ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dirname : (-> Path-String [#:rootname String] String)
