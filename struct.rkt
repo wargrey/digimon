@@ -83,5 +83,5 @@
                 (define-syntax (id-method-apply stx)
                   (syntax-case stx []
                     [(_ self argl [... ...])
-                     #'((abs-method (id-abs self)) argl [... ...])]))
+                     #'((abs-method (id-abs self)) self argl [... ...])]))
                 ...))]))
