@@ -61,8 +61,8 @@
                                      (define <api-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'api-id) (syntax-e <method>)))))
                                      (values (cons <id-apply> sylppa) (cons <id-field> sdleif) (cons <api-field> sdleif-api)))])
                        (list (reverse sylppa) (reverse sdleif) (reverse sdleif-api)))])
-       #'(begin (struct api-id ([field : FieldType] ... [method : MethodType] ...) #:transparent)
-                (struct id ([api-id : api-id]) #:transparent #:type-name ID)
+       #'(begin (struct api-id ([field : FieldType] ... [method : MethodType] ...))
+                (struct id ([api-id : api-id]) #:type-name ID)
 
                 (define (make-id kw-args ...) : ID
                   (id (api-id field ... method ...)))
