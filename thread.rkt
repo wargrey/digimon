@@ -12,17 +12,16 @@
     (unless (andmap thread-dead? threads)
       (define breaker : Thread
         (thread (λ [] (let wait : Void ([thds : (Listof Thread) threads])
-                        (with-handlers ([exn:break? void])
-                          (define who (apply sync/enable-break thds))
+                        (define who (apply sync/enable-break thds))
 
-                          (thread-wait who)
-
-                          (when (> (length thds) 1)
-                            (wait (remove who thds))))))))
+                        (thread-wait who)
+                        
+                        (when (> (length thds) 1)
+                          (wait (remove who thds)))))))
 
       (with-handlers ([exn:break? void])
         (sync/timeout/enable-break timeout-s breaker))
-
-      (for ([thd (in-list threads)])
+      
+      (for ([thd (in-list (cons breaker threads))])
         (unless (thread-dead? thd)
           (kill-thread thd))))))
