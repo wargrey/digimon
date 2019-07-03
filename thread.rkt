@@ -2,22 +2,27 @@
 
 (provide (all-defined-out))
 
-(define thread-safe-kill : (->* ((U Thread (Listof Thread))) (Index) Void)
-  (lambda [thds [timeout-ms 1024]]
-    (define thds : (Listof Thread)
+(define thread-safe-kill : (->* ((U Thread (Listof Thread))) (Nonnegative-Real) Void)
+  (lambda [thds [timeout-s 2.0]]
+    (define threads : (Listof Thread)
       (for/list ([thd (if (list? thds) (in-list thds) (in-value thds))])
         (break-thread thd)
         thd))
 
-    (when (pair? thds)
-      (define timeout-evt (alarm-evt (+ (current-inexact-milliseconds) timeout-ms)))
+    (unless (andmap thread-dead? threads)
+      (define breaker : Thread
+        (thread (λ [] (let wait : Void ([thds : (Listof Thread) threads])
+                        (with-handlers ([exn:break? void])
+                          (define who (apply sync/enable-break thds))
 
-      (let wait ([thds : (Listof Thread) thds])
-        (with-handlers ([exn:break? void])
-          (define who (apply sync/enable-break timeout-evt thds))
+                          (thread-wait who)
 
-          (when (thread? who)
-            (wait (remove who thds))))
+                          (when (> (length thds) 1)
+                            (wait (remove who thds))))))))
 
-        (when (pair? thds)
-          (for-each kill-thread thds))))))
+      (with-handlers ([exn:break? void])
+        (sync/timeout/enable-break timeout-s breaker))
+
+      (for ([thd (in-list threads)])
+        (unless (thread-dead? thd)
+          (kill-thread thd))))))
