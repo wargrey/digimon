@@ -77,15 +77,6 @@
           (or (caar stacks)
               (use-next-id (cdr stacks))))))
 
-(define-syntax (throw stx)
-  (syntax-parse stx
-    [(_ st:id rest ...)
-     #'(throw [st] rest ...)]
-    [(_ [st:id argl ...] frmt:str v ...)
-     #'(throw [st argl ...] (#%function) frmt v ...)]
-    [(_ [st:id argl ...] src frmt:str v ...)
-     #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) argl ...))]))
-
 (define-syntax (define-struct stx)
   (syntax-parse stx #:literals [:]
     [(_ id #:as ID (~optional (~seq #:with make-id))
