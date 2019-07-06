@@ -54,7 +54,7 @@
                                      (define <abs-field> (datum->syntax <field> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <field>)))))
                                      (values (cons <id-field> sdleif) (cons <abs-field> sdleif-abs)))])
                        (list (reverse sdleif) (reverse sdleif-abs)))]
-                    [([id-method-apply ...] [id-method ...] [abs-method ...])
+                    [([id.method ...] [id-method ...] [abs-method ...])
                      (let-values ([(sylppa sdleif sdleif-abs)
                                    (for/fold ([sylppa null] [sdleif null] [sdleif-abs null])
                                              ([<method> (in-syntax #'(method ...))])
@@ -80,8 +80,8 @@
                   (abs-method (id-abs self)))
                 ...
                                               
-                (define-syntax (id-method-apply stx)
+                (define-syntax (id.method stx)
                   (syntax-case stx []
-                    [(_ self argl [... ...])
-                     #'((abs-method (id-abs self)) self argl [... ...])]))
+                    [(_ self-expr argl [... ...])
+                     #'(let ([self self-expr]) ((abs-method (id-abs self)) self argl [... ...]))]))
                 ...))]))
