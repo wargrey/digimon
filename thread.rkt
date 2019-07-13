@@ -25,3 +25,16 @@
       (for ([thd (in-list (cons breaker threads))])
         (unless (thread-dead? thd)
           (kill-thread thd))))))
+
+(define thread-safe-shutdown : (->* (Custodian Custodian) (Nonnegative-Real) Void)
+  (lambda [self root [timeout-s 2.0]]
+    (define thds : (Listof Thread)
+      (let fold-thread : (Listof Thread) ([threads : (Listof Thread) null]
+                                          [entities : (Listof Any) (custodian-managed-list self root)])
+        (cond [(null? entities) threads]
+              [else (let ([entity (car entities)])
+                      (cond [(thread? entity) (fold-thread (cons entity threads) (cdr entities))]
+                            [(custodian? entity) (fold-thread (fold-thread threads (custodian-managed-list entity root)) (cdr entities))]
+                            [else (fold-thread threads (cdr entities))]))])))
+
+    (thread-safe-kill thds timeout-s)))
