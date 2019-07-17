@@ -13,20 +13,22 @@
     [(_ id #:+ Type #:lambda do-read)
      #'(define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
          (let ([up-to-dates : (HashTable Path (Pairof Nonnegative-Fixnum Type)) (make-hash)]
-               [read-datum : (-> Input-Port Type) do-read])
+               [read-datum : (-> Input-Port Path Type) do-read])
            (lambda [src #:mode [mode-flag 'binary] #:count-lines? [count-lines? (port-count-lines-enabled)]]
              (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds src))
              (define src-key : Path (simplify-path src))
              (define mdatum : (Option (Pairof Nonnegative-Fixnum Type)) (hash-ref up-to-dates src-key (λ [] #false)))
              (cond [(and mdatum (<= mtime (car mdatum))) (cdr mdatum)]
                    [else (let ([datum (parameterize ([port-count-lines-enabled count-lines?])
-                                        (call-with-input-file* src read-datum #:mode mode-flag))])
+                                        (call-with-input-file* src #:mode mode-flag
+                                          (λ [[/dev/stdin : Input-Port]] : Type
+                                            (read-datum /dev/stdin src-key))))])
                            (hash-set! up-to-dates src-key (cons mtime datum))
                            datum)]))))]
-    [(_ id #:+ Type (lambda [/dev/stdin] body ...))
+    [(_ id #:+ Type (lambda [/dev/stdin src] body ...))
      (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])
-       #'(begin (define id : (-> Input-Port Type)
-                  (lambda [/dev/stdin]
+       #'(begin (define id : (-> Input-Port Path Type)
+                  (lambda [/dev/stdin src]
                     body ...))
 
                 (define-file-reader id* #:+ Type #:lambda id)))]

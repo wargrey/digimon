@@ -56,6 +56,11 @@
                 [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))
 
+(define ~MB/s : (-> Natural Flonum Flonum)
+  (lambda [traffic span-ms]
+    (/ (real->double-flonum traffic)
+       (* span-ms 1024.0 1.024))))
+
 (define ~hexstring : (-> Any String)
   (lambda [val]
     (cond [(integer? val) (~r val #:base 16)]
