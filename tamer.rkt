@@ -3,7 +3,7 @@
 (provide (all-defined-out) skip todo)
 (provide (all-from-out racket rackunit))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
-(provide (all-from-out "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
+(provide (all-from-out "digitama/citation.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (require rackunit)
 
@@ -18,6 +18,7 @@
 (require (for-label racket))
 
 (require "digitama/tamer.rkt")
+(require "digitama/citation.rkt")
 
 (require "echo.rkt")
 (require "emoji.rkt")
@@ -145,14 +146,7 @@
                                   #:author   (authors "Donald E. Knuth")
                                   #:date     "1984"
                                   #:location (journal-location "The Computer Journal" #:number "10.1093/comjnl/27.2.97")
-                                  #:url      "http://www.literateprogramming.com/knuthweb.pdf")
-                       (bib-entry #:key      "LP:Issues"
-                                  #:title    "Literate Programming - Issues and Problems"
-                                  #:author   (authors "Kurt Nørmark")
-                                  #:date     "1998"
-                                  #:location (dissertation-location #:institution "Department of Computer Science Aalborg University"
-                                                                    #:degree "Lektor")
-                                  #:url      "http://people.cs.aau.dk/~normark/litpro/issues-and-problems.html"))])
+                                  #:url      "http://www.literateprogramming.com/knuthweb.pdf"))])
     (lambda [#:index? [index? #true] . bibentries]
       (define appendix-style (make-style 'index '(grouper)))
       ((curry filter-not void?)
@@ -543,6 +537,7 @@
                                            (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                         (string-join contents (string #\newline)))))))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module* typed typed/racket
   (provide (all-defined-out))
   (provide (all-from-out typed/rackunit))
