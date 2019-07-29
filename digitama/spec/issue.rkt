@@ -5,17 +5,17 @@
 (require racket/path)
 
 (define-type Spec-Issue-Type (U 'pass 'fail 'todo 'skip))
-(define-type Spec-Issue-Name (U String Symbol Boolean))
+(define-type Spec-Issue-Brief (Option String))
 (define-type Spec-Issue-Info (Pairof Symbol Any))
 
-(define default-spec-issue-brief : (Parameterof Spec-Issue-Name) (make-parameter #false))
+(define default-spec-issue-brief : (Parameterof Spec-Issue-Brief) (make-parameter #false))
 (define default-spec-issue-info : (Parameterof (Listof Spec-Issue-Info)) (make-parameter null))
 (define default-spec-issue-rootdir : (Parameterof Path-String) current-directory)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct spec-issue
   ([type : Spec-Issue-Type]
-   [brief : Spec-Issue-Name]
+   [brief : Spec-Issue-Brief]
    [info : (Listof Spec-Issue-Info)])
   #:type-name Spec-Issue
   #:transparent)
