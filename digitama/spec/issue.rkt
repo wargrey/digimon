@@ -4,7 +4,7 @@
 
 (require racket/path)
 
-(define-type Spec-Issue-Type (U 'pass 'fail 'todo 'skip))
+(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skipped))
 (define-type Spec-Issue-Brief (Option String))
 (define-type Spec-Issue-Info (Pairof Symbol Any))
 

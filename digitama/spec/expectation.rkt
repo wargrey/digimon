@@ -11,14 +11,14 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
-(define-syntax (define-spec-primitive stx)
+(define-syntax (define-spec-expectation stx)
   (syntax-parse stx #:literals [:]
     [(_ (id:id [arg:id : Type:expr] ...) body ...)
-     (with-syntax ([%? (format-id #'id "%?-~a" (syntax-e #'id))]
-                   [%t (format-id #'id "%test-~a" (syntax-e #'id))])
-       #'(begin (define do-assert : (-> Symbol Syntax Any (->* (Type ...) (String) #:rest Any Void))
+     (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))]
+                   [behave-id (format-id #'id "behave-~a" (syntax-e #'id))])
+       #'(begin (define do-expecting : (-> Symbol Syntax Any (->* (Type ...) (String) #:rest Any Void))
                   (lambda [name stx expr]
-                    (define (id [arg : Type] ... . [argl : Any *]) : Void
+                    (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
                       (define message : (Option String)
                         (and (pair? argl) (string? (car argl))
                              (cond [(null? (cdr argl)) (car argl)]
@@ -30,58 +30,58 @@
                              (cons 'arguments (list arg ...))
                              (cons 'message message))
                        (λ [] body ... (void))))
-                    id))
+                    expect-id))
 
-                (define do-test : (-> Symbol Syntax Any (-> Type ... String Any * (U Void Spec-Issue)))
+                (define do-behaving : (-> Symbol Syntax Any (-> Type ... String Any * (U Void Spec-Issue)))
                   (lambda [name stx expr]
-                    (define ? : (->* (Type ...) (String) #:rest Any Void) (do-assert name stx expr))
-                    (define (%t [arg : Type] ... [brfmt : String] . [argl : Any *]) : (U Void Spec-Issue)
+                    (define ? : (->* (Type ...) (String) #:rest Any Void) (do-expecting name stx expr))
+                    (define (behave-id [arg : Type] ... [brfmt : String] . [argl : Any *]) : (U Void Spec-Issue)
                       (define brief : String
                         (cond [(null? argl) brfmt] 
                               [else (apply format brfmt argl)]))
                       (spec-case brief (? arg ...)))
-                    %t))
+                    behave-id))
                 
                 (define argc : Index (length '(arg ...)))
                 
-                (define-syntax (%? stx)
+                (define-syntax (expect-id stx)
                   (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" stx)])
                     (syntax-parse stx
-                      [(_ . arglist) #'((do-assert '%? #'loc (take 'arglist argc)) . arglist)]
-                      [_ #'(do-assert '%? #'loc '%?)])))
+                      [(_:id . arglist) #'((do-expecting 'id #'loc (take 'arglist argc)) . arglist)]
+                      [_:id #'(do-expecting 'id #'loc 'expect-id)])))
 
-                (define-syntax (%t stx)
+                (define-syntax (behave-id stx)
                   (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" stx)])
                     (syntax-parse stx
-                      [(_ brief . arglist) #'((do-test '%t #'loc 'arglist) brief . arglist)]
-                      [_ #'(do-test '%t #'loc '%t)])))))]))
+                      [(_:id . arglist) #'((do-behaving 'id #| not a typo |# #'loc (take 'arglist argc)) . arglist)]
+                      [_:id #'(do-behaving 'id #| not a typo |# #'loc 'behave-id)])))))]))
 
-(define-syntax (define-spec-boolean-primitive stx)
+(define-syntax (define-spec-boolean-expectation stx)
   (syntax-parse stx #:literals [:]
     [(_ (?:id [arg:id : Type:expr] ...) body ...)
-     #'(define-spec-primitive (? [arg : Type] ...)
+     #'(define-spec-expectation (? [arg : Type] ...)
          (or (let () (void) body ...)
-             (spec-collapse)))]))
+             (spec-misbehave)))]))
 
-(define-syntax (define-spec-binary-primitive stx)
+(define-syntax (define-spec-binary-expectation stx)
   (syntax-parse stx #:literals [:]
     [(_ (?:id [gv:id : GType:expr] [ev:id : EType:expr]) body ...)
-     #'(define-spec-primitive (? [gv : GType] [ev : EType])
+     #'(define-spec-expectation (? [gv : GType] [ev : EType])
          (with-issue-info (list (cons 'expected ev)
                                 (cons 'given gv))
            (λ [] (or (let () (void) body ...)
-                     (spec-collapse)))))]
+                     (spec-misbehave)))))]
     [(_ (?:id pred:id [gv:id : GType:expr] [ev:id : EType:expr]))
-     #'(define-spec-binary-primitive (? [gv : GType] [ev : EType])
+     #'(define-spec-binary-expectation (? [gv : GType] [ev : EType])
          (pred gv ev))]
     [(_ (?:id [pred:id : (-> GType:expr EType:expr Type)]))
-     #'(define-spec-binary-primitive (? [gv : GType] [ev : EType])
+     #'(define-spec-binary-expectation (? [gv : GType] [ev : EType])
          (pred gv ev))]))
 
 (define-syntax (spec-begin stx)
   (syntax-parse stx #:literals [:]
     [(_ asserts ...)
-     #'((inst spec-prompt Spec-Issue)
+     #'((inst spec-story Spec-Issue)
         (gensym 'spec)
         (λ [] (void asserts ...))
         values)]))
@@ -98,21 +98,21 @@
          (spec-begin asserts ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-binary-primitive (eq [v1 : Any] [v2 : Any]) (eq? v1 v2))
-(define-spec-binary-primitive (eqv [v1 : Any] [v2 : Any]) (eqv? v1 v2))
-(define-spec-binary-primitive (equal [v1 : Any] [v2 : Any]) (equal? v1 v2))
-(define-spec-boolean-primitive (!eq [v1 : Any] [v2 : Any]) (not (eq? v1 v2)))
-(define-spec-boolean-primitive (!eqv [v1 : Any] [v2 : Any]) (not (eqv? v1 v2)))
-(define-spec-boolean-primitive (!equal [v1 : Any] [v2 : Any]) (not (equal? v1 v2)))
+(define-spec-binary-expectation (eq [v1 : Any] [v2 : Any]) (eq? v1 v2))
+(define-spec-binary-expectation (eqv [v1 : Any] [v2 : Any]) (eqv? v1 v2))
+(define-spec-binary-expectation (equal [v1 : Any] [v2 : Any]) (equal? v1 v2))
+(define-spec-boolean-expectation (not-eq [v1 : Any] [v2 : Any]) (not (eq? v1 v2)))
+(define-spec-boolean-expectation (not-eqv [v1 : Any] [v2 : Any]) (not (eqv? v1 v2)))
+(define-spec-boolean-expectation (not-equal [v1 : Any] [v2 : Any]) (not (equal? v1 v2)))
 
-(define-spec-boolean-primitive (true [v : Any]) (eq? v #true))
-(define-spec-boolean-primitive (false [v : Any]) (eq? v #false))
-(define-spec-boolean-primitive (!false [v : Any]) v)
-(define-spec-boolean-primitive ($) #false)
+(define-spec-boolean-expectation (true [v : Any]) (eq? v #true))
+(define-spec-boolean-expectation (false [v : Any]) (eq? v #false))
+(define-spec-boolean-expectation (not-false [v : Any]) v)
+(define-spec-boolean-expectation (collapse) #false)
 
-(define-spec-boolean-primitive (fl= [v1 : Flonum] [v2 : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- v1 v2)) epsilon))
+(define-spec-boolean-expectation (fl= [v1 : Flonum] [v2 : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- v1 v2)) epsilon))
 
-(define-spec-primitive (exn [expt : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [do-task : (-> Any)])
+(define-spec-expectation (throw [expt : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [do-task : (-> Any)])
   (define maybe-e (with-handlers ([exn:fail? values]) (void (do-task))))
   (let ([e? (if (procedure? expt) expt exn:fail?)])
     (cond [(and (exn:fail? maybe-e) (e? maybe-e))
@@ -120,42 +120,28 @@
                (regexp-match? expt (exn-message maybe-e))
                (with-issue-info (list (cons 'exn maybe-e)
                                       (cons 'expected expt))
-                 (λ [] (spec-collapse))))]
+                 (λ [] (spec-misbehave))))]
           [(exn:fail? maybe-e)
            (with-issue-info (list (cons 'exn maybe-e)
                                   (cons 'expected (object-name expt)))
-             (λ [] (spec-collapse)))]
-          [else (spec-collapse)])))
+             (λ [] (spec-misbehave)))]
+          [else (spec-misbehave)])))
 
-(define-spec-primitive (!exn [do-task : (-> Any)])
+(define-spec-expectation (no-exception [do-task : (-> Any)])
   (define maybe-exn : Any (with-handlers ([exn:fail? values]) (void (do-task))))
 
   (when (exn? maybe-exn)
     (with-issue-info (list (cons 'exn maybe-exn))
-      (λ [] (spec-collapse)))))
+      (λ [] (spec-misbehave)))))
 
-(define-spec-primitive (|| [pred : (-> Any Boolean)] [v : Any])
+(define-spec-expectation (satisfy [pred : (-> Any Boolean)] [v : Any])
   (with-issue-info (list (cons 'expected (object-name pred))
                          (cons 'given v))
     (λ [] (or (pred v)
-              (spec-collapse)))))
+              (spec-misbehave)))))
 
-(define-spec-primitive (regexp [px : (U Byte-Regexp Regexp Bytes String)] [src : (U Path-String Bytes)])
+(define-spec-expectation (regexp-match [px : (U Byte-Regexp Regexp Bytes String)] [src : (U Path-String Bytes)])
   (with-issue-info (list (cons 'expected (cond [(string? px) (pregexp px)] [(bytes? px) (byte-pregexp px)] [else px]))
                          (cons 'given src))
     (λ [] (or (regexp-match? px src)
-              (spec-collapse)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define do-test : (-> (->* ((-> Any Boolean) Any) (String) #:rest Any Void) (-> (-> Any Boolean) Any String Any * (U Spec-Issue Void)) (-> Any Boolean) Any Any)
-  (lambda [%? %t f a]
-    (list (spec-begin
-           (%? f a "inside"))
-          (%t f a "test"))))
-
-(spec-begin
- (%?- flonum? 1 "jajaja"))
-
-(%test- flonum? 1 "flonum")
-
-(do-test %?- %test- flonum? 1)
+              (spec-misbehave)))))
