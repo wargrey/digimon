@@ -136,17 +136,7 @@
                        (bib-entry #:key      "Scribble"
                                   #:title    "The Racket Documentation Tool"
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
-                                  #:url      "https://docs.racket-lang.org/scribble/index.html")
-                       (bib-entry #:key      "Rackunit"
-                                  #:title    "Rackunit: Unit Testing"
-                                  #:author   (authors "Noel Welsh" "Ryan Culpepper")
-                                  #:url      "https://docs.racket-lang.org/rackunit/index.html")
-                       (bib-entry #:key      "LP:WEB"
-                                  #:title    "Literate Programming"
-                                  #:author   (authors "Donald E. Knuth")
-                                  #:date     "1984"
-                                  #:location (journal-location "The Computer Journal" #:number "10.1093/comjnl/27.2.97")
-                                  #:url      "http://www.literateprogramming.com/knuthweb.pdf"))])
+                                  #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     (lambda [#:index? [index? #true] . bibentries]
       (define appendix-style (make-style 'index '(grouper)))
       ((curry filter-not void?)
@@ -262,7 +252,7 @@
                              (make-test-suite htag (reverse (map cdr (hash-ref handbook-stories htag))))))
                       (or (zero? (hash-count handbook-stories)) ; no story ==> no :books:
                           (let ([href (curry hash-ref handbook-stories)])
-                            (make-test-suite "Behaviors and Features"
+                            (make-test-suite "Features and Behaviors"
                                              (for/list ([unit (in-list (reverse (href books#)))])
                                                (make-test-suite unit (reverse (map cdr (href unit))))))))))
     (or (and (test-suite? suite)

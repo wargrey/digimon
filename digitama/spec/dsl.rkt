@@ -1,6 +1,8 @@
 #lang typed/racket/base
 
-(provide describe)
+(provide define-feature describe)
+
+(require racket/stxparam)
 
 (require "behavior.rkt")
 
@@ -8,35 +10,39 @@
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax-parameter it
+  (lambda [stx]
+    (raise-syntax-error 'it "cannot be used outside `describe` or `context`" stx)))
+
+(define-syntax (define-feature stx)
+  (syntax-parse stx
+    [(_ id:id expr ...)
+     #'(define id : Spec-Feature
+         (describe 'id expr ...))]))
+
 (define-syntax (describe stx)
-  (syntax-parse stx #:literals [:]
-    [(_ [brief:str] expr ...)
-     #'(describe brief expr ...)]
-    [(_ [brfmt:str argl ...] expr ...)
-     #'(let ([brief (format brfmt argl ...)])
-         (describe brief expr ...))]
+  (syntax-parse stx
     [(_ brief (~optional (~seq #:do
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
         (~seq #:do expr ...))
      (with-syntax ([setup (if (attribute setup) #'setup #'void)]
                    [teardown (if (attribute teardown) #'teardown #'void)])
-       #'(make-spec-feature brief (list expr ...)
+       #'(make-spec-feature brief
+                            (syntax-parameterize ([it (make-rename-transformer #'it:describe)])
+                              (list (spec-expand expr) ...))
                             #:before setup #:after teardown))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-syntax (context stx)
-  (syntax-case stx [:]
-    [(_ expr ...)
-     #'(describe expr ...)]))
+(define-syntax (spec-expand stx)
+  (syntax-parse stx #:datum-literals [describe context it]
+    [(_ (describe expr ...)) #'(describe expr ...)]
+    [(_ (context expr ...)) #'(describe expr ...)]
+    [(_ (it expr ...)) #'(it expr ...)]
+    [(_ (expect expr ...)) (raise-syntax-error 'spec "cannot use expectation directly" stx)]))
 
-(define-syntax (it stx)
+(define-syntax (it:describe stx)
   (syntax-parse stx #:literals [:]
-    [(_ [brief:str] expr ...)
-     #'(it brief expr ...)]
-    [(_ [brfmt:str argl ...] expr ...)
-     #'(let ([brief (format brfmt argl ...)])
-         (it brief expr ...))]
     [(_ brief (~optional (~seq #:do
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
@@ -45,15 +51,3 @@
                    [teardown (if (attribute teardown) #'teardown #'void)])
        #'(make-spec-behavior brief (λ [] (void expr ...))
                              #:before setup #:after teardown))]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(require "expectation.rkt")
-
-(describe "Prelude" #:do
-          (describe ["~a" (object-name read)] #:do
-                    (context "when provided with invalid value" #:do
-                             (it ["returns a ~a error" 'parse] #:do
-                                 (expect-collapse "parse error"))))
-          
-          (describe ["~a" (object-name car)] #:do
-                    (it "return the first element of a list" #:do)))

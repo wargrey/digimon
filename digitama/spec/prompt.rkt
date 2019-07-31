@@ -8,7 +8,7 @@
 
 (unsafe-require/typed
  racket/base
- [call-with-continuation-prompt (All (a) (-> (-> Void) (Prompt-Tagof Any Any) (-> (-> Spec-Issue) a) (U a Void)))]
+ [call-with-continuation-prompt (All (a b) (-> (-> a) (Prompt-Tagof Any Any) (-> (-> Spec-Issue) b) (U a b)))]
  [abort-current-continuation (All (a) (-> (Prompt-Tagof Any Any) a Nothing))]
  [default-continuation-prompt-tag (-> (Prompt-Tagof Any Any))])
 
@@ -18,7 +18,7 @@
 (define default-spec-prompt : (Parameterof (Prompt-Tagof Any Any)) (make-parameter (default-continuation-prompt-tag)))
 (define default-spec-handler : (Parameterof (-> Spec-Issue Void)) (make-parameter default-spec-issue-display))
 
-(define spec-story : (All (a) (-> (Option Symbol) (-> Void) (-> Spec-Issue a) (U a Void)))
+(define spec-story : (All (a b) (-> (Option Symbol) (-> a) (-> Spec-Issue b) (U a b)))
   (lambda [tagname do-task handle]
     (define current-prompt : (Prompt-Tagof Any Any)
       (cond [(not tagname) (default-continuation-prompt-tag)]
@@ -26,7 +26,7 @@
 
     (parameterize ([default-spec-prompt current-prompt])
       (call-with-continuation-prompt do-task current-prompt
-        (λ [[at-collapse : (-> Spec-Issue)]] : a
+        (λ [[at-collapse : (-> Spec-Issue)]] : b
           (handle (at-collapse)))))))
 
 (define spec-misbehave : (->* () ((U Spec-Issue Spec-Issue-Type)) Nothing)
