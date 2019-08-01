@@ -16,19 +16,21 @@
   (syntax-parse stx #:literals [:]
     [(_ (id:id [arg:id : Type:expr] ...) body ...)
      (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))])
-       #'(begin (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
+       #'(begin (define argv : (Listof String) (list (symbol->string 'arg) ...))
+                (define argc : Index (length argv))
+                
+                (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
                   (lambda [name stx exprs]
                     (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
                       (parameterize ([default-spec-issue-expectation name]
                                      [default-spec-issue-message (spec-message argl)]
                                      [default-spec-issue-location (spec-location stx)]
                                      [default-spec-issue-expressions exprs]
-                                     [default-spec-issue-arguments (list (cons 'arg arg) ...)])
+                                     [default-spec-issue-arguments argv]
+                                     [default-spec-issue-parameters (list arg ...)])
                         body ... (void)))
                     expect-id))
 
-                (define argc : Index (length '(arg ...)))
-                
                 (define-syntax (expect-id stx)
                   (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" stx)])
                     (syntax-parse stx

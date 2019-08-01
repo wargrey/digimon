@@ -29,9 +29,9 @@
      #'(void (spec-prove (describe 'id expr ...)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Spec-Prove-Behavior (-> String (Listof String) (-> Void) Spec-Issue))
+(define-type Spec-Behavior-Prove (-> String (Listof String) (-> Void) Spec-Issue))
 
-(define spec-prove-behavior : Spec-Prove-Behavior
+(define spec-behavior-prove : Spec-Behavior-Prove
   (lambda [brief namepath evaluation]
     ((inst spec-story Spec-Issue Spec-Issue)
      (gensym brief)
@@ -43,9 +43,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-summary-fold : (All (s) (-> (U Spec-Feature Spec-Behavior) s
-                                         #:downfold (-> String s s) #:upfold (-> String s s s) #:herefold (-> Spec-Issue s s) [#:prove Spec-Prove-Behavior]
+                                         #:downfold (-> String s s) #:upfold (-> String s s s) #:herefold (-> Spec-Issue Natural Natural Natural s s)
+                                         [#:prove Spec-Behavior-Prove]
                                          Spec-Summary))
-  (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:prove [prove spec-prove-behavior]]
+  (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:prove [prove spec-behavior-prove]]
     (parameterize ([current-custodian (make-custodian)]) ;;; Prevent test routines from shutting the current custodian accidently.
       (define (downfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Spec-Seed s)
         (define maybe-exn : (Option exn:fail) (with-handlers ([exn:fail? (λ [[e : exn:fail]] e)]) (pre-action) #false))
@@ -65,18 +66,17 @@
                  => (lambda [[e : exn:fail]] (λ [] (spec-misbehave e)))]
                 [else action]))
         (define namepath : (Listof String) (spec-seed-namepath seed))
-        (define issue : Spec-Issue
-          (parameterize ([default-spec-issue-indention (length namepath)])
-            (prove name namepath fixed-action)))
-        (spec-seed-copy seed (herefold issue (spec-seed-datum seed)) namepath
-                        #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))))
+        (define-values (&issue cpu real gc) (time-apply (λ [] (prove name namepath fixed-action)) null))
+        
+        (spec-seed-copy seed (herefold (car &issue) cpu real gc (spec-seed-datum seed)) namepath
+                        #:summary (hash-update (spec-seed-summary seed) (spec-issue-type (car &issue)) add1 (λ [] 0))))
     
       (spec-seed-summary (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)))))
 
 (define spec-prove : (->* ((U Spec-Feature Spec-Behavior))
-                          (Spec-Prove-Behavior #:fgcolor (-> Spec-Issue-Type Symbol) #:sign (-> Spec-Issue-Type (U Char String)))
+                          (Spec-Behavior-Prove #:fgcolor (-> Spec-Issue-Type Symbol) #:sign (-> Spec-Issue-Type (U Char String)))
                           Spec-Summary)
-  (lambda [feature [prove spec-prove-behavior] #:fgcolor [~fgcolor spec-issue-fgcolor] #:sign [~moji spec-issue-moji]]
+  (lambda [feature [prove spec-behavior-prove] #:fgcolor [~fgcolor spec-issue-fgcolor] #:sign [~moji spec-issue-moji]]
     (parameterize ([default-spec-handler void])
       (define (downfold-feature [name : String] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (cond [(null? seed:orders) (echof #:fgcolor 'darkgreen #:attributes '(dim underline) "~a~n" name)]
@@ -89,28 +89,32 @@
               [else (cons (add1 (cadr children:orders))
                           (cddr children:orders))]))
       
-      (define (fold-behavior [issue : Spec-Issue] [seed:orders : (Listof Natural)]) : (Listof Natural)
+      (define (fold-behavior [issue : Spec-Issue] [cpu : Natural] [real : Natural] [gc : Natural] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (define type : Spec-Issue-Type (spec-issue-type issue))
         (define headline : String
-          (format "~a~a ~a - " (~space (* (spec-issue-indention issue) 2))
+          (format "~a~a ~a - " (~space (* (length seed:orders) 2))
             (~moji type) (if (null? seed:orders) 1 (car seed:orders))))
         (define headspace : String (~space (string-length headline)))
-        (echof #:fgcolor (~fgcolor type) "~a~a~n" headline (spec-issue-brief issue))
+
+        (echof #:fgcolor (~fgcolor type) "~a~a" headline (spec-issue-brief issue))
+
         (case type
-          [(misbehaved) (spec-issue-misbehavior-display issue #:indent headspace)]
-          [(todo) (spec-issue-todo-display issue #:indent headspace)]
-          [(skip) (spec-issue-skip-display issue #:indent headspace)]
-          [(panic) (spec-issue-error-display issue #:indent headspace)])
+          [(pass) (echof #:fgcolor 'darkgrey " [~a real time, ~a gc time]~n" real gc)]
+          [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
+          [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
+          [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
+          [(panic) (newline) (spec-issue-error-display issue #:indent headspace)])
+        
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
-      (define-values (box cpu real gc)
+      (define-values (&summary cpu real gc)
         (time-apply (λ [] ((inst spec-summary-fold (Listof Natural))
                            feature null
                            #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
                            #:prove prove))
                     null))
 
-      (define summary : Spec-Summary (car box))
+      (define summary : Spec-Summary (car &summary))
       (define population : Natural (apply + (hash-values summary)))
 
       (if (positive? population)

@@ -7,6 +7,7 @@
 (require racket/list)
 
 (require "../../emoji.rkt")
+(require "../../format.rkt")
 (require "../../echo.rkt")
 
 (require/typed racket/base
@@ -17,13 +18,13 @@
 (define-type Spec-Issue-Location (List Path-String Positive-Integer Natural))
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
-(define default-spec-issue-indention : (Parameterof Index) (make-parameter 0))
 
 (define default-spec-issue-expectation : (Parameterof Symbol) (make-parameter '||))
 (define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
 (define default-spec-issue-location : (Parameterof (Option Spec-Issue-Location)) (make-parameter #false))
 (define default-spec-issue-expressions : (Parameterof (Listof Any)) (make-parameter null))
-(define default-spec-issue-arguments : (Parameterof (Listof (Pairof Symbol Any))) (make-parameter null))
+(define default-spec-issue-arguments : (Parameterof (Listof String)) (make-parameter null))
+(define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 
 (define default-spec-issue-rootdir : (Parameterof Path-String) current-directory)
@@ -32,13 +33,13 @@
 (struct spec-issue
   ([type : Spec-Issue-Type]
    [brief : (Option String)]
-   [indention : Index]
 
    [expectation : Symbol]
    [message : (Option String)]
    [location : (Option Spec-Issue-Location)]
    [expressions : (Listof Any)]
-   [arguments : (Listof (Pairof Symbol Any))]
+   [arguments : (Listof String)]
+   [parameters : (Listof Any)]
    [exception : (Option exn:fail)])
   #:type-name Spec-Issue
   #:transparent)
@@ -47,13 +48,13 @@
   (lambda [type]
     (spec-issue type
                 (default-spec-issue-brief)
-                (default-spec-issue-indention)
                 
                 (default-spec-issue-expectation)
                 (default-spec-issue-message)
                 (default-spec-issue-location)
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
+                (default-spec-issue-parameters)
                 (default-spec-issue-exception))))
 
 ;; NOTE
@@ -63,13 +64,13 @@
   (lambda [e]
     (spec-issue (if (exn:fail:unsupported? e) 'skip 'panic)
                 (default-spec-issue-brief)
-                (default-spec-issue-indention)
                 
                 (default-spec-issue-expectation)
                 (default-spec-issue-message)
                 (default-spec-issue-location)
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
+                (default-spec-issue-parameters)
                 e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -108,14 +109,19 @@
         (spec-display-message headspace color null (object-name e) (exn-message e))))
 
     (let ([exprs (spec-issue-expressions issue)]
-          [argus (spec-issue-arguments issue)])
+          [argus (spec-issue-arguments issue)]
+          [paras (map ~s (spec-issue-parameters issue))])
       (eechof #:fgcolor color "~a expectation: <~a>~n" headspace (spec-issue-expectation issue))
+      
       (when (pair? argus)
-        (eechof #:fgcolor color "~a arguments:~n" headspace)
+        (define asize : Index (apply max (map string-length argus)))
+        (define psize : Index (apply max (map string-length paras)))
+
         (for ([expr (in-list exprs)]
-              [argu (in-list argus)])
-          (eechof #:fgcolor color "~a   <~a>: ~s" headspace (car argu) (cdr argu))
-          (eechof #:fgcolor 'darkgrey " ; ~a~n" expr))))))
+              [argu (in-list argus)]
+              [para (in-list paras)])
+          (eechof #:fgcolor color "~a   ~a~a: ~a" headspace (~space (max (- asize (string-length argu)) 0)) argu para)
+          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" (~space (max (- psize (string-length para)) 0)) expr))))))
   
 (define spec-issue-error-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkred] #:indent [headspace ""]]
@@ -164,7 +170,7 @@
     (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace head (car messages))
 
     (when (pair? (cdr messages))
-      (define subspace (make-string (string-length head) #\space))
+      (define subspace (~space (string-length head)))
       
       (for ([submsg (in-list (cdr messages))])
         (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace subspace submsg)))))
