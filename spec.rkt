@@ -16,6 +16,7 @@
 (require "digitama/spec/behavior.rkt")
 (require "digitama/spec/dsl.rkt")
 
+(require "format.rkt")
 (require "echo.rkt")
 
 (require racket/string)
@@ -25,7 +26,7 @@
 (define-syntax (spec-begin stx)
   (syntax-case stx [:]
     [(_ id expr ...)
-     #'(spec-prove (describe 'id expr ...))]))
+     #'(void (spec-prove (describe 'id expr ...)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Prove-Behavior (-> String (Listof String) (-> Void) Spec-Issue))
@@ -79,7 +80,7 @@
     (parameterize ([default-spec-handler void])
       (define (downfold-feature [name : String] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (cond [(null? seed:orders) (echof #:fgcolor 'darkgreen #:attributes '(dim underline) "~a~n" name)]
-              [else (echof "~a~a ~a~n" (make-string (* (length seed:orders) 2) #\space)
+              [else (echof "~a~a ~a~n" (~space (* (length seed:orders) 2))
                            (string-join (map number->string (reverse seed:orders)) ".") name)])
         (cons 1 seed:orders))
       
@@ -91,17 +92,40 @@
       (define (fold-behavior [issue : Spec-Issue] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (define type : Spec-Issue-Type (spec-issue-type issue))
         (define headline : String
-          (format "~a~a ~a - " (make-string (* (spec-issue-indention issue) 2) #\space)
+          (format "~a~a ~a - " (~space (* (spec-issue-indention issue) 2))
             (~moji type) (if (null? seed:orders) 1 (car seed:orders))))
-        (define headspace : String (make-string (string-length headline) #\space))
+        (define headspace : String (~space (string-length headline)))
         (echof #:fgcolor (~fgcolor type) "~a~a~n" headline (spec-issue-brief issue))
         (case type
           [(misbehaved) (spec-issue-misbehavior-display issue #:indent headspace)]
           [(todo) (spec-issue-todo-display issue #:indent headspace)]
           [(skip) (spec-issue-skip-display issue #:indent headspace)]
-          [(fatal) (spec-issue-error-display issue #:indent headspace)])
+          [(panic) (spec-issue-error-display issue #:indent headspace)])
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
-      ((inst spec-summary-fold (Listof Natural)) feature null
-                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                                                 #:prove prove))))
+      (define-values (box cpu real gc)
+        (time-apply (λ [] ((inst spec-summary-fold (Listof Natural))
+                           feature null
+                           #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                           #:prove prove))
+                    null))
+
+      (define summary : Spec-Summary (car box))
+      (define population : Natural (apply + (hash-values summary)))
+
+      (if (positive? population)
+          (let ([~s (λ [[ms : Natural]] : String (~r (* ms 0.001) #:precision '(= 3)))]
+                [success (hash-ref summary 'pass (λ [] 0))]
+                [misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
+                [panic (hash-ref summary 'panic (λ [] 0))]
+                [todo (hash-ref summary 'todo (λ [] 0))]
+                [skip (hash-ref summary 'skip (λ [] 0))])
+            (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
+                   (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
+            (echof #:fgcolor 'lightcyan "~a, ~a, ~a, ~a, ~a, ~a% Okay.~n"
+                   (~n_w population "sample") (~n_w misbehavior "misbehavior")
+                   (~n_w panic "panic") (~n_w skip "skip") (~n_w todo "TODO")
+                   (~r #:precision '(= 2) (/ (* (+ success skip) 100) population))))
+          (echof #:fgcolor 'darkcyan "~nNo particular example!~n"))
+
+      summary)))

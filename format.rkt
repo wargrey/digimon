@@ -75,6 +75,12 @@
           [(boolean? val) (~binstring (if val 1 0))]
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
 
+(define ~space : (-> Natural String)
+  (let ([space : (HashTable Natural String) (make-hasheq)])
+    (lambda [n]
+      (hash-ref! space n
+                 (λ [] (make-string n #\space))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define byte->hex-string : (-> Byte String)
   (lambda [b]

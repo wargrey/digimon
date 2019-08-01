@@ -13,7 +13,7 @@
                [srcloc->string (-> srcloc (Option String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'fatal 'pass))
+(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
 (define-type Spec-Issue-Location (List Path-String Positive-Integer Natural))
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
@@ -57,11 +57,11 @@
                 (default-spec-issue-exception))))
 
 ;; NOTE
-; If a fatal issue is catched, it means the code of the specification itself has bugs.
+; If a panic issue is catched, it means the code of the specification itself has bugs.
 ; Or `expect-throw` and `expect-no-exception` should be used instead.
-(define make-spec-fatal-issue : (-> exn:fail Spec-Issue)
+(define make-spec-panic-issue : (-> exn:fail Spec-Issue)
   (lambda [e]
-    (spec-issue (if (exn:fail:unsupported? e) 'skip 'fatal)
+    (spec-issue (if (exn:fail:unsupported? e) 'skip 'panic)
                 (default-spec-issue-brief)
                 (default-spec-issue-indention)
                 
@@ -80,7 +80,7 @@
       [(misbehaved) 'lightred]
       [(skip) 'lightblue]
       [(todo) 'lightmagenta]
-      [(fatal) 'darkred])))
+      [(panic) 'darkred])))
 
 (define spec-issue-moji : (-> Spec-Issue-Type (U Char String))
   (lambda [type]
@@ -89,7 +89,7 @@
       [(misbehaved) broken-heart#]
       [(skip) arrow-heart#]
       [(todo) growing-heart#]
-      [(fatal) bomb#])))
+      [(panic) bomb#])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-issue-misbehavior-display : (->* (Spec-Issue) (Symbol #:indent String) Void)

@@ -34,7 +34,7 @@
     (define handle : (-> Spec-Issue Void) (default-spec-handler))
     (define issue : Spec-Issue
       (cond [(symbol? v) (make-spec-issue v)]
-            [(exn? v) (make-spec-fatal-issue v)]
+            [(exn? v) (make-spec-panic-issue v)]
             [else v]))
     (abort-current-continuation (default-spec-prompt)
                                 (λ [] (handle issue) issue))))

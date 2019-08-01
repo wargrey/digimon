@@ -35,7 +35,7 @@
 
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg (if (null? vals) msgfmt (apply format msgfmt vals)))
+    (define rawmsg : String (apply format msgfmt vals))
     (define colorize? (terminal-port? (current-output-port)))
 
     (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
@@ -43,7 +43,7 @@
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg (if (null? vals) msgfmt (apply format msgfmt vals)))
+    (define rawmsg : String (apply format msgfmt vals))
     (define colorize? (terminal-port? (current-error-port)))
 
     (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)

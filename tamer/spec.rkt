@@ -26,7 +26,7 @@
   (describe "special issues" #:do
             (it "marks empty features with TODO automatically" #:do)
 
-            (context "a fatal issue indicates bugs in the specification" #:do
+            (context "a panic issue indicates bugs in the specification" #:do
                      
                      (it "escapes the `expect-throw` since the task is not wrapped in a thunk" #:do
                          (expect-throw exn:fail? (error 'expect-throw "requires a thunk rather than an expression")))
