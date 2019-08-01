@@ -5,6 +5,9 @@
 (require racket/stxparam)
 
 (require "behavior.rkt")
+(require "prompt.rkt")
+(require "issue.rkt")
+(require "misc.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
@@ -26,8 +29,8 @@
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
         (~seq #:do expr ...))
-     (with-syntax ([setup (if (attribute setup) #'setup #'void)]
-                   [teardown (if (attribute teardown) #'teardown #'void)])
+     (with-syntax ([setup (or (attribute setup) #'void)]
+                   [teardown (or (attribute teardown) #'void)])
        #'(make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'it:describe)])
                               (list (spec-expand expr) ...))
@@ -39,15 +42,19 @@
     [(_ (describe expr ...)) #'(describe expr ...)]
     [(_ (context expr ...)) #'(describe expr ...)]
     [(_ (it expr ...)) #'(it expr ...)]
-    [(_ (expect expr ...)) (raise-syntax-error 'spec "cannot use expectation directly" stx)]))
+    [(_ (expect expr ...)) (raise-syntax-error 'spec "unrecognized clause" #'expect)]))
 
 (define-syntax (it:describe stx)
-  (syntax-parse stx #:literals [:]
+  (syntax-parse stx
     [(_ brief (~optional (~seq #:do
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
         (~seq #:do expr ...))
-     (with-syntax ([setup (if (attribute setup) #'setup #'void)]
-                   [teardown (if (attribute teardown) #'teardown #'void)])
-       #'(make-spec-behavior brief (λ [] (void expr ...))
-                             #:before setup #:after teardown))]))
+     (with-syntax ([setup (or (attribute setup) #'void)]
+                   [teardown (or (attribute teardown) #'void)]
+                   [empty? (null? (syntax->list #'(expr ...)))])
+       #'(if (and empty?)
+             (make-spec-behavior brief (λ [] (parameterize ([default-spec-issue-location (spec-location #'brief)])
+                                               (spec-misbehave 'todo))))
+             (make-spec-behavior brief (λ [] expr ... (void))
+                                 #:before setup #:after teardown)))]))

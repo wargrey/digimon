@@ -3,24 +3,43 @@
 (provide (all-defined-out))
 
 (require racket/path)
+(require racket/port)
+(require racket/list)
 
 (require "../../emoji.rkt")
+(require "../../echo.rkt")
 
-(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skipped 'fatal 'pass))
-(define-type Spec-Issue-Brief (Option String))
-(define-type Spec-Issue-Info (Pairof Symbol Any))
+(require/typed racket/base
+               [srcloc->string (-> srcloc (Option String))])
 
-(define default-spec-issue-brief : (Parameterof Spec-Issue-Brief) (make-parameter #false))
-(define default-spec-issue-info : (Parameterof (Listof Spec-Issue-Info)) (make-parameter null))
-(define default-spec-issue-rootdir : (Parameterof Path-String) current-directory)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'fatal 'pass))
+(define-type Spec-Issue-Location (List Path-String Positive-Integer Natural))
+
+(define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 (define default-spec-issue-indention : (Parameterof Index) (make-parameter 0))
+
+(define default-spec-issue-expectation : (Parameterof Symbol) (make-parameter '||))
+(define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
+(define default-spec-issue-location : (Parameterof (Option Spec-Issue-Location)) (make-parameter #false))
+(define default-spec-issue-expressions : (Parameterof (Listof Any)) (make-parameter null))
+(define default-spec-issue-arguments : (Parameterof (Listof (Pairof Symbol Any))) (make-parameter null))
+(define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
+
+(define default-spec-issue-rootdir : (Parameterof Path-String) current-directory)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct spec-issue
   ([type : Spec-Issue-Type]
-   [brief : Spec-Issue-Brief]
+   [brief : (Option String)]
    [indention : Index]
-   [info : (Listof Spec-Issue-Info)])
+
+   [expectation : Symbol]
+   [message : (Option String)]
+   [location : (Option Spec-Issue-Location)]
+   [expressions : (Listof Any)]
+   [arguments : (Listof (Pairof Symbol Any))]
+   [exception : (Option exn:fail)])
   #:type-name Spec-Issue
   #:transparent)
 
@@ -29,45 +48,138 @@
     (spec-issue type
                 (default-spec-issue-brief)
                 (default-spec-issue-indention)
-                (default-spec-issue-info))))
+                
+                (default-spec-issue-expectation)
+                (default-spec-issue-message)
+                (default-spec-issue-location)
+                (default-spec-issue-expressions)
+                (default-spec-issue-arguments)
+                (default-spec-issue-exception))))
+
+;; NOTE
+; If a fatal issue is catched, it means the code of the specification itself has bugs.
+; Or `expect-throw` and `expect-no-exception` should be used instead.
+(define make-spec-fatal-issue : (-> exn:fail Spec-Issue)
+  (lambda [e]
+    (spec-issue (if (exn:fail:unsupported? e) 'skip 'fatal)
+                (default-spec-issue-brief)
+                (default-spec-issue-indention)
+                
+                (default-spec-issue-expectation)
+                (default-spec-issue-message)
+                (default-spec-issue-location)
+                (default-spec-issue-expressions)
+                (default-spec-issue-arguments)
+                e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define with-spec-issue-info : (All (a) (-> (Listof Spec-Issue-Info) (-> a) a))
-  (lambda [infos do]
-    (parameterize ([default-spec-issue-info (append (default-spec-issue-info) infos)])
-      (do))))
-
-(define spec-issue-info-ref : (-> (Listof Spec-Issue-Info) Symbol Any)
-  (lambda [infos name]
-    (define maybe-info (assq name infos))
-
-    (and maybe-info
-         (let ([v (cdr maybe-info)])
-           v))))
-
 (define spec-issue-fgcolor : (-> Spec-Issue-Type Symbol)
   (lambda [type]
     (case type
       [(pass) 'lightgreen]
       [(misbehaved) 'lightred]
-      [(skipped) 'lightblue]
+      [(skip) 'lightblue]
       [(todo) 'lightmagenta]
       [(fatal) 'darkred])))
 
-(define spec-issue-moji : (-> Spec-Issue-Type Char)
+(define spec-issue-moji : (-> Spec-Issue-Type (U Char String))
   (lambda [type]
     (case type
       [(pass) green-heart#]
       [(misbehaved) broken-heart#]
-      [(skipped) arrow-heart#]
+      [(skip) arrow-heart#]
       [(todo) growing-heart#]
       [(fatal) bomb#])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-issue-misbehavior-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
+  (lambda [issue [color 'darkred] #:indent [headspace ""]]
+    (let ([message (spec-issue-message issue)])
+      (unless (not message)
+        (spec-display-message headspace color null 'reason message)))
+    
+    (let ([location (spec-issue-location issue)])
+      (unless (not location)
+        (eechof #:fgcolor color "~a location: ~a:~a:~a~n" headspace
+                (car location) (cadr location) (caddr location))))
+
+    (let ([e (spec-issue-exception issue)])
+      (unless (not e)
+        (spec-display-message headspace color null (object-name e) (exn-message e))))
+
+    (let ([exprs (spec-issue-expressions issue)]
+          [argus (spec-issue-arguments issue)])
+      (eechof #:fgcolor color "~a expectation: <~a>~n" headspace (spec-issue-expectation issue))
+      (when (pair? argus)
+        (eechof #:fgcolor color "~a arguments:~n" headspace)
+        (for ([expr (in-list exprs)]
+              [argu (in-list argus)])
+          (eechof #:fgcolor color "~a   <~a>: ~s" headspace (car argu) (cdr argu))
+          (eechof #:fgcolor 'darkgrey " ; ~a~n" expr))))))
+  
+(define spec-issue-error-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
+  (lambda [issue [color 'darkred] #:indent [headspace ""]]
+    (define errobj : (Option exn:fail) (spec-issue-exception issue))
+
+    (unless (not errobj)
+      (spec-display-message headspace color '(inverse) (object-name errobj) (exn-message errobj))
+      (spec-display-stacks errobj 'darkgrey headspace))))
+
+(define spec-issue-todo-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
+  (lambda [issue [color 'darkmagenta] #:indent [headspace ""]]
+    (let ([location (spec-issue-location issue)])
+      (unless (not location)
+        (eechof #:fgcolor color "~a TODO: ~a:~a:~a~n" headspace
+                (car location) (cadr location) (caddr location))))
+    
+    (let ([message (spec-issue-message issue)])
+      (unless (not message)
+        (spec-display-message headspace color null 'TODO message)))))
+
+(define spec-issue-skip-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
+  (lambda [issue [color 'darkblue] #:indent [headspace ""]]
+    (define errobj : (Option exn:fail) (spec-issue-exception issue))
+
+    (unless (not errobj)
+      (eechof #:fgcolor color "~a SKIP: ~a~n" headspace (object-name errobj))
+      (spec-display-message headspace color null 'reason (exn-message errobj)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-spec-issue-display : (->* (Spec-Issue) (Output-Port #:indention Index) Void)
   (lambda [issue [/dev/stdout (current-output-port)] #:indention [indention 0]]
-    (fprintf /dev/stdout "~a - ~a~n"
-             (case (spec-issue-type issue)
-               [(pass) 'ok]
-               [else '|not ok|])
-             (spec-issue-info-ref (spec-issue-info issue) 'message))))
+    (parameterize ([current-error-port /dev/stdout])
+      (define type : Spec-Issue-Type (spec-issue-type issue))
+      
+      (fprintf /dev/stdout "~a - ~a~n" type (spec-issue-brief issue))
+
+      (when (eq? type 'misbehaved)
+        (spec-issue-misbehavior-display issue)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-display-message : (-> String Symbol (Listof Symbol) Any String Void)
+  (lambda [headspace color attributes prefix message]
+    (define messages : (Listof String) (call-with-input-string message port->lines))
+    (define head : String (format "~a: " prefix))
+
+    (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace head (car messages))
+
+    (when (pair? (cdr messages))
+      (define subspace (make-string (string-length head) #\space))
+      
+      (for ([submsg (in-list (cdr messages))])
+        (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace subspace submsg)))))
+
+(define spec-display-stacks : (-> exn Symbol String Void)
+  (lambda [errobj color headspace]
+    (let display-stack ([stacks (continuation-mark-set->context (exn-continuation-marks errobj))]
+                        [sofni : (Listof (Pairof Symbol String)) null])
+      (if (pair? stacks)
+          (let ([maybe-srcloc (cdar stacks)])
+            (if (and (srcloc? maybe-srcloc) (srcloc-line maybe-srcloc) (srcloc-column maybe-srcloc))
+                (let ([fname (or (caar stacks) 'λ)]
+                      [location (srcloc->string maybe-srcloc)])
+                  (cond [(string? location) (display-stack (cdr stacks) (cons (cons fname location) sofni))]
+                        [else (display-stack (cdr stacks) sofni)]))
+                (display-stack (cdr stacks) sofni)))
+          (for ([info (in-list (reverse (remove-duplicates sofni)))])
+            (eechof #:fgcolor color "~a »»»» ~a: ~a~n" headspace (cdr info) (car info)))))))
