@@ -10,18 +10,21 @@
 (spec-begin prelude #:do
             
   (describe "normal issues" #:do
-            (describe read #:do
+            (context "given function `read`, we can extract typed datum from the stream directly" #:do
+                     (describe read #:do
+                               (it "produces a number when digits are consumed" #:do
+                                   (expect-satisfy number? (read /dev/stdin)))
 
-                      (it "returns a number when digits are given" #:do
-                          (expect-satisfy number? (read /dev/stdin)))
-            
-                      (context "when provided with invalid value" #:do
-                               (it "returns a number when digits are given" #:do
-                                   (expect-satisfy number? (read /dev/stdin)
-                                                   "non-digit char follows closely"))
+                               (it "produces a symbol when consuming digits immediately followed by non-digit chars" #:do
+                                   (expect-satisfy symbol? (read /dev/stdin)))
+                               
+                               (context "when provided with invalid value" #:do
+                                        (it "produces a parse error" #:do
+                                            (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))))
 
-                               (it "returns a parse error" #:do
-                                   (expect-throw exn:fail:read? (λ [] (read /dev/stdin)))))))
+                                        (it "procudes an end-of-file error" #:do
+                                            (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))
+                                                          "EOF is neither a typical datum nor an error"))))))
   
   (describe "special issues" #:do
             (it "tags empty behavior with TODO automatically" #:do)
@@ -36,14 +39,13 @@
                          (expect-true #true)))
 
             (context "features and behaviors are tagged with SKIP whenever a `exn:fail:unsupported` is caught" #:do
-                     
                      (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
                          (expect-throw exn:fail:unsupported?
                                        (λ [] (raise (make-exn:fail:unsupported "`extflonum` is not available" (current-continuation-marks)))))
                          (expect-collapse "`(expect-throw exn:fail:unsupported? thunk)` suppresses the default SKIP mechanism"))
 
                      (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
-                         (raise (make-exn:fail:unsupported "a buggy specification but it is forgiven" (current-continuation-marks))))
+                         (raise (make-exn:fail:unsupported "a buggy specification but it is forgiven for representation purpose" (current-continuation-marks))))
                      
                      (context "skips user scenarios since no network interface card is found" #:do
                               #:before (λ [] (raise (make-exn:fail:unsupported "NIC is not present" (current-continuation-marks)))) #:do

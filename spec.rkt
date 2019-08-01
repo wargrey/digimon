@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 (provide spec-feature? spec-behavior? spec-feature-brief spec-behavior-brief)
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
-(provide define-feature describe Spec-Summary)
+(provide define-scenario describe Spec-Summary)
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
 (provide (all-from-out "digitama/spec/expectation.rkt"))

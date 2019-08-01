@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide define-feature describe)
+(provide define-scenario describe)
 
 (require racket/stxparam)
 
@@ -17,7 +17,7 @@
   (lambda [stx]
     (raise-syntax-error 'it "cannot be used outside `describe` or `context`" stx)))
 
-(define-syntax (define-feature stx)
+(define-syntax (define-scenario stx)
   (syntax-parse stx
     [(_ id:id expr ...)
      #'(define id : Spec-Feature

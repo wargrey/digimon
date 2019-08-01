@@ -59,8 +59,8 @@
 
 (define-spec-boolean-expectation (fl= [v1 : Flonum] [v2 : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- v1 v2)) epsilon))
 
-(define-spec-expectation (throw [except : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [do-task : (-> Any)])
-  (define maybe-e (with-handlers ([exn:fail? values]) (void (do-task))))
+(define-spec-expectation (throw [except : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
+  (define maybe-e (with-handlers ([exn:fail? values]) (void (routine))))
   (let ([e? (if (procedure? except) except exn:fail?)])
     (cond [(and (exn:fail? maybe-e) (e? maybe-e))
            (or (procedure? except)
@@ -72,8 +72,8 @@
              (spec-misbehave))]
           [else (spec-misbehave)])))
 
-(define-spec-expectation (no-exception [do-task : (-> Any)])
-  (define maybe-e : Any (with-handlers ([exn:fail? values]) (void (do-task))))
+(define-spec-expectation (no-exception [routine : (-> Any)])
+  (define maybe-e : Any (with-handlers ([exn:fail? values]) (void (routine))))
 
   (when (exn:fail? maybe-e)
     (parameterize ([default-spec-issue-exception maybe-e])
