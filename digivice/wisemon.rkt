@@ -240,7 +240,7 @@
     (for-each fclean (reverse (find-digimon-files (curry regexp-match? (pregexp (format "/~a(?![^/])/?" (car (use-compiled-file-paths)))))
                                                   (current-directory) #:search-compiled? #true)))))
 
-(define make~check:
+(define make~prove:
   (lambda [digimons info-ref]
     (let ([rules (map hack-rule (make-native-library-rules info-ref))])
       (unless (null? rules) (make/proc rules (map car rules))))
@@ -298,7 +298,7 @@
                          (list (cons "install" "Install this software and documentation.")
                                (cons "uninstall" "Delete all the installed files and documentation.")
                                (cons "dist" "Create a distribution file of the source files.")
-                               (cons "check" "Validate and generate test report along with documentation."))))
+                               (cons "prove" "Verify and generate test report along with documentation."))))
           (curry eechof #:fgcolor 'lightred "make: I don't know what does `~a` mean!~n")))
 
 (define make-digimon

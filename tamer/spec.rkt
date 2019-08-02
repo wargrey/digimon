@@ -30,7 +30,6 @@
             (it "tags empty behavior with TODO automatically" #:do)
 
             (context "The panic issue indicates bugs in the specification" #:do
-                     
                      (it "should be caught by `expect-throw`" #:do
                          (expect-throw exn:fail? (error 'expect-throw "requires a thunk rather than an expression")))
 
@@ -51,6 +50,5 @@
                               #:before (λ [] (raise (make-exn:fail:unsupported "NIC is not present" (current-continuation-marks)))) #:do
 
                               (describe "searches the network neighbors" #:do
-
                                         (it "should be skipped since its grandparent is skipped" #:do
                                             (expect-true #true)))))))

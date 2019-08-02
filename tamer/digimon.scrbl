@@ -1,6 +1,9 @@
 #lang scribble/manual
 
-@title{Digimon: Lorem Ipsum}
-@author{wargrey}
+@(require "../tamer.rkt")
 
-@italic{Sorry, but it is not recommend to use this package directly.}
+@handbook-title/pkg-desc[]
+
+@tamer-smart-summary[]
+
+@handbook-smart-table[]
