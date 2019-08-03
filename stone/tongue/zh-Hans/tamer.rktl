@@ -1,6 +1,6 @@
 ((handbook . "驯兽师手册")
- (story . "故事")
- (scenario . "场景")
+ (story . "")
+ (scenario . "")
  (reference . "参考文献")
  (appendix . "附录")
  (bibliography . "参考条目")

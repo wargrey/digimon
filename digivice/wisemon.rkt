@@ -109,7 +109,7 @@
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
         [(pregexp #px"(newer|skipping:)") (when (make-print-reasons) (traceln info))]
         [_ (traceln info)]))
-    (with-handlers ([exn? (λ [e] (error 'make "[error] ~a" (exn-message e)))])
+    (with-handlers ([exn:fail? (λ [e] (error 'make "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (λ [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
@@ -189,7 +189,7 @@
         (dynamic-require modpath #false)
         (parameterize ([current-namespace (module->namespace modpath)])
           (do-make (foldr append null
-                          (filter (λ [val] (with-handlers ([exn? (const #false)])
+                          (filter (λ [val] (with-handlers ([exn:fail? (const #false)])
                                                   (andmap (λ [?] (and (andmap path-string? (cons (first ?) (second ?)))
                                                                       (procedure-arity-includes? (third ?) 1))) val)))
                                   (filter-map (λ [var] (namespace-variable-value var #false (const #false)))

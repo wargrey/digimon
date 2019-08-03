@@ -10,10 +10,10 @@
     (and (pair? argl) (string? (car argl))
          (apply format (car argl) (cdr argl)))))
 
-(define spec-location : (-> Syntax (Option Spec-Issue-Location))
+(define spec-location : (-> Syntax (Option srcloc))
   (lambda [stx]
     (let ([src (syntax-source stx)]
           [line (syntax-line stx)]
           [column (syntax-column stx)])                        
       (and (or (path? src) (path-string? src)) line column
-           (list src line column)))))
+           (srcloc src line column (syntax-position stx) (syntax-span stx))))))

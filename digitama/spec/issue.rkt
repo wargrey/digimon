@@ -11,23 +11,23 @@
 (require "../../echo.rkt")
 
 (require/typed racket/base
-               [srcloc->string (-> srcloc (Option String))])
+               [srcloc->string (-> srcloc (Option String))]
+               [current-directory-for-user (Parameterof Path)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
-(define-type Spec-Issue-Location (List Path-String Positive-Integer Natural))
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
 (define default-spec-issue-expectation : (Parameterof Symbol) (make-parameter '||))
 (define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
-(define default-spec-issue-location : (Parameterof (Option Spec-Issue-Location)) (make-parameter #false))
+(define default-spec-issue-location : (Parameterof (Option srcloc)) (make-parameter #false))
 (define default-spec-issue-expressions : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-arguments : (Parameterof (Listof String)) (make-parameter null))
 (define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 
-(define default-spec-issue-rootdir : (Parameterof Path-String) current-directory)
+(define default-spec-issue-rootdir : (Parameterof Path) current-directory)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct spec-issue
@@ -36,7 +36,7 @@
 
    [expectation : Symbol]
    [message : (Option String)]
-   [location : (Option Spec-Issue-Location)]
+   [location : (Option srcloc)]
    [expressions : (Listof Any)]
    [arguments : (Listof String)]
    [parameters : (Listof Any)]
@@ -101,8 +101,9 @@
     
     (let ([location (spec-issue-location issue)])
       (unless (not location)
-        (eechof #:fgcolor color "~a location: ~a:~a:~a~n" headspace
-                (car location) (cadr location) (caddr location))))
+        (eechof #:fgcolor color "~a location: ~a~n" headspace
+                (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
+                  (srcloc->string location)))))
 
     (let ([e (spec-issue-exception issue)])
       (unless (not e)
@@ -135,8 +136,9 @@
   (lambda [issue [color 'darkmagenta] #:indent [headspace ""]]
     (let ([location (spec-issue-location issue)])
       (unless (not location)
-        (eechof #:fgcolor color "~a TODO: ~a:~a:~a~n" headspace
-                (car location) (cadr location) (caddr location))))
+        (eechof #:fgcolor color "~a TODO: ~a~n" headspace
+                (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
+                  (srcloc->string location)))))
     
     (let ([message (spec-issue-message issue)])
       (unless (not message)
@@ -177,15 +179,16 @@
 
 (define spec-display-stacks : (-> exn Symbol String Void)
   (lambda [errobj color headspace]
-    (let display-stack ([stacks (continuation-mark-set->context (exn-continuation-marks errobj))]
-                        [sofni : (Listof (Pairof Symbol String)) null])
-      (if (pair? stacks)
-          (let ([maybe-srcloc (cdar stacks)])
-            (if (and (srcloc? maybe-srcloc) (srcloc-line maybe-srcloc) (srcloc-column maybe-srcloc))
-                (let ([fname (or (caar stacks) 'λ)]
-                      [location (srcloc->string maybe-srcloc)])
-                  (cond [(string? location) (display-stack (cdr stacks) (cons (cons fname location) sofni))]
-                        [else (display-stack (cdr stacks) sofni)]))
-                (display-stack (cdr stacks) sofni)))
-          (for ([info (in-list (reverse (remove-duplicates sofni)))])
-            (eechof #:fgcolor color "~a »»»» ~a: ~a~n" headspace (cdr info) (car info)))))))
+    (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
+      (let display-stack ([stacks (continuation-mark-set->context (exn-continuation-marks errobj))]
+                          [sofni : (Listof (Pairof Symbol String)) null])
+        (if (pair? stacks)
+            (let ([maybe-srcloc (cdar stacks)])
+              (if (and (srcloc? maybe-srcloc) (srcloc-line maybe-srcloc) (srcloc-column maybe-srcloc))
+                  (let ([fname (or (caar stacks) 'λ)]
+                        [location (srcloc->string maybe-srcloc)])
+                    (cond [(string? location) (display-stack (cdr stacks) (cons (cons fname location) sofni))]
+                          [else (display-stack (cdr stacks) sofni)]))
+                  (display-stack (cdr stacks) sofni)))
+            (for ([info (in-list (reverse (remove-duplicates sofni)))])
+              (eechof #:fgcolor color "~a »»»» ~a: ~a~n" headspace (cdr info) (car info))))))))

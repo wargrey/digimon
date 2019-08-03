@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (provide define-scenario describe)
+(provide (rename-out [define-scenario define-feature]))
 
 (require racket/stxparam)
 
@@ -20,8 +21,7 @@
 (define-syntax (define-scenario stx)
   (syntax-parse stx
     [(_ id:id expr ...)
-     #'(define id : Spec-Feature
-         (describe 'id expr ...))]))
+     #'(define id : Spec-Feature (describe 'id expr ...))]))
 
 (define-syntax (describe stx)
   (syntax-parse stx

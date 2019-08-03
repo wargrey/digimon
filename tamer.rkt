@@ -47,10 +47,7 @@
   (syntax-case stx [scribble +]
     [(_ scribble)
      #'(let ([modpath (quote-module-path)])
-         ;;; WARNING
-         ;; Scribble modules are isolated from each other,
-         ;; thus we have to enter the zone every time we start a new document.
-         (enter-digimon-zone!)
+         (enter-digimon-zone!) ; Scribble modules are independent of each other
          
          (cond [(path? modpath) (tamer-story (tamer-story->modpath modpath))]
                [else (let ([story (tamer-story->modpath (cadr modpath))])
@@ -109,14 +106,22 @@
               (tamer-reference ~reference)
               (tamer-cites ~cites)
               (tamer-cite ~cite)
+
               (title #:tag (tamer-story->tag (tamer-story))
                      #:style #,(attribute s)
-                     (literal (speak 'story #:dialect 'tamer) ":") ~ contents ...))]))
+                     (let ([story-literal (speak 'story #:dialect 'tamer)]
+                           [input-contents (list contents ...)])
+                       (cond [(string=? story-literal "") input-contents]
+                             [else (list* (literal story-literal ":")) ~ input-contents]))))]))
 
 (define handbook-scenario
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
+    (define scenario-literal (speak 'scenario #:dialect 'tamer))
+    
     (section #:tag tag #:style style
-             (literal (speak 'scenario #:dialect 'tamer) ":") ~ pre-contents)))
+             (cond [(string=? scenario-literal "") pre-contents]
+                   [else (list* (literal (speak 'scenario #:dialect 'tamer) ":")
+                                ~ pre-contents)]))))
 
 (define handbook-reference
   (lambda []
@@ -530,10 +535,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module* typed typed/racket
   (provide (all-defined-out))
-  (provide (all-from-out typed/rackunit))
   (provide (all-from-out "emoji.rkt" "tongue.rkt" "format.rkt"))
 
-  (require typed/rackunit)
   (require typed/racket/unsafe)
 
   (require "emoji.rkt")
@@ -551,31 +554,4 @@
    [register-handbook-finalizer (-> (-> Any) Void)]
    [tamer-prove (-> Natural)]
    [tamer-story-space (-> Namespace)]
-   [tamer-story-require (-> Symbol Any)]
-   [todo (-> String Any * Nothing)]
-   [skip (-> String Any * Nothing)])
-
-  (unsafe-require/typed
-   "digitama/tamer.rkt"
-   [tamer-record-story (-> Symbol Test Void)])
-
-  ;;; adapted from (submod "..")
-  (define-syntax (define-tamer-suite stx)
-    (syntax-parse stx
-      [(_ varid name (~optional (~seq #:before setup:expr)) (~optional (~seq #:after teardown:expr)) units ...)
-       #`(tamer-record-story 'varid (test-suite name
-                                                #:before #,(or (attribute setup) #'void)
-                                                #:after #,(or (attribute teardown) #'void)
-                                                units ...))]))
-  
-  (define-syntax (define-tamer-case stx)
-    (syntax-parse stx
-      [(_ varid name bodys ...)
-       #'(tamer-record-story 'varid (delay-test (test-spec name bodys ...)))]))
-
-  (define-syntax (test-spec stx)
-    (syntax-parse stx
-      [(_ name (~optional (~seq #:before setup:expr)) (~optional (~seq #:after teardown:expr)) checks ...)
-       #`(test-case name (around (#,(or (attribute setup) #'void))
-                                 checks ...
-                                 (#,(or (attribute teardown) #'void))))])))
+   [tamer-story-require (-> Symbol Any)]))

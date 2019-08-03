@@ -7,8 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/stdin : Input-Port (open-input-string "123 123x #123"))
 
-(spec-begin prelude #:do
-            
+(define-feature prelude #:do
   (describe "normal issues" #:do
             (context "given function `read`, we can extract typed datum from the stream directly" #:do
                      (describe read #:do
@@ -52,3 +51,6 @@
                               (describe "searches the network neighbors" #:do
                                         (it "should be skipped since its grandparent is skipped" #:do
                                             (expect-true #true)))))))
+
+(void (spec-prove prelude #:selector (list '* "normal issues")))
+(void (spec-prove prelude #:selector (list '* #px"^special")))

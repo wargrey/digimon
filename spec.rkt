@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 (provide spec-feature? spec-behavior? spec-feature-brief spec-behavior-brief)
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
-(provide define-scenario describe Spec-Summary)
+(provide define-feature define-scenario describe Spec-Summary Spec-Behavior Spec-Feature)
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
 (provide (all-from-out "digitama/spec/expectation.rkt"))
@@ -26,10 +26,14 @@
 (define-syntax (spec-begin stx)
   (syntax-case stx [:]
     [(_ id expr ...)
-     #'(void (spec-prove (describe 'id expr ...)))]))
+     #'(begin (define-feature id expr ...)
+
+              (void (spec-prove id)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Behavior-Prove (-> String (Listof String) (-> Void) Spec-Issue))
+(define-type Spec-Prove-Pattern (U String Regexp '*))
+(define-type Spec-Prove-Selector (Listof Spec-Prove-Pattern))
 
 (define spec-behavior-prove : Spec-Behavior-Prove
   (lambda [brief namepath evaluation]
@@ -44,14 +48,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-summary-fold : (All (s) (-> (U Spec-Feature Spec-Behavior) s
                                          #:downfold (-> String s s) #:upfold (-> String s s s) #:herefold (-> Spec-Issue Natural Natural Natural s s)
-                                         [#:prove Spec-Behavior-Prove]
+                                         [#:prove Spec-Behavior-Prove] [#:selector Spec-Prove-Selector]
                                          Spec-Summary))
-  (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:prove [prove spec-behavior-prove]]
+  (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:prove [prove spec-behavior-prove] #:selector [selector null]]
+    (define selectors : (Vectorof Spec-Prove-Pattern) (list->vector selector))
+    (define selcount : Index (vector-length selectors))
+    
     (parameterize ([current-custodian (make-custodian)]) ;;; Prevent test routines from shutting the current custodian accidently.
-      (define (downfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Spec-Seed s)
-        (define maybe-exn : (Option exn:fail) (with-handlers ([exn:fail? (λ [[e : exn:fail]] e)]) (pre-action) #false))
-        (spec-seed-copy seed (downfold name (spec-seed-datum seed)) (cons name (spec-seed-namepath seed))
-                        #:exceptions (cons maybe-exn (spec-seed-exceptions seed))))
+      (define (downfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Option (Spec-Seed s))
+        (define namepath : (Listof String) (spec-seed-namepath seed))
+        (define cursor : Index (length namepath))
+
+        (and (or (>= cursor selcount)
+                 (let ([pattern (vector-ref selectors cursor)])
+                   (cond [(eq? pattern '*)]
+                         [(string? pattern) (string=? pattern name)]
+                         [else (regexp-match? pattern name)])))
+
+             (let ([maybe-exn (with-handlers ([exn:fail? (λ [[e : exn:fail]] e)]) (pre-action) #false)])
+               (spec-seed-copy seed (downfold name (spec-seed-datum seed)) (cons name namepath)
+                               #:exceptions (cons maybe-exn (spec-seed-exceptions seed))))))
       
       (define (upfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)] [children-seed : (Spec-Seed s)]) : (Spec-Seed s)
         (with-handlers ([exn:fail? (λ [[e : exn]] (eprintf "[#:after] ~a" (exn-message e)))]) (post-action))
@@ -74,9 +90,9 @@
       (spec-seed-summary (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)))))
 
 (define spec-prove : (->* ((U Spec-Feature Spec-Behavior))
-                          (Spec-Behavior-Prove #:fgcolor (-> Spec-Issue-Type Symbol) #:sign (-> Spec-Issue-Type (U Char String)))
+                          (Spec-Behavior-Prove #:fgcolor (-> Spec-Issue-Type Symbol) #:sign (-> Spec-Issue-Type (U Char String)) #:selector Spec-Prove-Selector)
                           Spec-Summary)
-  (lambda [feature [prove spec-behavior-prove] #:fgcolor [~fgcolor spec-issue-fgcolor] #:sign [~moji spec-issue-moji]]
+  (lambda [feature [prove spec-behavior-prove] #:fgcolor [~fgcolor spec-issue-fgcolor] #:sign [~moji spec-issue-moji] #:selector [selector null]]
     (parameterize ([default-spec-handler void])
       (define (downfold-feature [name : String] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (cond [(null? seed:orders) (echof #:fgcolor 'darkgreen #:attributes '(dim underline) "~a~n" name)]
@@ -111,7 +127,7 @@
         (time-apply (λ [] ((inst spec-summary-fold (Listof Natural))
                            feature null
                            #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                           #:prove prove))
+                           #:prove prove #:selector selector))
                     null))
 
       (define summary : Spec-Summary (car &summary))

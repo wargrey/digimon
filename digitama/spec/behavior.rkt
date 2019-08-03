@@ -7,7 +7,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (Spec-Feature-Upfold s) (-> String (-> Any) (-> Any) s s s))
-(define-type (Spec-Feature-Downfold s) (-> String (-> Any) (-> Any) s s))
+(define-type (Spec-Feature-Downfold s) (-> String (-> Any) (-> Any) s (Option s)))
 (define-type (Spec-Feature-Herefold s) (-> String (-> Void) s s))
 
 (struct spec-behavior
@@ -50,13 +50,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-feature-fold-pace : (All (s) (-> Spec-Feature (Spec-Feature-Downfold s) (Spec-Feature-Upfold s) (Spec-Feature-Herefold s) s s))
   (lambda [feature downfold upfold herefold seed]
-    (let ([brief (spec-feature-brief feature)]
-          [pace (spec-feature-evaluation feature)]
-          [before (spec-feature-before feature)]
-          [after (spec-feature-after feature)])
-      (let* ([kid-seed (downfold brief before after seed)]
-             [kid-seed (pace downfold upfold herefold kid-seed)])
-        (upfold brief before after seed kid-seed)))))
+    (let* ([brief (spec-feature-brief feature)]
+           [before (spec-feature-before feature)]
+           [after (spec-feature-after feature)]
+           [maybe-kid-seed (downfold brief before after seed)])
+      (cond [(not maybe-kid-seed) seed]
+            [else (upfold brief before after seed
+                          ((spec-feature-evaluation feature)
+                           downfold upfold herefold maybe-kid-seed))]))))
 
 (define spec-name->brief : (-> (U String Symbol Procedure) String)
   (lambda [name]

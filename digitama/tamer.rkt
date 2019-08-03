@@ -104,7 +104,7 @@
     (define units (hash-ref handbook-stories htag null))
     (unless (dict-has-key? units name)
       (hash-set! handbook-stories htag (cons (cons name unit) units)))
-    (let ([books (hash-ref handbook-stories books# null)])  ;;; Readme.md needs it stay here
+    (let ([books (hash-ref handbook-stories books# null)])  ;;; Readme.md needs it staying here
       (unless (member htag books) (hash-set! handbook-stories books# (cons htag books))))))
 
 (define tamer-record-handbook

@@ -1,6 +1,6 @@
 ((handbook . "Tamer's Handbook")
- (story . "Story")
- (scenario . "Scenario")
+ (story . "")
+ (scenario . "")
  (reference . "References")
  (appendix . "Appendix")
  (bibliography . "Bibliography")
