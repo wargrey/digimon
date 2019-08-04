@@ -26,7 +26,7 @@
   [open-book# #\U1F4D6]
   [memo# #\U1F4DD]
   [page# #\U1F4C4]
-  [bookmark# #\U1F4D1]
+  [bookmark# #\U1F516]
   
   [beating-heart# #\U1F493]
   [broken-heart#  #\U1F494]

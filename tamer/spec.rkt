@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require "../spec.rkt")
 
 (require racket/port)
@@ -52,5 +54,6 @@
                                         (it "should be skipped since its grandparent is skipped" #:do
                                             (expect-true #true)))))))
 
-(void (spec-prove prelude #:selector (list '* "normal issues")))
-(void (spec-prove prelude #:selector (list '* #px"^special")))
+(module+ main
+  (void (spec-prove prelude #:selector (list '* "normal issues")))
+  (void (spec-prove prelude #:selector (list '* #px"^special"))))

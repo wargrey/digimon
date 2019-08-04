@@ -27,15 +27,19 @@ The short answer is @italic{Wording Matters}, the long answer is, well, what exa
 
 @tamer-smart-summary[]
 
-@handbook-scenario{Wording Matters}
+@handbook-scenario[]{Wording Matters}
 
 Despite the fact that people invented so many concepts and methodologies in order to improve software quality. Amongst them,
 @tech{BDD} is a communication technique and concentrates on bringing people involved in a software project closer.
 
+@tamer-note['wording-matters]
 @chunk[|<can-you-give-me-an-example?>|
-       (define example : Spec-Feature
-         (describe "exmaple" #:do
-                   (it "todo" #:do)))]
+       (example-begin wording-matters #:do
+         (describe "normal issue" #:do
+                   (it "intends to be true" #:do
+                       (expect-true #true))
+                   #;(it "intends to be false" #:do
+                       (expect-false #true))))]
 
 @handbook-reference[]
 
