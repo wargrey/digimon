@@ -316,7 +316,11 @@
                           (thunk (for/sum ([phony (in-list (if (null? phonies) (list "all") phonies))])
                                    (parameterize ([current-make-phony-goal phony])
                                      (with-handlers ([exn:break? (λ [e] 130)]
-                                                     [exn? (λ [e] (eechof #:fgcolor 'red "~a~n" (string-trim (exn-message e))) (make-errno))])
+                                                     [exn? (λ [e] (let ([/dev/stderr (open-output-string)])
+                                                                    (parameterize ([current-error-port /dev/stderr])
+                                                                      ((error-display-handler) (exn-message e) e))
+                                                                    (eechof #:fgcolor 'red "~a~n" (get-output-string /dev/stderr))
+                                                                    (make-errno)))])
                                        (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
                                        (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
                                              [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk digimons info-ref))]

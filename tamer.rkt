@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out) skip todo)
+(provide (all-defined-out))
 (provide (all-from-out racket rackunit))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "spec.rkt" "digitama/citation.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
@@ -28,6 +28,7 @@
 (require "format.rkt")
 (require "collection.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
@@ -216,38 +217,29 @@
   (lambda []
     (module->namespace (tamer-story))))
 
-(define tamer-story-require
-  (lambda [name]
-    (namespace-variable-value name #true #false (tamer-story-space))))
-
-(define tamer-require
-  (lambda [name]
-    (define htag (tamer-story->tag (tamer-story)))
-    (define units (hash-ref handbook-stories htag null))
-    (with-handlers ([exn? (λ [e] (let ([story (exn->test-case 'tamer-require e)])
-                                   (hash-set! handbook-stories htag (cons (cons name story) units))
-                                   story))])
-      (dict-ref units name (thunk (raise (make-exn:fail:contract:variable (format "'~a has not yet defined!" name)
-                                                                          (current-continuation-marks) name)))))))
-
 (define tamer-prove
   (lambda []
+    (define (make-flatten-spec-feature htag specs)
+      (cond [(or (null? specs) (pair? (cdr specs))) (make-spec-feature htag specs)]
+            [else (car specs)]))
+
     (spec-prove
      (if (module-path? (tamer-story))
          (let ([htag (tamer-story->tag (tamer-story))])
-           (make-spec-feature htag (or (and (dynamic-require (tamer-story) #false)
-                                            (hash-has-key? handbook-stories htag)
-                                            (reverse (map cdr (hash-ref handbook-stories htag))))
-                                       null)))
+           (make-flatten-spec-feature htag (or (and (dynamic-require (tamer-story) #false)
+                                                    (hash-has-key? handbook-stories htag)
+                                                    (reverse (hash-ref handbook-stories htag)))
+                                               null)))
          (make-spec-feature "Features and Behaviors"
                             (cond [(zero? (hash-count handbook-stories)) null] ; no story ==> no :books:
                                   [else (let ([href (curry hash-ref handbook-stories)])
-                                          (for/list ([unit (in-list (reverse (href books#)))])
-                                            (make-test-suite unit (reverse (map cdr (href unit))))))]))))))
+                                          (for/list ([htag (in-list (reverse (href books#)))])
+                                            (make-flatten-spec-feature htag (reverse (href htag)))))]))))))
 
 (define tamer-smart-summary
   (lambda []
     (define story-snapshot (tamer-story))
+    (define ~result (default-spec-issue-symbol))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
      (λ [get set]
@@ -256,9 +248,9 @@
            (make-delayed-block
             (λ [render% pthis infobase]
               (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
-              (define scenario (get 'scenario make-hash))
+              (define scenario (get 'scenarios make-hash))
               (define (story-ref htag)
-                (filter-map (λ [scnr] (hash-ref (hash-ref scenario htag make-hash) (cdr scnr) #false))
+                (filter-map (λ [feature] (hash-ref (hash-ref feature htag make-hash) feature #false))
                             (reverse (hash-ref handbook-stories htag null))))
               (parameterize ([current-digimon raco-setup-forget-my-digimon])
                 (nested #:style (make-style "boxed" null)
@@ -270,167 +262,173 @@
                                  (let ([base (cond [(module-path? story-snapshot) (story-ref (tamer-story->tag story-snapshot))]
                                                    [else (for/list ([story (in-list (reverse (hash-ref handbook-stories books# null)))])
                                                            (cons story (with-handlers ([exn:fail:contract? (const null)])
-                                                                         (apply append (map cdr (story-ref story))))))])])
-                                   (define statuses (map ~result (list test-error test-failure test-todo test-skip)))
-                                   (define items
-                                     (for/list ([spec (in-list base)])
+                                                                         (apply append (story-ref story)))))])])
+                                   (define symbols (map ~result (list 'panic 'misbehaved 'todo 'skip)))
+                                   (displayln base)
+                                   (define bookmarks
+                                     (for/list ([bookmark (in-list base)])
                                        ;;; also see (tamer-note)
-                                       (define-values (local# desc)
-                                         (cond [(string? (car spec)) (values bookmark# (car spec))] ;;; feature
-                                               [else (values page# (unbox (car spec)))])) ;;; toplevel behavior
-                                       (define status (car (or (ormap (curryr member (cdr spec)) statuses)
-                                                               (list (~result struct:test-success)))))
+                                       (displayln bookmark)
+                                       (define-values (local# brief)
+                                         (cond [(string? (car bookmark)) (values bookmark# (car bookmark))] ;;; feature
+                                               [else (values page# (unbox (car bookmark)))])) ;;; toplevel behavior
+                                       (define symtype (car (or (ormap (curryr member (cdr bookmark)) symbols) (list (~result 'pass)))))
                                        (if (module-path? story-snapshot)
-                                           (list (elem (italic (string local#)) ~
-                                                       (elemref desc (racketkeywordfont (literal desc))))
-                                                 (elemref desc status #:underline? #false))
-                                           (let ([head (~a desc #:width 64 #:pad-string "." #:limit-marker "......")]
-                                                 [stts (make-parameter status)])
+                                           (list (elem (italic (string local#)) ~ (elemref brief (racketkeywordfont (literal brief))))
+                                                 (elemref brief (~a symtype) #:underline? #false))
+                                           (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
+                                                 [stts (make-parameter symtype)])
                                              (echof #:fgcolor 'lightyellow head)
-                                             (echof #:fgcolor (~fgcolor status) "~a~n" status)
-                                             (for ([msg (in-list (cdr spec))])
-                                               (cond [(and (member msg statuses) msg)
-                                                      => stts]
-                                                     [(and (regexp-match? #px"»»" msg) msg)
-                                                      => (curry eechof #:fgcolor 'darkgrey "~a~n")]
-                                                     [(and (string? (car spec)) msg)
-                                                      => (curry eechof  "~a~n"
-                                                                #:fgcolor (~fgcolor (stts))
-                                                                #:attributes (cond [(string=? (stts) (~result test-error)) '(inverse)]
-                                                                                   [else null]))]))
-                                             (list (elem (italic (string book#)) ~ (secref (car spec)))
-                                                   (seclink (car spec) status #:underline? #false))))))
-                                   (match-define (list success failure error skip todo reals gcs cpus)
-                                     (for/list ([meta (in-list (list 'success 'failure 'error 'skip 'todo 'real 'gc 'cpu))])
+                                             (echof #;#:fgcolor #;(~fgcolor symtype) "~a~n" symtype)
+                                             (for ([msg (in-list (cdr bookmark))])
+                                               (cond [(member msg symbols)
+                                                      (stts msg)]
+                                                     [(regexp-match? #px"»»" msg)
+                                                      (eechof #:fgcolor 'darkgrey "~a~n" msg)]
+                                                     [(string? (car bookmark))
+                                                      (eechof "~a~n" msg
+                                                              ;#:fgcolor (~fgcolor (stts))
+                                                              #:attributes (if (equal? (stts) (~result 'panic)) '(inverse) null))]))
+                                             (list (elem (italic (string book#)) ~ (secref (car bookmark)))
+                                                   (seclink (car bookmark) (~a symtype) #:underline? #false))))))
+                                   (match-define (list pass misbehaved panic skip todo reals gcs cpus)
+                                     (for/list ([meta (in-list (list 'pass 'misbehaved 'panic 'skip 'todo 'real 'gc 'cpu))])
                                        (define pool (get meta make-hash))
                                        (if (module-path? story-snapshot)
                                            (hash-ref pool story-snapshot 0)
                                            (foldl + 0 (hash-values pool)))))
-                                   (match-define (list real cpu-gc gc cpu)
-                                     (map (compose1 (curry ~r #:precision '(= 3)) (curry * 0.001))
-                                          (list reals (- cpus gcs) gcs cpus)))
                                    (define briefs
-                                     (let ([population (+ success failure error skip todo)])
+                                     (let ([population (+ pass misbehaved panic skip todo)])
                                        (if (zero? population)
                                            (list "No particular sample!")
-                                           (list (format "~a% tests successful."
-                                                   (~r #:precision '(= 2) (/ (* (+ success skip) 100) population)))
-                                                 (format "~a, ~a, ~a, ~a, ~a, ~a."
-                                                   (~w=n (length base) (if story-snapshot "Scenario" "Story"))
-                                                   (~w=n population "Test") (~w=n failure "Failure") (~w=n error "Error")
-                                                   (~w=n skip "Skip") (~w=n todo "TODO"))
-                                                 (format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
-                                                   real cpu-gc gc cpu)))))
+                                           (list (format "~a% behaviors okay."
+                                                   (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population)))
+                                                 (string-join (list (~w=n (length base) (if story-snapshot "Scenario" "Story"))
+                                                                    (~w=n population "Behavior") (~w=n misbehaved "Misbehavior") (~w=n panic "Panic")
+                                                                    (~w=n skip "Skip") (~w=n todo "TODO"))
+                                                              ", " #:after-last ".")
+                                                 (apply format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
+                                                        (map (λ [ms] (~r (* ms 0.001) #:precision '(= 3)))
+                                                             (list reals (- cpus gcs) gcs cpus)))))))
                                    (unless (module-path? story-snapshot)
                                      (for ([brief (in-list (cons "" briefs))])
                                        (echof #:fgcolor 'lightcyan "~a~n" brief)))
                                    (let ([summaries (add-between (map racketoutput briefs) (linebreak))])
-                                     (cond [(null? items) summaries]
-                                           [else (cons (tabular items #:style 'boxed #:column-properties '(left right))
+                                     (cond [(null? bookmarks) summaries]
+                                           [else (cons (tabular bookmarks #:style 'boxed #:column-properties '(left right))
                                                        summaries)])))))))))))))
 
 (define tamer-note
-  (lambda [example-ids . notes]
+  (lambda [example . notes]
     (define story-snapshot (tamer-story))
     (define ~symbol (default-spec-issue-symbol))
     (define raco-setup-forget-my-digimon (current-digimon))
+    
     (make-traverse-block
      (λ [get set]
        (parameterize ([current-digimon raco-setup-forget-my-digimon])
          (define htag (tamer-story->tag story-snapshot))
-         (unless (get 'scenario #false) (set 'scenario (make-hash)))
-         (define scenarios (hash-ref! (get 'scenario make-hash) htag make-hash))
-         (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
-                      (for/list ([example-id (if (list? example-ids) (in-list example-ids) (in-value example-ids))])
-                        (define-values (/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout))
-                        (parameterize ([tamer-story story-snapshot]
-                                       [current-readtable readwrotten]
-                                       [current-input-port /dev/tamer/stdin])
-                          (define example (tamer-require example-id))
 
-                          ; seed : (Vector Natural (Listof String) (Listof scrible-flow))
-                          (parameterize ([default-spec-issue-handler void])
-                            (define (downfold-feature name indent seed:info)
-                              (define-values (bookmarks flow)
-                                (if (= indent 0)
-                                    (values (list name) (nonbreaking (racketmetafont (italic (string open-book#)) ~ (elemtag name (literal name)))))
-                                    (values (vector-ref seed:info 1) (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal name)))))))
-                              (vector 1 bookmarks (cons flow (vector-ref seed:info 2))))
-      
-                            (define (upfold-feature name indent whocares children:info)
-                              children:info)
-      
-                            (define (fold-behavior name issue indent cpu real gc seed:info)
-                              (define idx (vector-ref seed:info 0))
-                              (define type (spec-issue-type issue))
-                              (define bookmarks (if (= indent 0) (cons name (vector-ref seed:info 1)) (vector-ref seed:info 1)))
-                              (define bookmarks++ (if (eq? type 'pass) bookmarks (cons name (cons type bookmarks))))
-                              (define flow (nonbreaking ((if (= indent 0) (curry elemtag name) elem)
-                                                         (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
-                                                         (racketcommentfont ~ (literal name)))))
-                              
-                              #;(case type
+         (unless (get 'story #false)
+           (set 'story (make-hash)))
+         
+         (define story (hash-ref! (get 'story make-hash) htag make-hash))
+         (define toplevel-indent 2)
+         
+         (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
+                      (parameterize ([tamer-story story-snapshot])
+                        ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
+                        (parameterize ([default-spec-issue-handler void])
+                          (define (downfold-feature brief indent seed:info)
+                            (define flows (vector-ref seed:info 1))
+                            
+                            (vector (cons null (vector-ref seed:info 0))
+                                    (cond [(= indent toplevel-indent)
+                                           (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (elemtag brief (literal brief)))) flows)]
+                                          [(> indent toplevel-indent)
+                                           (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
+                                          [else flows])))
+                          
+                          (define (upfold-feature brief indent whocares children:info)
+                            (define issues (vector-ref children:info 0))
+
+                            (vector (cond [(< indent 2) (reverse (car issues)) #| (Listof tamer-feature) |#]
+                                          [else (cons (cons (tamer-feature brief (reverse (car issues))) (cadr issues))
+                                                      (cddr issues))])
+                                    (vector-ref children:info 1)))
+                          
+                          (define (fold-behavior brief issue indent cpu real gc seed:info)
+                            (define issues (vector-ref seed:info 0))
+                            (define idx (add1 (length (car issues))))
+                            (define type (spec-issue-type issue))
+                            (define flow (nonbreaking ((if (= indent toplevel-indent) (curry elemtag brief) elem)
+                                                       (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
+                                                       (racketcommentfont ~ (literal brief)))))
+                            
+                            #;(case type
                                 [(pass) (echof #:fgcolor 'darkgrey " [~a real time, ~a gc time]~n" real gc)]
                                 [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
                                 [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
                                 [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
                                 [(panic) (newline) (spec-issue-error-display issue #:indent headspace)])
-        
-                              (vector (+ idx 1) bookmarks++ (cons flow (vector-ref seed:info 2))))
 
-                            (define-values (&summary cpu real gc)
-                              (time-apply (λ [] (spec-summary-fold example (vector 0 null null)
-                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                                                 #:selector null))
-                                          (list)))
-
-                            (match-define (list (cons summary info)) &summary)
-                            (define population (apply + (hash-values summary)))
-
-                            (hash-set! scenarios example (reverse (vector-ref info 1)))
-                            (for ([metrics (in-list (list* (cons 'cpu cpu) (cons 'real real) (cons 'gc gc) (hash->list summary)))])
-                              (match-define (cons meta delta) metrics)
-                              
-                              (unless (get meta #false) (set meta (make-hash)))
-                              (hash-update! (get meta make-hash) (tamer-story) (curry + delta) 0))
-
-                            (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
-                                  [panic (hash-ref summary 'panic (λ [] 0))])
-                              (define brief
-                                (elem (string pin#)
-                                      ~ (if (= (+ misbehavior panic) 0)
-                                            (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
-                                            (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
-                                      ~ (seclink (tamer-story->tag (tamer-story)) ~ (string house-garden#))))
-                              (add-between (reverse (cons (nonbreaking brief) (vector-ref info 2))) (linebreak))))
+                            (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
+                                    (cons flow (vector-ref seed:info 1))))
                           
-                          #;((compose1 (curryr add-between (linebreak)) (curry filter-not void?))
-                             (for/list ([line (in-port read-line)])
-                               (cond [(regexp-match #px"^\\s*»» (.+?)?:?\\s+(.+?)\\s*$" line)
-                                      => (λ [pieces] (match-let ([(list _ key val) pieces])
-                                                       (example-info (cons (string-trim line) (example-info)))
-                                                       (cond [(member key '("message"))
-                                                              (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
-                                                                    (string backhand#) ~ (italic (literal val)))]
-                                                             [(member key '("SKIP" "TODO"))
-                                                              (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
-                                                                    (string backhand#) ~ (racketparenfont key ":") ~ (italic (literal val)))]
-                                                             [(member key '("exn" "exception"))
-                                                              (elem (racketvalfont (string macroscope#)) ~
-                                                                    (racket #,(let ([ev (fix (read (open-input-string val)))]
-                                                                                    [tr (curryr call-with-input-string read-line)])
-                                                                                (vector-set! ev 1 (tr (vector-ref ev 1))) ev)))]
-                                                             [(regexp-match? #px"param:\\d+" key)
-                                                              (elem (racketvalfont (string crystal-ball#)) ~
-                                                                    (racket #,(fix (read (open-input-string val)))))])))]
-                                     [(regexp-match #px"^\\s*»»» \\s+(expected|given|received):\\s+(.+?)\\s*$" line)
-                                      ; only for errors that have multilined messages.
-                                      => (λ [pieces] (and (example-info (cons (string-trim line) (example-info)))
-                                                          (elem (racketvalfont (string paw#)) ~
-                                                                (let ([message (list-ref pieces 2)])
-                                                                  (racket #,(fix (with-handlers ([exn? (λ _ message)])
-                                                                                   (read (open-input-string message)))))))))])))))))))))
-  
+                          (match-define-values ((list (cons summary (vector features flows))) cpu real gc)
+                            (time-apply (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
+                                                                 (vector null null)
+                                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                                                                 #:selector (list '* '* example)))
+                                        null))
+                          
+                          (define population (apply + (hash-values summary)))
+
+                          (hash-set! story 'example features)
+                          
+                          (for ([metrics (in-list (list* (cons 'cpu cpu) (cons 'real real) (cons 'gc gc) (hash->list summary)))])
+                            (match-define (cons meta delta) metrics)
+                            
+                            (unless (get meta #false) (set meta (make-hash)))
+                            (hash-update! (get meta make-hash) (tamer-story) (curry + delta) 0))
+                          
+                          (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
+                                [panic (hash-ref summary 'panic (λ [] 0))])
+                            (define brief
+                              (elem (string pin#)
+                                    ~ (if (= (+ misbehavior panic) 0)
+                                          (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
+                                          (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
+                                    ~ (seclink (tamer-story->tag (tamer-story)) ~ (string house-garden#))))
+                              (add-between (reverse (cons (nonbreaking brief) flows)) (linebreak))))
+                        
+                        #;((compose1 (curryr add-between (linebreak)) (curry filter-not void?))
+                           (for/list ([line (in-port read-line)])
+                             (cond [(regexp-match #px"^\\s*»» (.+?)?:?\\s+(.+?)\\s*$" line)
+                                    => (λ [pieces] (match-let ([(list _ key val) pieces])
+                                                     (example-info (cons (string-trim line) (example-info)))
+                                                     (cond [(member key '("message"))
+                                                            (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
+                                                                  (string backhand#) ~ (italic (literal val)))]
+                                                           [(member key '("SKIP" "TODO"))
+                                                            (elem #:style (make-style #false (list (make-color-property (list 128 128 128))))
+                                                                  (string backhand#) ~ (racketparenfont key ":") ~ (italic (literal val)))]
+                                                           [(member key '("exn" "exception"))
+                                                            (elem (racketvalfont (string macroscope#)) ~
+                                                                  (racket #,(let ([ev (fix (read (open-input-string val)))]
+                                                                                  [tr (curryr call-with-input-string read-line)])
+                                                                              (vector-set! ev 1 (tr (vector-ref ev 1))) ev)))]
+                                                           [(regexp-match? #px"param:\\d+" key)
+                                                            (elem (racketvalfont (string crystal-ball#)) ~
+                                                                  (racket #,(fix (read (open-input-string val)))))])))]
+                                   [(regexp-match #px"^\\s*»»» \\s+(expected|given|received):\\s+(.+?)\\s*$" line)
+                                    ; only for errors that have multilined messages.
+                                    => (λ [pieces] (and (example-info (cons (string-trim line) (example-info)))
+                                                        (elem (racketvalfont (string paw#)) ~
+                                                              (let ([message (list-ref pieces 2)])
+                                                                (racket #,(fix (with-handlers ([exn? (λ _ message)])
+                                                                                 (read (open-input-string message)))))))))]))))))))))
+
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1]]
     (define story-snapshot (tamer-story))
@@ -515,27 +513,3 @@
                                 (codeblock #:line-numbers line0 #:keep-lang-line? #true
                                            (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                         (string-join contents (string #\newline)))))))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(module* typed typed/racket
-  (provide (all-defined-out))
-  (provide (all-from-out "emoji.rkt" "tongue.rkt" "format.rkt"))
-
-  (require typed/racket/unsafe)
-
-  (require "emoji.rkt")
-  (require "tongue.rkt")
-  (require "format.rkt")
-  
-  (require (for-syntax syntax/parse))
-
-  (unsafe-require/typed/provide
-   (submod "..")
-   [$out Output-Port]
-   [$err Output-Port]
-   [$? (Parameterof Any)]
-   [$shell (-> (-> Any * Void) Any * Any)]
-   [register-handbook-finalizer (-> (-> Any) Void)]
-   [tamer-prove (-> Natural)]
-   [tamer-story-space (-> Namespace)]
-   [tamer-story-require (-> Symbol Any)]))

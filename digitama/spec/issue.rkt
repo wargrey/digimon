@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
 (require racket/port)
 (require racket/list)
 
@@ -42,7 +41,7 @@
    [parameters : (Listof Any)]
    [exception : (Option exn:fail)])
   #:type-name Spec-Issue
-  #:transparent)
+  #;transparent)
 
 (define make-spec-issue : (-> Spec-Issue-Type Spec-Issue)
   (lambda [type]

@@ -40,15 +40,14 @@
 
             (context "features and behaviors are tagged with SKIP whenever a `exn:fail:unsupported` is caught" #:do
                      (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
-                         (expect-throw exn:fail:unsupported?
-                                       (λ [] (raise (make-exn:fail:unsupported "`extflonum` is not available" (current-continuation-marks)))))
+                         (expect-throw exn:fail:unsupported? (λ [] (spec-unsupported "`extflonum` is not available")))
                          (expect-collapse "`(expect-throw exn:fail:unsupported? thunk)` suppresses the default SKIP mechanism"))
 
                      (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
-                         (raise (make-exn:fail:unsupported "a buggy specification but it is forgiven for representation purpose" (current-continuation-marks))))
+                         (spec-unsupported "a buggy specification but it is forgiven for representation purpose"))
                      
                      (context "skips user scenarios since no network interface card is found" #:do
-                              #:before (λ [] (raise (make-exn:fail:unsupported "NIC is not present" (current-continuation-marks)))) #:do
+                              #:before (λ [] (spec-unsupported "NIC is not present")) #:do
 
                               (describe "searches the network neighbors" #:do
                                         (it "should be skipped since its grandparent is skipped" #:do

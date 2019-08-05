@@ -48,6 +48,10 @@
                (make-spec-issue 'pass))))
      values)))
 
+(define spec-unsupported : (-> String Nothing)
+  (lambda [reason]
+    (raise (make-exn:fail:unsupported reason (current-continuation-marks)))))
+
 (define default-spec-handler : (Parameterof (-> Symbol Spec-Feature Any)) (make-parameter (λ [[id : Symbol] [spec : Spec-Feature]] (spec-prove spec))))
 (define default-spec-behavior-prove : (Parameterof Spec-Behavior-Prove) (make-parameter spec-behavior-prove))
 (define default-spec-issue-fgcolor : (Parameterof Spec-Issue-Fgcolor) (make-parameter spec-issue-fgcolor))
@@ -65,58 +69,58 @@
     (define selcount : Index (vector-length selectors))
     
     (parameterize ([current-custodian (make-custodian)]) ;;; Prevent test routines from shutting down the current custodian accidently.
-      (define (downfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Option (Spec-Seed s))
+      (define (downfold-feature [brief : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Option (Spec-Seed s))
         (define namepath : (Listof String) (spec-seed-namepath seed))
         (define cursor : Index (length namepath))
 
         (and (or (>= cursor selcount)
                  (let ([pattern (vector-ref selectors cursor)])
                    (cond [(eq? pattern '*)]
-                         [(string? pattern) (string=? pattern name)]
-                         [else (regexp-match? pattern name)])))
+                         [(string? pattern) (string=? pattern brief)]
+                         [else (regexp-match? pattern brief)])))
 
              (let ([maybe-exn (with-handlers ([exn:fail? (λ [[e : exn:fail]] e)]) (pre-action) #false)])
-               (spec-seed-copy seed (downfold name (length namepath) (spec-seed-datum seed)) (cons name namepath)
+               (spec-seed-copy seed (downfold brief (length namepath) (spec-seed-datum seed)) (cons brief namepath)
                                #:exceptions (cons maybe-exn (spec-seed-exceptions seed))))))
       
-      (define (upfold-feature [name : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)] [children-seed : (Spec-Seed s)]) : (Spec-Seed s)
+      (define (upfold-feature [brief : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)] [children-seed : (Spec-Seed s)]) : (Spec-Seed s)
         (with-handlers ([exn:fail? (λ [[e : exn]] (eprintf "[#:after] ~a" (exn-message e)))]) (post-action))
         (spec-seed-copy children-seed
-                        (upfold name (length (spec-seed-namepath children-seed)) (spec-seed-datum seed) (spec-seed-datum children-seed))
+                        (upfold brief (length (spec-seed-namepath children-seed)) (spec-seed-datum seed) (spec-seed-datum children-seed))
                         (cdr (spec-seed-namepath children-seed))
                         #:exceptions (cdr (spec-seed-exceptions children-seed))))
       
-      (define (fold-behavior [name : String] [action : (-> Void)] [seed : (Spec-Seed s)]) : (Spec-Seed s)
+      (define (fold-behavior [brief : String] [action : (-> Void)] [seed : (Spec-Seed s)]) : (Spec-Seed s)
         (define fixed-action : (-> Void)
           (cond [(findf exn? (spec-seed-exceptions seed))
                  => (lambda [[e : exn:fail]] (λ [] (spec-misbehave e)))]
                 [else action]))
         (define namepath : (Listof String) (spec-seed-namepath seed))
-        (define-values (&issue cpu real gc) (time-apply (λ [] (prove name namepath fixed-action)) null))
+        (define-values (&issue cpu real gc) (time-apply (λ [] (prove brief namepath fixed-action)) null))
 
-        (spec-seed-copy seed (herefold name (car &issue) (length namepath) cpu real gc (spec-seed-datum seed)) namepath
+        (spec-seed-copy seed (herefold brief (car &issue) (length namepath) cpu real gc (spec-seed-datum seed)) namepath
                         #:summary (hash-update (spec-seed-summary seed) (spec-issue-type (car &issue)) add1 (λ [] 0))))
 
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
 
-(define spec-prove : (-> (U Spec-Feature Spec-Behavior) [#:selector Spec-Prove-Selector] Void)
+(define spec-prove : (-> (U Spec-Feature Spec-Behavior) [#:selector Spec-Prove-Selector] Natural)
   (lambda [feature #:selector [selector null]]
     (define ~fgcolor : Spec-Issue-Fgcolor (default-spec-issue-fgcolor))
     (define ~symbol : Spec-Issue-Symbol (default-spec-issue-symbol))
     
     (parameterize ([default-spec-issue-handler void])
-      (define (downfold-feature [name : String] [indent : Index] [seed:orders : (Listof Natural)]) : (Listof Natural)
-        (cond [(= indent 0) (echof #:fgcolor 'darkgreen #:attributes '(dim underline) "~a~n" name)]
-              [else (echof "~a~a ~a~n" (~space (+ indent indent)) (string-join (map number->string (reverse seed:orders)) ".") name)])
+      (define (downfold-feature [brief : String] [indent : Index] [seed:orders : (Listof Natural)]) : (Listof Natural)
+        (cond [(= indent 0) (echof #:fgcolor 'darkgreen #:attributes '(dim underline) "~a~n" brief)]
+              [else (echof "~a~a ~a~n" (~space (+ indent indent)) (string-join (map number->string (reverse seed:orders)) ".") brief)])
         (cons 1 seed:orders))
       
-      (define (upfold-feature [name : String] [indent : Index] [who-cares : (Listof Natural)] [children:orders : (Listof Natural)]) : (Listof Natural)
+      (define (upfold-feature [brief : String] [indent : Index] [who-cares : (Listof Natural)] [children:orders : (Listof Natural)]) : (Listof Natural)
         (cond [(< indent 2) null]
               [else (cons (add1 (cadr children:orders))
                           (cddr children:orders))]))
       
-      (define (fold-behavior [name : String] [issue : Spec-Issue] [indent : Index]
+      (define (fold-behavior [brief : String] [issue : Spec-Issue] [indent : Index]
                              [cpu : Natural] [real : Natural] [gc : Natural] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (define type : Spec-Issue-Type (spec-issue-type issue))
         (define headline : String (format "~a~a ~a - " (~space (+ indent indent)) (~symbol type) (if (null? seed:orders) 1 (car seed:orders))))
@@ -142,12 +146,12 @@
 
       (define summary : Spec-Summary (caar &summary))
       (define population : Natural (apply + (hash-values summary)))
+      (define misbehavior : Natural (hash-ref summary 'misbehaved (λ [] 0)))
+      (define panic : Natural (hash-ref summary 'panic (λ [] 0)))
 
       (if (positive? population)
           (let ([~s (λ [[ms : Natural]] : String (~r (* ms 0.001) #:precision '(= 3)))]
-                [success (hash-ref summary 'pass (λ [] 0))]
-                [misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
-                [panic (hash-ref summary 'panic (λ [] 0))]
+                [pass (hash-ref summary 'pass (λ [] 0))]
                 [todo (hash-ref summary 'todo (λ [] 0))]
                 [skip (hash-ref summary 'skip (λ [] 0))])
             (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
@@ -155,5 +159,7 @@
             (echof #:fgcolor 'lightcyan "~a, ~a, ~a, ~a, ~a, ~a% Okay.~n"
                    (~n_w population "sample") (~n_w misbehavior "misbehavior")
                    (~n_w panic "panic") (~n_w skip "skip") (~n_w todo "TODO")
-                   (~r #:precision '(= 2) (/ (* (+ success skip) 100) population))))
-          (echof #:fgcolor 'darkcyan "~nNo particular sample!~n")))))
+                   (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
+          (echof #:fgcolor 'darkcyan "~nNo particular sample!~n"))
+
+      (+ misbehavior panic))))

@@ -32,14 +32,18 @@ The short answer is @italic{Wording Matters}, the long answer is, well, what exa
 Despite the fact that people invented so many concepts and methodologies in order to improve software quality. Amongst them,
 @tech{BDD} is a communication technique and concentrates on bringing people involved in a software project closer.
 
-@tamer-note['wording-matters]
+@tamer-note["Wording Matters"]
 @chunk[|<can-you-give-me-an-example?>|
-       (example-begin wording-matters #:do
-         (describe "normal issue" #:do
+       (describe "Wording Matters" #:do
+         (describe "normal issues" #:do
                    (it "intends to be true" #:do
                        (expect-true #true))
-                   #;(it "intends to be false" #:do
-                       (expect-false #true))))]
+                   (it "intends to be false" #:do
+                       (expect-false #true)))
+         (describe "special issues" #:do
+                   (it "do it later" #:do)
+                   (it "intends to be skipped" #:do
+                       (spec-unsupported "a buggy specification but it is forgiven for representation purpose"))))]
 
 @handbook-reference[]
 
@@ -54,4 +58,5 @@ Despite the fact that people invented so many concepts and methodologies in orde
          (module story typed/racket/base
            (require digimon/spec)
 
-           |<can-you-give-me-an-example?>|))]
+           (spec-begin bdd #:do
+                       |<can-you-give-me-an-example?>|)))]
