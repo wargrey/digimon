@@ -55,9 +55,8 @@ Despite the fact that people invented so many concepts and methodologies in orde
        (require digimon/tamer)
        (tamer-taming-start!)
 
-       (module+ tamer
-         (module story typed/racket/base
-           (require digimon/spec)
-
-           (spec-begin bdd #:do
-                       |<can-you-give-me-an-example?>|)))]
+       (module tamer typed/racket/base
+         (require digimon/spec)
+         
+         (spec-begin bdd #:do
+                     |<can-you-give-me-an-example?>|))]

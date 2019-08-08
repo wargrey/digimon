@@ -31,7 +31,7 @@
 
 (define tamer-story->modpath
   (lambda [story-path]
-    `(submod ,story-path tamer story)))
+    `(submod ,story-path tamer)))
 
 (define make-tamer-zone
   (lambda [zone]
