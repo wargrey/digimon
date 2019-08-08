@@ -252,7 +252,7 @@
                      [current-namespace (make-base-namespace)])
         (if (regexp-match? #px"\\.rkt$" ./handbook)
             (parameterize ([exit-handler (λ [retcode] (when (and (integer? retcode) (<= 1 retcode 255))
-                                                        (error 'make "[error] ~a breaks ~a!" ./handbook (~n_w retcode "testcase"))))])
+                                                        (error 'make "[error] ~a breaks ~a!" ./handbook (~n_w retcode "sample"))))])
               (define modpath `(submod ,handbook main))
               (when (module-declared? modpath #true)
                 (dynamic-require `(submod ,handbook main) #false)))

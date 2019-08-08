@@ -35,15 +35,16 @@ Despite the fact that people invented so many concepts and methodologies in orde
 @tamer-note["Wording Matters"]
 @chunk[|<can-you-give-me-an-example?>|
        (describe "Wording Matters" #:do
-         (describe "normal issues" #:do
-                   (it "intends to be true" #:do
-                       (expect-true #true))
-                   (it "intends to be false" #:do
-                       (expect-false #true)))
-         (describe "special issues" #:do
-                   (it "do it later" #:do)
-                   (it "intends to be skipped" #:do
-                       (spec-unsupported "a buggy specification but it is forgiven for representation purpose"))))]
+                 (describe "normal issues" #:do
+                           (it "intends to be true" #:do
+                               (expect-true #true))
+                           (it "intends to be false" #:do
+                               (expect-false #true)))
+                 
+                 (describe "special issues" #:do
+                           (it "do it later" #:do)
+                           (it "intends to be skipped" #:do
+                               (spec-unsupported "a buggy specification but it is forgiven for representation purpose"))))]
 
 @handbook-reference[]
 

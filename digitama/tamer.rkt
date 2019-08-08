@@ -12,7 +12,6 @@
 (require scribble/manual)
 (require scribble/example)
 
-(require "../spec.rkt")
 (require "../emoji.rkt")
 (require "../system.rkt")
 
@@ -64,7 +63,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Summaries, the `compiled specification`, all features and behaviors have been proved.
-(struct tamer-feature (brief behaviors #;(Listof (U Spec-Issue String tamer-features))) #:transparent)
+(struct tamer-feature (brief issues #;(Listof (U Spec-Issue String tamer-features))) #:transparent)
+
+(define tamer-scribble-story-id 'digimon:tamer:story)
+(define tamer-scribble-story-times 'digimon:tamer:story:times)
+(define tamer-scribble-story-issues 'digimon:tamer:story:issues)
+
+(define tamer-empty-issues (make-immutable-hash))
+(define tamer-empty-times (list 0 0 0))
+
+(define tamer-feature-reverse-merge
+  (lambda [srutaef]
+    (define features (make-hash))
+    
+    (let merge ([briefs null]
+                [rest srutaef])
+      (if (null? rest)
+          (for/list ([brief (in-list briefs)])
+            (cons brief (hash-ref features brief)))
+          (let ([brief (tamer-feature-brief (car rest))])
+            (define maybe-existed (hash-ref features brief (λ [] null)))
+            (define-values (briefs++ behaviors)
+              (if (null? maybe-existed)
+                  (values (cons brief briefs) (tamer-feature-issues (car rest)))
+                  (values briefs (append (tamer-feature-issues (car rest)) maybe-existed))))
+            
+            (hash-set! features brief behaviors)
+            (merge briefs++ (cdr rest)))))))
 
 (define tamer-tag-value
   (lambda [val]
@@ -84,6 +109,13 @@
           [(pair? val) #| also for lists |#
            (cons (tamer-tag-value (car val)) (tamer-tag-value (cdr val)))]
           [else val])))
+
+(define traverse-ref!
+  (lambda [get set symbol make-default]
+    (unless (get symbol #false)
+      (set symbol (make-default)))
+
+    (get symbol #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~markdown
