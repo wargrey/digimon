@@ -1,9 +1,13 @@
-#lang digimon
+#lang typed/racket/base
 
-(require "../main.rkt")
+(require "../uuid.rkt")
+(require "../format.rkt")
+(require "../system.rkt")
 
+(require racket/future)
 (require typed/db)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; WARNING: This kind of tasks defeat futures!
 
 (define-type UUID (Vector String Symbol Integer Integer))
@@ -13,7 +17,7 @@
 
 (define do-insert : (-> UUID Void)
   (lambda [record]
-    (with-handlers ([exn:fail:sql? (λ [[e : exn:fail:sql]] (pretty-write (cons record (exn:fail:sql-info e)) /dev/stderr))])
+    (with-handlers ([exn:fail:sql? (λ [[e : exn:fail:sql]] (pretty-write (cons record (exn:fail:sql-info e)) (current-error-port)))])
       (query-exec :memory:
                   "INSERT INTO uuid (id, type, fid, seq) VALUES ($1, $2, $3, $4);"
                   (vector-ref record 0) (symbol->string (vector-ref record 1))
@@ -21,10 +25,10 @@
 
 (define make-job : (-> (-> String) Index (-> (Listof UUID)))
   (lambda [mkid fid]
-    (thunk (let ([ids (build-list (processor-count) (λ _ (mkid)))]
-                 [type (value-name mkid)])
-             (for/list : (Listof UUID) ([id (in-list ids)] [seq (in-naturals)])
-               (vector id type fid seq))))))
+    (λ [] (let ([ids (build-list (processor-count) (λ _ (mkid)))]
+                [type (value-name mkid)])
+            (for/list : (Listof UUID) ([id (in-list ids)] [seq (in-naturals)])
+              (vector id type fid seq))))))
 
 (define uuids : (Listof (Listof (Futureof (Listof UUID))))
   (for/list ([mkid (in-list (list uuid:timestamp uuid:random))])

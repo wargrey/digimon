@@ -1,13 +1,17 @@
-#lang digimon
+#lang typed/racket/base
 
 (provide (all-defined-out))
 
+(require (for-syntax racket/base))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (defconsts stx)
   (syntax-case stx [:]
     [(_ : Type [var val] ...)
      #'(begin (define var : Type val)
               ...)]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defconsts : Char
   [house-garden# #\U1F3E1]
   [cat# #\U1F408]

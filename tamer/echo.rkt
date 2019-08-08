@@ -1,4 +1,4 @@
-#lang digimon
+#lang typed/racket
 
 (require "../echo.rkt")
 
