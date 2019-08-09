@@ -10,7 +10,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (begin-for-syntax
   (define (cmd-parse-args <args>)
-    (define idfmt "<~a>")
+    (define hlpfmt "<~a>")
     (define args (syntax-e <args>))
     
     (if (pair? args)
@@ -24,24 +24,20 @@
                    (cond [(not (eq? (syntax-e <arg>) '...))
                           (transform (cons <arg> sgra)
                                      (cons #'String sepyt)
-                                     (cons (format-id <arg> idfmt <arg>) spleh)
+                                     (cons (format-id <arg> hlpfmt <arg>) spleh)
                                      (cons (datum->syntax <arg> (length scidni)) scidni)
                                      (cdr args))]
                          [(null? (cddr args))
-                          (define rest (cadr args))
-                          (let reverse-pair ([args rest]
-                                             [sgra sgra])
-                            (cond [(pair? sgra) (reverse-pair (cons (car sgra) args) (cdr sgra))]
-                                  [else (list (datum->syntax <args> args)
-                                              (reverse (list* #'* #'String sepyt))
-                                              (reverse (list* (format-id rest idfmt rest) <arg> spleh))
-                                              (reverse scidni))]))]
+                          (list (datum->syntax <args> (reverse (cons (cadr args) sgra)))
+                                (reverse (list* #'String #'(Listof String) (cdr sepyt)))
+                                (reverse (list* (format-id (cadr args) hlpfmt (cadr args)) <arg> spleh))
+                                (reverse scidni))]
                          [else (raise-syntax-error 'cmd-parse-args "misplaced '...'" <arg>)]))]
                 [(null? args) (list <args> (reverse sepyt) (reverse spleh) (reverse scidni))]
                 [else (list <args>
                             (reverse (list* #'* #'String sepyt))
-                            (reverse (list* #'[... ...] (format-id args idfmt args) spleh))
+                            (reverse (list* #'[... ...] (format-id args hlpfmt args) spleh))
                             (reverse scidni))]))
-        (list <args> (list #'String #'*) (list (format-id <args> idfmt args)) (list)))))
+        (list <args> (list #'String #'*) (list (format-id <args> hlpfmt args)) (list)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
