@@ -17,9 +17,9 @@
         (~alt (~optional (~seq #:program name) #:defaults ([name #'(find-system-path 'run-file)]))
               (~optional (~seq #:args args-form (~optional (~seq (~or #: :) Type)) body-expr ...) #:defaults ([args-form #'()] [Type #'Void]))
 
-              (~optional (~seq #:multi (~optional mlabel:str) mflags) #:defaults ([mlabel #'"<options> that can be specified any number of times"] [mflags #'()]))
-              (~optional (~seq #:once-each (~optional elabel:str) eflags) #:defaults ([elabel #'"<options> that can be specified at most once"] [eflags #'()]))
-              (~optional (~seq #:once-any (~optional alabel:str) aflags) #:defaults ([alabel #'"<options> that are mutually exclusive"] [aflags #'()]))
+              (~optional (~seq #:multi (~optional mlabel:str) mflags) #:defaults ([mlabel #'"multi-options"] [mflags #'()]))
+              (~optional (~seq #:once-each (~optional elabel:str) eflags) #:defaults ([elabel #'"individual options"] [eflags #'()]))
+              (~optional (~seq #:once-any (~optional alabel:str) aflags) #:defaults ([alabel #'"mutually exclusive options"] [aflags #'()]))
               
               ; options that occure [0, n) times
               (~seq #:banner banner:expr)
@@ -27,9 +27,9 @@
               (~seq #:ps ps:expr))
         ...)
      (with-syntax* ([display-help (format-id #'id "display-~a-help" #'id)]
-                    [([msize (mopt mopts ...) string->mflags mdesc ...] ...) (cmd-parse-flags #'mflags)]
-                    [([esize (eopt eopts ...) string->eflags edesc ...] ...) (cmd-parse-flags #'eflags)]
-                    [([asize (aopt aopts ...) string->aflags adesc ...] ...) (cmd-parse-flags #'aflags)]
+                    [([msize mfield (mopt mopts ...) string->mflags mdesc ...] ...) (cmd-parse-flags #'mflags)]
+                    [([esize efield (eopt eopts ...) string->eflags edesc ...] ...) (cmd-parse-flags #'eflags)]
+                    [([asize afield (aopt aopts ...) string->aflags adesc ...] ...) (cmd-parse-flags #'aflags)]
                     [(args [<String> ...] [<args> ...] [<idx> ...]) (cmd-parse-args #'args-form)])
        #`(begin (define display-help : (->* () (Output-Port #:program Any) Void)
                   (lambda [[/dev/stdout (current-output-port)] #:program [program name]]
@@ -48,16 +48,16 @@
                     (cmdopt-display-usage-help /dev/stdout (list desc ...))
                     
                     (when (> mwidth 0)
-                      (fprintf /dev/stdout "~n  ~a~n" mlabel)
-                      (cmdopt-display-flags /dev/stdout 'mopt (list 'mopts ...) string->mflags (list mdesc ...) msize width) ...)
+                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity mlabel))
+                      (cmdopt-display-flags /dev/stdout 'mopt (list 'mopts ...) string->mflags (list (cmdopt-help-identity mdesc) ...) msize width) ...)
                       
                     (when (> ewidth 0)
-                      (fprintf /dev/stdout "~n  ~a~n" elabel)
-                      (cmdopt-display-flags /dev/stdout 'eopt (list 'eopts ...) string->eflags (list edesc ...) esize width) ...)
+                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity elabel))
+                      (cmdopt-display-flags /dev/stdout 'eopt (list 'eopts ...) string->eflags (list (cmdopt-help-identity edesc) ...) esize width) ...)
                     
                     (when (> awidth 0)
-                      (fprintf /dev/stdout "~n  ~a~n" alabel)
-                      (cmdopt-display-flags /dev/stdout 'aopt (list 'aopts ...) string->aflags (list adesc ...) asize width) ...)
+                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity alabel))
+                      (cmdopt-display-flags /dev/stdout 'aopt (list 'aopts ...) string->aflags (list (cmdopt-help-identity adesc) ...) asize width) ...)
                     
                     (cmdopt-display-postscript /dev/stdout (list ps ...))))
 
@@ -82,7 +82,7 @@
    [(#\p profile) "Compile with profiling"]]
   #:multi
   [[(#\l link-flags) "lf" ; flag takes one argument
-                     "Add a flag <lf> for the linker"]]
+                     ["Add a flag ~a for the linker" '<lf>]]]
   #:once-any
   [[(#\o optimize-1) "Compile with optimization level 1"]
    [optimize-2       "Compile with optimization level 2,"

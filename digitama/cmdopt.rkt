@@ -15,6 +15,11 @@
 (begin-for-syntax
   (define hlpfmt "<~a>")
 
+  (define-syntax-class help
+    (pattern (fmt:string vs ...) #:attr value #'(list fmt vs ...))
+    (pattern desc:string #:attr value #'desc)
+    (pattern otherwise #:attr value (raise-syntax-error 'cmdopt-parse-flags "expect string? or (list*of string? (listof any))" #'otherwise)))
+
   (define (cmd-parse-args <args>)
     (define args (syntax-e <args>))
     
@@ -52,9 +57,9 @@
 
   (define (cmd-parse-flag <flag>)
     (syntax-parse <flag>
-      [(flag+alias description ...)
-       (define-values (chars words size) (cmd-collect-flag-aliases #'flag+alias))
-       (list* size (append chars words) #false (syntax->datum #'(description ...)))]
+      [(flag+alias description:help ...)
+       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias))
+       (list* size name flags #false (syntax-e #'(description.value ...)))]
       [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <flag>)]))
 
   (define (cmd-collect-flag-aliases <flag+alias>)
@@ -64,7 +69,11 @@
                   [flags (if (list? flags+alias) flags+alias (list <flag+alias>))]
                   [size -2])
       (if (null? flags)
-          (values (reverse srahc) (reverse sdrow) size)
+          (let ([chars (reverse srahc)]
+                [words (reverse sdrow)])
+            (cond [(pair? words) (values (append chars words) size (car words))]
+                  [(pair? chars) (values chars size (string->symbol (string (car chars))))]
+                  [else #| deadcode |# (raise-syntax-error 'cmdopt-parse-flags "requires at least one flag" <flag+alias>)]))
           (let* ([<f> (car flags)]
                  [f (syntax-e <f>)])
             (cond [(char? f) (collect (cons f srahc) sdrow (cdr flags) (+ size 2 1 1))]
@@ -72,6 +81,8 @@
                   [else (raise-syntax-error 'cmdopt-parse-flags "expected char? or symbol?" <f>)]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Cmdopt-Help (U String (Pairof String (Listof Any))))
+
 (define cmdopt-program-name : (-> Any Any)
   (lambda [program]
     (cond [(path? program) (file-name-from-path program)]
@@ -96,7 +107,7 @@
       (for ([description (in-list descriptions)])
         (fprintf /dev/stdout "  ~a~n" description)))))
 
-(define cmdopt-display-flags : (-> Output-Port (U Char Symbol) (Listof (U Char Symbol)) (Option Procedure) (Listof Any) Natural Natural Void)
+(define cmdopt-display-flags : (-> Output-Port (U Char Symbol) (Listof (U Char Symbol)) (Option Procedure) (Listof String) Natural Natural Void)
   (lambda [/dev/stdout flag alias transform descriptions0 this-width max-width]
     (fprintf /dev/stdout "    ~a~a" (if (char? flag) #\- '--) flag)
     (for ([alias (in-list alias)])
@@ -125,3 +136,8 @@
       (newline /dev/stdout)
       (for ([postscript (in-list postscripts)])
         (fprintf /dev/stdout "~a~n" postscript)))))
+
+(define cmdopt-help-identity : (-> Cmdopt-Help String)
+  (lambda [help]
+    (cond [(string? help) help]
+          [else (apply format help)])))
