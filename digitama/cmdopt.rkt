@@ -52,15 +52,23 @@
   
   (define (cmd-parse-flags <flags>)
     (syntax-parse <flags>
-      [(deflag ...) (map cmd-parse-flag (syntax->list #'(deflag ...)))]
+      [([flag+aliases (~optional (~seq #: Type) #:defaults ([Type #'Boolean])) rest ...] ...)
+       (for/list ([<deflag> (syntax->list #'([flag+aliases rest ...] ...))]
+                  [<Type> (syntax->list #'(Type ...))])
+         (cons (syntax-e <Type>) (cmd-parse-flag <deflag>)))]
       [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <flags>)]))
 
-  (define (cmd-parse-flag <flag>)
-    (syntax-parse <flag>
+  (define (cmd-parse-flag <deflag>)
+    (syntax-parse <deflag>
+      [(flag+alias arg:id args:id ... description:help ...)
+       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias))
+       (list* name size flags #false
+              (for/list ([<desc> (syntax-e #'(description.value ...))])
+                (cmd-format-description <desc> (syntax->datum #'(arg args ...)) #true)))]
       [(flag+alias description:help ...)
        (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias))
-       (list* size name flags #false (syntax-e #'(description.value ...)))]
-      [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <flag>)]))
+       (list* name size flags #false (syntax-e #'(description.value ...)))]
+      [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <deflag>)]))
 
   (define (cmd-collect-flag-aliases <flag+alias>)
     (define flags+alias (syntax-e <flag+alias>))
@@ -78,11 +86,34 @@
                  [f (syntax-e <f>)])
             (cond [(char? f) (collect (cons f srahc) sdrow (cdr flags) (+ size 2 1 1))]
                   [(symbol? f) (collect srahc (cons f sdrow) (cdr flags) (+ size 2 2 (string-length (symbol->string f))))]
-                  [else (raise-syntax-error 'cmdopt-parse-flags "expected char? or symbol?" <f>)]))))))
+                  [else (raise-syntax-error 'cmdopt-parse-flags "expected char? or symbol?" <f>)])))))
+
+  (define (cmd-format-description <desc> args ~~?)
+    (define desc (syntax-e <desc>))
+    (cond [(list? desc) (list* #'list (cmd-format-description (cadr desc) args #false) (cddr desc))]
+          [else (let ([arity (length args)]
+                      [/dev/stdin (open-input-string desc)]
+                      [/dev/stdout (open-output-string)])
+                  (let ~n ()
+                    (define ch (read-char /dev/stdin))
+                    (cond [(eof-object? ch) (get-output-string /dev/stdout)]
+                          [(not (eq? ch #\~)) (write-char ch /dev/stdout) (~n)]
+                          [else (let ([maybe-n (regexp-match #px"~?\\d*" /dev/stdin)])
+                                  (cond [(or (not maybe-n) (bytes=? (car maybe-n) #"")) (write-char #\~ /dev/stdout)]
+                                        [(bytes=? (car maybe-n) #"~") (unless ~~? (write-char #\~ /dev/stdout)) (write-char #\~ /dev/stdout)]
+                                        [(= (bytes-ref (car maybe-n) 0) #x7E) (unless ~~? (write-char #\~ /dev/stdout)) (write-bytes (car maybe-n) /dev/stdout)]
+                                        [else (let ([n (string->number (bytes->string/utf-8 (car maybe-n)))])
+                                                (cond [(= n 0) (raise-syntax-error 'cmdopt-parse-flags "flag index starts with 1" <desc>)]
+                                                      [(> n arity) (raise-syntax-error 'cmdopt-parse-flags "flag index too large" <desc>)]
+                                                      [else (write-char #\< /dev/stdout)
+                                                            (write (list-ref args (sub1 n)) /dev/stdout)
+                                                            (write-char #\> /dev/stdout)]))])
+                                  (~n))])))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Cmdopt-Help (U String (Pairof String (Listof Any))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cmdopt-program-name : (-> Any Any)
   (lambda [program]
     (cond [(path? program) (file-name-from-path program)]
