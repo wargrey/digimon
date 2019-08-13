@@ -27,15 +27,19 @@
               (~seq #:ps ps:expr)) ...)
      (with-syntax* ([parse-option (format-id #'opt "parse-~a" #'opt)]
                     [display-option (format-id #'opt "display-~a" #'opt)]
-                    [([MType mfield msize (mopt mopts ...) string->mflags mdesc ...] ...) (cmd-parse-flags #'mflags)]
-                    [([EType efield esize (eopt eopts ...) string->eflags edesc ...] ...) (cmd-parse-flags #'eflags)]
-                    [([AType afield asize (aopt aopts ...) string->aflags adesc ...] ...) (cmd-parse-flags #'aflags)]
+                    [(flags [mfield MType msize (mopt mopts ...) string->mflags mdesc ...] ...) (cmd-parse-flags #'mflags (make-hasheq))]
+                    [(flags [efield EType esize (eopt eopts ...) string->eflags edesc ...] ...) (cmd-parse-flags #'eflags (syntax-e #'flags))]
+                    [(flags [afield AType asize (aopt aopts ...) string->aflags adesc ...] ...) (cmd-parse-flags #'aflags (syntax-e #'flags))]
                     [(args [<String> ...] [<args> ...] [<idx> ...]) (cmd-parse-args #'args-form)])
        #`(begin (struct opt ([mfield : (Listof MType)] ...
                              [efield : (Option EType)] ...
                              [afield : (Option AType)] ...)
                   #:type-name Opt
                   #:transparent)
+
+                (define parse-option : (->* () ((U (Listof String) (Vectorof String))) (Values Any (Listof String) Boolean))
+                  (lambda [[argv (current-command-line-arguments)]]
+                    (values (void) null #true)))
                 
                 (define display-option : (->* () (Output-Port #:program Any) Void)
                   (lambda [[/dev/stdout (current-output-port)] #:program [program name]]
@@ -65,11 +69,7 @@
                       (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity alabel))
                       (cmdopt-display-flags /dev/stdout 'aopt (list 'aopts ...) string->aflags (list (cmdopt-help-identity adesc) ...) asize width) ...)
                     
-                    (cmdopt-display-postscript /dev/stdout (list ps ...))))
-
-                (define parse-option : (->* () ((U (Listof String) (Vectorof String))) (Values Any (Listof String) Boolean))
-                  (lambda [[argv (current-command-line-arguments)]]
-                    (values (void) null #true)))))]))
+                    (cmdopt-display-postscript /dev/stdout (list ps ...))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option cc-flags #: CC-Flags

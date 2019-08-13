@@ -50,27 +50,29 @@
                             (reverse scidni))]))
         (list <args> (list #'String #'*) (list (format-id <args> hlpfmt args)) (list))))
   
-  (define (cmd-parse-flags <flags>)
+  (define (cmd-parse-flags <flags> flagnames)
     (syntax-parse <flags>
-      [([flag+aliases (~optional (~seq #: Type) #:defaults ([Type #'Boolean])) rest ...] ...)
-       (for/list ([<deflag> (syntax->list #'([flag+aliases rest ...] ...))]
-                  [<Type> (syntax->list #'(Type ...))])
-         (cons (syntax-e <Type>) (cmd-parse-flag <deflag>)))]
+      [(deflag ...) (cons flagnames
+                          (for/list ([<deflag> (syntax->list #'(deflag ...))])
+                            (cmd-parse-flag <deflag> flagnames)))]
       [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <flags>)]))
 
-  (define (cmd-parse-flag <deflag>)
-    (syntax-parse <deflag>
-      [(flag+alias arg:id args:id ... description:help ...)
-       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias))
-       (list* name size flags #false
+  (define (cmd-parse-flag <deflag> flagnames)
+    (syntax-parse <deflag> #:datum-literals [: λ]
+      [(flag+alias (~optional (~seq (~or #:λ λ) string->datum) #:defaults ([string->datum #'values]))
+                   arg:id args:id ...
+                   (~optional (~seq (~or #: :) Type) #:defaults ([Type #'String]))
+                   description:help ...)
+       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias flagnames))
+       (list* name #'Type size flags #'string->datum
               (for/list ([<desc> (syntax-e #'(description.value ...))])
                 (cmd-format-description <desc> (syntax->datum #'(arg args ...)) #true)))]
       [(flag+alias description:help ...)
-       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias))
-       (list* name size flags #false (syntax-e #'(description.value ...)))]
+       (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias flagnames))
+       (list* name #'Boolean size flags #false (syntax-e #'(description.value ...)))]
       [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <deflag>)]))
 
-  (define (cmd-collect-flag-aliases <flag+alias>)
+  (define (cmd-collect-flag-aliases <flag+alias> flagnames)
     (define flags+alias (syntax-e <flag+alias>))
     (let collect ([srahc null]
                   [sdrow null]
@@ -79,14 +81,30 @@
       (if (null? flags)
           (let ([chars (reverse srahc)]
                 [words (reverse sdrow)])
-            (cond [(pair? words) (values (append chars words) size (car words))]
-                  [(pair? chars) (values chars size (string->symbol (string (car chars))))]
+            (cond [(pair? words) (values (append chars words) size (cmd-flag->name (car words)))]
+                  [(pair? chars) (values chars size (cmd-flag->name (car chars)))]
                   [else #| deadcode |# (raise-syntax-error 'cmdopt-parse-flags "requires at least one flag" <flag+alias>)]))
           (let* ([<f> (car flags)]
                  [f (syntax-e <f>)])
-            (cond [(char? f) (collect (cons f srahc) sdrow (cdr flags) (+ size 2 1 1))]
-                  [(symbol? f) (collect srahc (cons f sdrow) (cdr flags) (+ size 2 2 (string-length (symbol->string f))))]
+            (cond [(char? f) (collect (cons f srahc) sdrow (cdr flags) (+ size (cmd-option-size f <f> flagnames)))]
+                  [(symbol? f) (collect srahc (cons f sdrow) (cdr flags) (+ size (cmd-option-size f <f> flagnames)))]
                   [else (raise-syntax-error 'cmdopt-parse-flags "expected char? or symbol?" <f>)])))))
+  
+  (define (cmd-option-size flag <flag> flagnames)
+    (define name (cmd-flag->name flag))
+
+    (when (hash-has-key? flagnames name)
+      (raise-syntax-error 'cmdopt-parse-flags "duplicate flag"
+                          <flag> #false (list (hash-ref flagnames name))))
+
+    (hash-set! flagnames name <flag>)
+
+    (cond [(char? flag) (+ 2 1 1)]
+          [else (+ 2 2 (string-length (symbol->string flag)))]))
+
+  (define (cmd-flag->name flag)
+    (cond [(char? flag) (string->symbol (string flag))]
+          [else flag]))
 
   (define (cmd-format-description <desc> args ~~?)
     (define desc (syntax-e <desc>))
@@ -112,6 +130,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Cmdopt-Help (U String (Pairof String (Listof Any))))
+
+(define cmdopt-parse-arguments : (-> (HashTable Symbol String))
+  (lambda []
+    (make-hasheq)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cmdopt-program-name : (-> Any Any)
