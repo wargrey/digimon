@@ -10,8 +10,8 @@
   #:args (src ... dest)
 
   #:banner "secure copy (remote file copy program)"
-  #:ps "these cmdlet demonstrates optional arguments appearing before the last one"
-  #:ps "these must be at least one optional argument"
+  #:ps "this cmdlet demonstrates optional arguments appearing before the last one"
+  #:ps "there must be at least one optional argument"
   #:once-each
   [[(#\P port)    port
                   "specifies the ~1 to connect to on the remote host"]
@@ -27,7 +27,7 @@
 
 (define scp : (-> (Listof String) String Void)
   (lambda [srcs dest]
-    (display (list options srcs dest))))
+    (displayln (list options srcs dest))))
 
 (cond [(scp-flags-help? options) (display-scp-flags)]
       [else (with-handlers ([exn:fail:user? (λ [e] (display-scp-flags) (exit 1))])

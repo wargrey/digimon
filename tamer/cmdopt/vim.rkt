@@ -10,8 +10,8 @@
   #:args srcs
 
   #:banner "Vi IMproved, a programmer's text editor"
-  #:ps "these cmdlet demonstrates optional arguments"
-  #:ps "these optional arguments can be zero"
+  #:ps "this cmdlet demonstrates optional arguments"
+  #:ps "there can be zero optional arguments"
   #:once-each
   [[(#\l)         "lisp mode"]
    [(#\L #\r)     "list swap files, with information about using them for recovery"]]
