@@ -146,11 +146,11 @@
                          [else (raise-syntax-error 'cmd-parse-args "misplaced '...'" <arg>)]))]
                 [(null? args) (list (reverse sepyt) (reverse spleh) (reverse scidni) (reverse sfer))]
                 [else ; improper list of arguments
-                 (list (reverse (list* #'* #'String sepyt))
+                 (list (reverse (list* #'(Listof String) sepyt))
                        (reverse (list* #'[... ...] (format-id args hlpfmt args) spleh))
                        (reverse (cons (datum->syntax <args> (length scidni)) scidni))
                        (reverse #'cmdargs*-ref sfer))]))
-        (list (list #'String #'*) (list (format-id <args> hlpfmt args) #'[... ...])
+        (list (list #'(Listof String)) (list (format-id <args> hlpfmt args) #'[... ...])
               (list #'0) (list #'cmdargs*-ref)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -261,7 +261,7 @@
     (define argc : Index (vector-length argv))
     (define optc : Integer (- argc idx))
 
-    (cond [(<= optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
+    (cond [(< optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
           [else (cmdopt-subvector argv idx optc)])))
 
 (define cmdopt-subvector : (-> (Vectorof String) Integer Integer (Listof String))

@@ -11,6 +11,7 @@
 
   #:banner "secure copy (remote file copy program)"
   #:ps "these cmdlet demonstrates optional arguments appearing before the last one"
+  #:ps "these must be at least one optional argument"
   #:once-each
   [[(#\P port)    port
                   "specifies the ~1 to connect to on the remote host"]

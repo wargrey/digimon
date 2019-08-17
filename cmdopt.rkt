@@ -74,17 +74,17 @@
                     (fprintf /dev/stdout " ~a~n" args)
 
                     (cmdopt-display-usage-help /dev/stdout (list desc ...))
+
+                    (when (> awidth 0)
+                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity alabel))
+                      (cmdopt-display-flags /dev/stdout (list 'aoptions ...) (list (cmdopt-help-identity adesc) ...) asize width) ...)
                     
-                    (when (> mwidth 0)
-                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity mlabel))
-                      (cmdopt-display-flags /dev/stdout (list 'moptions ...) (list (cmdopt-help-identity mdesc) ...) msize width) ...)
-                      
                     (when (> ewidth 0)
                       (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity elabel))
                       (cmdopt-display-flags /dev/stdout (list 'eoptions ...) (list (cmdopt-help-identity edesc) ...) esize width) ...)
                     
-                    (when (> awidth 0)
-                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity alabel))
-                      (cmdopt-display-flags /dev/stdout (list 'aoptions ...) (list (cmdopt-help-identity adesc) ...) asize width) ...)
+                    (when (> mwidth 0)
+                      (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity mlabel))
+                      (cmdopt-display-flags /dev/stdout (list 'moptions ...) (list (cmdopt-help-identity mdesc) ...) msize width) ...)
                     
                     (cmdopt-display-postscript /dev/stdout (list ps ...))))))]))
