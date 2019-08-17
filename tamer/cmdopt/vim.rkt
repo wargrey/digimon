@@ -25,11 +25,8 @@
    [(#\d)         "diff mode"]
    [(#\y)         "easy mode"]])
 
-(define-values (options help? λargv) (parse-vim-flags))
+(define-values (options λargv) (parse-vim-flags))
 
-(unless (not help?)
-  (display-vim-flags))
-
-(with-handlers ([exn:fail:user? (λ [e] (display-vim-flags) (exit 1))])
-  (let-values ([(srcs) (λargv)])
-    (list options srcs)))
+(cond [(vim-flags-help? options) (display-vim-flags)]
+      [else (with-handlers ([exn:fail:user? (λ [e] (display-vim-flags) (exit 1))])
+              (list options (λargv)))])

@@ -36,12 +36,13 @@
                     [args (string-join (map symbol->string (syntax->datum #'(<args> ...))) " ")])
        #`(begin (struct opt ([mfield : (Listof MType)] ...
                              [efield : (Option EType)] ...
-                             [afield : (Option AType)] ...)
+                             [afield : (Option AType)] ...
+                             [help? : Boolean])
                   #:constructor-name opt-construct
                   #:type-name Opt
                   #:transparent)
                 
-                (define parse-option : (->* () ((U (Listof String) (Vectorof String)) #:program Any) (Values Opt Boolean (-> (Values Type ...))))
+                (define parse-option : (->* () ((U (Listof String) (Vectorof String)) #:program Any) (Values Opt (-> (List Type ...))))
                   (lambda [[argv (current-command-line-arguments)] #:program [program name]]
                     (define-values (options multi-options operands help?)
                       (let ([mfield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'mfield margc 'multi)))] ...
@@ -56,9 +57,10 @@
                     (define cmdopt : Opt
                       (opt-construct ((inst mopt-ref MType) multi-options 'mfield string->mflags) ...
                                      ((inst eopt-ref EType) options 'efield string->eflags) ...
-                                     ((inst aopt-ref AType) options 'afield string->aflags) ...))
+                                     ((inst aopt-ref AType) options 'afield string->aflags) ...
+                                     help?))
                     
-                    (values cmdopt help? (λ [] (values (ref program args operands idx) ...)))))
+                    (values cmdopt (λ [] (list (ref program args operands idx) ...)))))
                 
                 (define display-option : (->* () (Output-Port #:program Any) Void)
                   (lambda [[/dev/stdout (current-output-port)] #:program [program name]]
