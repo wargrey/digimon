@@ -161,7 +161,7 @@
 
 (define vector-null : (Vectorof String) (vector))
 
-(define cmdopt-parse-arguments : (-> Symbol (U (Listof String) (Vectorof String)) Cmdopt-Metaflag (Listof Symbol)
+(define cmdopt-parse-arguments : (-> Any (U (Listof String) (Vectorof String)) Cmdopt-Metaflag (Listof Symbol)
                                      (Values Cmdopt-Flags Cmdopt-MFlags (Vectorof String) Boolean))
   (lambda [pname arguments all-flags oa-names]
     (define options : Cmdopt-Flags (make-hasheq))
@@ -185,25 +185,25 @@
                                          (cmdopt-parse-flags pname -a argv argc all-flags oa-names options moptions idx))
                                        help?)]))]))))
 
-(define cmdopt-parse-flags : (-> Symbol Any (Vectorof String) Index Cmdopt-Metaflag (Listof Symbol) Cmdopt-Flags Cmdopt-MFlags Positive-Fixnum Positive-Fixnum)
+(define cmdopt-parse-flags : (-> Any Any (Vectorof String) Index Cmdopt-Metaflag (Listof Symbol) Cmdopt-Flags Cmdopt-MFlags Positive-Fixnum Positive-Fixnum)
   (lambda [pname -/-- argv argc all-flags oa-names options moptions idx]
-    (define flag.argc.type : (List Symbol Byte Symbol) (hash-ref all-flags -/-- (λ [] (raise-user-error pname "unrecognized option: ~a" -/--))))
+    (define flag.argc.type : (List Symbol Byte Symbol) (hash-ref all-flags -/-- (λ [] (cmdopt-error pname "unrecognized option: ~a" -/--))))
     (define-values (flag fargc type) (values (car flag.argc.type) (cadr flag.argc.type) (caddr flag.argc.type)))
     
     (unless (eq? type 'multi)
       (when (hash-has-key? options flag)
-        (raise-user-error pname "individual option has already been specified: ~a" -/--))
+        (cmdopt-error pname "individual option has already been specified: ~a" -/--))
     
       (when (eq? type 'once-any)
         (for ([once-any-flag (in-list oa-names)])
           (when (hash-has-key? options once-any-flag)
-            (raise-user-error pname "mutually exclusive option(~a) has already been specified: ~a" once-any-flag -/--)))))
+            (cmdopt-error pname "mutually exclusive option(~a) has already been specified: ~a" once-any-flag -/--)))))
 
     (define-values (fargv nidx)
       (cond [(= fargc 0) (values (list ".") idx)]
             [else (let ([nidx (+ idx fargc)]
                         [given (- argc idx)])
-                    (cond [(> nidx argc) (raise-user-error pname "option(~a) expects ~a, but given ~a" -/-- (~n_w fargc "argument") (~n_w given "argument"))]
+                    (cond [(> nidx argc) (cmdopt-error pname "option(~a) expects ~a, but given ~a" -/-- (~n_w fargc "argument") (~n_w given "argument"))]
                           [(> fargc 1) (values (build-list fargc (λ [[i : Index]] (vector-ref argv (+ idx i)))) nidx)]
                           [else (values (list (vector-ref argv idx)) nidx)]))]))
 
@@ -240,36 +240,41 @@
     (filter-map (λ [[flags : (Listof String)]] (and (pair? flags) (string->option (car flags))))
                 flags)))
 
-(define cmdarg-ref : (-> Symbol (Vectorof String) Integer String)
-  (lambda [pname argv idx]
+(define cmdarg-ref : (-> Any String (Vectorof String) Integer String)
+  (lambda [pname desc argv idx]
     (define argc : Index (vector-length argv))
     
-    (cond [(= idx -1) (vector-ref argv (- argc 1))]
-          [(<= argc idx) (raise-user-error pname "insufficient arguments")]
+    (cond [(= idx -1) (vector-ref argv (- argc 1))] ; `cmdargs-ref` occupies first, it will fail if no argcs  
+          [(<= argc idx) (cmdopt-error pname "insufficient arguments: ~a" desc)]
           [else (vector-ref argv idx)])))
 
-(define cmdargs-ref : (-> Symbol (Vectorof String) Integer (Listof String))
-  (lambda [pname argv idx]
+(define cmdargs-ref : (-> Any String (Vectorof String) Integer (Listof String))
+  (lambda [pname desc argv idx]
     (define argc : Index (vector-length argv))
     (define optc : Integer (- argc idx 1))
 
-    (cond [(<= optc 0) (raise-user-error pname "insufficient arguments")]
+    (cond [(<= optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
           [else (cmdopt-subvector argv idx optc)])))
 
-(define cmdargs*-ref : (-> Symbol (Vectorof String) Integer (Listof String))
-  (lambda [pname argv idx]
-    null))
+(define cmdargs*-ref : (-> Any String (Vectorof String) Integer (Listof String))
+  (lambda [pname desc argv idx]
+    (define argc : Index (vector-length argv))
+    (define optc : Integer (- argc idx))
+
+    (cond [(<= optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
+          [else (cmdopt-subvector argv idx optc)])))
 
 (define cmdopt-subvector : (-> (Vectorof String) Integer Integer (Listof String))
   (lambda [argv idx argc]
     (build-list argc (λ [[i : Index]] (vector-ref argv (+ idx i))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cmdopt-program-name : (-> Any Any)
+(define cmdopt-program-name : (-> Any Symbol)
   (lambda [program]
-    (cond [(path? program) (file-name-from-path program)]
-          [(list? program) (string-join (map ~a program))]
-          [else program])))
+    (cond [(symbol? program) program]
+          [(path? program) (cmdopt-path->symbol program)]
+          [(list? program) (string->symbol (string-join (map ~a program)))]
+          [else (string->symbol (~a program))])))
 
 (define cmdopt-display-banner : (-> Output-Port (Listof Any) Void)
   (lambda [/dev/stdout banners0]
@@ -325,3 +330,16 @@
   (lambda [help]
     (cond [(string? help) help]
           [else (apply format help)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cmdopt-error : (-> Any String Any * Nothing)
+  (lambda [pany msgfmt . args]
+    (apply raise-user-error (cmdopt-program-name pany) msgfmt args)))
+
+(define cmdopt-path->symbol : (-> Path Symbol)
+  (lambda [p]
+    (define basename : (Option Path)
+      (let ([file (file-name-from-path p)])
+        (and file (path-replace-extension file #""))))
+    
+    (string->symbol (path->string (or basename p)))))
