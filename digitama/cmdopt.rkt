@@ -14,6 +14,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 (require (for-syntax racket/string))
+(require (for-syntax racket/list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (begin-for-syntax
@@ -24,6 +25,28 @@
     (pattern (fmt:string vs ...) #:attr value #'(list fmt vs ...))
     (pattern desc:string #:attr value #'desc)
     (pattern otherwise #:attr value (raise-syntax-error 'cmdopt-parse-flags "expect string? or (list*of string? (listof any))" #'otherwise)))
+
+  (define (make-cmdopt-ref <n>)
+    (define n (syntax-e <n>))
+    (define maybe-flags (datum->syntax <n> 'maybe-flags))
+    
+    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof String))] [name : Symbol] [strings->option : (-> #,@(make-list n #'String) a)]] : (Option a)
+        (define #,maybe-flags : (Listof String) (hash-ref opts name (λ [] null)))
+        
+        (and (= (length #,maybe-flags) #,n)
+             (strings->option #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref maybe-flags i))))))))
+  
+  (define (make-cmdmopt-ref <n>)
+    (define n (syntax-e <n>))
+    (define flags (datum->syntax <n> 'flags))
+    
+    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof (Listof String)))] [name : Symbol] [strings->option : (-> #,@(make-list n #'String) a)]] : (Listof a)
+        (define flagses : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
+        
+        (filter-map (λ [[#,flags : (Listof String)]]
+                      (and (= (length #,flags) #,n)
+                           (strings->option #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref flags i)))))))
+                    (reverse flagses))))
   
   (define (cmd-parse-flags <flags> flagnames multiple?)
     (syntax-parse <flags>
@@ -47,7 +70,9 @@
            (raise-syntax-error 'cmdopt-parse-flags (format "no more than ~a arguments" fmargc)
                                (car over-argv) #false (cdr over-argv))))
 
-       (list* name #'Type arity size flags #'string->datum (if multiple? #'cmdmopt1-ref #'cmdopt1-ref)
+       (list* name #'Type arity size flags #'string->datum
+              (cond [(= arity 1) (if multiple? #'cmdmopt1-ref #'cmdopt1-ref)]
+                    [else ((if multiple? make-cmdmopt-ref make-cmdopt-ref) (datum->syntax #'arg arity))])
               (let ([argv-data (map syntax-e argv)])
                 (cons (cmd-format-description (cmd-flag-arguments-description arity) arity argv-data #true)
                       (for/list ([<desc> (syntax-e #'(description.value ...))])
@@ -124,34 +149,38 @@
   (define (cmd-parse-args <args>)
     (define args (syntax-e <args>))
     
-    (if (pair? args)
-        (let transform ([sepyt null]
-                        [spleh null]
-                        [scidni null]
-                        [sfer null]
-                        [args args])
-          (cond [(pair? args)
-                 (let ([<arg> (car args)])
-                   (cond [(not (eq? (syntax-e <arg>) '...))
-                          (transform (cons #'String sepyt)
-                                     (cons (format-id <arg> hlpfmt <arg>) spleh)
-                                     (cons (datum->syntax <arg> (length scidni)) scidni)
-                                     (cons #'cmdarg-ref sfer)
-                                     (cdr args))]
-                         [(and (null? (cddr args)) (pair? sepyt))
-                          (list (reverse (list* #'String #'(Listof String) (cdr sepyt)))
-                                (reverse (list* (format-id (cadr args) hlpfmt (cadr args)) <arg> spleh))
-                                (reverse (list* #'-1 scidni))
-                                (reverse (list* #'cmdarg-ref #'cmdargs-ref (cdr sfer))))]
-                         [else (raise-syntax-error 'cmd-parse-args "misplaced '...'" <arg>)]))]
-                [(null? args) (list (reverse sepyt) (reverse spleh) (reverse scidni) (reverse sfer))]
-                [else ; improper list of arguments
-                 (list (reverse (list* #'(Listof String) sepyt))
-                       (reverse (list* #'[... ...] (format-id args hlpfmt args) spleh))
-                       (reverse (cons (datum->syntax <args> (length scidni)) scidni))
-                       (reverse #'cmdargs*-ref sfer))]))
-        (list (list #'(Listof String)) (list (format-id <args> hlpfmt args) #'[... ...])
-              (list #'0) (list #'cmdargs*-ref)))))
+    (cond [(pair? args)
+           (let transform ([sepyt null]
+                           [sgra null]
+                           [spleh null]
+                           [sfer null]
+                           [args args])
+             (cond [(pair? args)
+                    (let ([<arg> (car args)])
+                      (cond [(not (eq? (syntax-e <arg>) '...))
+                             (transform (cons #'String sepyt)
+                                        (cons <arg> sgra)
+                                        (cons (format-id <arg> hlpfmt <arg>) spleh)
+                                        (cons #'cmdarg-ref sfer)
+                                        (cdr args))]
+                            [(and (null? (cddr args)) (pair? sepyt))
+                             (list (reverse (list* #'String #'(Listof String) (cdr sepyt)))
+                                   (reverse (list* (cadr args) sgra))
+                                   (reverse (list* (format-id (cadr args) hlpfmt (cadr args)) <arg> spleh))
+                                   (reverse (list* #'cmdarg-ref #'cmdarg...-ref (cdr sfer))))]
+                            [else (raise-syntax-error 'cmd-parse-args "misplaced '...'" <arg>)]))]
+                   [(null? args) (list (reverse sepyt) (reverse spleh) (reverse sgra) (reverse sfer))]
+                   [else ; improper list of arguments
+                    (list (reverse (list* #'(Listof String) sepyt))
+                          (reverse (cons <args> sgra))
+                          (reverse (list* #'[... ...] (format-id args hlpfmt args) spleh))
+                          (reverse #'cmdargs*-ref sfer))]))]
+          [(not (null? args))
+           (list (list #'(Listof String))
+                 (list <args>)
+                 (list (format-id <args> hlpfmt args) #'[... ...])
+                 (list #'cmdargs*-ref))]
+          [else (list null null null null)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Cmdopt-Help (U String (Pairof String (Listof Any))))
@@ -236,33 +265,32 @@
 
 (define cmdmopt1-ref : (All (a) (-> (HashTable Symbol (Listof (Listof String))) Symbol (-> String a) (Listof a)))
   (lambda [opts name string->option]
-    (define flags : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
+    (define flagses : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
     (filter-map (λ [[flags : (Listof String)]] (and (pair? flags) (string->option (car flags))))
-                flags)))
+                (reverse flagses))))
 
-(define cmdarg-ref : (-> Any String (Vectorof String) Integer String)
-  (lambda [pname desc argv idx]
+(define cmdarg-ref : (-> Any Symbol (Vectorof String) Nonnegative-Fixnum (Values String Nonnegative-Fixnum))
+  (lambda [pname argu argv idx]
     (define argc : Index (vector-length argv))
     
-    (cond [(= idx -1) (vector-ref argv (- argc 1))] ; `cmdargs-ref` occupies first, it will fail if no argcs  
-          [(<= argc idx) (cmdopt-error pname "insufficient arguments: ~a" desc)]
-          [else (vector-ref argv idx)])))
+    (cond [(<= argc idx) (cmdopt-error pname "insufficient arguments for <~a>" argu)]
+          [else (values (vector-ref argv idx) (+ idx 1))])))
 
-(define cmdargs-ref : (-> Any String (Vectorof String) Integer (Listof String))
-  (lambda [pname desc argv idx]
-    (define argc : Index (vector-length argv))
-    (define optc : Integer (- argc idx 1))
+(define cmdarg...-ref : (-> Any Symbol (Vectorof String) Nonnegative-Fixnum (Values (Listof String) Nonnegative-Fixnum))
+  (lambda [pname argu argv idx]
+    (define argc-1 : Fixnum (- (vector-length argv) 1))
+    (define optc : Integer (- argc-1 idx))
 
-    (cond [(<= optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
-          [else (cmdopt-subvector argv idx optc)])))
+    (cond [(or (<= argc-1 0) (<= optc 0)) (cmdopt-error pname "insufficient arguments for <~a>" argu)]
+          [else (values (cmdopt-subvector argv idx optc) argc-1)])))
 
-(define cmdargs*-ref : (-> Any String (Vectorof String) Integer (Listof String))
-  (lambda [pname desc argv idx]
+(define cmdargs*-ref : (-> Any Symbol (Vectorof String) Integer (Values (Listof String) Integer))
+  (lambda [pname argu argv idx]
     (define argc : Index (vector-length argv))
     (define optc : Integer (- argc idx))
 
-    (cond [(< optc 0) (cmdopt-error pname "insufficient arguments: ~a" desc)]
-          [else (cmdopt-subvector argv idx optc)])))
+    (cond [(< optc 0) (cmdopt-error pname "insufficient arguments for <~a>" argu)]
+          [else (values (cmdopt-subvector argv idx optc) argc)])))
 
 (define cmdopt-subvector : (-> (Vectorof String) Integer Integer (Listof String))
   (lambda [argv idx argc]
@@ -285,6 +313,20 @@
         (displayln heading /dev/stdout))
 
       (newline /dev/stdout))))
+
+(define cmdopt-display-args : (-> Output-Port (Listof Symbol) Void)
+  (lambda [/dev/stdout args]
+    (define opt-idx : Integer (if (and (pair? args) (eq? (last args) '...)) (- (length args) 2) -2))
+    (define ...idx : Integer (+ opt-idx 1))
+
+    (for ([arg (in-list args)]
+          [idx (in-naturals)])
+      (fprintf /dev/stdout (cond [(= idx opt-idx) " [~a"]
+                                 [(= idx ...idx) " ~a]"]
+                                 [else " ~a"])
+               arg))
+    
+    (newline /dev/stdout)))
 
 (define cmdopt-display-usage-help : (-> Output-Port (Listof Any) Void)
   (lambda [/dev/stdout descriptions0]

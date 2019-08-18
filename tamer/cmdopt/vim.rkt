@@ -28,5 +28,5 @@
 (define-values (options λargv) (parse-vim-flags))
 
 (cond [(vim-flags-help? options) (display-vim-flags)]
-      [else (with-handlers ([exn:fail:user? (λ [e] (display-vim-flags) (exit 1))])
+      [else (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-vim-flags #:user-error e #:exit 1))])
               (list options (λargv)))])

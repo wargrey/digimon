@@ -32,8 +32,7 @@
                     [(flags [mfield MType margc msize (moptions ...) string->mflags mopt-ref mdesc ...] ...) (cmd-parse-flags #'mflags (make-hasheq) #true)]
                     [(flags [efield EType eargc esize (eoptions ...) string->eflags eopt-ref edesc ...] ...) (cmd-parse-flags #'eflags (syntax-e #'flags) #false)]
                     [(flags [afield AType aargc asize (aoptions ...) string->aflags aopt-ref adesc ...] ...) (cmd-parse-flags #'aflags (syntax-e #'flags) #false)]
-                    [([Type ...] [<args> ...] [idx ...] [ref ...]) (cmd-parse-args #'args-form)]
-                    [args (string-join (map symbol->string (syntax->datum #'(<args> ...))) " ")])
+                    [([Type ...] [argu ...] [<args> ...] [ref ...]) (cmd-parse-args #'args-form)])
        #`(begin (struct opt ([mfield : (Listof MType)] ...
                              [efield : (Option EType)] ...
                              [afield : (Option AType)] ...
@@ -60,20 +59,27 @@
                                      ((inst aopt-ref AType) options 'afield string->aflags) ...
                                      help?))
                     
-                    (values cmdopt (λ [] (list (ref program args operands idx) ...)))))
+                    (values cmdopt (λ [] (let*-values ([(idx) 0]
+                                                       [(argu idx) (ref program 'argu operands idx)] ...)
+                                           (when (< idx (vector-length operands))
+                                             (cmdopt-error program "too many arguments"))
+                                           (list argu ...))))))
                 
-                (define display-option : (->* () (Output-Port #:program Any) Void)
-                  (lambda [[/dev/stdout (current-output-port)] #:program [program name]]
+                (define display-option : (->* () (Output-Port #:program Any #:user-error (Option exn:fail:user) #:exit (Option Byte)) Void)
+                  (lambda [[/dev/stdout (current-output-port)] #:program [program name] #:user-error [e #false] #:exit [retcode #false]]
                     (define mwidth : Natural (max 0 msize ...))
                     (define ewidth : Natural (max 0 esize ...))
                     (define awidth : Natural (max 0 asize ...))
                     (define width : Natural (max mwidth ewidth awidth))
+
+                    (unless (not e)
+                      (fprintf /dev/stdout "~a~n~n" (exn-message e)))
                     
                     (cmdopt-display-banner /dev/stdout (list banner ...))
 
                     (fprintf /dev/stdout "usage: ~a" (cmdopt-program-name program))
                     (when (> width 0) (fprintf /dev/stdout " [<options>]"))
-                    (fprintf /dev/stdout " ~a~n" args)
+                    (cmdopt-display-args /dev/stdout (list '<args> ...))
 
                     (cmdopt-display-usage-help /dev/stdout (list desc ...))
 
@@ -89,4 +95,7 @@
                       (fprintf /dev/stdout "~n  ~a~n" (cmdopt-help-identity mlabel))
                       (cmdopt-display-flags /dev/stdout (list 'moptions ...) (list (cmdopt-help-identity mdesc) ...) msize width) ...)
                     
-                    (cmdopt-display-postscript /dev/stdout (list ps ...))))))]))
+                    (cmdopt-display-postscript /dev/stdout (list ps ...))
+
+                    (unless (not retcode)
+                      (exit retcode))))))]))
