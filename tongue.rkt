@@ -3,7 +3,7 @@
 (provide speak ~speak Tongue-Fold)
 (provide current-tongue tongue-list default-tongue default-fallback-tongue)
 (provide default-tongue-paths default-tongue-extension default-fold-tongue)
-(provide (struct-out Tongue-Info))
+(provide (struct-out tongue-info))
 
 (require racket/path)
 (require racket/list)
@@ -13,7 +13,7 @@
 (require "system.rkt")
 
 (define-type Tongue-Fold (-> Path (Immutable-HashTable Symbol String) (Immutable-HashTable Symbol String)))
-(struct Tongue-Info ([fold : Tongue-Fold] [extension : Bytes]))
+(struct tongue-info ([fold : Tongue-Fold] [extension : Bytes]) #:type-name Tongue-Info)
 
 ; https://www.w3.org/International/questions/qa-lang-2or3.en.html
 ; https://www.w3.org/International/articles/language-tags
@@ -106,7 +106,7 @@
         (let ([reader.rkt (build-path tongue-root "reader.rkt")])
           (cond [(not (file-exists? reader.rkt)) (values default-fold-tongue default-tongue-extension)]
                 [else (let ([& (dynamic-require reader.rkt 'tongue-info)])
-                        (cond [(Tongue-Info? &) (values (Tongue-Info-fold &) (Tongue-Info-extension &))]
+                        (cond [(tongue-info? &) (values (tongue-info-fold &) (tongue-info-extension &))]
                               [else (values default-fold-tongue default-tongue-extension)]))])))
       (for/fold ([dictionaries : (Immutable-HashTable Symbol (Immutable-HashTable Symbol String)) dictionaries])
                 ([dialect.ext (in-list (directory-list (build-path tongue-root language) #:build? #true))]
