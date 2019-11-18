@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out) cmdopt-error)
+(provide (all-defined-out))
 
 (require "digitama/cmdopt.rkt")
 
@@ -54,10 +54,11 @@
                                                 (list 'afield ...))))
 
                     (define cmdopt : Opt
-                      (opt-construct ((inst mopt-ref MType) multi-options 'mfield string->mflags) ...
-                                     ((inst eopt-ref EType) options 'efield string->eflags) ...
-                                     ((inst aopt-ref AType) options 'afield string->aflags) ...
-                                     help?))
+                      (with-handlers ([exn:fail? (λ [[ef : exn:fail]] (cmdopt-error program (exn-message ef)))])
+                        (opt-construct ((inst mopt-ref MType) multi-options 'mfield string->mflags) ...
+                                       ((inst eopt-ref EType) options 'efield string->eflags) ...
+                                       ((inst aopt-ref AType) options 'afield string->aflags) ...
+                                       help?)))
                     
                     (values cmdopt (λ [] (let*-values ([(idx) 0]
                                                        [(argu idx) (ref program 'argu operands idx)] ...)
