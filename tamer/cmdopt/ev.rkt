@@ -37,23 +37,22 @@
   [[(#\p pmf) #:=> pmf-col x px #: (Pairof Flonum Flonum)
               "the table of pmf"]])
 
-(define-values (options λargv) (parse-ev-flags))
+(define-values (options λargv) (parse-ev-flags #:help-output-port (current-output-port)))
 
-(cond [(ev-flags-help? options) (display-ev-flags)]
-      [else (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-ev-flags #:user-error e #:exit 1))])
-              (define pmf : (Listof (Pairof Flonum Flonum)) (ev-flags-pmf options))
-              (when (null? pmf) (raise-user-error 'EV "empty sample"))
-              
-              (define xs : (Listof Flonum) (map (inst car Flonum Flonum) pmf))
-              (define ps : (Listof Flonum) (map (inst cdr Flonum Flonum) pmf))
-              
-              (define μ : Flonum  (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* x p))) 0.0 xs ps))
-              (define Ex² : Flonum (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* x x p))) 0.0 xs ps))
-              (define σ² : Flonum (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* (flexpt (- x μ) 2.0) p))) 0.0 xs ps))
-              (define σ : Flonum (flexpt σ² 0.5))
-              
-              (printf "μ: ~a; Ex²: ~a; σ²: ~a; σ: ~a~n"
-                      (~r μ #:precision '(= 4))
-                      (~r Ex² #:precision '(= 4))
-                      (~r σ² #:precision '(= 4))
-                      (~r σ #:precision '(= 4))))])
+(with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-ev-flags #:user-error e #:exit 1))])
+  (define pmf : (Listof (Pairof Flonum Flonum)) (ev-flags-pmf options))
+  (when (null? pmf) (raise-user-error 'EV "empty sample"))
+  
+  (define xs : (Listof Flonum) (map (inst car Flonum Flonum) pmf))
+  (define ps : (Listof Flonum) (map (inst cdr Flonum Flonum) pmf))
+  
+  (define μ : Flonum  (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* x p))) 0.0 xs ps))
+  (define Ex² : Flonum (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* x x p))) 0.0 xs ps))
+  (define σ² : Flonum (foldl (λ [[x : Flonum] [p : Flonum] [Σ : Flonum]] (+ Σ (* (flexpt (- x μ) 2.0) p))) 0.0 xs ps))
+  (define σ : Flonum (flexpt σ² 0.5))
+  
+  (printf "μ: ~a; Ex²: ~a; σ²: ~a; σ: ~a~n"
+          (~r μ #:precision '(= 4))
+          (~r Ex² #:precision '(= 4))
+          (~r σ² #:precision '(= 4))
+          (~r σ #:precision '(= 4))))

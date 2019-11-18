@@ -190,9 +190,9 @@
 
 (define vector-null : (Vectorof String) (vector))
 
-(define cmdopt-parse-arguments : (-> Any (U (Listof String) (Vectorof String)) Cmdopt-Metaflag (Listof Symbol)
+(define cmdopt-parse-arguments : (-> Any (U (Listof String) (Vectorof String)) String Cmdopt-Metaflag (Listof Symbol)
                                      (Values Cmdopt-Flags Cmdopt-MFlags (Vectorof String) Boolean))
-  (lambda [pname arguments all-flags oa-names]
+  (lambda [pname arguments --help all-flags oa-names]
     (define options : Cmdopt-Flags (make-hasheq))
     (define moptions : Cmdopt-MFlags (make-hasheq))
     (define argv : (Vectorof String) (if (list? arguments) (list->vector arguments) arguments))
@@ -204,7 +204,7 @@
             [else (let ([token (vector-ref argv i)])
                     (cond [(string=? token "") (parse (+ i 1) help?)]
                           [(string=? token "--") (values options moptions (vector-drop argv (+ i 1)) help?)]
-                          [(string=? token "--help") (parse (+ i 1) #true)]
+                          [(string=? token --help) (parse (+ i 1) #true)]
                           [(cmdopt-operand? token) (values options moptions (if (eq? i 0) argv (vector-drop argv i)) help?)]
                           [(eq? (string-ref token 1) #\-)
                            (let ([--arg (string->symbol (substring token 2))])

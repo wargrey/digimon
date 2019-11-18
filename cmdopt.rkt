@@ -16,6 +16,7 @@
   (syntax-parse stx #:datum-literals [:]
     [(_ opt:id (~or #: :) Opt
         (~alt (~optional (~seq #:program name) #:defaults ([name #'(find-system-path 'run-file)]))
+              (~optional (~seq #:help-flag help-flag) #:defaults ([help-flag #''--help]))
               (~optional (~seq #:args args-form) #:defaults ([args-form #'()]))
               
               (~optional (~seq #:multi (~optional mlabel:str) mflags) #:defaults ([mlabel #'"multi-options"] [mflags #'()]))
@@ -41,17 +42,23 @@
                   #:type-name Opt
                   #:transparent)
                 
-                (define parse-option : (->* () ((U (Listof String) (Vectorof String)) #:program Any) (Values Opt (-> (List Type ...))))
-                  (lambda [[argv (current-command-line-arguments)] #:program [program name]]
+                (define parse-option : (->* ()
+                                            ((U (Listof String) (Vectorof String))
+                                             #:program Any #:help-flag Symbol #:help-output-port (Option Output-Port))
+                                            (Values Opt (-> (List Type ...))))
+                  (lambda [[argv (current-command-line-arguments)] #:program [program name] #:help-flag [--help help-flag] #:help-output-port [/dev/hlpout #false]]
                     (define-values (options multi-options operands help?)
                       (let ([mfield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'mfield margc 'multi)))] ...
                             [efield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'efield eargc 'once-each)))] ...
                             [afield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'afield aargc 'once-any)))] ...)
-                        (cmdopt-parse-arguments program argv
+                        (cmdopt-parse-arguments program argv (symbol->string --help)
                                                 (make-immutable-hasheq (append (map mfield (list 'moptions ...)) ...
                                                                                (map efield (list 'eoptions ...)) ...
                                                                                (map afield (list 'aoptions ...)) ...))
                                                 (list 'afield ...))))
+
+                    (when (and help? /dev/hlpout)
+                      (display-option /dev/hlpout #:program program #:exit 0))
 
                     (define cmdopt : Opt
                       (with-handlers ([exn:fail? (λ [[ef : exn:fail]] (cmdopt-error program (exn-message ef)))])
