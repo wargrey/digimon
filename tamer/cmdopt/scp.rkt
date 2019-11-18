@@ -11,7 +11,7 @@
 
   #:banner "secure copy (remote file copy program)"
   #:ps "this cmdlet demonstrates optional arguments appearing before the last one"
-  #:ps "there must be at least one optional argument"
+  #:ps "at least one optional argument is required"
   #:once-each
   [[(#\P port)    port
                   "specifies the ~1 to connect to on the remote host"]
@@ -25,7 +25,7 @@
 
 (define-values (options λargv) (parse-scp-flags))
 
-(define scp : (-> (Listof String) String Void)
+(define scp : (-> (Pairof String (Listof String)) String Void)
   (lambda [srcs dest]
     (displayln (list options srcs dest))))
 

@@ -164,17 +164,17 @@
                                         (cons #'cmdarg-ref sfer)
                                         (cdr args))]
                             [(and (null? (cddr args)) (pair? sepyt))
-                             (list (reverse (list* #'String #'(Listof String) (cdr sepyt)))
+                             (list (reverse (list* #'String #'(Pairof String (Listof String)) (cdr sepyt)))
                                    (reverse (list* (cadr args) sgra))
                                    (reverse (list* (format-id (cadr args) hlpfmt (cadr args)) <arg> spleh))
                                    (reverse (list* #'cmdarg-ref #'cmdarg...-ref (cdr sfer))))]
                             [else (raise-syntax-error 'cmd-parse-args "misplaced '...'" <arg>)]))]
                    [(null? args) (list (reverse sepyt) (reverse spleh) (reverse sgra) (reverse sfer))]
                    [else ; improper list of arguments
-                    (list (reverse (list* #'(Listof String) sepyt))
-                          (reverse (cons <args> sgra))
+                    (list (reverse (cons #'(Listof String) sepyt))
+                          (reverse (cons args sgra))
                           (reverse (list* #'[... ...] (format-id args hlpfmt args) spleh))
-                          (reverse #'cmdargs*-ref sfer))]))]
+                          (reverse (cons #'cmdargs*-ref sfer)))]))]
           [(not (null? args))
            (list (list #'(Listof String))
                  (list <args>)
@@ -276,13 +276,13 @@
     (cond [(<= argc idx) (cmdopt-error pname "insufficient arguments for <~a>" argu)]
           [else (values (vector-ref argv idx) (+ idx 1))])))
 
-(define cmdarg...-ref : (-> Any Symbol (Vectorof String) Nonnegative-Fixnum (Values (Listof String) Nonnegative-Fixnum))
+(define cmdarg...-ref : (-> Any Symbol (Vectorof String) Nonnegative-Fixnum (Values (Pairof String (Listof String)) Nonnegative-Fixnum))
   (lambda [pname argu argv idx]
     (define argc-1 : Fixnum (- (vector-length argv) 1))
     (define optc : Integer (- argc-1 idx))
 
     (cond [(or (<= argc-1 0) (<= optc 0)) (cmdopt-error pname "insufficient arguments for <~a>" argu)]
-          [else (values (cmdopt-subvector argv idx optc) argc-1)])))
+          [else (values (assert (cmdopt-subvector argv idx optc) pair?) argc-1)])))
 
 (define cmdargs*-ref : (-> Any Symbol (Vectorof String) Integer (Values (Listof String) Integer))
   (lambda [pname argu argv idx]
