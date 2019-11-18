@@ -99,7 +99,8 @@
                  [f (syntax-e <f>)])
             (cond [(char? f) (collect (cons f srahc) sdrow (cdr flags) (+ size (cmd-option-size f <f> flagnames)))]
                   [(symbol? f) (collect srahc (cons f sdrow) (cdr flags) (+ size (cmd-option-size f <f> flagnames)))]
-                  [else (raise-syntax-error 'cmdopt-parse-flags "expected char? or symbol?" <f>)])))))
+                  [(number? f) (collect srahc (cons (string->symbol (number->string f)) sdrow) (cdr flags) (+ size (cmd-option-size f <f> flagnames)))]
+                  [else (raise-syntax-error 'cmdopt-parse-flags "expected char?, symbol? or number?" <f>)])))))
   
   (define (cmd-option-size flag <flag> flagnames)
     (define name (cmd-flag->name flag))
@@ -113,8 +114,9 @@
 
     (hash-set! flagnames name <flag>)
 
-    (cond [(char? flag) (+ 2 1 1)]
-          [else (+ 2 2 (string-length (symbol->string flag)))]))
+    (cond [(symbol? flag) (+ 2 2 (string-length (symbol->string flag)))]
+          [(number? flag) (+ 2 2 (string-length (number->string flag)))]
+          [else (+ 2 1 1)]))
 
   (define (cmd-flag->name flag)
     (cond [(char? flag) (string->symbol (string flag))]
