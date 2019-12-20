@@ -202,16 +202,30 @@
                                                                            [_ 'lightcyan])))]))))))))))))
 
 (define-syntax (tamer-action stx)
-  (syntax-case stx []
-    [(_ s-exps ...)
+  (syntax-parse stx #:literals []
+    [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
+        s-exps ...)
      #'(let ([story-snapshot (tamer-story)]
              [zone-snapshot (tamer-zone)])
+         (define example-label
+           (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
+                 [else label]))
          (make-traverse-block
           (thunk* (parameterize ([tamer-story story-snapshot]
                                  [tamer-zone zone-snapshot])
-                    (examples #:label #false
+                    (examples #:label example-label
                               #:eval (tamer-zone)
                               s-exps ...)))))]))
+
+(define-syntax (tamer-answer stx)
+  (syntax-case stx []
+    [(_ exprs ...)
+     #'(tamer-action #:label 'answer exprs ...)]))
+
+(define-syntax (tamer-solution stx)
+  (syntax-case stx []
+    [(_ exprs ...)
+     #'(tamer-action #:label 'solution exprs ...)]))
 
 (define tamer-story-space
   (lambda []

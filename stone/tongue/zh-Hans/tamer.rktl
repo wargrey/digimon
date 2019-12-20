@@ -5,4 +5,6 @@
  (appendix . "附录")
  (bibliography . "参考条目")
  (digimon . "相关项目")
- (index . "索引"))
+ (index . "索引")
+ (solution . "解")
+ (answer . "答"))

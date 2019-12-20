@@ -5,4 +5,6 @@
  (appendix . "Appendix")
  (bibliography . "Bibliography")
  (digimon . "Partner Digimon")
- (index . "Index"))
+ (index . "Index")
+ (solution . "Solution")
+ (answer . "Answer"))
