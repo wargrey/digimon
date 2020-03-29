@@ -5,4 +5,5 @@
 
 (define Info.plist (build-path (assert (path-only (#%file)) path?) "Info.plist"))
 
-(plist-pretty-print Info.plist)
+(read-bplist Info.plist)
+(bplist-pretty-print Info.plist)
