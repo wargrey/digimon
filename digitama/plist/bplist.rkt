@@ -69,15 +69,18 @@
 
         (for ([pos (in-range 8)])
           (bplist-print-byte /dev/bplin /dev/stdout pos (if (< pos 7) #\space #\newline) string-upcase))
-        (newline /dev/stdout)
+        (bplist-newline /dev/stdout)
 
         (let print-object-table ([pos : Natural 8])
           (when (< pos offset-table-index)
-            (define-values (object-type object-size) (bplist-extract-object-tag (bytes-ref /dev/bplin pos)))
+            (define-values (object-type object-size) (bplist-extract-byte-tag (bytes-ref /dev/bplin pos)))
             (define defined-type? : Boolean (not (memq object-type bplist-unused-object-types)))
 
             (unless (= pos 8)
-              (newline /dev/stdout))
+              (bplist-newline /dev/stdout))
+
+            (display (string-upcase (~r pos #:base 16 #:min-width 7 #:pad-string "0")) /dev/stdout)
+            (display ": " /dev/stdout)
 
             (when (or defined-type? show-unused-field?)
               (bplist-print-binary-byte object-type object-size /dev/stdout))
@@ -87,8 +90,8 @@
 
                    (when (> size-tag 0)
                      (bplist-print-binary-byte size-tag size-ln /dev/stdout)
-                     (for ([pos (in-range (+ pos 2) value-idx)])
-                       (bplist-print-byte /dev/bplin /dev/stdout (+ pos 2 pos) #\space string-upcase))
+                     (for ([subpos (in-range (+ pos 2) value-idx)])
+                       (bplist-print-byte /dev/bplin /dev/stdout subpos #\space string-upcase))
                      (display #\space /dev/stdout))
 
                    (cond [(memq object-type bplist-1D-types)
@@ -103,14 +106,16 @@
                                  (bplist-print-byte /dev/bplin /dev/stdout (+ value-idx offset) #\space values))
                                (print-object-table (+ value-idx object-real-size))])]
                   [else (print-object-table (+ pos 1))])))
-        (newline /dev/stdout)
+
+        (bplist-newline /dev/stdout)
+        (bplist-newline /dev/stdout)
 
         (let print-offset-table ([pos : Nonnegative-Fixnum offset-table-index]
                                  [col : Byte 1])
           (when (< pos trailer)
             (bplist-print-integer-octets /dev/bplin /dev/stdout pos offset-size (if (= col 0) #\newline #\space) string-upcase)
             (print-offset-table (+ pos offset-size) (remainder (+ col 1) offset-table-column))))
-        (newline /dev/stdout)
+        (bplist-newline /dev/stdout)
 
         (unless (not show-unused-field?)
           (bplist-print-integer-octets /dev/bplin /dev/stdout trailer 5 #\space string-upcase))
@@ -118,7 +123,9 @@
           (bplist-print-byte /dev/bplin /dev/stdout (+ trailer offset) #\space string-upcase))
         (bplist-print-integer-octets /dev/bplin /dev/stdout (+ trailer 8) 8 #\space string-upcase)
         (bplist-print-integer-octets /dev/bplin /dev/stdout (+ trailer 16) 8 #\space string-upcase)
-        (bplist-print-integer-octets /dev/bplin /dev/stdout (+ trailer 24) 8 #\newline string-upcase)))))
+        (bplist-print-integer-octets /dev/bplin /dev/stdout (+ trailer 24) 8 #\newline string-upcase)
+
+        (flush-output /dev/stdout)))))
 
 (define bplist-print-binary-byte : (-> Byte Byte Output-Port Void)
   (lambda [msb lsb /dev/stdout]
@@ -139,6 +146,11 @@
       (display (_ (byte->hex-string (bytes-ref /dev/bplin (+ pos offset)))) /dev/stdout))
     (display separator /dev/stdout)))
 
+(define bplist-newline : (-> Output-Port Void)
+  (lambda [/dev/stdout]
+    (newline /dev/stdout)
+    (flush-output /dev/stdout)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bplist-extract-version : (-> Bytes Byte)
   (let ([zero (char->integer #\0)])
@@ -147,7 +159,7 @@
                  (- (bytes-ref /dev/bplin 7) zero))
               byte?))))
 
-(define bplist-extract-object-tag : (-> Byte (Values Byte Byte))
+(define bplist-extract-byte-tag : (-> Byte (Values Byte Byte))
   (lambda [v]
     (values (bitwise-and (arithmetic-shift v -4) #b1111)
             (bitwise-and v #b1111))))
@@ -156,7 +168,7 @@
   (lambda [/dev/bplin pos object-size]
     (define-values (object-real-size value-idx size-tag size-ln)
       (cond [(< object-size #b1111) (values object-size (+ pos 1) 0 0)]
-            [else (let-values ([(size-tag size-ln) (bplist-extract-object-tag (bytes-ref /dev/bplin (+ pos 1)))])
+            [else (let-values ([(size-tag size-ln) (bplist-extract-byte-tag (bytes-ref /dev/bplin (+ pos 1)))])
                     (define size-size : Positive-Integer (expt 2 size-ln))
                     (define value-idx : Positive-Integer (+ pos 2 size-size))
                     (values (network-bytes->natural /dev/bplin (+ pos 2) value-idx) value-idx size-tag size-ln))]))
