@@ -14,10 +14,6 @@
           [else (void)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define bplist-object-list : (-> PList-Stdin (Listof PList-Datum))
-  (lambda [/dev/bplin]
-    (bplist-list-object-table (plist-stdin->bytes /dev/bplin))))
-
 (define bplist-dissect : (->* (PList-Stdin) (Output-Port #:offset-table-column Byte #:show-unused-field? Boolean) Void)
   (lambda [/dev/bplin [/dev/stdout (current-output-port)] #:offset-table-column [offset-table-column 16] #:show-unused-field? [unused-field? #true]]
     (define body : Bytes (plist-stdin->bytes /dev/bplin))
