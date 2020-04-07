@@ -51,6 +51,9 @@
                          [(= object-type #b0001)
                           (define-values (integer-byte-count integer-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
                           (bplist-integer-ref /dev/bplin integer-pos integer-byte-count)]
+                         [(= object-type #b0010)
+                          (define-values (flonum-byte-count flonum-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (bplist-real-ref /dev/bplin flonum-pos flonum-byte-count)]
                          [(= object-type #b0011)
                           (bplist-date-ref /dev/bplin (+ object-pos 1))]
                          [(= object-type #b1010)
@@ -231,7 +234,14 @@
 
 (define bplist-integer-ref : (-> Bytes Index Index Integer)
   (lambda [/dev/bplin pos count]
-    (network-bytes->integer /dev/bplin pos (+ pos count))))
+    (cond [(< count 8) (network-bytes->natural /dev/bplin pos (+ pos count))]
+          [else (network-bytes->integer /dev/bplin pos (+ pos count))])))
+
+(define bplist-real-ref : (-> Bytes Index Index Flonum)
+  (lambda [/dev/bplin pos count]
+    (case count
+      [(4 8) (floating-point-bytes->real /dev/bplin #true pos (+ pos count))]
+      [else +nan.0])))
 
 (define bplist-string-ref : (-> Bytes Index Index String)
   (lambda [/dev/bplin pos count]
