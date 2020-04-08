@@ -85,6 +85,12 @@
                   [(= object-size #b1001) #true]
                   [else (void)])))))))
 
+(define bplist-write-datum : (-> PList-Datum Output-Port Void)
+  (lambda [plst /dev/bplout]
+    (fprintf /dev/bplout "bplist00")
+    
+    (flush-output /dev/bplout)))
+
 (define bplist-pretty-hexdump : (-> Bytes Output-Port Byte Boolean Void)
   (lambda [/dev/bplin /dev/stdout offset-table-column show-unused-field?]
     (define trailer-index : Fixnum (- (bytes-length /dev/bplin) 32))
