@@ -9,7 +9,7 @@
 (define-type PList-Stdout (U Path-String Output-Port))
 
 (define-type PList-Format (U 'bplist))
-(define-type PList-Datum (Rec p (U Void Boolean String Symbol Bytes Integer Flonum date (Immutable-Vectorof p) (Immutable-HashTable Symbol p))))
+(define-type PList-Datum (Rec p (U Void Boolean String Symbol Bytes Integer Flonum date (Vectorof p) (HashTable Symbol p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define plist-stdin->bytes : (-> PList-Stdin Bytes)

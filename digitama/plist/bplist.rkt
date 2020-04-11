@@ -5,7 +5,6 @@
 
 (provide (all-defined-out))
 
-(require racket/file)
 (require typed/racket/unsafe)
 
 (require "../plist.rkt")
@@ -22,11 +21,13 @@
  [seconds->date (->* (Flonum) (Boolean) date)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type BPList-Unique-Objects (Immutable-HashTable Any Natural))
+
 (define bplist-unused-object-types : (Listof Byte) (list #b0111 #b1001 #b1011 #b1110 #b1111))
 (define bplist-1D-types : (Listof Byte) (list #b1010 #b1100))
 (define bplist-2D-types : (Listof Byte) (list #b1101))
 
-(define pblist-empty-dictionary : (Immutable-HashTable Symbol PList-Datum) (make-immutable-hasheq))
+(define pblist-empty-unqiues : BPList-Unique-Objects (make-immutable-hash))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bplist-bytes? : (-> Bytes Boolean)
@@ -38,7 +39,7 @@
     (define trailer-index : Fixnum (- (bytes-length /dev/bplin) 32))
     
     (when (index? trailer-index)
-      (define-values (sversion sizeof-offset sizeof-object object-count root-offset offset-table-index) (bplist-extract-trailer /dev/bplin trailer-index))
+      (define-values (sizeof-offset sizeof-object object-count root-offset offset-table-index) (bplist-extract-trailer /dev/bplin trailer-index))
       (define root-pos : Index (bplist-extract-object-position /dev/bplin root-offset offset-table-index sizeof-offset trailer-index))
       
       (let extract-object ([object-pos : Nonnegative-Fixnum root-pos])
@@ -49,34 +50,31 @@
                           (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
                           (bplist-string-ref /dev/bplin byte-pos byte-count)]
                          [(= object-type #b0001)
-                          (define-values (integer-byte-count integer-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (bplist-integer-ref /dev/bplin integer-pos integer-byte-count)]
+                          (define-values (integer-byte-power integer-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (bplist-integer-ref /dev/bplin integer-pos integer-byte-power)]
                          [(= object-type #b0010)
-                          (define-values (flonum-byte-count flonum-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (bplist-real-ref /dev/bplin flonum-pos flonum-byte-count)]
+                          (define-values (flonum-byte-power flonum-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (bplist-real-ref /dev/bplin flonum-pos flonum-byte-power)]
                          [(= object-type #b0011)
                           (bplist-date-ref /dev/bplin (+ object-pos 1))]
                          [(= object-type #b1010)
                           (define-values (array-count idx-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (vector->immutable-vector
-                           (build-vector array-count
-                                         (lambda [[idx-slot : Index]]
-                                           (let ([ioffset (bplist-extract-object-offset /dev/bplin (+ idx-pos (* idx-slot sizeof-object)) sizeof-object)])
-                                             (extract-object (bplist-extract-object-position /dev/bplin ioffset offset-table-index sizeof-offset trailer-index))))))]
+                          (build-vector array-count
+                                        (lambda [[idx-slot : Index]]
+                                          (let ([ioffset (bplist-extract-object-offset /dev/bplin (+ idx-pos (* idx-slot sizeof-object)) sizeof-object)])
+                                            (extract-object (bplist-extract-object-position /dev/bplin ioffset offset-table-index sizeof-offset trailer-index)))))]
                          [(= object-type #b1101)
                           (define-values (dict-count key-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (let extract-key-value ([kv-slot : Nonnegative-Fixnum 0]
-                                                  [dictionary : (Immutable-HashTable Symbol PList-Datum) pblist-empty-dictionary])
-                            (if (< kv-slot dict-count)
-                                (let ([koffset (bplist-extract-object-offset /dev/bplin (+ key-pos (* kv-slot sizeof-object)) sizeof-object)]
-                                      [voffset (bplist-extract-object-offset /dev/bplin (+ key-pos dict-count (* kv-slot sizeof-object)) sizeof-object)])
-                                  (define-values (key value)
-                                    (values (extract-object (bplist-extract-object-position /dev/bplin koffset offset-table-index sizeof-offset trailer-index))
-                                            (extract-object (bplist-extract-object-position /dev/bplin voffset offset-table-index sizeof-offset trailer-index))))
-                                  (extract-key-value (+ kv-slot 1)
-                                                     (cond [(string? key) (hash-set dictionary (string->symbol key) value)]
-                                                           [else dictionary])))
-                                dictionary))]
+                          (define dictionary : (HashTable Symbol PList-Datum) (make-hasheq))
+                          (for ([kv-slot (in-range dict-count)])
+                            (let ([koffset (bplist-extract-object-offset /dev/bplin (+ key-pos (* kv-slot sizeof-object)) sizeof-object)]
+                                  [voffset (bplist-extract-object-offset /dev/bplin (+ key-pos dict-count (* kv-slot sizeof-object)) sizeof-object)])
+                              (define-values (key value)
+                                (values (extract-object (bplist-extract-object-position /dev/bplin koffset offset-table-index sizeof-offset trailer-index))
+                                        (extract-object (bplist-extract-object-position /dev/bplin voffset offset-table-index sizeof-offset trailer-index))))
+                              (when (string? key)
+                                (hash-set! dictionary (string->symbol key) value))))
+                          dictionary]
                          [(= object-type #b0100)
                           (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
                           (bplist-data-ref /dev/bplin byte-pos byte-count)]
@@ -87,7 +85,43 @@
 
 (define bplist-write-datum : (-> PList-Datum Output-Port Void)
   (lambda [plst /dev/bplout]
-    (fprintf /dev/bplout "bplist00")
+    (define magic : Bytes #"bplist00")
+    (define object-table-index : Index (bytes-length magic))
+    (define-values (unique-objects stcejbo) (bplist-flatten plst))
+    (define offset-count : Index (length stcejbo))
+    (define sizeof-object : Byte (assert (natural-bytes-length offset-count) byte?))
+    (define offset-table : (Vectorof Natural) (make-vector offset-count object-table-index))
+    (define pointer-pool : Bytes (make-bytes sizeof-object))
+    
+    (write-bytes magic /dev/bplout)
+
+    (define offset-table-index : Natural
+      (for/fold ([offset-table-index : Natural object-table-index])
+                ([object (in-list (reverse stcejbo))]
+                 [idx (in-naturals 0)])
+        (vector-set! offset-table idx offset-table-index)
+        (+ offset-table-index
+           (cond [(symbol? object) (bplist-insert-string /dev/bplout (symbol->string object))]
+                 [(string? object) (bplist-insert-string /dev/bplout object)]
+                 [(vector? object)
+                  (define array-size : Index (vector-length object))
+                  (define tagsize : Byte (bplist-insert-tag /dev/bplout #b10100000 array-size))
+                  (for ([item (in-vector object)])
+                    (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects item) sizeof-object pointer-pool))
+                  (+ tagsize (* array-size sizeof-object))]
+                 [(hash? object)
+                  (define dict-size : Index (hash-count object))
+                  (define tagsize : Byte (bplist-insert-tag /dev/bplout #b11010000 dict-size))
+                  (for ([key (in-hash-keys object)])
+                    (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects key) sizeof-object pointer-pool))
+                  (for ([value (in-hash-values object)])
+                    (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects value) sizeof-object pointer-pool))
+                  (+ tagsize (* dict-size 2 sizeof-object))]
+                 [else (bplist-insert-constant /dev/bplout offset-table-index)]))))
+    
+    (let ([sizeof-offset (assert (natural-bytes-length (vector-ref offset-table (- offset-count 1))) byte?)])
+      (bplist-insert-offset-table /dev/bplout offset-table sizeof-offset)
+      (bplist-insert-trailer /dev/bplout sizeof-offset sizeof-object offset-count 0 offset-table-index))
     
     (flush-output /dev/bplout)))
 
@@ -96,7 +130,7 @@
     (define trailer-index : Fixnum (- (bytes-length /dev/bplin) 32))
 
     (when (index? trailer-index)
-      (define-values (sversion sizeof-offset sizeof-object object-count root-offset offset-table-index) (bplist-extract-trailer /dev/bplin trailer-index))
+      (define-values (sizeof-offset sizeof-object object-count root-offset offset-table-index) (bplist-extract-trailer /dev/bplin trailer-index))
 
       (for ([pos (in-range 8)])
         (bplist-print-byte /dev/bplin /dev/stdout pos (if (< pos 7) #\space #\newline) string-upcase))
@@ -203,7 +237,7 @@
                     (values (network-bytes->natural /dev/bplin (+ pos 2) value-idx) value-idx size-tag size-ln))]))
     (values object-real-size (assert value-idx index?) size-tag size-ln)))
 
-(define bplist-extract-object-offset : (-> Bytes Nonnegative-Integer Byte Index)
+(define bplist-extract-object-offset : (-> Bytes Integer Byte Index)
   (lambda [/dev/bplin position sizeof-object]
     (network-bytes->natural /dev/bplin position (+ position sizeof-object))))
 
@@ -214,7 +248,7 @@
           [(= sizeof-offset 1) (bytes-ref /dev/bplin pos)]
           [else (network-bytes->natural /dev/bplin pos (+ pos sizeof-offset))])))
 
-(define bplist-extrac-offset-table : (-> Bytes Index Byte Index (Listof Index))
+(define bplist-extract-offset-table : (-> Bytes Index Byte Index (Listof Index))
   (lambda [/dev/bplin offset-table-index sizeof-offset trailer-index]
     (let extract-offset-table ([pos : Index offset-table-index]
                                [pos++ : Nonnegative-Fixnum (+ offset-table-index sizeof-offset)]
@@ -224,10 +258,9 @@
                                         (cons (network-bytes->natural /dev/bplin pos pos++)
                                               stesffo))]))))
 
-(define bplist-extract-trailer : (-> Bytes Index (Values Byte Byte Byte Index Index Index))
+(define bplist-extract-trailer : (-> Bytes Index (Values Byte Byte Index Index Index))
   (lambda [/dev/bplin trailer-idx]
-    (values (bytes-ref /dev/bplin (+ trailer-idx 5))
-            (bytes-ref /dev/bplin (+ trailer-idx 6))
+    (values (bytes-ref /dev/bplin (+ trailer-idx 6))
             (bytes-ref /dev/bplin (+ trailer-idx 7))
             (network-bytes->natural /dev/bplin (+ trailer-idx 8) (+ trailer-idx 16))
             (network-bytes->natural /dev/bplin (+ trailer-idx 16) (+ trailer-idx 24))
@@ -239,12 +272,14 @@
     (subbytes /dev/bplin pos (+ pos count))))
 
 (define bplist-integer-ref : (-> Bytes Index Index Integer)
-  (lambda [/dev/bplin pos count]
+  (lambda [/dev/bplin pos power]
+    (define count : Natural (arithmetic-shift 1 power))
     (cond [(< count 8) (network-bytes->natural /dev/bplin pos (+ pos count))]
           [else (network-bytes->integer /dev/bplin pos (+ pos count))])))
 
 (define bplist-real-ref : (-> Bytes Index Index Flonum)
-  (lambda [/dev/bplin pos count]
+  (lambda [/dev/bplin pos power]
+    (define count : Natural (arithmetic-shift 1 power))
     (case count
       [(4 8) (floating-point-bytes->real /dev/bplin #true pos (+ pos count))]
       [else +nan.0])))
@@ -257,3 +292,112 @@
   (lambda [/dev/bplin pos]
     (define utc-s : Flonum (floating-point-bytes->real /dev/bplin #true pos (+ pos 8)))
     (seconds->date utc-s #false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bplist-flatten : (->* (PList-Datum) (BPList-Unique-Objects (Listof PList-Datum)) (Values BPList-Unique-Objects (Listof PList-Datum)))
+  (lambda [object [unique-objects pblist-empty-unqiues] [stcejbo null]]
+    (define key : Any (bplist-unique-key object))
+    (cond [(hash? object)
+           (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
+                      [objects : (Listof PList-Datum) (cons object stcejbo)])
+                     ([(key value) (in-hash object)])
+             (define-values (key-flattened key-counted) (bplist-flatten key uniques objects))
+             (bplist-flatten value key-flattened key-counted))]
+          [(vector? object)
+           (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
+                      [objects : (Listof PList-Datum) (cons object stcejbo)])
+                     ([item (in-vector object)])
+             (bplist-flatten item uniques objects))]
+          [(hash-has-key? unique-objects key) (values unique-objects stcejbo)]
+          [else (values (hash-set unique-objects key (length stcejbo)) (cons object stcejbo))])))
+
+(define bplist-unique-key : (-> PList-Datum Any)
+  (lambda [object]
+    (cond [(vector? object) (box (eq-hash-code object))]
+          [(hash? object) (box (eq-hash-code object))]
+          [else object])))
+
+(define bplist-unique-set : (-> BPList-Unique-Objects Any (Listof PList-Datum) BPList-Unique-Objects)
+  (lambda [uniques key objects]
+    (cond [(hash-has-key? uniques key) uniques]
+          [else (hash-set uniques key (length objects))])))
+
+(define bplist-unique-ref : (-> BPList-Unique-Objects PList-Datum Natural)
+  (lambda [uniques object]
+    (hash-ref uniques (bplist-unique-key object))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bplist-insert-tag : (-> Output-Port Byte Index Byte)
+  (lambda [/dev/bplout tag0000 size]    
+    (cond [(< size #b1111)
+           (write-byte (bitwise-xor tag0000 size) /dev/bplout)
+           1]
+          [(<= size #xFF)
+           (write-byte (bitwise-xor tag0000 #b1111) /dev/bplout)
+           (write-byte #b00010000 /dev/bplout)
+           (write-byte size /dev/bplout)
+           3]
+          [(<= size #xFFFF)
+           (write-byte (bitwise-xor tag0000 #b1111) /dev/bplout)
+           (write-byte #b00010001 /dev/bplout)
+           (write-bytes (natural->network-bytes size 2) /dev/bplout 0 2)
+           4]
+          [(<= size #xFFFFFFFF)
+           (write-byte (bitwise-xor tag0000 #b1111) /dev/bplout)
+           (write-byte #b00010010 /dev/bplout)
+           (write-bytes (natural->network-bytes size 4) /dev/bplout 0 4)
+           6]
+          [else #| uint64 |#
+           (write-byte (bitwise-xor tag0000 #b1111) /dev/bplout)
+           (write-byte #b00010011 /dev/bplout)
+           (write-bytes (natural->network-bytes size 8) /dev/bplout 0 4)
+           10])))
+
+(define bplist-insert-string : (-> Output-Port String Natural)
+  (lambda [/dev/bplout content]
+    (define /dev/bytout : Output-Port (open-output-bytes))
+
+    (define ascii? : Boolean
+      (for/fold ([ascii? : Boolean #true])
+                ([ch (in-string content)])
+        (write-char ch /dev/bytout)
+        (and ascii? (char<=? ch #\rubout))))
+    
+    (let ([bs (get-output-bytes /dev/bytout #true)])
+      (+ (bplist-insert-tag /dev/bplout (if ascii? #b01010000 #b01110000) (bytes-length bs))
+         (write-bytes bs /dev/bplout)))))
+
+(define bplist-insert-constant : (-> Output-Port Any Byte)
+  (lambda [/dev/bplout datum]
+    (cond [(boolean? datum) (write-byte (if datum #b00001001 #b00001000) /dev/bplout)]
+          [(void? datum) (write-byte #b00000000 /dev/bplout)]
+          [else (write-byte #b00001111 /dev/bplout)])
+    1))
+
+(define bplist-insert-pointer : (-> Output-Port Natural Index Bytes Void)
+  (lambda [/dev/bplout offset sizeof-object pool]
+    (cond [(= sizeof-object 1) (write-byte offset /dev/bplout)]
+          [else (void (write-bytes (natural->network-bytes offset sizeof-object pool 0)
+                                   /dev/bplout 0 sizeof-object))])))
+
+(define bplist-insert-offset-table : (-> Output-Port (Vectorof Natural) Index Void)
+  (lambda [/dev/bplout offsets sizeof-offset]
+    (define pool : Bytes (make-bytes sizeof-offset))
+
+    (for ([offset (in-vector offsets)])
+      (natural->network-bytes offset sizeof-offset pool)
+      (write-bytes pool /dev/bplout 0 sizeof-offset))))
+
+(define bplist-insert-trailer : (-> Output-Port Byte Byte Natural Natural Natural Void)
+  (lambda [/dev/bplout sizeof-offset sizeof-object object-count root-offset offset-table-index]
+    (define pool : Bytes (make-bytes 24 0))
+
+    (write-bytes pool /dev/bplout 0 6)
+    (write-byte sizeof-offset /dev/bplout)
+    (write-byte sizeof-object /dev/bplout)
+
+    (natural->network-bytes object-count 8 pool 0)
+    (natural->network-bytes root-offset 8 pool 8)
+    (natural->network-bytes offset-table-index 8 pool 16)
+    (write-bytes pool /dev/bplout 0 24)
+    (void)))
