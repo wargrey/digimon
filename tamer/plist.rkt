@@ -3,20 +3,36 @@
 (require digimon/plist)
 (require digimon/location)
 
-(define Info.plist (build-path (assert (path-only (#%file)) path?) "Info.plist"))
-(define Temp.plist (build-path (find-system-path 'temp-dir) "Info.plist"))
+(define bplist-prove : (-> Path-String Any Any Boolean)
+  (lambda [name plist display?]
+    (define Info.plist (build-path (find-system-path 'temp-dir) (path-replace-extension name #".plist")))
 
-(bplist-dissect Info.plist)
+    (printf "~n>> ~a~n" Info.plist)
 
-(define original : PList-Datum (read-plist Info.plist))
+    (write-plist plist Info.plist)
+    (bplist-dissect Info.plist)
 
-(write-plist original Temp.plist)
+    (let ([bplist (read-plist Info.plist)])
+      (unless (not display?)
+        (pretty-print plist)
+        (pretty-print bplist))
+      
+      (equal? plist bplist))))
 
-(define bplist : PList-Datum (read-plist Temp.plist))
+(module+ main
+  (define bplist.dir : Path (build-path (assert (path-only (#%file)) path?) "bplist"))
 
-(bplist-dissect Temp.plist)
-
-(equal? original (read-plist Temp.plist))
-
-Temp.plist
-original
+  (for/and ([info.rkt (in-list (directory-list bplist.dir #:build? #true))]
+            #:when (equal? (path-get-extension info.rkt) #".rkt"))
+    (define name : (Option Path) (file-name-from-path info.rkt))
+    
+    (and (path? name)
+         (dynamic-require info.rkt #false)
+         (let ([ns (module->namespace info.rkt)])
+           (define result
+             (bplist-prove name
+                           (namespace-variable-value 'plist #false #false ns)
+                           (namespace-variable-value 'display? #false (λ [] #false) ns)))
+           
+           (printf "~n~a~n" (if result 'OK 'Bad))
+           result))))

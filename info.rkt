@@ -13,4 +13,4 @@
 
 (define raco-commands '(["wisemon" digimon/digivice/wisemon "yet another `make` utility" #false]))
 
-(define scribblings '(["tamer/digimon.scrbl" (main-doc)]))
+(define scribblings '(["tamer/digimon.scrbl" (main-doc multi-page)]))

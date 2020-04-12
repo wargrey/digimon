@@ -14,7 +14,7 @@
     (cond [(bplist-bytes? body) (bplist-extract-object body)]
           [else (void)])))
 
-(define write-plist : (->* (PList-Datum) (PList-Stdout #:format PList-Format #:exists (U 'error 'replace)) Void)
+(define write-plist : (->* (Any) (PList-Stdout #:format PList-Format #:exists (U 'error 'replace)) Void)
   (lambda [plst [/dev/bplout (current-output-port)] #:format [type 'bplist] #:exists [exists 'replace]]
     (if (output-port? /dev/bplout)
         (case type

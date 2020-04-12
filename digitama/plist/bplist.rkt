@@ -28,6 +28,7 @@
 (define-type BPList-Unique-Objects (Immutable-HashTable Any Natural))
 
 (define bplist-unused-object-types : (Listof Byte) (list #b0111 #b1001 #b1011 #b1110 #b1111))
+(define bplist-power-types : (Listof Byte) (list #b0001 #b0010 #b0011))
 (define bplist-1D-types : (Listof Byte) (list #b1010 #b1100))
 (define bplist-2D-types : (Listof Byte) (list #b1101))
 
@@ -51,24 +52,24 @@
           (let-values ([(object-type object-size) (bplist-extract-byte-tag (bytes-ref /dev/bplin object-pos))])
             (cond [(> object-type 0)
                    (cond [(or (= object-type #b0101) (= object-type #b0111)) ; ASCII or UTF8 String
-                          (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
                           (bplist-string-ref /dev/bplin byte-pos byte-count)]
                          [(= object-type #b0001)
-                          (define-values (integer-byte-power integer-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (bplist-integer-ref /dev/bplin integer-pos integer-byte-power)]
+                          (define-values (integer-byte-size integer-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #true))
+                          (bplist-integer-ref /dev/bplin integer-pos integer-byte-size)]
                          [(= object-type #b0010)
-                          (define-values (flonum-byte-power flonum-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
-                          (bplist-real-ref /dev/bplin flonum-pos flonum-byte-power)]
+                          (define-values (flonum-byte-size flonum-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #true))
+                          (bplist-real-ref /dev/bplin flonum-pos flonum-byte-size)]
                          [(= object-type #b0011)
                           (bplist-date-ref /dev/bplin (+ object-pos 1))]
                          [(= object-type #b1010)
-                          (define-values (array-count idx-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (define-values (array-count idx-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
                           (build-vector array-count
                                         (lambda [[idx-slot : Index]]
                                           (let ([ioffset (bplist-extract-object-offset /dev/bplin (+ idx-pos (* idx-slot sizeof-object)) sizeof-object)])
                                             (extract-object (bplist-extract-object-position /dev/bplin ioffset offset-table-index sizeof-offset trailer-index)))))]
                          [(= object-type #b1101)
-                          (define-values (dict-count key-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (define-values (dict-count key-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
                           (define dictionary : (HashTable Symbol PList-Datum) (make-hasheq))
                           (for ([kv-slot (in-range dict-count)])
                             (let ([koffset (bplist-extract-object-offset /dev/bplin (+ key-pos (* kv-slot sizeof-object)) sizeof-object)]
@@ -80,14 +81,14 @@
                                 (hash-set! dictionary (string->symbol key) value))))
                           dictionary]
                          [(= object-type #b0100)
-                          (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos))
+                          (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
                           (bplist-data-ref /dev/bplin byte-pos byte-count)]
                          [else (void)])]
                   [(= object-size #b1000) #false]
                   [(= object-size #b1001) #true]
                   [else (void)])))))))
 
-(define bplist-write-datum : (-> PList-Datum Output-Port Void)
+(define bplist-write-datum : (-> Any Output-Port Void)
   (lambda [plst /dev/bplout]
     (define magic : Bytes #"bplist00")
     (define object-table-index : Index (bytes-length magic))
@@ -156,7 +157,9 @@
             (bplist-print-binary-byte object-type object-size /dev/stdout))
           
           (cond [(and defined-type? (> object-type 0))
-                 (define-values (object-real-size value-idx size-tag size-ln) (bplist-extract-object-size /dev/bplin object-size pos))
+                 (define-values (object-real-size value-idx size-tag size-ln)
+                   (bplist-extract-object-size /dev/bplin object-size pos
+                                               (and (memq object-type bplist-power-types) #true)))
                  
                  (when (> size-tag 0)
                    (bplist-print-binary-byte size-tag size-ln /dev/stdout)
@@ -182,9 +185,11 @@
       
       (let print-offset-table ([pos : Nonnegative-Fixnum offset-table-index]
                                [col : Byte 1])
-        (when (< pos trailer-index)
-          (bplist-print-integer-octets /dev/bplin /dev/stdout pos sizeof-offset (if (= col 0) #\newline #\space) string-upcase)
-          (print-offset-table (+ pos sizeof-offset) (remainder (+ col 1) offset-table-column))))
+        (cond [(< pos trailer-index)
+               (let ([space (if (= col 0) #\newline #\space)])
+                 (bplist-print-integer-octets /dev/bplin /dev/stdout pos sizeof-offset space string-upcase)
+                 (print-offset-table (+ pos sizeof-offset) (remainder (+ col 1) offset-table-column)))]
+              [(not (= col 1)) (bplist-newline /dev/stdout)]))
       (bplist-newline /dev/stdout)
       
       (unless (not show-unused-field?)
@@ -235,14 +240,16 @@
     (values (bitwise-and (arithmetic-shift v -4) #b1111)
             (bitwise-and v #b1111))))
 
-(define bplist-extract-object-size : (-> Bytes Byte Index (Values Index Index Byte Byte))
-  (lambda [/dev/bplin object-size pos]
+(define bplist-extract-object-size : (-> Bytes Byte Index Boolean (Values Index Index Byte Byte))
+  (lambda [/dev/bplin object-size pos power?]
     (define-values (object-real-size value-idx size-tag size-ln)
-      (cond [(< object-size #b1111) (values object-size (+ pos 1) 0 0)]
-            [else (let-values ([(size-tag size-ln) (bplist-extract-byte-tag (bytes-ref /dev/bplin (+ pos 1)))])
-                    (define size-size : Positive-Integer (expt 2 size-ln))
-                    (define value-idx : Positive-Integer (+ pos 2 size-size))
-                    (values (network-bytes->natural /dev/bplin (+ pos 2) value-idx) value-idx size-tag size-ln))]))
+      (cond [(= object-size #b1111)
+             (let-values ([(size-tag size-ln) (bplist-extract-byte-tag (bytes-ref /dev/bplin (+ pos 1)))])
+               (define size-size : Nonnegative-Integer (arithmetic-shift 1 size-ln))
+               (define value-idx : Positive-Integer (+ pos 2 size-size))
+               (values (network-bytes->natural /dev/bplin (+ pos 2) value-idx) value-idx size-tag size-ln))]
+            [(not power?) (values object-size (+ pos 1) 0 0)]
+            [else (values (assert (arithmetic-shift 1 object-size) byte?) (+ pos 1) 0 0)]))
     (values object-real-size (assert value-idx index?) size-tag size-ln)))
 
 (define bplist-extract-object-offset : (-> Bytes Integer Byte Index)
@@ -280,14 +287,12 @@
     (subbytes /dev/bplin pos (+ pos count))))
 
 (define bplist-integer-ref : (-> Bytes Index Index Integer)
-  (lambda [/dev/bplin pos power]
-    (define count : Natural (arithmetic-shift 1 power))
+  (lambda [/dev/bplin pos count]
     (cond [(< count 8) (network-bytes->natural /dev/bplin pos (+ pos count))]
           [else (network-bytes->integer /dev/bplin pos (+ pos count))])))
 
 (define bplist-real-ref : (-> Bytes Index Index Flonum)
-  (lambda [/dev/bplin pos power]
-    (define count : Natural (arithmetic-shift 1 power))
+  (lambda [/dev/bplin pos count]
     (case count
       [(4 8) (floating-point-bytes->real /dev/bplin #true pos (+ pos count))]
       [else +nan.0])))
@@ -302,35 +307,35 @@
     (seconds->date utc-s #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define bplist-flatten : (->* (PList-Datum) (BPList-Unique-Objects (Listof PList-Datum)) (Values BPList-Unique-Objects (Listof PList-Datum)))
+(define bplist-flatten : (->* (Any) (BPList-Unique-Objects (Listof Any)) (Values BPList-Unique-Objects (Listof Any)))
   (lambda [object [unique-objects pblist-empty-unqiues] [stcejbo null]]
     (define key : Any (bplist-unique-key object))
-    (cond [(hash? object)
+    (cond [(hash-has-key? unique-objects key) (values unique-objects stcejbo)]
+          [(hash? object)
            (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
-                      [objects : (Listof PList-Datum) (cons object stcejbo)])
+                      [objects : (Listof Any) (cons object stcejbo)])
                      ([(key value) (in-hash object)])
              (define-values (key-flattened key-counted) (bplist-flatten key uniques objects))
              (bplist-flatten value key-flattened key-counted))]
           [(vector? object)
            (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
-                      [objects : (Listof PList-Datum) (cons object stcejbo)])
+                      [objects : (Listof Any) (cons object stcejbo)])
                      ([item (in-vector object)])
              (bplist-flatten item uniques objects))]
-          [(hash-has-key? unique-objects key) (values unique-objects stcejbo)]
           [else (values (hash-set unique-objects key (length stcejbo)) (cons object stcejbo))])))
 
-(define bplist-unique-key : (-> PList-Datum Any)
+(define bplist-unique-key : (-> Any Any)
   (lambda [object]
     (cond [(vector? object) (box (eq-hash-code object))]
           [(hash? object) (box (eq-hash-code object))]
           [else object])))
 
-(define bplist-unique-set : (-> BPList-Unique-Objects Any (Listof PList-Datum) BPList-Unique-Objects)
+(define bplist-unique-set : (-> BPList-Unique-Objects Any (Listof Any) BPList-Unique-Objects)
   (lambda [uniques key objects]
     (cond [(hash-has-key? uniques key) uniques]
           [else (hash-set uniques key (length objects))])))
 
-(define bplist-unique-ref : (-> BPList-Unique-Objects PList-Datum Natural)
+(define bplist-unique-ref : (-> BPList-Unique-Objects Any Natural)
   (lambda [uniques object]
     (hash-ref uniques (bplist-unique-key object))))
 
@@ -382,7 +387,7 @@
 
 (define bplist-insert-integer : (-> Output-Port Integer Natural)
   (lambda [/dev/bplout n]
-    (cond [(negative? n)
+    (cond [(< n #x00)
            (write-byte #b00010011 /dev/bplout)
            (write-bytes (integer->network-bytes n 8) /dev/bplout)
            9]
