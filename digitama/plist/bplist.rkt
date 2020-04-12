@@ -20,6 +20,10 @@
  racket/base
  [seconds->date (->* (Flonum) (Boolean) date)])
 
+(unsafe-require/typed
+ racket/date
+ [date*->seconds (->* (date) (Boolean) Real)])
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type BPList-Unique-Objects (Immutable-HashTable Any Natural))
 
@@ -103,6 +107,8 @@
         (+ offset-table-index
            (cond [(symbol? object) (bplist-insert-string /dev/bplout (symbol->string object))]
                  [(string? object) (bplist-insert-string /dev/bplout object)]
+                 [(exact-integer? object) (bplist-insert-integer /dev/bplout object)]
+                 [(flonum? object) (bplist-insert-real /dev/bplout object)]
                  [(vector? object)
                   (define array-size : Index (vector-length object))
                   (define tagsize : Byte (bplist-insert-tag /dev/bplout #b10100000 array-size))
@@ -117,7 +123,9 @@
                   (for ([value (in-hash-values object)])
                     (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects value) sizeof-object pointer-pool))
                   (+ tagsize (* dict-size 2 sizeof-object))]
-                 [else (bplist-insert-constant /dev/bplout offset-table-index)]))))
+                 [(bytes? object) (bplist-insert-data /dev/bplout object)]
+                 [(date? object) (bplist-insert-date /dev/bplout object)]
+                 [else (bplist-insert-constant /dev/bplout object)]))))
     
     (let ([sizeof-offset (assert (natural-bytes-length (vector-ref offset-table (- offset-count 1))) byte?)])
       (bplist-insert-offset-table /dev/bplout offset-table sizeof-offset)
@@ -353,6 +361,11 @@
            (write-bytes (natural->network-bytes size 8) /dev/bplout 0 4)
            10])))
 
+(define bplist-insert-data : (-> Output-Port Bytes Natural)
+  (lambda [/dev/bplout content]
+    (+ (bplist-insert-tag /dev/bplout #b01000000 (bytes-length content))
+       (write-bytes content /dev/bplout))))
+
 (define bplist-insert-string : (-> Output-Port String Natural)
   (lambda [/dev/bplout content]
     (define /dev/bytout : Output-Port (open-output-bytes))
@@ -367,9 +380,45 @@
       (+ (bplist-insert-tag /dev/bplout (if ascii? #b01010000 #b01110000) (bytes-length bs))
          (write-bytes bs /dev/bplout)))))
 
+(define bplist-insert-integer : (-> Output-Port Integer Natural)
+  (lambda [/dev/bplout n]
+    (cond [(negative? n)
+           (write-byte #b00010011 /dev/bplout)
+           (write-bytes (integer->network-bytes n 8) /dev/bplout)
+           9]
+          [(<= n #xFF)
+           (write-byte #b00010000 /dev/bplout)
+           (write-byte n /dev/bplout)
+           2]
+          [(<= n #xFFFF)
+           (write-byte #b00010001 /dev/bplout)
+           (write-bytes (natural->network-bytes n 2) /dev/bplout)
+           3]
+          [(<= n #xFFFFFFFF)
+           (write-byte #b00010010 /dev/bplout)
+           (write-bytes (natural->network-bytes n 4) /dev/bplout)
+           5]
+          [else #| int64 |#
+           (write-byte #b00010011 /dev/bplout)
+           (write-bytes (integer->network-bytes n 8) /dev/bplout)
+           9])))
+
+(define bplist-insert-real : (-> Output-Port Flonum Natural)
+  (lambda [/dev/bplout r]
+    (write-byte #b00100011 /dev/bplout)
+    (write-bytes (real->floating-point-bytes r 8 #true) /dev/bplout)
+    9))
+
+(define bplist-insert-date : (-> Output-Port date Natural)
+  (lambda [/dev/bplout d]
+    (write-byte #b00110011 /dev/bplout)
+    (write-bytes (real->floating-point-bytes (date*->seconds d #false) 8 #true) /dev/bplout)
+    9))
+
 (define bplist-insert-constant : (-> Output-Port Any Byte)
   (lambda [/dev/bplout datum]
-    (cond [(boolean? datum) (write-byte (if datum #b00001001 #b00001000) /dev/bplout)]
+    (cond [(eq? datum #true) (write-byte #b00001001 /dev/bplout)]
+          [(eq? datum #false) (write-byte #b00001000 /dev/bplout)]
           [(void? datum) (write-byte #b00000000 /dev/bplout)]
           [else (write-byte #b00001111 /dev/bplout)])
     1))

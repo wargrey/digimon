@@ -4,17 +4,19 @@
 (require digimon/location)
 
 (define Info.plist (build-path (assert (path-only (#%file)) path?) "Info.plist"))
-(define Temp.plist (open-output-bytes))
+(define Temp.plist (build-path (find-system-path 'temp-dir) "Info.plist"))
 
 (bplist-dissect Info.plist)
 
-(define origin : PList-Datum (read-plist Info.plist))
+(define original : PList-Datum (read-plist Info.plist))
 
-origin
+(write-plist original Temp.plist)
 
-(write-plist origin Temp.plist)
+(define bplist : PList-Datum (read-plist Temp.plist))
 
-(define bplist (get-output-bytes Temp.plist))
+(bplist-dissect Temp.plist)
 
-(bplist-dissect bplist)
-(equal? origin (read-plist bplist))
+(equal? original (read-plist Temp.plist))
+
+Temp.plist
+original
