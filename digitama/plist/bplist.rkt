@@ -7,6 +7,8 @@
 
 (require typed/racket/unsafe)
 
+(require racket/port)
+
 (require "../plist.rkt")
 
 (require "../../format.rkt")
@@ -83,6 +85,9 @@
                          [(= object-type #b0100)
                           (define-values (byte-count byte-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
                           (bplist-data-ref /dev/bplin byte-pos byte-count)]
+                         [(= object-type #b0110)
+                          (define-values (char-count char-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
+                          (bplist-utf16-ref /dev/bplin char-pos char-count)]
                          [else (void)])]
                   [(= object-size #b1000) #false]
                   [(= object-size #b1001) #true]
@@ -175,9 +180,14 @@
                         (for ([offset (in-range (* object-real-size 2))])
                           (bplist-print-integer-octets /dev/bplin /dev/stdout (+ value-idx (* offset sizeof-object)) sizeof-object #\space values))
                         (print-object-table (+ value-idx (* object-real-size sizeof-object 2)))]
-                       [else (for ([offset (in-range object-real-size)])
-                               (bplist-print-byte /dev/bplin /dev/stdout (+ value-idx offset) #\space values))
-                             (print-object-table (+ value-idx object-real-size))])]
+                       [(not (= object-type #b0110))
+                        (for ([offset (in-range object-real-size)])
+                          (bplist-print-byte /dev/bplin /dev/stdout (+ value-idx offset) #\space values))
+                        (print-object-table (+ value-idx object-real-size))]
+                       [else ; UTF-16 String
+                        (for ([offset (in-range object-real-size)])
+                          (bplist-print-integer-octets /dev/bplin /dev/stdout (+ value-idx offset offset) 2 #\space values))
+                        (print-object-table (+ value-idx object-real-size object-real-size))])]
                 [else (print-object-table (+ pos 1))])))
       
       (bplist-newline /dev/stdout)
@@ -300,6 +310,15 @@
 (define bplist-string-ref : (-> Bytes Index Index String)
   (lambda [/dev/bplin pos count]
     (bytes->string/utf-8 /dev/bplin #\uFFFD pos (+ pos count))))
+
+(define bplist-utf16-ref : (-> Bytes Index Index String)
+  (lambda [/dev/bplin pos count]
+    (define-values (/dev/u16in /dev/u16out) (make-pipe))
+    (define /dev/utfin (reencode-input-port /dev/u16in "UTF-16BE" #false #true))
+
+    (write-bytes /dev/bplin /dev/u16out pos (+ pos count count))
+    (close-output-port /dev/u16out)
+    (bytes->string/utf-8 (port->bytes /dev/utfin))))
 
 (define bplist-date-ref : (-> Bytes Nonnegative-Fixnum date)
   (lambda [/dev/bplin pos]
