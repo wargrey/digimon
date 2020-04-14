@@ -4,7 +4,7 @@
 
 (require math/base)
 
-(define plist : PList-Datum
-  (vector (vector (void) #true #false)
-          (vector euler.0  (- phi.0))
-          (vector (- #x1234) #x567 #x89ABCDEF #x00)))
+(define plist : PList-Object
+  (list (list (void) #true #false)
+        (list euler.0  (- phi.0))
+        (list (- #x1234) #x567 #x89ABCDEF #x00)))

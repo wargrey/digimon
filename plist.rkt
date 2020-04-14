@@ -1,14 +1,25 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide PList-Datum PList-Format)
 (provide PList-Stdin PList-Stdout)
+(provide PList-Format PList-Datum PList-Object)
 
 (require "digitama/plist.rkt")
 (require "digitama/plist/bplist.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-plist : (-> PList-Stdin PList-Datum)
+(define plist-datum? : (-> Any Boolean : #:+ PList-Datum)
+  (lambda [val]
+    (or (string? val)
+        (symbol? val)
+        (boolean? val)
+        (exact-integer? val)
+        (flonum? val)
+        (void? val)
+        (date? val))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define read-plist : (-> PList-Stdin PList-Object)
   (lambda [/dev/bplin]
     (define body : Bytes (plist-stdin->bytes /dev/bplin))
     (cond [(bplist-bytes? body) (bplist-extract-object body)]
@@ -31,3 +42,18 @@
 
     (when (bplist-bytes? body)
       (bplist-pretty-hexdump body /dev/stdout offset-table-column unused-field?))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define plist-copy-info.rkt : (->* (Path-String) (PList-Stdout #:format PList-Format #:exists (U 'error 'replace)) Void)
+  (lambda [info.rkt [/dev/bplout (current-output-port)] #:format [type 'bplist] #:exists [exists 'replace]]
+    (dynamic-require info.rkt #false)
+    
+    (define dict : (HashTable Symbol Any) (make-hasheq))
+    (define ns : Namespace (module->namespace info.rkt))
+    
+    (for ([var (in-list (namespace-mapped-symbols ns))])
+      (define val : Any (namespace-variable-value var #false (λ [] void) ns))
+      (unless (procedure? val)
+        (hash-set! dict var val)))
+
+    (write-plist dict /dev/bplout #:format type #:exists exists)))

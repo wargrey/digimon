@@ -3,6 +3,7 @@
 (require digimon/plist)
 (require digimon/location)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bplist-prove : (-> Path-String Any Any Boolean)
   (lambda [name plist display?]
     (define Info.plist (build-path (find-system-path 'temp-dir) (path-replace-extension name #".plist")))
@@ -31,7 +32,7 @@
          (let ([ns (module->namespace info.rkt)])
            (define result
              (bplist-prove name
-                           (namespace-variable-value 'plist #false #false ns)
+                           (namespace-variable-value 'plist #false (λ [] (box 'bplist-fill)) ns)
                            (namespace-variable-value 'display? #false (λ [] #false) ns)))
            
            (printf "~n~a~n" (if result 'OK 'Bad))

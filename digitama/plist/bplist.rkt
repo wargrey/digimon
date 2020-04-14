@@ -41,7 +41,7 @@
   (lambda [/dev/bplin]
     (regexp-match? #rx"^bplist" /dev/bplin)))
 
-(define bplist-extract-object : (-> Bytes PList-Datum)
+(define bplist-extract-object : (-> Bytes PList-Object)
   (lambda [/dev/bplin]
     (define trailer-index : Fixnum (- (bytes-length /dev/bplin) 32))
     
@@ -66,13 +66,13 @@
                           (bplist-date-ref /dev/bplin (+ object-pos 1))]
                          [(= object-type #b1010)
                           (define-values (array-count idx-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
-                          (build-vector array-count
-                                        (lambda [[idx-slot : Index]]
-                                          (let ([ioffset (bplist-extract-object-offset /dev/bplin (+ idx-pos (* idx-slot sizeof-object)) sizeof-object)])
-                                            (extract-object (bplist-extract-object-position /dev/bplin ioffset offset-table-index sizeof-offset trailer-index)))))]
+                          (build-list array-count
+                                      (lambda [[idx-slot : Index]]
+                                        (let ([ioffset (bplist-extract-object-offset /dev/bplin (+ idx-pos (* idx-slot sizeof-object)) sizeof-object)])
+                                          (extract-object (bplist-extract-object-position /dev/bplin ioffset offset-table-index sizeof-offset trailer-index)))))]
                          [(= object-type #b1101)
                           (define-values (dict-count key-pos _tag _ln) (bplist-extract-object-size /dev/bplin object-size object-pos #false))
-                          (define dictionary : (HashTable Symbol PList-Datum) (make-hasheq))
+                          (define dictionary : (HashTable Symbol PList-Object) (make-hasheq))
                           (for ([kv-slot (in-range dict-count)])
                             (let ([koffset (bplist-extract-object-offset /dev/bplin (+ key-pos (* kv-slot sizeof-object)) sizeof-object)]
                                   [voffset (bplist-extract-object-offset /dev/bplin (+ key-pos dict-count (* kv-slot sizeof-object)) sizeof-object)])
@@ -98,7 +98,7 @@
     (define magic : Bytes #"bplist00")
     (define object-table-index : Index (bytes-length magic))
     (define-values (unique-objects stcejbo) (bplist-flatten plst))
-    (define offset-count : Index (length stcejbo))
+    (define offset-count : Index (hash-count unique-objects))
     (define sizeof-object : Byte (assert (natural-bytes-length offset-count) byte?))
     (define offset-table : (Vectorof Natural) (make-vector offset-count object-table-index))
     (define pointer-pool : Bytes (make-bytes sizeof-object))
@@ -115,10 +115,10 @@
                  [(string? object) (bplist-insert-string /dev/bplout object)]
                  [(exact-integer? object) (bplist-insert-integer /dev/bplout object)]
                  [(flonum? object) (bplist-insert-real /dev/bplout object)]
-                 [(vector? object)
-                  (define array-size : Index (vector-length object))
+                 [(list? object)
+                  (define array-size : Index (length object))
                   (define tagsize : Byte (bplist-insert-tag /dev/bplout #b10100000 array-size))
-                  (for ([item (in-vector object)])
+                  (for ([item (in-list object)])
                     (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects item) sizeof-object pointer-pool))
                   (+ tagsize (* array-size sizeof-object))]
                  [(hash? object)
@@ -129,6 +129,11 @@
                   (for ([value (in-hash-values object)])
                     (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects value) sizeof-object pointer-pool))
                   (+ tagsize (* dict-size 2 sizeof-object))]
+                 [(pair? object)
+                  (define tagsize : Byte (bplist-insert-tag /dev/bplout #b10100000 2))
+                  (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects (car object)) sizeof-object pointer-pool)
+                  (bplist-insert-pointer /dev/bplout (bplist-unique-ref unique-objects (cdr object)) sizeof-object pointer-pool)
+                  (+ tagsize sizeof-object sizeof-object)]
                  [(bytes? object) (bplist-insert-data /dev/bplout object)]
                  [(date? object) (bplist-insert-date /dev/bplout object)]
                  [else (bplist-insert-constant /dev/bplout object)]))))
@@ -334,19 +339,24 @@
            (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
                       [objects : (Listof Any) (cons object stcejbo)])
                      ([(key value) (in-hash object)])
-             (define-values (key-flattened key-counted) (bplist-flatten key uniques objects))
-             (bplist-flatten value key-flattened key-counted))]
-          [(vector? object)
+             (define-values (key-flattened key-objected) (bplist-flatten key uniques objects))
+             (bplist-flatten value key-flattened key-objected))]
+          [(list? object)
            (for/fold ([uniques : BPList-Unique-Objects (bplist-unique-set unique-objects key stcejbo)]
                       [objects : (Listof Any) (cons object stcejbo)])
-                     ([item (in-vector object)])
+                     ([item (in-list object)])
              (bplist-flatten item uniques objects))]
+          [(pair? object)
+           (define-values (car-flattened car-objected)
+             (bplist-flatten (car object) (bplist-unique-set unique-objects key stcejbo) (cons object stcejbo)))
+           (bplist-flatten (cdr object) car-flattened car-objected)]
           [else (values (hash-set unique-objects key (length stcejbo)) (cons object stcejbo))])))
 
 (define bplist-unique-key : (-> Any Any)
   (lambda [object]
-    (cond [(vector? object) (box (eq-hash-code object))]
-          [(hash? object) (box (eq-hash-code object))]
+    (cond [(hash? object) (box (eq-hash-code object))]
+          [(pair? object) (box (eq-hash-code object))]
+          [(list? object) (box (eq-hash-code object))]
           [else object])))
 
 (define bplist-unique-set : (-> BPList-Unique-Objects Any (Listof Any) BPList-Unique-Objects)

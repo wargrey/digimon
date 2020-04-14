@@ -2,8 +2,8 @@
 
 (require digimon/plist)
 
-(define plist : PList-Datum
-  ((inst make-hasheq Symbol PList-Datum)
+(define plist : PList-Object
+  ((inst make-hasheq Symbol PList-Object)
    '((CFBundleDevelopmentRegion . "$(DEVELOPMENT_LANGUAGE)")
      (CFBundleExecutable . "$(EXECUTABLE_NAME)")
      (CFBundleIdentifier . "$(PRODUCT_BUNDLE_IDENTIFIER)")
@@ -13,10 +13,10 @@
      (CFBundleShortVersionString . "1.0")
      (CFBundleVersion . "1")
      (LSRequiresIPhoneOS . 1)
-     (UIRequiredDeviceCapabilities . #["armv7"])
+     (UIRequiredDeviceCapabilities . ["armv7"])
      (UIStatusBarHidden . 1)
-     (UISupportedInterfaceOrientations . #["UIInterfaceOrientationPortrait" "UIInterfaceOrientationLandscapeLeft" "UIInterfaceOrientationLandscapeRight"])
-     (UISupportedInterfaceOrientations~ipad . #["UIInterfaceOrientationPortrait"
+     (UISupportedInterfaceOrientations . ["UIInterfaceOrientationPortrait" "UIInterfaceOrientationLandscapeLeft" "UIInterfaceOrientationLandscapeRight"])
+     (UISupportedInterfaceOrientations~ipad . ["UIInterfaceOrientationPortrait"
                                                 "UIInterfaceOrientationPortraitUpsideDown"
                                                 "UIInterfaceOrientationLandscapeLeft"
                                                 "UIInterfaceOrientationLandscapeRight"]))))
