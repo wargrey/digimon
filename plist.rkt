@@ -6,6 +6,7 @@
 
 (require "digitama/plist.rkt")
 (require "digitama/plist/bplist.rkt")
+(require "digitama/plist/info.plist.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define plist-datum? : (-> Any Boolean : #:+ PList-Datum)
@@ -44,16 +45,22 @@
       (bplist-pretty-hexdump body /dev/stdout offset-table-column unused-field?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define plist-copy-info.rkt : (->* (Path-String) (PList-Stdout #:format PList-Format #:exists (U 'error 'replace)) Void)
-  (lambda [info.rkt [/dev/bplout (current-output-port)] #:format [type 'bplist] #:exists [exists 'replace]]
+(define plist-copy-info.rkt : (->* (Path-String)
+                                   (PList-Stdout #:filter (-> Symbol Any (Values Symbol Any)) #:excludes (Listof Symbol) 
+                                                 #:format PList-Format #:exists (U 'error 'replace)) Void)
+  (lambda [info.rkt [/dev/bplout (current-output-port)]
+                    #:filter [filter apple-info.plist] #:excludes [omitted null]
+                    #:format [type 'bplist] #:exists [exists 'replace]]
     (dynamic-require info.rkt #false)
     
     (define dict : (HashTable Symbol Any) (make-hasheq))
     (define ns : Namespace (module->namespace info.rkt))
     
     (for ([var (in-list (namespace-mapped-symbols ns))])
-      (define val : Any (namespace-variable-value var #false (λ [] void) ns))
-      (unless (procedure? val)
-        (hash-set! dict var val)))
-
+      (unless (memq var omitted)
+        (define val : Any (namespace-variable-value var #false (λ [] void) ns))
+        (unless (procedure? val)
+          (define-values (key value) (filter var val))
+          (hash-set! dict key value))))
+    
     (write-plist dict /dev/bplout #:format type #:exists exists)))
