@@ -10,7 +10,7 @@
     ;;; Required Keys
     ; The bundle display name is the name displayed underneath the application icon.
     ; This value should be localized for all supported languages.
-    (cons 'collect 'CFBundleDisplayName)
+    (cons 'collection 'CFBundleDisplayName)
 
     ; The bundle identifier string identifies your application to the system.
     ; This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters.
@@ -53,7 +53,7 @@
 
     ; A Boolean value that determines whether the status bar is initially hidden when the application launches.
     ; Set it to true to hide the status bar.
-    (cons 'hide-statusbar? 'UIStatusBarHidden)
+    (cons 'statusbar? 'UIStatusBarHidden)
 
     ; A string that identifies the initial orientation of the application’s user interface.
     ; This value is based on the UIInterfaceOrientation constants declared in the UIApplication.h header file.
