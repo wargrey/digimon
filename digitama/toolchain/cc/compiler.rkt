@@ -3,7 +3,9 @@
 (provide (all-defined-out))
 
 (require "cc.rkt")
+(require "../toolchain.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type CC-Options (U 'flags 'macros 'includes 'infile 'outfile))
 
 (define-type CC-CPP-Macros (-> Symbol (Listof String)))
@@ -12,7 +14,7 @@
 
 (define-type CC-IO-File-Flag (-> Path-String Symbol (Listof String)))
 
-(struct cc c-toolchain
+(struct cc toolchain
   ([macros : CC-CPP-Macros]
    [flags : CC-Flags]
    [includes : CC-Includes]

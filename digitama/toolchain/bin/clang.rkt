@@ -2,9 +2,9 @@
 
 (require racket/list)
 
-(require "../compiler.rkt")
-(require "../linker.rkt")
-(require "../modeline.rkt")
+(require "../cc/compiler.rkt")
+(require "../cc/linker.rkt")
+(require "../cc/modeline.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define clang-cpp-macros : CC-CPP-Macros

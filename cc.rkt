@@ -2,24 +2,24 @@
 
 (provide (all-defined-out))
 (provide c-source-modelines)
-(provide c-toolchain-program c-toolchain-option-layout)
-(provide C-Tool-Chain)
+(provide cc ld CC LD)
 
 (require racket/path)
 
-(require "digitama/cc/compiler.rkt")
-(require "digitama/cc/linker.rkt")
-(require "digitama/cc/modeline.rkt")
+(require "digitama/toolchain/cc/cc.rkt")
+(require "digitama/toolchain/cc/compiler.rkt")
+(require "digitama/toolchain/cc/linker.rkt")
+(require "digitama/toolchain/cc/modeline.rkt")
 
-(require "digitama/cc/cc.rkt")
-(require "digitama/cc/exec.rkt")
+(require "digitama/toolchain/toolchain.rkt")
+(require "digitama/toolchain/exec.rkt")
 
 (require "digitama/system.rkt")
 
 ; register toolchains
-(require "digitama/cc/toolchain/clang.rkt")
-(require "digitama/cc/toolchain/gcc.rkt")
-(require "digitama/cc/toolchain/msvc.rkt")
+(require "digitama/toolchain/bin/clang.rkt")
+(require "digitama/toolchain/bin/gcc.rkt")
+(require "digitama/toolchain/bin/msvc.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-compiler : (->* () ((Option (Listof Symbol))) (Option CC))
@@ -32,8 +32,8 @@
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
     (if (cc? compiler)
-        (c-toolchain-exec 'cc (c-toolchain-program compiler)
-                          (for/list : (Listof (Listof String)) ([layout (in-list (c-toolchain-option-layout compiler))])
+        (c-toolchain-exec 'cc (toolchain-program compiler)
+                          (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                             (case layout
                               [(flags) ((cc-flags compiler) digimon-system)]
                               [(macros) (append (cc-default-macros digimon-system) ((cc-macros compiler) digimon-system))]
@@ -56,8 +56,8 @@
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (if (ld? linker)
-        (c-toolchain-exec 'ld (c-toolchain-program linker)
-                          (for/list : (Listof (Listof String)) ([layout (in-list (c-toolchain-option-layout linker))])
+        (c-toolchain-exec 'ld (toolchain-program linker)
+                          (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                             (case layout
                               [(flags) ((ld-flags linker) digimon-system)]
                               [(libpath) ((ld-libpaths linker) digimon-system)]
@@ -122,9 +122,9 @@
   (lambda []
     (hash-keys ld-database)))
 
-(define c-toolchain-name : (-> C-Tool-Chain Symbol)
+(define c-toolchain-name : (-> Tool-Chain Symbol)
   (lambda [tc]
-    (define basename : (Option Path) (file-name-from-path (c-toolchain-program tc)))
+    (define basename : (Option Path) (file-name-from-path (toolchain-program tc)))
     
     (cond [(path? basename) (string->symbol (path->string (path-replace-extension basename #"")))]
           [else '|should not happen|])))

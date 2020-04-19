@@ -4,7 +4,9 @@
 
 (require "cc.rkt")
 (require "modeline.rkt")
+(require "../toolchain.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LD-Options (U 'flags 'libpath 'libraries 'infiles 'outfile))
 
 (define-type LD-Flags (-> Symbol (Listof String)))
@@ -13,7 +15,7 @@
 
 (define-type LD-IO-File-Flag (-> Path-String Symbol (Listof String)))
 
-(struct ld c-toolchain
+(struct ld toolchain
   ([flags : LD-Flags]
    [libpaths : LD-Libpaths]
    [libraries : LD-Libraries]

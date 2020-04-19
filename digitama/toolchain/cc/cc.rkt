@@ -2,16 +2,11 @@
 
 (provide (all-defined-out))
 
-(define os : Symbol (system-type 'os))
+(require "../toolchain.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define object.ext : Bytes (if (eq? os 'windows) #".obj" #".o"))
 (define binary.ext : String (if (eq? os 'windows) ".exe" ""))
-
-(struct c-toolchain
-  ([program : Path]
-   [option-layout : (Listof (U Symbol String))])
-  #:constructor-name abstract-c-toolchain
-  #:type-name C-Tool-Chain
-  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-compiler-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))

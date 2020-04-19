@@ -2,9 +2,9 @@
 
 (require racket/path)
 
-(require "../compiler.rkt")
-(require "../linker.rkt")
-(require "../modeline.rkt")
+(require "../cc/compiler.rkt")
+(require "../cc/linker.rkt")
+(require "../cc/modeline.rkt")
 
 (require "../../system.rkt")
 
