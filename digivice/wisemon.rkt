@@ -264,6 +264,31 @@
                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
                              #:quiet? #false #:warn-undefined? #false))))))))
 
+(define make~typeset:
+  (lambda [digimons info-ref]
+    (let ([rules (map hack-rule (make-native-library-rules info-ref))])
+      (unless (null? rules) (make/proc rules (map car rules))))
+    (do-compile (current-directory) digimons info-ref)
+
+    (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
+      (define src.scrbl (car typesetting))
+      (parameterize ([current-directory (path-only src.scrbl)]
+                     [exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!"
+                                                  (find-relative-path (current-directory) src.scrbl)))])
+        (for ([type (in-list (cdr typesetting))])
+          (parameterize ([current-namespace (make-base-namespace)])
+            (eval '(require (prefix-in tex: scribble/latex-render) (prefix-in pdf: scribble/pdf-render) setup/xref scribble/render))
+            (eval `(render (list ,(dynamic-require src.scrbl 'doc)) ; NOTE: `part?` cannot be shared between namespaces
+                           (list ,(file-name-from-path src.scrbl))
+                           #:render-mixin (case (quote ,type)
+                                            [(tex) tex:render-mixin]
+                                            [(dvi) pdf:dvi-render-mixin]
+                                            [(xpdf) pdf:xelatex-render-mixin]
+                                            [else pdf:render-mixin])
+                           #:dest-dir ,(build-path (path-only src.scrbl) (car (use-compiled-file-paths)))
+                           #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
+                           #:quiet? #false #:warn-undefined? #false))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies
   (parameterize ([current-namespace (variable-reference->namespace (#%variable-reference))])
@@ -298,7 +323,8 @@
                          (list (cons "install" "Install this software and documentation.")
                                (cons "uninstall" "Delete all the installed files and documentation.")
                                (cons "dist" "Create a distribution file of the source files.")
-                               (cons "prove" "Verify and generate test report along with documentation."))))
+                               (cons "prove" "Verify and generate test report along with documentation.")
+                               (cons "typeset" "generate PDFs via latex."))))
           (curry eechof #:fgcolor 'lightred "make: I don't know what does `~a` mean!~n")))
 
 (define make-digimon
@@ -390,7 +416,19 @@
           [else (filter file-exists?
                         (for/list ([handbook (in-list maybe-handbooks)])
                           (cond [(pair? handbook) (build-path (current-directory) (car handbook))]
-                                [else (raise-user-error 'info.rkt "malformed `scribblings`: ~a" handbook)])))])))
+                                [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))])))
+
+(define find-digimon-typesettings
+  (lambda [info-ref]
+    (define maybe-typesettings (info-ref 'typesettings (thunk null)))
+    (cond [(not (list? maybe-typesettings)) (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings)]
+          [else (filter-map (λ [typesetting]
+                              (cond [(not (pair? typesetting)) (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)]
+                                    [else (let ([setting (car typesetting)])
+                                            (and (file-exists? setting)
+                                                 (cons (build-path (current-directory) setting)
+                                                       (filter-typesetting-type (cdr typesetting)))))]))
+                            maybe-typesettings)])))
 
 (define filter-write-output-port
   (lambda [/dev/stdout write-wrap [close? #false]]
@@ -403,6 +441,17 @@
                         (- end start))
                       (λ [] (unless (not close?) (close-output-port /dev/stdout)))
                       #false #false #false)))
+
+(define filter-typesetting-type
+  (lambda [maybe-types]
+    (define all-types (list 'pdf 'xpdf 'dvi 'tex))
+    (define types
+      (cond [(memq maybe-types all-types) (list maybe-types)]
+            [(not (list? maybe-types)) null]
+            [else (remove-duplicates (filter (λ [t] (memq t all-types))
+                                             (flatten maybe-types))
+                                     eq?)]))
+    (if (pair? types) types (list (car all-types)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))
