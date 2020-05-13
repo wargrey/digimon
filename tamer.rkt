@@ -12,6 +12,7 @@
 (require scribble/manual)
 (require scriblib/autobib)
 (require scribble/html-properties)
+(require scribble/latex-properties)
 
 (require (for-syntax syntax/parse))
 
@@ -67,7 +68,7 @@
 
 (define ~cite
   (lambda [bib #:same-author? [same? #false] . bibs]
-    (if (false? same?)
+    (if (not same?)
         (apply (tamer-cites) bib bibs)
         (apply (tamer-cite) bib bibs))))
 
@@ -83,13 +84,22 @@
     [(_ pre-contents ...)
      #'(begin (enter-digimon-zone!)
               (title #:tag "tamer-book"
-                     #:version (format "~a[~a]" (version) (#%info 'version (const "Baby")))
+                     #:version (format "~a" (#%info 'version (const "Baby")))
                      #:style (let* ([tamer.css (collection-file-path "tamer.css" "digimon" "stone")]
-                                    [this.css (build-path (digimon-path 'stone) "tamer.css")])
-                               (make-style #false (map make-css-addition (remove-duplicates (filter file-exists? (list tamer.css this.css))))))
-                     #;(if (symbol=? (object-name (current-input-port)) '/dev/null)
-                           (list (hyperlink (~url (current-digimon)) (string house-garden#)))
-                           (list (hyperlink (~github (current-digimon) (car (#%info 'pkg-authors (const (list digimon-partner))))) (string house-garden#))))
+                                    [tamer.tex (collection-file-path "tamer.tex" "digimon" "stone")]
+                                    [tamer.js (collection-file-path "tamer.js" "digimon" "stone")]
+                                    [tamer-style.css (collection-file-path "tamer-style.css" "digimon" "stone")]
+                                    [tamer-style.js (collection-file-path "tamer-style.js" "digimon" "stone")]
+                                    [this.css (build-path (digimon-path 'stone) "tamer.css")]
+                                    [this.tex (build-path (digimon-path 'stone) "tamer.tex")]
+                                    [this.js (build-path (digimon-path 'stone) "tamer.js")]
+                                    [this-style.css (build-path (digimon-path 'stone) "tamer-style.css")]
+                                    [this-style.js (build-path (digimon-path 'stone) "tamer-style.js")])
+                               (make-style #false (append (map make-css-addition (remove-duplicates (filter file-exists? (list tamer.css this.css))))
+                                                          (map make-tex-addition (remove-duplicates (filter file-exists? (list tamer.tex this.tex))))
+                                                          (map make-js-addition (remove-duplicates (filter file-exists? (list tamer.js this.js))))
+                                                          (map make-css-style-addition (remove-duplicates (filter file-exists? (list tamer-style.css this-style.css))))
+                                                          (map make-js-style-addition (remove-duplicates (filter file-exists? (list tamer-style.js this-style.js)))))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -151,10 +161,7 @@
        (list (part #false '((part "handbook-appendix"))
                    (list (speak 'appendix #:dialect 'tamer))
                    (make-style 'index '(unnumbered reverl)) null null
-                   (list #;(part #f '((part "handbook-digimon"))
-                                 (list (speak 'digimon #:dialect 'tamer))
-                                 appendix-style null null null)
-                         (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
+                   (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
                                       [style appendix-style]
                                       [title-content (list (speak 'bibliography #:dialect 'tamer))])))
              (unless (false? index?)
