@@ -5,24 +5,24 @@
 (require racket/string)
 (require racket/path)
 
-(require "../../echo.rkt")
+(require "../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-toolchain-exec : (-> Symbol Path (Listof (Listof String)) Symbol Void)
+(define fg-exec : (-> Symbol Path (Listof (Listof String)) Symbol Void)
   (lambda [operation program options system]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
       (define args : (Listof String) (apply append options))
-      (define-values (c-toolchain /dev/outin /dev/stdout /dev/errin)
+      (define-values (bin /dev/outin /dev/stdout /dev/errin)
         (apply subprocess #false #false #false program args))
       
       (echof #:fgcolor 'cyan "~a: ~a ~a~n" operation program (string-join args))
 
-      (with-handlers ([exn? (λ _ (subprocess-kill c-toolchain #true))])
+      (with-handlers ([exn? (λ _ (subprocess-kill bin #true))])
         (let wait-response-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])
-          (define e (sync/enable-break outin-evt errin-evt c-toolchain))
+          (define e (sync/enable-break outin-evt errin-evt bin))
      
           (cond [(eq? e /dev/outin)
                  (let ([line (read-line /dev/outin)])
@@ -35,11 +35,10 @@
                          [else (eechof #:fgcolor 'darkred "~a~n" line)
                                (wait-response-loop outin-evt errin-evt)]))])))
 
-      (subprocess-wait c-toolchain)
+      (subprocess-wait bin)
       (custodian-shutdown-all (current-custodian))
 
-      (let ([status (subprocess-status c-toolchain)])
+      (let ([status (subprocess-status bin)])
         (unless (eq? status 0)
-          (let ([basename (file-name-from-path program)])
-            (raise-user-error (string->symbol (path->string (assert basename path?)))
-                              "exit status: ~a" status)))))))
+          (raise-user-error operation "~a: exit status: ~a"
+                            (file-name-from-path program) status))))))

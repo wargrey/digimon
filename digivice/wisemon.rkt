@@ -14,8 +14,10 @@
 
 (require "../cc.rkt")
 
+(require "../digitama/latex.rkt")
 (require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
+
 (require "../echo.rkt")
 (require "../format.rkt")
 (require "../debug.rkt")
@@ -141,7 +143,7 @@
                                  (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render))
                                  (eval `(render (let ([scribble:doc (dynamic-require ,dependent.scrbl 'doc)])
                                                   (list (struct-copy part scribble:doc [parts null])))
-                                                (list ,(file-name-from-path target))
+                                                (list ,target)
                                                 #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
                                                 #:quiet? #false #:warn-undefined? #false))))))])))
 
@@ -258,7 +260,7 @@
                 (dynamic-require `(submod ,handbook main) #false)))
             (parameterize ([exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!" ./handbook))])
               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
-              (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,(file-name-from-path handbook))
+              (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,handbook)
                              #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
                              #:dest-dir ,(build-path (path-only handbook) (car (use-compiled-file-paths)))
                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
@@ -271,23 +273,19 @@
     (do-compile (current-directory) digimons info-ref)
 
     (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define src.scrbl (car typesetting))
-      (parameterize ([current-directory (path-only src.scrbl)]
+      (define-values (src.scrbl renderer) (values (car typesetting) (cdr typesetting)))
+      (define dest-dir (build-path (path-only src.scrbl) (car (use-compiled-file-paths)) "typesetting"))
+      (define src.tex (build-path dest-dir (path-replace-extension (file-name-from-path src.scrbl) #".tex")))
+      (parameterize ([current-namespace (make-base-namespace)]
+                     [current-directory (path-only src.scrbl)]
                      [exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!"
                                                   (find-relative-path (current-directory) src.scrbl)))])
-        (for ([type (in-list (cdr typesetting))])
-          (parameterize ([current-namespace (make-base-namespace)])
-            (eval '(require (prefix-in tex: scribble/latex-render) (prefix-in pdf: scribble/pdf-render) setup/xref scribble/render))
-            (eval `(render (list ,(dynamic-require src.scrbl 'doc)) ; NOTE: `part?` cannot be shared between namespaces
-                           (list ,(file-name-from-path src.scrbl))
-                           #:render-mixin (case (quote ,type)
-                                            [(tex) tex:render-mixin]
-                                            [(dvi) pdf:dvi-render-mixin]
-                                            [(xpdf) pdf:xelatex-render-mixin]
-                                            [else pdf:render-mixin])
-                           #:dest-dir ,(build-path (path-only src.scrbl) (car (use-compiled-file-paths)))
-                           #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                           #:quiet? #false #:warn-undefined? #false))))))))
+        (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+        (eval `(render (list ,(dynamic-require src.scrbl 'doc)) (list ,src.scrbl)
+                       #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
+                       #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
+                       #:quiet? #false #:warn-undefined? #false))
+        (tex-exec renderer src.tex dest-dir #:fallback tex-fallback-renderer)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies
@@ -324,7 +322,7 @@
                                (cons "uninstall" "Delete all the installed files and documentation.")
                                (cons "dist" "Create a distribution file of the source files.")
                                (cons "prove" "Verify and generate test report along with documentation.")
-                               (cons "typeset" "generate PDFs via latex."))))
+                               (cons "typeset" "generate PDFs via LaTex."))))
           (curry eechof #:fgcolor 'lightred "make: I don't know what does `~a` mean!~n")))
 
 (define make-digimon
@@ -345,7 +343,7 @@
                                                      [exn? (λ [e] (let ([/dev/stderr (open-output-string)])
                                                                     (parameterize ([current-error-port /dev/stderr])
                                                                       ((error-display-handler) (exn-message e) e))
-                                                                    (eechof #:fgcolor 'red "~a~n" (get-output-string /dev/stderr))
+                                                                    (eechof #:fgcolor 'red "~a" (get-output-string /dev/stderr))
                                                                     (make-errno)))])
                                        (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
                                        (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
@@ -375,6 +373,7 @@
 ;;; WARNING: parameters are thread specific.
 (define again? #false)
 (define compiling-round 1)
+(define tex-fallback-renderer 'latex)   
 
 (define trace-log
   (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
@@ -427,7 +426,7 @@
                                     [else (let ([setting (car typesetting)])
                                             (and (file-exists? setting)
                                                  (cons (build-path (current-directory) setting)
-                                                       (filter-typesetting-type (cdr typesetting)))))]))
+                                                       (filter-typesetting-renderer (cdr typesetting)))))]))
                             maybe-typesettings)])))
 
 (define filter-write-output-port
@@ -442,16 +441,16 @@
                       (λ [] (unless (not close?) (close-output-port /dev/stdout)))
                       #false #false #false)))
 
-(define filter-typesetting-type
-  (lambda [maybe-types]
-    (define all-types (list 'pdf 'xpdf 'dvi 'tex))
-    (define types
-      (cond [(memq maybe-types all-types) (list maybe-types)]
-            [(not (list? maybe-types)) null]
-            [else (remove-duplicates (filter (λ [t] (memq t all-types))
-                                             (flatten maybe-types))
-                                     eq?)]))
-    (if (pair? types) types (list (car all-types)))))
+(define filter-typesetting-renderer
+  (lambda [maybe-renderers]
+    (define candidates (tex-list-renderers))
+    (cond [(symbol? maybe-renderers) maybe-renderers]
+          [(null? maybe-renderers) tex-fallback-renderer]
+          [else (let check ([candidate (car maybe-renderers)]
+                            [rest (cdr maybe-renderers)])
+                  (cond [(memq candidate candidates) candidate]
+                        [(null? rest) tex-fallback-renderer]
+                        [else (check (car rest) (cdr rest))]))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

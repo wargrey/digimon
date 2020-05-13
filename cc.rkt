@@ -12,7 +12,7 @@
 (require "digitama/toolchain/cc/modeline.rkt")
 
 (require "digitama/toolchain/toolchain.rkt")
-(require "digitama/toolchain/exec.rkt")
+(require "digitama/exec.rkt")
 
 (require "digitama/system.rkt")
 
@@ -32,16 +32,16 @@
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
     (if (cc? compiler)
-        (c-toolchain-exec 'cc (toolchain-program compiler)
-                          (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
-                            (case layout
-                              [(flags) ((cc-flags compiler) digimon-system)]
-                              [(macros) (append (cc-default-macros digimon-system) ((cc-macros compiler) digimon-system))]
-                              [(includes) ((cc-includes compiler) digimon-system)]
-                              [(infile) ((cc-infile compiler) infile digimon-system)]
-                              [(outfile) ((cc-outfile compiler) outfile digimon-system)]
-                              [else (if (string? layout) (list layout) null)]))
-                          digimon-system)
+        (fg-exec 'cc (toolchain-program compiler)
+                 (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
+                   (case layout
+                     [(flags) ((cc-flags compiler) digimon-system)]
+                     [(macros) (append (cc-default-macros digimon-system) ((cc-macros compiler) digimon-system))]
+                     [(includes) ((cc-includes compiler) digimon-system)]
+                     [(infile) ((cc-infile compiler) infile digimon-system)]
+                     [(outfile) ((cc-outfile compiler) outfile digimon-system)]
+                     [else (if (string? layout) (list layout) null)]))
+                 digimon-system)
         (error 'c-compile "no suitable C compiler is found: ~a"
                (c-compiler-candidates compilers)))))
 
@@ -56,19 +56,19 @@
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (if (ld? linker)
-        (c-toolchain-exec 'ld (toolchain-program linker)
-                          (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
-                            (case layout
-                              [(flags) ((ld-flags linker) digimon-system)]
-                              [(libpath) ((ld-libpaths linker) digimon-system)]
-                              [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
-                                                           ((ld-libraries linker) mdl digimon-system)))]
-                              [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system)]
-                                               [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
-                                                                     ((ld-infile linker) f digimon-system)))])]
-                              [(outfile) ((ld-outfile linker) outfile digimon-system)]
-                              [else (if (string? layout) (list layout) null)]))
-                          digimon-system)
+        (fg-exec 'ld (toolchain-program linker)
+                 (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
+                   (case layout
+                     [(flags) ((ld-flags linker) digimon-system)]
+                     [(libpath) ((ld-libpaths linker) digimon-system)]
+                     [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
+                                                  ((ld-libraries linker) mdl digimon-system)))]
+                     [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system)]
+                                      [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
+                                                            ((ld-infile linker) f digimon-system)))])]
+                     [(outfile) ((ld-outfile linker) outfile digimon-system)]
+                     [else (if (string? layout) (list layout) null)]))
+                 digimon-system)
         (error 'c-link "no suitable C linker is found: ~a"
                (c-linker-candidates linkers)))))
 
