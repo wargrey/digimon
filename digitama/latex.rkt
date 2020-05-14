@@ -26,8 +26,8 @@
 (require "typeset/bin/xelatex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-render : (-> Symbol Path-String Path-String [#:fallback Symbol] Path)
-  (lambda [renderer src.tex dest-dir #:fallback [fallback 'latex]]
+(define tex-render : (-> Symbol Path-String Path-String [#:fallback Symbol] [#:retry Byte] Path)
+  (lambda [renderer src.tex dest-dir #:fallback [fallback 'latex] #:retry [retry 4]]
     (define func-name : Symbol 'tex)
     (define latex : (Option Tex-Renderer)
       (hash-ref latex-database renderer
@@ -65,7 +65,7 @@
                           (copy-port /dev/texin /dev/texout))
                         (custodian-shutdown-all (current-custodian))))
                   (parameterize ([current-directory dest-dir])
-                    (let rerun ([times : Natural 1]) ; TODO: if rerunning is required
+                    (let rerun ([times : Natural 1])
                       (fg-exec (string->symbol (format "~a[~a]" func-name times))
                                (tex-renderer-program latex)
                                (list (list "-interaction=batchmode") (list (path->string TEXNAME.tex)))
@@ -78,7 +78,17 @@
                                      (λ [[/dev/login : Input-Port]]
                                        (copy-port /dev/login (current-error-port)))))
                                  (when (<= log-now log-timestamp)
-                                   (echof #:fgcolor 'yellow "~a: log has not updated~n" op)))))
+                                   (echof #:fgcolor 'yellow "~a: log has not updated~n" op))))
+
+                      (when (and (file-exists? TEXNAME.log) (> (file-mtime TEXNAME.log) log-timestamp))
+                        ;; see if we get a "Rerun" note, these seem to come in two flavors
+                        ;; * Label(s) may have changed. Rerun to get cross-references right.
+                        ;; * Package longtable Warning: Table widths have changed. Rerun LaTeX.
+                        (when (call-with-input-file* TEXNAME.log
+                                (lambda [[/dev/login : Input-Port]]
+                                  (regexp-match? #px#"changed\\.\\s+Rerun" /dev/login)))
+                          (cond [(>= times retry) (raise-user-error func-name "could not get a stable result after ~a runs" times)]
+                                [else (rerun (+ times 1))]))))
                     TEXNAME.ext))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
