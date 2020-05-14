@@ -7,10 +7,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define latex-database : (HashTable Symbol Tex-Renderer) (make-hasheq))
 
-(define tex-register-renderer : (-> Symbol [#:filter (Option Tex-Preamble-Filter)] [#:basename (Option Symbol)] Void)
-  (lambda [name #:filter [filter #false] #:basename [basename #false]]
+(define tex-register-renderer : (->* (Symbol) (Bytes #:filter (Option Tex-Preamble-Filter) #:basename (Option Symbol)) Void)
+  (lambda [name [ext #".pdf"] #:filter [filter #false] #:basename [basename #false]]
     (define program : (Option Path) (tex-find-binary-path (or basename name)))
     
     (when (path? program)
       (hash-set! latex-database name
-                 (make-tex-renderer program filter)))))
+                 (make-tex-renderer program ext filter)))))

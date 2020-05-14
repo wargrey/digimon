@@ -7,6 +7,7 @@
 
 (struct tex-renderer
   ([program : Path]
+   [extension : Bytes]
    [preamble-filter : (Option Tex-Preamble-Filter)])
   #:constructor-name make-tex-renderer
   #:type-name Tex-Renderer

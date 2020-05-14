@@ -26,7 +26,7 @@
 (require "typeset/bin/xelatex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-exec : (-> Symbol Path-String Path-String [#:fallback Symbol] Void)
+(define tex-render : (-> Symbol Path-String Path-String [#:fallback Symbol] Path)
   (lambda [renderer src.tex dest-dir #:fallback [fallback 'latex]]
     (define func-name : Symbol 'tex)
     (define latex : (Option Tex-Renderer)
@@ -38,6 +38,7 @@
           [else (let* ([preamble-filter (tex-renderer-preamble-filter latex)]
                        [TEXNAME (assert (file-name-from-path src.tex) path?)]
                        [TEXNAME.tex (build-path dest-dir TEXNAME)]
+                       [TEXNAME.ext (build-path dest-dir (path-replace-extension TEXNAME (tex-renderer-extension latex)))]
                        [TEXNAME.log (build-path dest-dir (path-replace-extension TEXNAME #".log"))]
                        [same-file? (equal? src.tex TEXNAME.tex)]
                        [log-timestamp (file-mtime TEXNAME.log)])
@@ -64,19 +65,21 @@
                           (copy-port /dev/texin /dev/texout))
                         (custodian-shutdown-all (current-custodian))))
                   (parameterize ([current-directory dest-dir])
-                    (fg-exec func-name
-                             (tex-renderer-program latex)
-                             (list (list "-interaction=batchmode") (list (path->string TEXNAME.tex)))
-                             digimon-system
-                             (λ [op program status]
-                               (define log-now (file-mtime TEXNAME.log))
-                               (when (> log-now 0)
-                                 (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
-                                 (call-with-input-file* TEXNAME.log
-                                   (λ [[/dev/login : Input-Port]]
-                                     (copy-port /dev/login (current-error-port)))))
-                               (when (<= log-now log-timestamp)
-                                 (echof #:fgcolor 'yellow "~a: log has not updated~n" op))))))])))
+                    (let rerun ([times : Natural 1]) ; TODO: if rerunning is required
+                      (fg-exec (string->symbol (format "~a[~a]" func-name times))
+                               (tex-renderer-program latex)
+                               (list (list "-interaction=batchmode") (list (path->string TEXNAME.tex)))
+                               digimon-system
+                               (λ [op program status]
+                                 (define log-now (file-mtime TEXNAME.log))
+                                 (when (> log-now 0)
+                                   (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
+                                   (call-with-input-file* TEXNAME.log
+                                     (λ [[/dev/login : Input-Port]]
+                                       (copy-port /dev/login (current-error-port)))))
+                                 (when (<= log-now log-timestamp)
+                                   (echof #:fgcolor 'yellow "~a: log has not updated~n" op)))))
+                    TEXNAME.ext))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-list-renderers : (-> (Listof Symbol))

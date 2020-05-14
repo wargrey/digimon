@@ -285,7 +285,9 @@
                        #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
                        #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
                        #:quiet? #false #:warn-undefined? #false))
-        (tex-exec renderer src.tex dest-dir #:fallback tex-fallback-renderer)))))
+
+        (let ([typesetting.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer)])
+          (printf " [Output to ~a]~n" typesetting.ext))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies
