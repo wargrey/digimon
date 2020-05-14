@@ -6,7 +6,7 @@
 (require "../renderer.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define xelatex-preamble-filter : Tex-Preamble-Filter
+(define xetex-preamble-filter : Tex-Preamble-Filter
   (lambda [line status]
     (cond [(regexp-match? #px"\\\\usepackage\\[utf8\\][{]inputenc[}]" line) (values "\\usepackage{xeCJK}" 'used)]
           [(regexp-match? #px"\\\\newcommand[{]\\\\packageCJK[}]" line) (values #false 'commandset)]
@@ -14,5 +14,5 @@
           [else (values line status)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'xetex #:filter xelatex-preamble-filter)
-(tex-register-renderer 'xelatex #:filter xelatex-preamble-filter)
+(tex-register-renderer 'xetex #:filter xetex-preamble-filter)
+(tex-register-renderer 'xelatex #:filter xetex-preamble-filter)

@@ -22,8 +22,9 @@
 (require "../echo.rkt")
 
 ; register renders
-(require "typeset/bin/latex.rkt")
-(require "typeset/bin/xelatex.rkt")
+(require "typeset/bin/pdftex.rkt")
+(require "typeset/bin/xetex.rkt")
+(require "typeset/bin/luahbtex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-render : (-> Symbol Path-String Path-String [#:fallback Symbol] [#:retry Byte] Path)
