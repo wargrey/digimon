@@ -8,8 +8,8 @@
 (require "../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-exec : (-> Symbol Path (Listof (Listof String)) Symbol Void)
-  (lambda [operation program options system]
+(define fg-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((-> Symbol Path Natural Void)) Void)
+  (lambda [operation program options system [on-error-do void]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -36,9 +36,12 @@
                                (wait-response-loop outin-evt errin-evt)]))])))
 
       (subprocess-wait bin)
-      (custodian-shutdown-all (current-custodian))
 
       (let ([status (subprocess-status bin)])
         (unless (eq? status 0)
+          (on-error-do operation program (assert status exact-nonnegative-integer?))
+          (custodian-shutdown-all (current-custodian))
           (raise-user-error operation "~a: exit status: ~a"
-                            (file-name-from-path program) status))))))
+                            (file-name-from-path program) status)))
+      
+      (custodian-shutdown-all (current-custodian)))))

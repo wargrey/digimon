@@ -52,3 +52,8 @@
     (and (file-exists? p)
          (memq 'read (file-or-directory-permissions p))
          #true)))
+
+(define file-mtime : (->* (Path-String) (Natural) Natural)
+  (lambda [f [fallback 0]]
+    (cond [(file-exists? f) (file-or-directory-modify-seconds f)]
+          [else fallback])))

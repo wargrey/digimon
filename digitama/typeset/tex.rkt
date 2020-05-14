@@ -7,7 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define latex-database : (HashTable Symbol Tex-Renderer) (make-hasheq))
 
-(define tex-register-renderer : (-> Symbol [#:filter (Option Tex-Renderer-Filter)] [#:basename (Option Symbol)] Void)
+(define tex-register-renderer : (-> Symbol [#:filter (Option Tex-Preamble-Filter)] [#:basename (Option Symbol)] Void)
   (lambda [name #:filter [filter #false] #:basename [basename #false]]
     (define program : (Option Path) (tex-find-binary-path (or basename name)))
     

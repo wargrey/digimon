@@ -5,6 +5,8 @@
 
 (require racket/path)
 (require racket/file)
+(require racket/port)
+(require racket/string)
 
 (require/typed
  racket/base
@@ -16,27 +18,65 @@
 
 (require "system.rkt")
 
+(require "../filesystem.rkt")
+(require "../echo.rkt")
+
 ; register renders
 (require "typeset/bin/latex.rkt")
+(require "typeset/bin/xelatex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-exec : (-> Symbol Path-String Path-String [#:fallback Symbol] Void)
   (lambda [renderer src.tex dest-dir #:fallback [fallback 'latex]]
-    (define TEXNAME : (Option Path) (file-name-from-path src.tex))
+    (define func-name : Symbol 'tex)
     (define latex : (Option Tex-Renderer)
       (hash-ref latex-database renderer
                 (λ [] (hash-ref latex-database fallback (λ [] #false)))))
 
-    (cond [(not (tex-renderer? latex)) (error 'tex "no such a tex renderer: ~a in ~a" renderer (tex-list-renderers))]
-          [(not (path? TEXNAME)) (error 'tex "not an input tex file: ~a" src.tex)]
-          [else (let ([src-filter (tex-renderer-filter latex)]
-                      [TEXNAME.tex (build-path dest-dir TEXNAME)])
+    (cond [(not (tex-renderer? latex)) (error func-name "no such a tex renderer: ~a in ~a" renderer (tex-list-renderers))]
+          [(not (file-exists? src.tex)) (error func-name "no such a tex file: ~a" src.tex)]
+          [else (let* ([preamble-filter (tex-renderer-preamble-filter latex)]
+                       [TEXNAME (assert (file-name-from-path src.tex) path?)]
+                       [TEXNAME.tex (build-path dest-dir TEXNAME)]
+                       [TEXNAME.log (build-path dest-dir (path-replace-extension TEXNAME #".log"))]
+                       [same-file? (equal? src.tex TEXNAME.tex)]
+                       [log-timestamp (file-mtime TEXNAME.log)])
                   (make-directory* dest-dir)
-                  (cond [(not src-filter) (unless (equal? src.tex TEXNAME.tex) (copy-file src.tex TEXNAME.tex #true))])
+                  (if (not preamble-filter)
+                      (when (not same-file?)
+                        (copy-file src.tex TEXNAME.tex #true))
+                      (parameterize ([current-custodian (make-custodian)])
+                        (echof #:fgcolor 'cyan "~a: ~a: ~a~n" func-name (object-name preamble-filter) src.tex)
+                        (with-handlers ([exn:fail? (λ [[e : exn:fail]] (custodian-shutdown-all (current-custodian)) (raise e))])
+                          (define /dev/texin : Input-Port
+                            (cond [(not same-file?) (open-input-file src.tex)]
+                                  [else (open-input-bytes (file->bytes src.tex))]))
+                          (define /dev/texout : Output-Port (open-output-file TEXNAME.tex #:exists 'replace))
+                          (let copy-filter ([fstatus : Any 'SOF])
+                            (unless (regexp-match-peek #px"^\\\\begin[{]document[}]" /dev/texin)
+                              (define src-line : (U String EOF) (read-line /dev/texin))
+                              (when (string? src-line)
+                                (define-values (maybe-line cstatus) (preamble-filter src-line fstatus))
+                                (cond [(string? maybe-line) (displayln maybe-line /dev/texout)]
+                                      [(pair? maybe-line) (displayln (string-join maybe-line "\n") /dev/texout)])
+                                (unless (eq? cstatus 'EOF)
+                                  (copy-filter cstatus)))))
+                          (copy-port /dev/texin /dev/texout))
+                        (custodian-shutdown-all (current-custodian))))
                   (parameterize ([current-directory dest-dir])
-                    (fg-exec 'tex (tex-renderer-program latex)
+                    (fg-exec func-name
+                             (tex-renderer-program latex)
                              (list (list "-interaction=batchmode") (list (path->string TEXNAME.tex)))
-                             digimon-system)))])))
+                             digimon-system
+                             (λ [op program status]
+                               (define log-now (file-mtime TEXNAME.log))
+                               (when (> log-now 0)
+                                 (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
+                                 (call-with-input-file* TEXNAME.log
+                                   (λ [[/dev/login : Input-Port]]
+                                     (copy-port /dev/login (current-error-port)))))
+                               (when (<= log-now log-timestamp)
+                                 (echof #:fgcolor 'yellow "~a: log has not updated~n" op))))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-list-renderers : (-> (Listof Symbol))

@@ -3,11 +3,11 @@
 (provide (all-defined-out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Tex-Renderer-Filter (-> String Any (Values (U String (Listof String) False) Any)))
+(define-type Tex-Preamble-Filter (-> String Any (Values (U String (Listof String) False) Any)))
 
 (struct tex-renderer
   ([program : Path]
-   [filter : (Option Tex-Renderer-Filter)])
+   [preamble-filter : (Option Tex-Preamble-Filter)])
   #:constructor-name make-tex-renderer
   #:type-name Tex-Renderer
   #:transparent)
