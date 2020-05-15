@@ -37,6 +37,7 @@
     (cond [(not (tex-renderer? latex)) (error func-name "no such a tex renderer: ~a in ~a" renderer (tex-list-renderers))]
           [(not (file-exists? src.tex)) (error func-name "no such a tex file: ~a" src.tex)]
           [else (let* ([preamble-filter (tex-renderer-preamble-filter latex)]
+                       [post-exec (tex-renderer-post-exec latex)]
                        [TEXNAME (assert (file-name-from-path src.tex) path?)]
                        [TEXNAME.tex (build-path dest-dir TEXNAME)]
                        [TEXNAME.ext (build-path dest-dir (path-replace-extension TEXNAME (tex-renderer-extension latex)))]
@@ -90,7 +91,9 @@
                                   (regexp-match? #px#"changed\\.\\s+Rerun" /dev/login)))
                           (cond [(>= times retry) (raise-user-error func-name "could not get a stable result after ~a runs" times)]
                                 [else (rerun (+ times 1))]))))
-                    TEXNAME.ext))])))
+
+                    (cond [(not post-exec) TEXNAME.ext]
+                          [else (post-exec func-name TEXNAME.ext digimon-system)])))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-list-renderers : (-> (Listof Symbol))

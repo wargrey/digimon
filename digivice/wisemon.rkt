@@ -111,7 +111,7 @@
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
         [(pregexp #px"(newer|skipping:)") (when (make-print-reasons) (traceln info))]
         [_ (traceln info)]))
-    (with-handlers ([exn:fail? (λ [e] (error 'make "[error] ~a" (exn-message e)))])
+    (with-handlers ([exn:fail? (λ [e] (error the-name "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (λ [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
@@ -138,7 +138,7 @@
                   (list t ds (λ [target]
                                (parameterize ([current-namespace (make-base-namespace)]
                                               [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
-                                              [exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!"
+                                              [exit-handler (thunk* (error the-name "[fatal] ~a needs a proper `exit-handler`!"
                                                                            (find-relative-path (current-directory) dependent.scrbl)))])
                                  (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render))
                                  (eval `(render (let ([scribble:doc (dynamic-require ,dependent.scrbl 'doc)])
@@ -250,15 +250,16 @@
 
     (for ([handbook (in-list (if (null? (current-make-real-targets)) (find-digimon-handbooks info-ref) (current-make-real-targets)))])
       (define ./handbook (find-relative-path (current-directory) handbook))
+      (echof #:fgcolor 248 "wisemon prove: ~a~n" ./handbook)
       (parameterize ([current-directory (path-only handbook)]
                      [current-namespace (make-base-namespace)])
         (if (regexp-match? #px"\\.rkt$" ./handbook)
             (parameterize ([exit-handler (λ [retcode] (when (and (integer? retcode) (<= 1 retcode 255))
-                                                        (error 'make "[error] ~a breaks ~a!" ./handbook (~n_w retcode "sample"))))])
+                                                        (error the-name "prove: [error] ~a breaks ~a!" ./handbook (~n_w retcode "sample"))))])
               (define modpath `(submod ,handbook main))
               (when (module-declared? modpath #true)
                 (dynamic-require `(submod ,handbook main) #false)))
-            (parameterize ([exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!" ./handbook))])
+            (parameterize ([exit-handler (thunk* (error the-name "prove: [fatal] ~a needs a proper `exit-handler`!" ./handbook))])
               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
               (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,handbook)
                              #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
@@ -273,18 +274,19 @@
     (do-compile (current-directory) digimons info-ref)
 
     (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define-values (src.scrbl renderer) (values (car typesetting) (cdr typesetting)))
+      (define-values (src.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define dest-dir (build-path (path-only src.scrbl) (car (use-compiled-file-paths)) "typesetting"))
-      (define src.tex (build-path dest-dir (path-replace-extension (file-name-from-path src.scrbl) #".tex")))
+      (define src.tex (build-path dest-dir (path-replace-extension (or maybe-name (file-name-from-path src.scrbl)) #".tex")))
+      (echof #:fgcolor 248 "wisemon typeset: ~a~n" src.tex)
       (parameterize ([current-namespace (make-base-namespace)]
                      [current-directory (path-only src.scrbl)]
-                     [exit-handler (thunk* (error 'make "[fatal] ~a needs a proper `exit-handler`!"
+                     [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
                                                   (find-relative-path (current-directory) src.scrbl)))])
         (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
         (eval `(render (list ,(dynamic-require src.scrbl 'doc)) (list ,src.scrbl)
                        #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
                        #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                       #:quiet? #false #:warn-undefined? #false))
+                       #:quiet? #true #:warn-undefined? #false))
 
         (let ([typesetting.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer)])
           (printf " [Output to ~a]~n" typesetting.ext))))))
@@ -350,7 +352,7 @@
                                        (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
                                        (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
                                              [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk digimons info-ref))]
-                                             [else (error 'make "I don't know how to make `~a`!" phony)]) 0))))
+                                             [else (error the-name "I don't know how to make `~a`!" phony)]) 0))))
                           (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))))))
 
 (define main
@@ -366,7 +368,7 @@
                               (cond [(not digimons) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit 1)]
                                     [else (let-values ([(reals phonies) (partition filename-extension targets)])
                                             (exit (time-apply* (thunk (make-digimon digimons reals phonies)))))])))
-                     (thunk (log-message (current-logger) 'info 'make "Job Done!" eof))))
+                     (thunk (log-message (current-logger) 'info the-name "Job Done!" eof))))
      '["phony-target|file-path"]
      (compose1 exit display --help)
      (compose1 exit (const 1) --unknown (curryr string-trim #px"[()]") (curry format "~a") values))))
@@ -375,7 +377,8 @@
 ;;; WARNING: parameters are thread specific.
 (define again? #false)
 (define compiling-round 1)
-(define tex-fallback-renderer 'latex)   
+(define the-name 'wisemon)
+(define tex-fallback-renderer 'latex)
 
 (define trace-log
   (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
@@ -444,15 +447,17 @@
                       #false #false #false)))
 
 (define filter-typesetting-renderer
-  (lambda [maybe-renderers]
+  (lambda [argv]
     (define candidates (tex-list-renderers))
-    (cond [(symbol? maybe-renderers) maybe-renderers]
-          [(null? maybe-renderers) tex-fallback-renderer]
-          [else (let check ([candidate (car maybe-renderers)]
-                            [rest (cdr maybe-renderers)])
-                  (cond [(memq candidate candidates) candidate]
-                        [(null? rest) tex-fallback-renderer]
-                        [else (check (car rest) (cdr rest))]))])))
+    (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
+    (define maybe-names (filter string? rest))
+    (cons (cond [(null? maybe-renderers) tex-fallback-renderer]
+                [else (let check ([candidate (car maybe-renderers)]
+                                  [rest (cdr maybe-renderers)])
+                        (cond [(memq candidate candidates) candidate]
+                              [(null? rest) tex-fallback-renderer]
+                              [else (check (car rest) (cdr rest))]))])
+          (and (pair? maybe-names) (car maybe-names)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

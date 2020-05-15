@@ -4,11 +4,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Preamble-Filter (-> String Any (Values (U String (Listof String) False) Any)))
+(define-type Tex-Post-Exec (-> Symbol Path Symbol Path))
 
 (struct tex-renderer
   ([program : Path]
    [extension : Bytes]
-   [preamble-filter : (Option Tex-Preamble-Filter)])
+   [preamble-filter : (Option Tex-Preamble-Filter)]
+   [post-exec : (Option Tex-Post-Exec)])
   #:constructor-name make-tex-renderer
   #:type-name Tex-Renderer
   #:transparent)

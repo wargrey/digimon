@@ -14,3 +14,6 @@
 (define raco-commands '(["wisemon" digimon/digivice/wisemon "yet another `make` utility" #false]))
 
 (define scribblings '(["tamer/digimon.scrbl" (main-doc multi-page)]))
+
+(define typesettings '(["tamer/latex.scrbl" latex]
+                       ["tamer/latex.scrbl" pdftex "pdftex"]))

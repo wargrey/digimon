@@ -1,9 +1,6 @@
 #lang typed/racket/base
 
-(require racket/list)
-
 (require "../tex.rkt")
-(require "../renderer.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define luahbtex-preamble-filter : Tex-Preamble-Filter
