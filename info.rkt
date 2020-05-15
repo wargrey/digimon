@@ -15,5 +15,5 @@
 
 (define scribblings '(["tamer/digimon.scrbl" (main-doc multi-page)]))
 
-(define typesettings '(["tamer/latex.scrbl" latex]
-                       ["tamer/latex.scrbl" pdftex "pdftex"]))
+(define typesettings '(["tamer/tex/cjk.tex"]
+                       ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]))

@@ -11,5 +11,4 @@
           [else (values line status)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'xetex #:filter xetex-preamble-filter)
 (tex-register-renderer 'xelatex #:filter xetex-preamble-filter)

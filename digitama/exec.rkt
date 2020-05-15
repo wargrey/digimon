@@ -35,6 +35,7 @@
                          [else (when (not stdout-silent?)
                                  (echof #:fgcolor 'darkgray "~a~n" line))
                                (wait-response-loop outin-evt errin-evt)]))]
+                
                 [(eq? e /dev/errin)
                  (let ([line (read-line /dev/errin)])
                    (cond [(eof-object? line) (wait-response-loop outin-evt never-evt)]

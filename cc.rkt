@@ -73,8 +73,8 @@
                (c-linker-candidates linkers)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-object-destination : (-> Path-String Boolean (Option Path))
-  (lambda [c contained-in-package?]
+(define c-object-destination : (->* (Path-String) (Boolean) (Option Path))
+  (lambda [c [contained-in-package? #true]]
     (define dirname : (Option Path) (path-only c))
     (define basename : (Option Path) (file-name-from-path c))
 

@@ -94,7 +94,7 @@
                    [current-output-port (filter-write-output-port (current-output-port) colorize-stdout)]
                    [current-error-port (filter-write-output-port (current-error-port) colorize-stderr)])
       (or (setup #:collections (list digimons) #:make-docs? #false #:fail-fast? #true)
-          (error 'wisemon "compiling failed.")))
+          (error the-name "compiling failed.")))
     (when again? (compile-collection digimons (add1 round)))))
 
 (define compile-directory
@@ -153,7 +153,7 @@
     (cond [(null? cs) null]
           [else (let-values ([(stone-dir) (path->string (digimon-path 'stone))])
                   (foldl append null
-                         (for/list ([c (in-list (find-digimon-files (curry regexp-match? #px"\\.c$") (current-directory)))])
+                         (for/list ([c (in-list cs)])
                            (define contained-in-package? (string-prefix? (path->string c) stone-dir))
                            (define tobj (c-object-destination c contained-in-package?))
                            (define t (c-library-destination c contained-in-package?))
@@ -250,7 +250,7 @@
 
     (for ([handbook (in-list (if (null? (current-make-real-targets)) (find-digimon-handbooks info-ref) (current-make-real-targets)))])
       (define ./handbook (find-relative-path (current-directory) handbook))
-      (echof #:fgcolor 248 "wisemon prove: ~a~n" ./handbook)
+      (echof #:fgcolor 248 "~a prove: ~a~n" the-name ./handbook)
       (parameterize ([current-directory (path-only handbook)]
                      [current-namespace (make-base-namespace)])
         (if (regexp-match? #px"\\.rkt$" ./handbook)
@@ -274,23 +274,29 @@
     (do-compile (current-directory) digimons info-ref)
 
     (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define-values (src.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
-      (define dest-dir (build-path (path-only src.scrbl) (car (use-compiled-file-paths)) "typesetting"))
-      (define src.tex (build-path dest-dir (path-replace-extension (or maybe-name (file-name-from-path src.scrbl)) #".tex")))
-      (echof #:fgcolor 248 "wisemon typeset: ~a~n" src.tex)
-      (parameterize ([current-namespace (make-base-namespace)]
-                     [current-directory (path-only src.scrbl)]
-                     [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
-                                                  (find-relative-path (current-directory) src.scrbl)))])
-        (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-        (eval `(render (list ,(dynamic-require src.scrbl 'doc)) (list ,src.scrbl)
-                       #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
-                       #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                       #:quiet? #true #:warn-undefined? #false))
+      (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
+      (define dest-dir (path-only (tex-document-destination TEXNAME.scrbl #true)))
+      (define TEXNAME.tex (path-replace-extension (or maybe-name (file-name-from-path TEXNAME.scrbl)) #".tex"))
+      
+      (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl TEXNAME.tex)
 
-        (let ([typesetting.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer)])
-          (printf " [Output to ~a]~n" typesetting.ext))))))
-
+      (if (not (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
+          (let ([src.tex (build-path dest-dir TEXNAME.tex)])
+            (parameterize ([current-namespace (make-base-namespace)]
+                           [current-directory (path-only TEXNAME.scrbl)]
+                           [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
+                                                        (find-relative-path (current-directory) TEXNAME.scrbl)))])
+              (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+              (eval `(render (list ,(dynamic-require TEXNAME.scrbl 'doc)) (list ,TEXNAME.tex)
+                             #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
+                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
+                             #:quiet? #true #:warn-undefined? #false))
+              
+              (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
+                (printf " [Output to ~a]~n" TEXNAME.ext))))
+          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
+            (printf " [Output to ~a]~n" TEXNAME.ext))))))
+    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies
   (parameterize ([current-namespace (variable-reference->namespace (#%variable-reference))])
@@ -451,12 +457,12 @@
     (define candidates (tex-list-renderers))
     (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
     (define maybe-names (filter string? rest))
-    (cons (cond [(null? maybe-renderers) tex-fallback-renderer]
-                [else (let check ([candidate (car maybe-renderers)]
-                                  [rest (cdr maybe-renderers)])
-                        (cond [(memq candidate candidates) candidate]
-                              [(null? rest) tex-fallback-renderer]
-                              [else (check (car rest) (cdr rest))]))])
+    (cons (let check ([renderers maybe-renderers])
+            (cond [(null? renderers)
+                   (echof #:fgcolor 'yellow "~a typeset: no suitable renderer is found, use `~a` instead~n" the-name tex-fallback-renderer)
+                   tex-fallback-renderer]
+                  [(memq (car renderers) candidates) (car renderers)]
+                  [else (check (cdr renderers))]))
           (and (pair? maybe-names) (car maybe-names)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
