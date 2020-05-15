@@ -19,15 +19,15 @@
       (define /dev/byterr : Output-Port (open-output-bytes))
       (define stdout-silent? : Boolean (or (eq? silent 'stdout) (eq? silent 'both)))
       (define stderr-silent? : Boolean (or (eq? silent 'stderr) (eq? silent 'both)))
-      (define-values (bin /dev/outin /dev/stdout /dev/errin)
+      (define-values (/usr/bin/$0 /dev/outin /dev/stdout /dev/errin)
         (apply subprocess #false #false #false program args))
       
       (echof #:fgcolor 'cyan "~a: ~a ~a~n" operation program (string-join args))
 
-      (with-handlers ([exn? (λ _ (subprocess-kill bin #true))])
+      (with-handlers ([exn? (λ _ (subprocess-kill /usr/bin/$0 #true))])
         (let wait-response-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])
-          (define e (sync/enable-break outin-evt errin-evt bin))
+          (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
      
           (cond [(eq? e /dev/outin)
                  (let ([line (read-line /dev/outin)])
@@ -43,9 +43,9 @@
                                      [else (displayln line /dev/byterr)])
                                (wait-response-loop outin-evt errin-evt)]))])))
 
-      (subprocess-wait bin)
+      (subprocess-wait /usr/bin/$0)
 
-      (let ([status (subprocess-status bin)])
+      (let ([status (subprocess-status /usr/bin/$0)])
         (unless (eq? status 0)
           (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
             (when (> (bytes-length maybe-errmsg) 0)
