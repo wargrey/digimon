@@ -55,8 +55,8 @@
          (default-spec-handler tamer-record-story)
          (cond [(path? modpath) (tamer-story (tamer-story->modpath modpath))]
                [else (let ([story (tamer-story->modpath (cadr modpath))])
-                       (tamer-story story)
-                       (tamer-zone (make-tamer-zone story)))]))]
+                       (tamer-story-instantiate story)
+                       (tamer-story story))]))]
     [(_)
      #'(begin (tamer-taming-start! scribble)
               (module+ main (call-as-normal-termination tamer-prove)))]))
@@ -157,17 +157,20 @@
                    pre-contents)))
 
 (define handbook-reference
-  (lambda []
+  (lambda [#:auto-hide? [auto-hide? #true]]
     (define references
       ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
                          #:sec-title (speak 'reference #:dialect 'tamer)))
+
+    ;;; NOTE
+    ; This section only contains references in the resulting `part` object,
+    ; It is a good chance to hide other contents such as verbose Literate Chunks if they are moved after.
     
-    (list (when (pair? (part-parts references)) references)
-          (let ([zone-snapshots (filter-not false? (list (tamer-zone)))])
-            (when (pair? zone-snapshots)
-              (make-traverse-block
-               (thunk* (for-each close-eval zone-snapshots)))))
-          (tamer-story #false))))
+    (tamer-story #false)
+
+    (when (or (not auto-hide?)
+              (pair? (table-blockss (car (part-blocks references)))))
+      references)))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"
@@ -182,14 +185,14 @@
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     (lambda [#:index? [index? #true] . bibentries]
       ((curry filter-not void?)
-       (filter part?
-               (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
-                                  [style (make-style #false '(unnumbered reverl no-index))]
-                                  [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                  [parts null])
-                     (unless (false? index?)
-                       (struct-copy part (index-section #:tag "handbook-index")
-                                    [title-content (list (speak 'index #:dialect 'tamer))]))))))))
+       (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
+                          [style (make-style #false '(unnumbered reverl no-index))]
+                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                          [parts null])
+             (unless (false? index?)
+               (struct-copy part (index-section #:tag "handbook-index")
+                            [style (make-style #false '(unnumbered reverl no-index))]
+                            [title-content (list (speak 'index #:dialect 'tamer))])))))))
   
 (define handbook-smart-table
   (lambda []
@@ -235,17 +238,16 @@
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
         s-exps ...)
-     #'(let ([story-snapshot (tamer-story)]
-             [zone-snapshot (tamer-zone)])
+     #'(let ([this-story (tamer-story)])
          (define example-label
            (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
                  [else label]))
+         (tamer-zone-reference this-story)
          (make-traverse-block
-          (thunk* (parameterize ([tamer-story story-snapshot]
-                                 [tamer-zone zone-snapshot])
-                    (examples #:label example-label
-                              #:eval (tamer-zone)
-                              s-exps ...)))))]))
+          (λ [get set]
+            (define repl (examples #:label example-label #:eval (tamer-zone-ref this-story) s-exps ...))
+            (tamer-zone-destory this-story)
+            repl)))]))
 
 (define-syntax (tamer-answer stx)
   (syntax-case stx []
@@ -259,6 +261,9 @@
 
 (define tamer-story-space
   (lambda []
+    ; already done by `tamer-taming-start!`
+    ; (tamer-story-instantiate (tamer-story))
+    
     (module->namespace (tamer-story))))
 
 (define tamer-require
@@ -283,7 +288,7 @@
 
 (define tamer-smart-summary
   (lambda []
-    (define story-snapshot (tamer-story))
+    (define this-story (tamer-story))
     (define ~symbol (default-spec-issue-symbol))
     (define ~fgcolor (default-spec-issue-fgcolor))
     (define raco-setup-forget-my-digimon (current-digimon))
@@ -301,14 +306,14 @@
 
               (parameterize ([current-digimon raco-setup-forget-my-digimon])
                 (nested #:style (make-style "boxed" null)
-                        (filebox (if (module-path? story-snapshot)
+                        (filebox (if (module-path? this-story)
                                      (italic (seclink "tamer-book" (string open-book#)) ~
-                                             (~a "Behaviors in " (tamer-story->tag story-snapshot)))
+                                             (~a "Behaviors in " (tamer-story->tag this-story)))
                                      (italic (string books#) ~
                                              (~a "Behaviors of " (current-digimon))))
                                  (let-values ([(features btimes metrics)
-                                               (if (module-path? story-snapshot)
-                                                   (let ([htag (tamer-story->tag story-snapshot)])
+                                               (if (module-path? this-story)
+                                                   (let ([htag (tamer-story->tag this-story)])
                                                      (values (tamer-feature-reverse-merge (hash-ref scenarios htag (λ [] null)))
                                                              (hash-ref btimes htag (λ [] tamer-empty-times))
                                                              (hash-ref issues htag (λ [] tamer-empty-issues))))
@@ -329,7 +334,7 @@
                                              'pass))
                                        
                                        (define symtype (~a (~symbol issue-type)))
-                                       (if (module-path? story-snapshot)
+                                       (if (module-path? this-story)
                                            (list (elem (italic (string local#)) ~ (elemref brief (racketkeywordfont (literal brief))))
                                                  (elemref brief symtype #:underline? #false))
                                            (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
@@ -350,7 +355,7 @@
                                            (list "No particular sample!")
                                            (list (format "~a% behaviors okay."
                                                    (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population)))
-                                                 (string-join (list (~w=n (length features) (if story-snapshot "Scenario" "Story"))
+                                                 (string-join (list (~w=n (length features) (if this-story "Scenario" "Story"))
                                                                     (~w=n population "Behavior") (~w=n misbehaved "Misbehavior") (~w=n panic "Panic")
                                                                     (~w=n skip "Skip") (~w=n todo "TODO"))
                                                               ", " #:after-last ".")
@@ -358,7 +363,7 @@
                                                         (map (λ [ms] (~r (* ms 0.001) #:precision '(= 3)))
                                                              (list real (- cpu gc) gc cpu)))))))
 
-                                   (unless (module-path? story-snapshot)
+                                   (unless (module-path? this-story)
                                      (for ([brief (in-list (cons "" briefs))])
                                        (echof #:fgcolor 'lightcyan "~a~n" brief)))
 
@@ -369,14 +374,14 @@
 
 (define tamer-note
   (lambda [example . notes]
-    (define story-snapshot (tamer-story))
+    (define this-story (tamer-story))
     (define ~symbol (default-spec-issue-symbol))
     (define raco-setup-forget-my-digimon (current-digimon))
     
     (make-traverse-block
      (λ [get set]
        (parameterize ([current-digimon raco-setup-forget-my-digimon])
-         (define htag (tamer-story->tag story-snapshot))
+         (define htag (tamer-story->tag this-story))
          (define toplevel-indent 2)
 
          (define scenarios (traverse-ref! get set tamer-scribble-story-id make-hash))
@@ -384,7 +389,7 @@
          (define issues (traverse-ref! get set tamer-scribble-story-issues make-hash))
          
          (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
-                      (parameterize ([tamer-story story-snapshot]
+                      (parameterize ([tamer-story this-story]
                                      [default-spec-issue-handler void])
                         ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
                         (define (downfold-feature brief indent seed:info)
@@ -442,85 +447,88 @@
 
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1]]
-    (define story-snapshot (tamer-story))
+    (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (thunk* (parameterize ([tamer-story story-snapshot]
-                            [current-digimon raco-setup-forget-my-digimon])
-               (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-               (nested #:style (make-style "boxed" null)
-                       (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                                (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number starts from 1
-                                           (string-trim (file->string /path/file) #:left? #false #:right? #true)))))))))
+     (λ [get set]
+       (parameterize ([tamer-story this-story]
+                      [current-digimon raco-setup-forget-my-digimon])
+         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+         (nested #:style (make-style "boxed" null)
+                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                          (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number starts from 1
+                                     (string-trim (file->string /path/file) #:left? #false #:right? #true)))))))))
 
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
-    (define story-snapshot (tamer-story))
+    (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (thunk* (parameterize ([tamer-story story-snapshot]
-                            [current-digimon raco-setup-forget-my-digimon])
-               (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-               (define-values (line0 contents)
-                 (call-with-input-file* /path/file
-                   (lambda [in.rkt]
-                     (let read-next ([lang #false] [line0 0] [contents null] [end 0])
-                       (define line (read-line in.rkt))
-                       ; if it does not work, please check whether your pxstart and pxend are pregexps first.
-                       (cond [(eof-object? line)
-                              (if (zero? end)
-                                  (values line0 (cons lang (reverse contents)))
-                                  (values line0 (cons lang (take (reverse contents) end))))]
-                             [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
-                              ; the stop line itself is excluded
-                              (if (false? greedy?)
-                                  (values line0 (cons lang (reverse contents)))
-                                  (read-next lang line0 (cons line contents) (length contents)))]
-                             [(regexp-match? #px"^#lang .+$" line)
-                              (read-next line (add1 line0) contents end)]
-                             [(and lang (null? contents) (regexp-match pxstart line))
-                              (read-next lang line0 (list line) end)]
-                             [(pair? contents) ; still search the end line greedily
-                              (read-next lang line0 (cons line contents) end)]
-                             [else ; still search the start line
-                              (read-next lang (add1 line0) contents end)])))))
-               (nested #:style (make-style "boxed" null)
-                       (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                                (codeblock #:line-numbers line0 #:keep-lang-line? #false
-                                           (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                        (string-join contents (string #\newline)))))))))))
+     (λ [get set]
+       (parameterize ([tamer-story this-story]
+                      [current-digimon raco-setup-forget-my-digimon])
+         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+         (define-values (line0 contents)
+           (call-with-input-file* /path/file
+             (lambda [in.rkt]
+               (let read-next ([lang #false] [line0 0] [contents null] [end 0])
+                 (define line (read-line in.rkt))
+                 ; if it does not work, please check whether your pxstart and pxend are pregexps first.
+                 (cond [(eof-object? line)
+                        (if (zero? end)
+                            (values line0 (cons lang (reverse contents)))
+                            (values line0 (cons lang (take (reverse contents) end))))]
+                       [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                        ; the stop line itself is excluded
+                        (if (false? greedy?)
+                            (values line0 (cons lang (reverse contents)))
+                            (read-next lang line0 (cons line contents) (length contents)))]
+                       [(regexp-match? #px"^#lang .+$" line)
+                        (read-next line (add1 line0) contents end)]
+                       [(and lang (null? contents) (regexp-match pxstart line))
+                        (read-next lang line0 (list line) end)]
+                       [(pair? contents) ; still search the end line greedily
+                        (read-next lang line0 (cons line contents) end)]
+                       [else ; still search the start line
+                        (read-next lang (add1 line0) contents end)])))))
+         (nested #:style (make-style "boxed" null)
+                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                          (codeblock #:line-numbers line0 #:keep-lang-line? #false
+                                     (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                  (string-join contents (string #\newline)))))))))))
 
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
-    (define story-snapshot (tamer-story))
+    (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (thunk* (parameterize ([tamer-story story-snapshot]
-                            [current-digimon raco-setup-forget-my-digimon])
-               (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-               (define-values (line0 contents)
-                 (call-with-input-file* /path/file
-                   (lambda [in.rkt]
-                     (let read-next ([line0 1] [contents null] [end 0])
-                       (define line (read-line in.rkt))
-                       ; if it does not work, please check whether your pxstart and pxend are pregexps first.
-                       (cond [(eof-object? line)
-                              (if (zero? end)
-                                  (values line0 (reverse contents))
-                                  (values line0 (take (reverse contents) end)))]
-                             [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
-                              ; the stop line itself is excluded
-                              (if (false? greedy?)
-                                  (values line0 (reverse contents))
-                                  (read-next line0 (cons line contents) (length contents)))]
-                             [(and (null? contents) (regexp-match pxstart line))
-                              (read-next line0 (list line) end)]
-                             [(pair? contents) ; still search the end line greedily
-                              (read-next line0 (cons line contents) end)]
-                             [else ; still search the start line
-                              (read-next (add1 line0) contents end)])))))
-               (nested #:style (make-style "boxed" null)
-                       (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                                (codeblock #:line-numbers line0 #:keep-lang-line? #true
-                                           (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                        (string-join contents (string #\newline)))))))))))
+     (λ [get set]
+       (parameterize ([tamer-story this-story]
+                      [current-digimon raco-setup-forget-my-digimon])
+         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+         (define-values (line0 contents)
+           (call-with-input-file* /path/file
+             (lambda [in.rkt]
+               (let read-next ([line0 1] [contents null] [end 0])
+                 (define line (read-line in.rkt))
+                 ; if it does not work, please check whether your pxstart and pxend are pregexps first.
+                 (cond [(eof-object? line)
+                        (if (zero? end)
+                            (values line0 (reverse contents))
+                            (values line0 (take (reverse contents) end)))]
+                       [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                        ; the stop line itself is excluded
+                        (if (false? greedy?)
+                            (values line0 (reverse contents))
+                            (read-next line0 (cons line contents) (length contents)))]
+                       [(and (null? contents) (regexp-match pxstart line))
+                        (read-next line0 (list line) end)]
+                       [(pair? contents) ; still search the end line greedily
+                        (read-next line0 (cons line contents) end)]
+                       [else ; still search the start line
+                        (read-next (add1 line0) contents end)])))))
+         (nested #:style (make-style "boxed" null)
+                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                          (codeblock #:line-numbers line0 #:keep-lang-line? #true
+                                     (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                  (string-join contents (string #\newline)))))))))))

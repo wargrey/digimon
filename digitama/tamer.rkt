@@ -17,7 +17,6 @@
 
 (require (for-syntax racket/base))
 
-(define tamer-zone (make-parameter #false))  
 (define tamer-story (make-parameter #false))
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
@@ -33,14 +32,19 @@
   (lambda [story-path]
     `(submod ,story-path tamer)))
 
-(define make-tamer-zone
-  (lambda [zone]
+(define tamer-story-instantiate
+  (lambda [story]
     (define tamer-module
-      (cond [(module-declared? zone #true) zone]
+      (cond [(module-declared? story #true) story]
             [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
                (and (file-exists? tamer.rkt) tamer.rkt)) => values]
             [else (collection-file-path "tamer.rkt" "digimon")]))
     (dynamic-require tamer-module #false)
+    tamer-module))
+
+(define make-tamer-zone
+  (lambda [story]
+    (define tamer-module (tamer-story-instantiate story))
     (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
       (make-base-eval #:pretty-print? #true))))
 
@@ -60,6 +64,27 @@
       (unless (member htag books)
         (hash-set! handbook-stories books#
                    (cons htag books))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; For Examples
+(define tamer-zones #;(HastTable Any (Pairof Integer Evaluation)) (make-hash))
+
+(define tamer-zone-reference
+  (lambda [story]
+    (define z (hash-ref tamer-zones story (λ [] (cons 0 (make-tamer-zone story)))))
+    (hash-set! tamer-zones story (cons (add1 (car z)) (cdr z)))))
+
+(define tamer-zone-ref
+  (lambda [story]
+    (cdr (hash-ref tamer-zones story (λ [] (cons 0 #false))))))
+
+(define tamer-zone-destory
+  (lambda [story]
+    (define z (hash-ref tamer-zones story (λ [] #false)))
+
+    (when (pair? z)
+      (cond [(<= (car z) 1) (close-eval (cdr z)) (hash-remove! tamer-zones story)]
+            [else (hash-set! tamer-zones story (cons (sub1 (car z)) (cdr z)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Summaries, the `compiled specification`, all features and behaviors have been proved.
