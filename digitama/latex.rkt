@@ -64,7 +64,7 @@
 
     (and (path? dirname) (path? basename)
          (build-path dirname (car (use-compiled-file-paths))
-                     "typesettings" (path-replace-extension basename #".pdf")))))
+                     "typesetting" (path-replace-extension basename #".pdf")))))
 
 (define tex-list-renderers : (-> (Listof Symbol))
   (lambda []

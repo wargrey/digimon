@@ -90,16 +90,21 @@
                                     [tamer.js (collection-file-path "tamer.js" "digimon" "stone")]
                                     [tamer-style.css (collection-file-path "tamer-style.css" "digimon" "stone")]
                                     [tamer-style.js (collection-file-path "tamer-style.js" "digimon" "stone")]
-                                    [this.css (build-path (digimon-path 'stone) "tamer.css")]
-                                    [this.tex (build-path (digimon-path 'stone) "tamer.tex")]
-                                    [this.js (build-path (digimon-path 'stone) "tamer.js")]
-                                    [this-style.css (build-path (digimon-path 'stone) "tamer-style.css")]
-                                    [this-style.js (build-path (digimon-path 'stone) "tamer-style.js")])
-                               (make-style #false (append (map make-css-addition (remove-duplicates (filter file-exists? (list tamer.css this.css))))
-                                                          (map make-tex-addition (remove-duplicates (filter file-exists? (list tamer.tex this.tex))))
-                                                          (map make-js-addition (remove-duplicates (filter file-exists? (list tamer.js this.js))))
-                                                          (map make-css-style-addition (remove-duplicates (filter file-exists? (list tamer-style.css this-style.css))))
-                                                          (map make-js-style-addition (remove-duplicates (filter file-exists? (list tamer-style.js this-style.js)))))))
+                                    [local.css (build-path (digimon-path 'stone) "tamer.css")]
+                                    [local.tex (build-path (digimon-path 'stone) "tamer.tex")]
+                                    [local.js (build-path (digimon-path 'stone) "tamer.js")]
+                                    [local-style.css (build-path (digimon-path 'stone) "tamer-style.css")]
+                                    [local-style.js (build-path (digimon-path 'stone) "tamer-style.js")])
+                               (make-style #false (foldl (λ [resrcs properties]
+                                                           (append properties
+                                                                   (map (car resrcs)
+                                                                        (remove-duplicates (filter file-exists? (cdr resrcs))))))
+                                                         null
+                                                         (list (list make-css-addition tamer.css local.css)
+                                                               (list make-tex-addition tamer.tex local.tex)
+                                                               (list make-js-addition tamer.js local.js)
+                                                               (list make-css-style-addition tamer-style.css local-style.css)
+                                                               (list make-js-style-addition tamer-style.js local-style.js)))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -153,10 +158,15 @@
 
 (define handbook-reference
   (lambda []
-    (list ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                             #:sec-title (speak 'reference #:dialect 'tamer))
+    (define references
+      ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
+                         #:sec-title (speak 'reference #:dialect 'tamer)))
+    
+    (list (when (pair? (part-parts references)) references)
           (let ([zone-snapshots (filter-not false? (list (tamer-zone)))])
-            (make-traverse-block (thunk* (for-each close-eval zone-snapshots))))
+            (when (pair? zone-snapshots)
+              (make-traverse-block
+               (thunk* (for-each close-eval zone-snapshots)))))
           (tamer-story #false))))
 
 (define handbook-appendix
