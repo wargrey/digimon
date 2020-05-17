@@ -85,26 +85,20 @@
      #'(begin (enter-digimon-zone!)
               (title #:tag "tamer-book"
                      #:version (format "~a" (#%info 'version (const "Baby")))
-                     #:style (let* ([tamer.css (collection-file-path "tamer.css" "digimon" "stone")]
-                                    [tamer.tex (collection-file-path "tamer.tex" "digimon" "stone")]
-                                    [tamer.js (collection-file-path "tamer.js" "digimon" "stone")]
-                                    [tamer-style.css (collection-file-path "tamer-style.css" "digimon" "stone")]
-                                    [tamer-style.js (collection-file-path "tamer-style.js" "digimon" "stone")]
-                                    [local.css (build-path (digimon-path 'stone) "tamer.css")]
-                                    [local.tex (build-path (digimon-path 'stone) "tamer.tex")]
-                                    [local.js (build-path (digimon-path 'stone) "tamer.js")]
-                                    [local-style.css (build-path (digimon-path 'stone) "tamer-style.css")]
-                                    [local-style.js (build-path (digimon-path 'stone) "tamer-style.js")])
+                     #:style (let* ([local-stone (digimon-path 'stone)])
                                (make-style #false (foldl (λ [resrcs properties]
                                                            (append properties
                                                                    (map (car resrcs)
-                                                                        (remove-duplicates (filter file-exists? (cdr resrcs))))))
+                                                                        (let ([tamer.res (cdr resrcs)])
+                                                                          (remove-duplicates (filter file-exists?
+                                                                                                     (list (collection-file-path tamer.res "digimon" "stone")
+                                                                                                           (build-path local-stone tamer.res))))))))
                                                          null
-                                                         (list (list make-css-addition tamer.css local.css)
-                                                               (list make-tex-addition tamer.tex local.tex)
-                                                               (list make-js-addition tamer.js local.js)
-                                                               (list make-css-style-addition tamer-style.css local-style.css)
-                                                               (list make-js-style-addition tamer-style.js local-style.js)))))
+                                                         (list (cons make-css-addition "tamer.css")
+                                                               (cons make-tex-addition "tamer.tex")
+                                                               (cons make-js-addition "tamer.js")
+                                                               (cons make-css-style-addition "tamer-style.css")
+                                                               (cons make-js-style-addition "tamer-style.js")))))
                      (let ([contents (list pre-contents ...)])
                        (cond [(pair? contents) contents]
                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
