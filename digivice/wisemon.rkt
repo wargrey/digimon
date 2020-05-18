@@ -281,12 +281,19 @@
       (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl TEXNAME.tex)
 
       (if (not (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
-          (let ([src.tex (build-path dest-dir TEXNAME.tex)])
+          (let ([src.tex (build-path dest-dir TEXNAME.tex)]
+                [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
             (parameterize ([current-namespace (make-base-namespace)]
                            [current-directory (path-only TEXNAME.scrbl)]
                            [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
                                                         (find-relative-path (current-directory) TEXNAME.scrbl)))])
               (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+
+              (when (file-exists? hook.rktl)
+                (eval `(let ([ecc (dynamic-require ,hook.rktl 'extra-character-conversions (λ [] #false))])
+                         (when (procedure? ecc)
+                           (tex:extra-character-conversions ecc)))))
+
               (eval `(render (list ,(dynamic-require TEXNAME.scrbl 'doc)) (list ,TEXNAME.tex)
                              #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
