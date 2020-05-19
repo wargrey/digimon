@@ -25,26 +25,23 @@
 (define-syntax (tamer-story->tag stx)
   (syntax-case stx []
     [(_ story-sexp)
-     #'(let ([modpath (with-handlers ([exn? (λ [e] (quote-source-file))]) (cadr story-sexp))])
+     #'(let ([modpath (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp))])
          (path->string (find-relative-path (digimon-path 'tamer) modpath)))]))
 
 (define tamer-story->modpath
   (lambda [story-path]
     `(submod ,story-path tamer)))
 
-(define tamer-story-instantiate
+(define tamer-story->module
   (lambda [story]
-    (define tamer-module
-      (cond [(module-declared? story #true) story]
-            [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
-               (and (file-exists? tamer.rkt) tamer.rkt)) => values]
-            [else (collection-file-path "tamer.rkt" "digimon")]))
-    (dynamic-require tamer-module #false)
-    tamer-module))
+    (cond [(module-declared? story #true) story]
+          [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
+             (and (file-exists? tamer.rkt) tamer.rkt)) => values]
+          [else (collection-file-path "tamer.rkt" "digimon")])))
 
 (define make-tamer-zone
   (lambda [story]
-    (define tamer-module (tamer-story-instantiate story))
+    (define tamer-module (tamer-story->module story))
     (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
       (make-base-eval #:pretty-print? #true))))
 

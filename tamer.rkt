@@ -51,12 +51,13 @@
     [(_ scribble)
      #'(let ([modpath (quote-module-path)])
          (enter-digimon-zone!) ; Scribble modules are independent of each other
+
+         (tamer-story
+          (cond [(path? modpath) (tamer-story->modpath modpath)]
+                [else (tamer-story->modpath (cadr modpath))]))
          
          (default-spec-handler tamer-record-story)
-         (cond [(path? modpath) (tamer-story (tamer-story->modpath modpath))]
-               [else (let ([story (tamer-story->modpath (cadr modpath))])
-                       (tamer-story-instantiate story)
-                       (tamer-story story))]))]
+         (dynamic-require (tamer-story->module (tamer-story)) #false))]
     [(_)
      #'(begin (tamer-taming-start! scribble)
               (module+ main (call-as-normal-termination tamer-prove)))]))
@@ -255,9 +256,6 @@
 
 (define tamer-story-space
   (lambda []
-    ; already done by `tamer-taming-start!`
-    ; (tamer-story-instantiate (tamer-story))
-    
     (module->namespace (tamer-story))))
 
 (define tamer-require
@@ -271,9 +269,9 @@
      (if (module-path? (tamer-story))
          (let ([htag (tamer-story->tag (tamer-story))])
            (make-spec-feature htag (or (and (dynamic-require (tamer-story) #false)
-                                                    (hash-has-key? handbook-stories htag)
-                                                    (reverse (hash-ref handbook-stories htag)))
-                                               null)))
+                                            (hash-has-key? handbook-stories htag)
+                                            (reverse (hash-ref handbook-stories htag)))
+                                       null)))
          (make-spec-feature "Features and Behaviors"
                             (cond [(zero? (hash-count handbook-stories)) null] ; no story ==> no :books:
                                   [else (let ([href (curry hash-ref handbook-stories)])
