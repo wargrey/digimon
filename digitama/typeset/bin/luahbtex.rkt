@@ -9,4 +9,4 @@
           [else (values line status)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'lualatex #:on-error-logging? #false #:filter luahbtex-preamble-filter)
+(tex-register-renderer 'lualatex #:filter luahbtex-preamble-filter)
