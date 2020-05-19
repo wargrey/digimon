@@ -9,6 +9,7 @@
 (struct tex-renderer
   ([program : Path]
    [extension : Bytes]
+   [on-error-logging? : Boolean]
    [preamble-filter : (Option Tex-Preamble-Filter)]
    [post-exec : (Option Tex-Post-Exec)])
   #:constructor-name make-tex-renderer

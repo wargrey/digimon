@@ -33,15 +33,16 @@
                      (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                  [else (path->string TEXNAME.tex)])))
                digimon-system
-               (λ [op program status]
-                 (define log-now (file-mtime TEXNAME.log))
-                 (when (> log-now 0)
-                   (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
-                   (call-with-input-file* TEXNAME.log
-                     (λ [[/dev/login : Input-Port]]
-                       (copy-port /dev/login (current-error-port)))))
-                 (when (<= log-now log-timestamp)
-                   (echof #:fgcolor 'yellow "~a: log has not updated~n" op))))
+               (and (tex-renderer-on-error-logging? latex)
+                    (λ [op program status]
+                      (define log-now (file-mtime TEXNAME.log))
+                      (when (> log-now 0)
+                        (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
+                        (call-with-input-file* TEXNAME.log
+                          (λ [[/dev/login : Input-Port]]
+                            (copy-port /dev/login (current-error-port)))))
+                      (when (<= log-now log-timestamp)
+                        (echof #:fgcolor 'yellow "~a: log has not updated~n" op)))))
       
       (when (and (file-exists? TEXNAME.log) (> (file-mtime TEXNAME.log) log-timestamp))
         ;; see if we get a "Rerun" note, these seem to come in two flavors

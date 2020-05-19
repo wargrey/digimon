@@ -10,8 +10,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdout 'stderr 'both 'none))
 
-(define fg-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((-> Symbol Path Natural Void) #:silent Exec-Silent) Void)
-  (lambda [operation program options system [on-error-do void] #:silent [silent 'none]]
+(define fg-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
+  (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -51,7 +51,7 @@
             (when (> (bytes-length maybe-errmsg) 0)
               (eechof #:fgcolor 'darkred "~a" maybe-errmsg)))
 
-          (on-error-do operation program (assert status exact-nonnegative-integer?))
+          ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
           (custodian-shutdown-all (current-custodian))
 
           (raise-user-error operation "~a: exit status: ~a"

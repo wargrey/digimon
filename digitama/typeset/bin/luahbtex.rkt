@@ -3,4 +3,10 @@
 (require "../tex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'lualatex #:filter #false)
+(define luahbtex-preamble-filter : Tex-Preamble-Filter
+  (lambda [line status]
+    (cond [(regexp-match? #px"\\\\documentclass" line) (values (list line "\\usepackage{fontspec}") 'EOF)]
+          [else (values line status)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(tex-register-renderer 'lualatex #:on-error-logging? #false #:filter luahbtex-preamble-filter)
