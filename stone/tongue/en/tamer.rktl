@@ -1,4 +1,5 @@
 ((handbook . "Tamer's Handbook")
+ (preface . "Preface")
  (story . "")
  (scenario . "")
  (reference . "Reference")

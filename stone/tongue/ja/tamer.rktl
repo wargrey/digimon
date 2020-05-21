@@ -1,4 +1,5 @@
 ((handbook . "調教師の案内書")
+ (preface . "序文")
  (story . "")
  (scenario . "")
  (reference . "参考文献")

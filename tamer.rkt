@@ -31,6 +31,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
+(define noncontent-style (make-style #false '(unnumbered reverl no-index)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
 (define $err (open-output-bytes '/dev/tamer/stderr))
@@ -127,6 +128,16 @@
                        (cond [(string=? story-literal "") input-contents]
                              [else (list* (literal story-literal ":")) ~ input-contents]))))]))
 
+(define handbook-preface-title
+  (lambda [#:tag [tag #false]]
+    (title #:tag tag #:style noncontent-style
+           (literal (speak 'preface #:dialect 'tamer)))))
+
+(define handbook-preface-section
+  (lambda [#:tag [tag #false]]
+    (section #:tag tag #:style noncontent-style
+             (literal (speak 'preface #:dialect 'tamer)))))
+
 (define handbook-scenario
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
     (define scenario-literal (speak 'scenario #:dialect 'tamer))
@@ -181,13 +192,13 @@
     (lambda [#:index? [index? #true] . bibentries]
       ((curry filter-not void?)
        (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
-                          [style (make-style #false '(unnumbered reverl no-index))]
                           [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                          [style noncontent-style]
                           [parts null])
              (unless (false? index?)
                (struct-copy part (index-section #:tag "handbook-index")
-                            [style (make-style #false '(unnumbered reverl no-index))]
-                            [title-content (list (speak 'index #:dialect 'tamer))])))))))
+                            [title-content (list (speak 'index #:dialect 'tamer))]
+                            [style noncontent-style])))))))
   
 (define handbook-smart-table
   (lambda []

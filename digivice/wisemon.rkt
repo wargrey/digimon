@@ -10,7 +10,6 @@
 
 (require setup/setup)
 (require setup/option)
-(require setup/dirs)
 
 (require "../cc.rkt")
 
@@ -131,18 +130,26 @@
   (lambda [info-ref]
     (define digimon-tamer (build-path (current-directory) "tamer"))
     (define handbooks (find-digimon-handbooks info-ref))
-    (cond [(or (null? handbooks) (string=? digimon-partner "root")) null]
-          [else (for/list ([dependent.scrbl (in-value (car handbooks))])
+    (define typesettings (find-digimon-typesettings info-ref))
+    (define handbook? (pair? handbooks))
+    (cond [(or (and (not handbook?) (null? typesettings)) (string=? digimon-partner "root")) null]
+          [else (for/list ([readme.scrbl (in-value (if (not handbook?) (caar typesettings) (car handbooks)))])
                   (define t (build-path (current-directory) "README.md"))
-                  (define ds (filter file-exists? (list* "info.rkt" (smart-dependencies dependent.scrbl))))
+                  (define ds (filter file-exists? (list* "info.rkt" (smart-dependencies readme.scrbl))))
                   (list t ds (λ [target]
                                (parameterize ([current-namespace (make-base-namespace)]
                                               [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
                                               [exit-handler (thunk* (error the-name "[fatal] ~a needs a proper `exit-handler`!"
-                                                                           (find-relative-path (current-directory) dependent.scrbl)))])
+                                                                           (find-relative-path (current-directory) readme.scrbl)))])
                                  (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render))
-                                 (eval `(render (let ([scribble:doc (dynamic-require ,dependent.scrbl 'doc)])
-                                                  (list (struct-copy part scribble:doc [parts null])))
+                                 (eval `(render (let* ([readme (dynamic-require ,readme.scrbl 'doc)]
+                                                       [subparts (part-parts readme)])
+                                                  (list (cond [(null? subparts) readme]
+                                                              [(and ,handbook?) (struct-copy part readme [parts null])]
+                                                              [else (struct-copy part readme
+                                                                                 [parts null]
+                                                                                 [blocks (append (part-blocks readme)
+                                                                                                 (part-blocks (car subparts)))])])))
                                                 (list ,target)
                                                 #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
                                                 #:quiet? #false #:warn-undefined? #false))))))])))
