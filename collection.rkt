@@ -16,4 +16,5 @@
      #'(let ([maybe-info (single-collection-info (quote-source-file))])
          (when (pkg-info? maybe-info) ; always true
            (current-digimon (pkg-info-name maybe-info))
+           (current-free-zone (pkg-info-zone maybe-info))
            (default-tongue-paths (list (digimon-path 'tongue)))))]))

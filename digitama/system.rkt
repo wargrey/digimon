@@ -9,6 +9,13 @@
 (require racket/path)
 (require racket/match)
 
+(require typed/racket/unsafe)
+
+(unsafe-require/typed
+ racket/base
+ [collection-file-path (->* (Path-String #:fail (-> String Path)) (#:check-compiled? Boolean) #:rest Path-String Path)])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)
 
 (define /dev/stdin : Input-Port (current-input-port))
@@ -18,6 +25,7 @@
 (define /dev/null : Output-Port (open-output-nowhere '/dev/null))
 
 (define current-digimon : (Parameterof String) (make-parameter "digimon"))
+(define current-free-zone : (Parameterof (Option Path)) (make-parameter #false))
 (define current-digivice : (Parameterof String)
   (make-parameter (let ([run-file (file-name-from-path (find-system-path 'run-file))])
                     (cond [(path? run-file) (path->string (path-replace-extension (assert run-file path?) ""))]
@@ -46,7 +54,6 @@
 (define digimon-path : (-> (U Symbol Path-String) Path-String * Path)
   (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
     (lambda [path . paths]
-      (define (get-zone) : Path (simplify-path (collection-file-path "." digimon) #false))
       (define (map-path [digimon-zone : Path] [path : Symbol]) : Path
         (case path
           [(digivice digitama stone tamer) (build-path digimon-zone (symbol->string path))]
@@ -61,6 +68,10 @@
                             [(string? tail) (build-path digimon-zone tail)]
                             [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))
       (define digimon : String (current-digimon))
+      (define (get-zone) : Path
+        (simplify-path (collection-file-path #:fail (λ [[errmsg : String]] (or (current-free-zone) (current-directory)))
+                                             "." digimon)
+                       #false))
       (hash-ref! cache (list* digimon path paths)
                  (λ [] (let ([zone : Path (hash-ref cache (list digimon 'digimon-zone) get-zone)])
                          (cond [(symbol? path) (apply build-path (prefab-path zone path) paths)]

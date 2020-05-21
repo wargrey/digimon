@@ -70,13 +70,13 @@
                 [else (thunk (file-or-directory-modify-seconds t (current-seconds) f))]))))
 
 (define do-compile
-  (lambda [pwd digimons info-ref]
-    (if (and (pair? digimons) (> (parallel-workers) 1))
-        (compile-collection digimons)
+  (lambda [pwd digimon info-ref]
+    (if (and (collection-file-path "." digimon #:fail (λ [errmsg] #false)) (> (parallel-workers) 1))
+        (compile-collection digimon)
         (compile-directory pwd info-ref))))
 
 (define compile-collection
-  (lambda [digimons [round 1]]
+  (lambda [digimon [round 1]]
     (define summary? #false)
     (define (colorize-stdout bstr)
       (when (= round 1)
@@ -93,9 +93,9 @@
                    [call-post-install #false]
                    [current-output-port (filter-write-output-port (current-output-port) colorize-stdout)]
                    [current-error-port (filter-write-output-port (current-error-port) colorize-stderr)])
-      (or (setup #:collections (list digimons) #:make-docs? #false #:fail-fast? #true)
+      (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true)
           (error the-name "compiling failed.")))
-    (when again? (compile-collection digimons (add1 round)))))
+    (when again? (compile-collection digimon (add1 round)))))
 
 (define compile-directory
   (lambda [pwd info-ref [round 1]]
@@ -162,7 +162,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
-  (lambda [digimons info-ref]
+  (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
 
     (define (do-make rules0)
@@ -171,18 +171,18 @@
         (let ([rules (map hack-rule rules0)])
           (make/proc rules (if (null? (current-make-real-targets)) (map car rules) imts)))
         (current-make-real-targets exts)))
-    
-    (do-make (make-native-library-rules info-ref))
-    (do-compile (current-directory) digimons info-ref)
 
+    (do-make (make-native-library-rules info-ref))
+    (do-compile (current-directory) digimon info-ref)
+    
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake premake))
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
         ;;; the next two lines should useless but who knows
         (do-make (make-native-library-rules info-ref))
-        (do-compile (current-directory) digimons info-ref)))
-    
+        (do-compile (current-directory) digimon info-ref)))
+
     (do-make (make-implicit-dist-rules info-ref))
 
     (for ([submake (in-list submakes)])
@@ -211,7 +211,7 @@
         (dynamic-require modpath #false)))))
 
 (define make~clean:
-  (lambda [digimons info-ref]
+  (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
 
     (define (fclean dirty)
@@ -243,10 +243,10 @@
                                                   (current-directory) #:search-compiled? #true)))))
 
 (define make~prove:
-  (lambda [digimons info-ref]
+  (lambda [digimon info-ref]
     (let ([rules (map hack-rule (make-native-library-rules info-ref))])
       (unless (null? rules) (make/proc rules (map car rules))))
-    (do-compile (current-directory) digimons info-ref)
+    (do-compile (current-directory) digimon info-ref)
 
     (for ([handbook (in-list (if (null? (current-make-real-targets)) (find-digimon-handbooks info-ref) (current-make-real-targets)))])
       (define ./handbook (find-relative-path (current-directory) handbook))
@@ -268,10 +268,10 @@
                              #:quiet? #false #:warn-undefined? #false))))))))
 
 (define make~typeset:
-  (lambda [digimons info-ref]
+  (lambda [digimon info-ref]
     (let ([rules (map hack-rule (make-native-library-rules info-ref))])
       (unless (null? rules) (make/proc rules (map car rules))))
-    (do-compile (current-directory) digimons info-ref)
+    (do-compile (current-directory) digimon info-ref)
 
     (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
@@ -343,15 +343,15 @@
           (curry eechof #:fgcolor 'lightred "make: I don't know what does `~a` mean!~n")))
 
 (define make-digimon
-  (λ [infos reals phonies]
-    (if (pair? infos)
-        (for ([subinfo (in-list (cdr infos))])
+  (λ [info reals phonies]
+    (if (pair? info)
+        (for ([subinfo (in-list (cdr info))])
           (make-digimon subinfo reals phonies))
-        (let ([zone (pkg-info-zone infos)]
-              [info-ref (pkg-info-ref infos)]
-              [digimons (list (pkg-info-name infos))])
+        (let ([zone (pkg-info-zone info)]
+              [info-ref (pkg-info-ref info)])
           (parameterize ([current-make-real-targets (map simple-form-path reals)]
-                         [current-digimon (car digimons)]
+                         [current-digimon (pkg-info-name info)]
+                         [current-free-zone zone]
                          [current-directory zone])
             (dynamic-wind (thunk (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (current-digimon)))
                           (thunk (for/sum ([phony (in-list (if (null? phonies) (list "all") phonies))])
@@ -362,9 +362,10 @@
                                                                       ((error-display-handler) (exn-message e) e))
                                                                     (eechof #:fgcolor 'red "~a" (get-output-string /dev/stderr))
                                                                     (make-errno)))])
+                                       (digimon-path 'stone)
                                        (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
-                                       (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") digimons info-ref)]
-                                             [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk digimons info-ref))]
+                                       (cond [(regexp-match? #px"clean$" phony) ((hash-ref fphonies "clean") (current-digimon) info-ref)]
+                                             [(hash-ref fphonies phony (thunk #false)) => (λ [mk] (mk (current-digimon) info-ref))]
                                              [else (error the-name "I don't know how to make `~a`!" phony)]) 0))))
                           (thunk (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))))))
 
