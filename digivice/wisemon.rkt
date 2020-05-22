@@ -130,7 +130,7 @@
   (lambda [info-ref]
     (define digimon-tamer (build-path (current-directory) "tamer"))
     (define handbooks (find-digimon-handbooks info-ref))
-    (define typesettings (find-digimon-typesettings info-ref))
+    (define typesettings (find-digimon-typesettings info-ref #true))
     (define handbook? (pair? handbooks))
     (cond [(or (and (not handbook?) (null? typesettings)) (string=? digimon-partner "root")) null]
           [else (for/list ([readme.scrbl (in-value (if (not handbook?) (caar typesettings) (car handbooks)))])
@@ -450,7 +450,7 @@
                                 [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))])))
 
 (define find-digimon-typesettings
-  (lambda [info-ref]
+  (lambda [info-ref [silent #false]]
     (define maybe-typesettings (info-ref 'typesettings (thunk null)))
     (cond [(not (list? maybe-typesettings)) (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings)]
           [else (filter-map (λ [typesetting]
@@ -458,7 +458,7 @@
                                     [else (let ([setting (car typesetting)])
                                             (and (file-exists? setting)
                                                  (cons (build-path (current-directory) setting)
-                                                       (filter-typesetting-renderer (cdr typesetting)))))]))
+                                                       (filter-typesetting-renderer (cdr typesetting) silent))))]))
                             maybe-typesettings)])))
 
 (define filter-write-output-port
@@ -474,13 +474,16 @@
                       #false #false #false)))
 
 (define filter-typesetting-renderer
-  (lambda [argv]
+  (lambda [argv silent]
     (define candidates (tex-list-renderers))
     (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
     (define maybe-names (filter string? rest))
     (cons (let check ([renderers maybe-renderers])
             (cond [(null? renderers)
-                   (echof #:fgcolor 'yellow "~a typeset: no suitable renderer is found, use `~a` instead~n" the-name tex-fallback-renderer)
+                   (when (not silent)
+                     (echof #:fgcolor 'yellow
+                            "~a typeset: no suitable renderer is found, use `~a` instead~n"
+                            the-name tex-fallback-renderer))
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))
