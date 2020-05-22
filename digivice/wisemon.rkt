@@ -284,8 +284,10 @@
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define dest-dir (path-only (tex-document-destination TEXNAME.scrbl #true)))
       (define TEXNAME.tex (path-replace-extension (or maybe-name (file-name-from-path TEXNAME.scrbl)) #".tex"))
-      
-      (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl TEXNAME.tex)
+
+      (if (not maybe-name)
+          (echof #:fgcolor 248 "~a ~a: ~a~n" the-name renderer TEXNAME.scrbl)
+          (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl maybe-name))
 
       (if (not (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
           (let ([src.tex (build-path dest-dir TEXNAME.tex)]
@@ -309,7 +311,11 @@
               (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
                 (printf " [Output to ~a]~n" TEXNAME.ext))))
           (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
-            (printf " [Output to ~a]~n" TEXNAME.ext))))))
+            (cond [(not maybe-name) (printf " [Output to ~a]~n" TEXNAME.ext)]
+                  [else (let ([target.ext (build-path (path-only TEXNAME.ext) (path-replace-extension maybe-name (path-get-extension TEXNAME.ext)))])
+                          (echof #:fgcolor 'cyan "mv: ~a ~a~n" TEXNAME.ext target.ext)
+                          (rename-file-or-directory TEXNAME.ext target.ext #true)
+                          (printf " [Output to ~a]~n" target.ext))]))))))
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies
