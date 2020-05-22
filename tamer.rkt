@@ -129,14 +129,21 @@
                              [else (list* (literal story-literal ":")) ~ input-contents]))))]))
 
 (define handbook-preface-title
-  (lambda [#:tag [tag #false]]
+  (lambda [#:tag [tag #false] . pre-contents]
     (title #:tag tag #:style noncontent-style
-           (literal (speak 'preface #:dialect 'tamer)))))
+           (cond [(pair? pre-contents) pre-contents]
+                 [else (literal (speak 'preface #:dialect 'tamer))]))))
 
 (define handbook-preface-section
-  (lambda [#:tag [tag #false]]
+  (lambda [#:tag [tag #false] . pre-contents]
     (section #:tag tag #:style noncontent-style
-             (literal (speak 'preface #:dialect 'tamer)))))
+             (cond [(pair? pre-contents) pre-contents]
+                   [else (literal (speak 'preface #:dialect 'tamer))]))))
+
+(define handbook-preface-subsection
+  (lambda [#:tag [tag #false] . pre-contents]
+    (subsection #:tag tag #:style noncontent-style
+                pre-contents)))
 
 (define handbook-scenario
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
