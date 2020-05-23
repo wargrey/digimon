@@ -1,7 +1,8 @@
 #lang typed/racket
 
 (require digimon/plist)
-(require digimon/location)
+(require digimon/system)
+(require digimon/collection)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bplist-prove : (-> Path-String Any Any Boolean)
@@ -21,9 +22,9 @@
       (equal? plist bplist))))
 
 (module+ main
-  (define bplist.dir : Path (build-path (assert (path-only (#%file)) path?) "bplist"))
-
-  (for/and ([info.rkt (in-list (directory-list bplist.dir #:build? #true))]
+  (enter-digimon-zone!)
+  
+  (for/and ([info.rkt (in-list (directory-list (build-path (digimon-path 'tamer) "bplist") #:build? #true))]
             #:when (equal? (path-get-extension info.rkt) #".rkt"))
     (define name : (Option Path) (file-name-from-path info.rkt))
     

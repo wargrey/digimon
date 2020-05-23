@@ -6,7 +6,7 @@
 
 (require "digitama/plist.rkt")
 (require "digitama/plist/bplist.rkt")
-(require "digitama/plist/info.plist.rkt")
+(require "digitama/plist/Info.plist.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define plist-datum? : (-> Any Boolean : #:+ PList-Datum)
