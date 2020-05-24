@@ -123,10 +123,6 @@
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
-              (define-footnote ~footnote ~footnotes)
-              (tamer-footnote ~footnote)
-              (tamer-footnotes ~footnotes)
-              
               (title #:tag (tamer-story->tag (tamer-story))
                      #:style #,(attribute s)
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
@@ -187,14 +183,11 @@
     
     (tamer-story #false)
 
-    (filter-not void?
-                (list ((tamer-footnotes))
-                      (when (or (not auto-hide?) (pair? (table-blockss (car (part-blocks references)))))
-                        references)))))
+    (when (or (not auto-hide?)
+              (pair? (table-blockss (car (part-blocks references)))))
+      references)))
 
-(define handbook-footnote
-  (lambda contents
-    (apply (tamer-footnote) contents)))
+(define handbook-footnote note)
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"
