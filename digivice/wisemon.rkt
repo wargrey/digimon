@@ -129,27 +129,34 @@
 (define make-implicit-dist-rules
   (lambda [info-ref]
     (define digimon-tamer (build-path (current-directory) "tamer"))
-    (define handbooks (find-digimon-handbooks info-ref))
-    (define typesettings (find-digimon-typesettings info-ref #true))
-    (define handbook? (pair? handbooks))
-    (cond [(or (and (not handbook?) (null? typesettings)) (string=? digimon-partner "root")) null]
-          [else (for/list ([readme.scrbl (in-value (if (not handbook?) (caar typesettings) (car handbooks)))])
-                  (define t (build-path (current-directory) "README.md"))
+    (define root-readmes
+      (append (map (λ [readme] (cons (cons readme (current-directory)) (cons 0 0)))
+                   (find-digimon-handbooks info-ref))
+              (filter-map (λ [readme] (and (regexp-match? #px"\\.scrbl$" (car readme))
+                                           (cons (cons (car readme) (current-directory)) (cons 0 1))))
+                          (find-digimon-typesettings info-ref #true))))
+    (define readmes
+      (append (if (null? root-readmes) null (list (car root-readmes)))
+              (find-digimon-typeseting-samples info-ref)))
+    (cond [(string=? digimon-partner "root") null]
+          [else (for/list ([readme (in-list readmes)])
+                  (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
+                  (define t (build-path (cdar readme) "README.md"))
                   (define ds (filter file-exists? (list* "info.rkt" (smart-dependencies readme.scrbl))))
                   (list t ds (λ [target]
                                (parameterize ([current-namespace (make-base-namespace)]
                                               [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
                                               [exit-handler (thunk* (error the-name "[fatal] ~a needs a proper `exit-handler`!"
                                                                            (find-relative-path (current-directory) readme.scrbl)))])
-                                 (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render))
+                                 (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
                                  (eval `(render (let* ([readme (dynamic-require ,readme.scrbl 'doc)]
-                                                       [subparts (part-parts readme)])
+                                                       [subparts (part-parts readme)]
+                                                       [size (length subparts)]
+                                                       [span (- (if (not ,endp1) size (min ,endp1 size)) ,start)])
                                                   (list (cond [(null? subparts) readme]
-                                                              [(and ,handbook?) (struct-copy part readme [parts null])]
-                                                              [else (struct-copy part readme
-                                                                                 [parts null]
-                                                                                 [blocks (append (part-blocks readme)
-                                                                                                 (part-blocks (car subparts)))])])))
+                                                              [(or (<= span 0) (>= ,start size)) (struct-copy part readme [parts null])]
+                                                              [(= ,start 0) (struct-copy part readme [parts (take subparts span)])]
+                                                              [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))
                                                 (list ,target)
                                                 #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
                                                 #:quiet? #false #:warn-undefined? #false))))))])))
@@ -446,7 +453,7 @@
     (cond [(not (list? maybe-handbooks)) (raise-user-error 'info.rkt "malformed `scribblings`: ~a" maybe-handbooks)]
           [else (filter file-exists?
                         (for/list ([handbook (in-list maybe-handbooks)])
-                          (cond [(pair? handbook) (build-path (current-directory) (car handbook))]
+                          (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (car handbook))]
                                 [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))])))
 
 (define find-digimon-typesettings
@@ -454,12 +461,30 @@
     (define maybe-typesettings (info-ref 'typesettings (thunk null)))
     (cond [(not (list? maybe-typesettings)) (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings)]
           [else (filter-map (λ [typesetting]
-                              (cond [(not (pair? typesetting)) (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)]
-                                    [else (let ([setting (car typesetting)])
-                                            (and (file-exists? setting)
-                                                 (cons (build-path (current-directory) setting)
-                                                       (filter-typesetting-renderer (cdr typesetting) silent))))]))
+                              (if (and (pair? typesetting) (path-string? (car typesetting)))
+                                  (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
+                                    (and (file-exists? setting.scrbl)
+                                         (cons setting.scrbl (filter-typesetting-renderer (cdr typesetting) silent))))
+                                  (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
                             maybe-typesettings)])))
+
+(define find-digimon-typeseting-samples
+  (lambda [info-ref]
+    (define maybe-samples (info-ref 'samples (thunk null)))
+    (cond [(not (list? maybe-samples)) (raise-user-error 'info.rkt "malformed `samples`: ~a" maybe-samples)]
+          [else (filter-map (λ [sample]
+                              (if (and (pair? sample) (path-string? (car sample)))
+                                  (let ([sample.scrbl (build-path (current-directory) (car sample))])
+                                    (and (file-exists? sample.scrbl)
+                                         (cons (cons sample.scrbl (path-only sample.scrbl))
+                                               (match (cdr sample)
+                                                 [(list) (cons 0 #false)]
+                                                 [(list (? natural? endp1)) (cons 0 endp1)]
+                                                 [(list (? natural? start) (? natural? endp1)) (cons start endp1)]
+                                                 [(list (? natural? start) '_) (cons start #false)]
+                                                 [_ (raise-user-error 'info.rkt "malformed `sample`: ~a" sample)]))))
+                                  (raise-user-error 'info.rkt "malformed `sample`: ~a" sample)))
+                            maybe-samples)])))
 
 (define filter-write-output-port
   (lambda [/dev/stdout write-wrap [close? #false]]
