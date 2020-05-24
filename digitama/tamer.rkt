@@ -21,6 +21,8 @@
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
 (define tamer-reference (make-parameter void))
+(define tamer-footnote (make-parameter void))
+(define tamer-footnotes (make-parameter void))
   
 (define-syntax (tamer-story->tag stx)
   (syntax-case stx []

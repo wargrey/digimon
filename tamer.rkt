@@ -11,6 +11,7 @@
 (require scribble/example)
 (require scribble/manual)
 (require scriblib/autobib)
+(require scriblib/footnote)
 (require scribble/html-properties)
 (require scribble/latex-properties)
 
@@ -116,11 +117,16 @@
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:style s:expr)) contents ...)
      #`(begin (tamer-taming-start! scribble)
+
               (define-cite ~cite ~cites ~reference #:style number-style)
               (tamer-reference ~reference)
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
+              (define-footnote ~footnote ~footnotes)
+              (tamer-footnote ~footnote)
+              (tamer-footnotes ~footnotes)
+              
               (title #:tag (tamer-story->tag (tamer-story))
                      #:style #,(attribute s)
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
@@ -181,9 +187,14 @@
     
     (tamer-story #false)
 
-    (when (or (not auto-hide?)
-              (pair? (table-blockss (car (part-blocks references)))))
-      references)))
+    (filter-not void?
+                (list ((tamer-footnotes))
+                      (when (or (not auto-hide?) (pair? (table-blockss (car (part-blocks references)))))
+                        references)))))
+
+(define handbook-footnote
+  (lambda contents
+    (apply (tamer-footnote) contents)))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"
