@@ -75,6 +75,14 @@
         (apply (tamer-cites) bib bibs)
         (apply (tamer-cite) bib bibs))))
 
+(define handbook-renderer?
+  (lambda [get render]
+    (memq render (get 'scribble:current-render-mode null))))
+
+(define handbook-latex-renderer?
+  (lambda [get]
+    (handbook-renderer? get 'latex)))
+
 (define register-handbook-finalizer
   (lambda [atexit/0]
     (void ((curry plumber-add-flush! (current-plumber))
@@ -215,7 +223,7 @@
   (lambda []
     (make-traverse-block
      (λ [get set]
-       (if (false? (member 'markdown (get 'scribble:current-render-mode '(html))))
+       (if (false? (handbook-renderer? get 'markdown))
            (table-of-contents)
            (make-delayed-block
             (λ [render% pthis _]
@@ -309,7 +317,7 @@
     
     (make-traverse-block
      (λ [get set]
-       (if (member 'markdown (get 'scribble:current-render-mode '(html)))
+       (if (handbook-renderer? get 'markdown)
            (para (literal "---"))
            (make-delayed-block
             (λ [render% pthis infobase]
