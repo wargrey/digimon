@@ -56,7 +56,7 @@
     (lambda [path . paths]
       (define (map-path [digimon-zone : Path-String] [path : Symbol]) : Path
         (case path
-          [(digivice digitama stone tamer) (build-path digimon-zone (symbol->string path))]
+          [(digivice digitama stone tamer literacy) (build-path digimon-zone (symbol->string path))]
           [else (build-path digimon-zone "stone" (symbol->string path))]))
       (define (prefab-path [digimon-zone : Path-String] [path : Symbol]) : Path-String
         (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->string path))))

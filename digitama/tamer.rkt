@@ -21,14 +21,16 @@
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
 (define tamer-reference (make-parameter void))
-;(define tamer-footnote (make-parameter void))
-;(define tamer-footnotes (make-parameter void))
   
 (define-syntax (tamer-story->tag stx)
   (syntax-case stx []
     [(_ story-sexp)
-     #'(let ([modpath (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp))])
-         (path->string (find-relative-path (digimon-path 'tamer) modpath)))]))
+     #'(let ([modpath (path->string (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp)))]
+             [literacy (path->string (digimon-path 'literacy))]
+             [tamer (path->string (digimon-path 'tamer))])
+         (cond [(string-prefix? modpath literacy) (substring modpath (add1 (string-length literacy)))]
+               [(string-prefix? modpath tamer) (substring modpath (add1 (string-length tamer)))]
+               [else (path->string (find-relative-path literacy modpath))]))]))
 
 (define tamer-story->modpath
   (lambda [story-path]
