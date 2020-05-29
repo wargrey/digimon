@@ -124,7 +124,7 @@
                    [else (smart-dependencies subsrc memory)]))
            (append memory (list entry))
            (call-with-input-file* entry
-             (curry regexp-match* #px"(?<=@(include-section|require)[{[](\\(submod \")?).+?.(scrbl|rktl?)(?=[\"}])")))))
+             (curry regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=[\"}])")))))
 
 (define make-implicit-dist-rules
   (lambda [info-ref]
