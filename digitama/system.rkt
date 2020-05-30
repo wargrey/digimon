@@ -13,7 +13,7 @@
 
 (unsafe-require/typed
  racket/base
- [collection-file-path (->* (Path-String #:fail (-> String Path-String)) (#:check-compiled? Boolean) #:rest Path-String Path)])
+ [collection-file-path (All (a) (->* (Path-String #:fail (-> String a)) (#:check-compiled? Boolean) #:rest Path-String a))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)
@@ -69,8 +69,9 @@
                             [else (raise-user-error 'digimon-path "not a path value in info.rkt: ~a" tail)]))]))
       (define digimon : String (current-digimon))
       (define (get-zone) : Path-String
-        (simplify-path (collection-file-path #:fail (λ [[errmsg : String]] (or (current-free-zone) (current-directory)))
-                                             "." digimon)
+        (simplify-path ((inst collection-file-path Path-String) "." digimon
+                        #:fail (λ [[errmsg : String]] : Path-String
+                                 (or (current-free-zone) (current-directory))))
                        #false))
       (hash-ref! cache (list* digimon path paths)
                  (λ [] (let ([zone : Path-String (hash-ref cache (list digimon 'digimon-zone) get-zone)])

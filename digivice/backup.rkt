@@ -411,6 +411,7 @@
 (define main
   (lambda [argument-list]
     (make-restore-options!)
+    (displayln argument-list)
     (parse-command-line
      (short-program+command-name)
      argument-list
