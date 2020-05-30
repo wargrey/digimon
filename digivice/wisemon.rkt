@@ -116,15 +116,26 @@
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
     (when again? (compile-directory pwd info-ref (add1 round)))))
 
-(define smart-dependencies
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define racket-smart-dependencies
   (lambda [entry [memory null]]
     (foldl (λ [subpath memory]
              (define subsrc (simplify-path (build-path (path-only entry) (bytes->string/utf-8 subpath))))
              (cond [(member subsrc memory) memory]
-                   [else (smart-dependencies subsrc memory)]))
+                   [else (racket-smart-dependencies subsrc memory)]))
            (append memory (list entry))
            (call-with-input-file* entry
              (curry regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=[\"}])")))))
+
+(define tex-smart-dependencies
+  (lambda [entry [memory null]]
+    (foldl (λ [subpath memory]
+             (define subsrc (simplify-path (build-path (path-only entry) (bytes->string/utf-8 subpath))))
+             (cond [(member subsrc memory) memory]
+                   [else (tex-smart-dependencies subsrc memory)]))
+           (append memory (list entry))
+           (call-with-input-file* entry
+             (curry regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])")))))
 
 (define make-implicit-dist-rules
   (lambda [info-ref]
@@ -142,7 +153,7 @@
           [else (for/list ([readme (in-list readmes)])
                   (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
                   (define t (build-path (cdar readme) "README.md"))
-                  (define ds (filter file-exists? (list* "info.rkt" (smart-dependencies readme.scrbl))))
+                  (define ds (filter file-exists? (list* "info.rkt" (racket-smart-dependencies readme.scrbl))))
                   (list t ds (λ [target]
                                (parameterize ([current-namespace (make-base-namespace)]
                                               [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
@@ -173,6 +184,48 @@
                            (define t (c-library-destination c contained-in-package?))
                            (list (list tobj (c-include-headers c) (λ [target] (c-compile c target)))
                                  (list t (list tobj) (λ [target] (c-link tobj target #:modelines (c-source-modelines c))))))))])))
+
+(define make-typesetting-rules
+  (lambda [info-ref]
+    (for/list ([typesetting (in-list (find-digimon-typesettings info-ref))])
+      (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
+      (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
+      
+      (list (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))
+            (filter file-exists? ((if (not raw-tex?) racket-smart-dependencies tex-smart-dependencies) TEXNAME.scrbl))
+            (λ [TEXNAME.ext]
+              (if (not maybe-name)
+                  (echof #:fgcolor 248 "~a ~a: ~a~n" the-name renderer TEXNAME.scrbl)
+                  (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl maybe-name))
+
+              (define dest-dir (path-only TEXNAME.ext))
+              (if (and raw-tex?)
+                  (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
+                    (cond [(not maybe-name) (printf " [Output to ~a]~n" TEXNAME.ext)]
+                          [else (let ([target.ext (build-path (path-only TEXNAME.ext) (path-replace-extension maybe-name (path-get-extension TEXNAME.ext)))])
+                                  (echof #:fgcolor 'cyan "mv: ~a ~a~n" TEXNAME.ext target.ext)
+                                  (rename-file-or-directory TEXNAME.ext target.ext #true)
+                                  (printf " [Output to ~a]~n" target.ext))]))
+                  (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
+                        [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
+                    (parameterize ([current-namespace (make-base-namespace)]
+                                   [current-directory (path-only TEXNAME.scrbl)]
+                                   [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
+                                                                (find-relative-path (current-directory) TEXNAME.scrbl)))])
+                      (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+                      
+                      (when (file-exists? hook.rktl)
+                        (eval `(let ([ecc (dynamic-require ,hook.rktl 'extra-character-conversions (λ [] #false))])
+                                 (when (procedure? ecc)
+                                   (tex:extra-character-conversions ecc)))))
+                      
+                      (eval `(render (list ,(dynamic-require TEXNAME.scrbl 'doc)) (list ,(file-name-from-path src.tex))
+                                     #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
+                                     #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
+                                     #:quiet? #true #:warn-undefined? #false))
+                      
+                      (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
+                        (printf " [Output to ~a]~n" TEXNAME.ext))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all:
@@ -287,42 +340,8 @@
       (unless (null? rules) (make/proc rules (map car rules))))
     (do-compile (current-directory) digimon info-ref)
 
-    (for ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
-      (define dest-dir (path-only (tex-document-destination TEXNAME.scrbl #true)))
-      (define TEXNAME.tex (path-replace-extension (or maybe-name (file-name-from-path TEXNAME.scrbl)) #".tex"))
-
-      (if (not maybe-name)
-          (echof #:fgcolor 248 "~a ~a: ~a~n" the-name renderer TEXNAME.scrbl)
-          (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl maybe-name))
-
-      (if (not (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
-          (let ([src.tex (build-path dest-dir TEXNAME.tex)]
-                [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
-            (parameterize ([current-namespace (make-base-namespace)]
-                           [current-directory (path-only TEXNAME.scrbl)]
-                           [exit-handler (thunk* (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
-                                                        (find-relative-path (current-directory) TEXNAME.scrbl)))])
-              (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-
-              (when (file-exists? hook.rktl)
-                (eval `(let ([ecc (dynamic-require ,hook.rktl 'extra-character-conversions (λ [] #false))])
-                         (when (procedure? ecc)
-                           (tex:extra-character-conversions ecc)))))
-
-              (eval `(render (list ,(dynamic-require TEXNAME.scrbl 'doc)) (list ,TEXNAME.tex)
-                             #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
-                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                             #:quiet? #true #:warn-undefined? #false))
-              
-              (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
-                (printf " [Output to ~a]~n" TEXNAME.ext))))
-          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
-            (cond [(not maybe-name) (printf " [Output to ~a]~n" TEXNAME.ext)]
-                  [else (let ([target.ext (build-path (path-only TEXNAME.ext) (path-replace-extension maybe-name (path-get-extension TEXNAME.ext)))])
-                          (echof #:fgcolor 'cyan "mv: ~a ~a~n" TEXNAME.ext target.ext)
-                          (rename-file-or-directory TEXNAME.ext target.ext #true)
-                          (printf " [Output to ~a]~n" target.ext))]))))))
+    (let ([rules (map hack-rule (make-typesetting-rules info-ref))])
+      (unless (null? rules) (make/proc rules (map car rules))))))
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fphonies

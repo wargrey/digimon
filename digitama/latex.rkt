@@ -57,14 +57,24 @@
                                 (tex-exec renderer latex TEXNAME.tex dest-dir retry))]))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-document-destination : (->* (Path-String) (Boolean) (Option Path))
-  (lambda [tex [contained-in-package? #true]]
+(define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes) (Option Path))
+  (lambda [tex [contained-in-package? #true] #:extension [ext #".pdf"]]
     (define dirname : (Option Path) (path-only tex))
     (define basename : (Option Path) (file-name-from-path tex))
 
     (and (path? dirname) (path? basename)
          (build-path dirname (car (use-compiled-file-paths))
-                     "typesetting" (path-replace-extension basename #".pdf")))))
+                     "typesetting" (path-replace-extension basename ext)))))
+
+(define tex-document-extension : (-> Symbol [#:fallback (U Symbol Bytes)] Bytes)
+  (lambda[renderer #:fallback [fallback #".pdf"]]
+    (define latex : (Option Tex-Renderer)
+      (hash-ref latex-database renderer
+                (λ [] (and (symbol? fallback)
+                           (hash-ref latex-database fallback (λ [] #false))))))
+    (cond [(and latex) (tex-renderer-extension latex)]
+          [(bytes? fallback) fallback]
+          [else #".pdf"])))
 
 (define tex-list-renderers : (-> (Listof Symbol))
   (lambda []
