@@ -117,6 +117,32 @@
                       #false #false #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; WARNING: parameters are thread specific.
+;;; WARNING: parameters are thread specific in which these variables case cannot be shared by `racket-trace-log` 
 (define again? : Boolean #false)
 (define compiling-round : Natural 1)
+
+(define racket-trace-log : (-> Void)
+  (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
+    (lambda []
+      (define log (sync/enable-break /dev/log))
+      (cond [(not (vector? log)) (racket-trace-log)]
+            [(eof-object? (vector-ref log 2)) (make-restore-options!)]
+            [(memq (vector-ref log 3) '(racket/contract optimizer place GC)) (racket-trace-log)]
+            [(eq? (vector-ref log 3) 'setup/parallel-build)
+             (define pce (struct->vector (vector-ref log 2)))
+             (define ce (struct->vector (vector-ref pce 2)))
+             (unless (memq (vector-ref ce 3) '(locking already-done))
+               (if (eq? (vector-ref ce 3) 'finish-compile)
+                   (echof #:fgcolor 250 "round[~a]: processor[~a]: made: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))
+                   (printf "round[~a]: processor[~a]: making: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))))
+             (set! again? #true)
+             (racket-trace-log)]
+            [(make-trace-log)
+             (match log  
+               [(vector 'debug message _ _) (echof #:fgcolor 248 "~a~n" message)]
+               [(vector 'info message _ _) (unless (regexp-match? #rx"^collapsible" message) (echof #:fgcolor 'cyan "~a~n" message))]
+               [(vector 'warning message _ _) (echof #:fgcolor 'yellow "~a~n" message)]
+               [(vector (or 'error 'fatal) message _ _) (echof #:fgcolor 'red "~a~n" message)]
+               [_ (void)])
+             (racket-trace-log)]
+            [else (racket-trace-log)]))))

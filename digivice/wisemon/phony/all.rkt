@@ -3,13 +3,12 @@
 (provide (all-defined-out))
 
 (require racket/list)
-(require racket/match)
 
 (require typed/racket/unsafe)
 
 (require "dist.rkt")
 
-(require "../rule.rkt")
+(require "../spec.rkt")
 (require "../phony.rkt")
 (require "../racket.rkt")
 (require "../native.rkt")
@@ -20,7 +19,7 @@
   (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
 
-    (wisemon-make (make-native-library-rules info-ref))
+    (wisemon-make (make-native-library-specs info-ref))
     (wisemon-compile (current-directory) digimon info-ref)
     
     (for ([submake (in-list submakes)])
@@ -28,23 +27,21 @@
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
         ;;; the next two lines should useless but who knows
-        (wisemon-make (make-native-library-rules info-ref))
+        (wisemon-make (make-native-library-specs info-ref))
         (wisemon-compile (current-directory) digimon info-ref)))
 
-    (do-make (make-implicit-dist-rules info-ref))
+    (do-make (make-implicit-dist-specs info-ref))
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake make:files))
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
         (parameterize ([current-namespace (module->namespace modpath)])
-          (unsafe-do-make (for/fold ([rules : Unsafe-Wisemon-Rules null])
-                                    ([var (in-list (namespace-mapped-symbols))])
-                            (match (namespace-variable-value var #false (λ _ #false))
-                              [(list (? path-string? t) (list (? path-string? ds) ...) (? procedure? make))
-                               (cond [(not (procedure-arity-includes? make 1)) rules]
-                                     [else (list* (list t (filter path-string? ds) make) rules)])]
-                              [_ rules]))))))
+          (do-make (for/fold ([specs : Wisemon-Specification null])
+                             ([var (in-list (namespace-mapped-symbols))])
+                     (define maybe-spec (namespace-variable-value var #false (λ _ #false)))
+                     (cond [(wisemon-spec? maybe-spec) (cons maybe-spec specs)]
+                           [else specs]))))))
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake make:files make))
@@ -60,16 +57,13 @@
         (dynamic-require modpath #false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define do-make : (-> Wisemon-Rules Void)
-  (lambda [rules]
-    (unless (null? rules)
-      (let-values ([(imts exts) (partition (λ [[t : Path-String]] (assoc t rules)) (current-make-real-targets))])
-        (wisemon-make rules (if (null? (current-make-real-targets)) (map (λ [[r : Wisemon-Rule]] (car r)) rules) imts))
+(define do-make : (-> Wisemon-Specification Void)
+  (lambda [specs]
+    (unless (null? specs)
+      (let-values ([(imts exts) (partition (λ [[t : Path-String]] (wisemon-spec-ref specs t)) (current-make-real-targets))])
+        (wisemon-make specs (if (null? (current-make-real-targets)) (wisemon-targets-flatten specs) imts))
         (current-make-real-targets exts)))))
 
-(define unsafe-do-make : (-> Unsafe-Wisemon-Rules Void)
-  (lambda [rules]
-    (unless (null? rules)
-      (let-values ([(imts exts) (partition (λ [[t : Path-String]] (assoc t rules)) (current-make-real-targets))])
-        (unsafe-wisemon-make rules (if (null? (current-make-real-targets)) (map (λ [[r : Unsafe-Wisemon-Rule]] (car r)) rules) imts))
-        (current-make-real-targets exts)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define all-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'all #:phony make~all #:desc "Build the entire project without documentation [default]"))

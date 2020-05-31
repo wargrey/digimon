@@ -22,13 +22,13 @@
                               (exact-nonnegative-integer? denominator)
                               (real->double-flonum (/ numerator denominator))))))])))
 
-(define pmf-col : (-> String String (Pairof Flonum Flonum))
-  (lambda [str.x str.px]
+(define pmf-col : (-> Symbol String String (Pairof Flonum Flonum))
+  (lambda [option str.x str.px]
     (define x : (Option Number) (string->number str.x))
     (define p : (Option Flonum) (string->probability str.px))
 
     (cond [(and (real? x) p) (cons (real->double-flonum x) p)]
-          [else (error "expected random variable, given" (cons str.x str.px))])))
+          [else (error option "expected random variable, given ~a" (cons str.x str.px))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option ev-flags #: EV-Flags

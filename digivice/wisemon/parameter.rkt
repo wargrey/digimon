@@ -21,7 +21,7 @@
 (define the-name 'wisemon)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define current-make-real-targets : (Parameterof (Listof Path-String)) (make-parameter null))
+(define current-make-real-targets : (Parameterof (Listof Path)) (make-parameter null))
 (define current-make-phony-goal : (Parameterof (Option Symbol)) (make-parameter #false))
 
 (define make-dry-run : (Parameterof Boolean) (make-parameter #false))
@@ -36,19 +36,16 @@
     (parallel-workers (processor-count))
     (compiler-verbose #true)
     
-    (make-print-dep-no-line #false)
-    (make-print-checking #false)
-    (make-print-reasons #false)
-
-    (make-trace-log #false)
+    (make-set-verbose! #false)
+    
     (make-dry-run #false)
     (make-always-run #false)
     (make-just-touch #false)
     (make-errno 1)))
 
-(define make-set-verbose! : (-> Void)
-  (lambda []
+(define make-set-verbose! : (-> Boolean Void)
+  (lambda [switch]
     (for-each (λ [[make-verbose : (Parameterof Boolean)]]
-                (make-verbose #true))
+                (make-verbose switch))
               (list make-print-dep-no-line make-print-checking
                     make-print-reasons make-trace-log))))

@@ -44,9 +44,11 @@
                 
                 (define parse-option : (->* ()
                                             ((U (Listof String) (Vectorof String))
-                                             #:program Any #:help-flag Symbol #:help-output-port (Option Output-Port))
+                                             #:program Any #:help-flag Symbol #:help-output-port (Option Output-Port) #:help-more-ps (Listof Any))
                                             (Values Opt (-> (List Type ...))))
-                  (lambda [[argv (current-command-line-arguments)] #:program [program name] #:help-flag [--help help-flag] #:help-output-port [/dev/hlpout #false]]
+                  (lambda [[argv (current-command-line-arguments)]
+                           #:program [program name] #:help-flag [--help help-flag]
+                           #:help-output-port [/dev/hlpout #false] #:help-more-ps [more-ps null]]
                     (define-values (options multi-options operands help?)
                       (let ([mfield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'mfield margc 'multi)))] ...
                             [efield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'efield eargc 'once-each)))] ...
@@ -58,7 +60,7 @@
                                                 (list 'afield ...))))
 
                     (when (and help? /dev/hlpout)
-                      (display-option /dev/hlpout #:program program #:exit 0))
+                      (display-option /dev/hlpout #:program program #:exit 0 #:more-ps more-ps))
 
                     (define cmdopt : Opt
                       (with-handlers ([exn:fail? (λ [[ef : exn:fail]] (cmdopt-error program (exn-message ef)))])
@@ -73,8 +75,8 @@
                                              (cmdopt-error program "too many arguments"))
                                            (list argu ...))))))
                 
-                (define display-option : (->* () (Output-Port #:program Any #:user-error (Option exn:fail:user) #:exit (Option Byte)) Void)
-                  (lambda [[/dev/stdout (current-output-port)] #:program [program name] #:user-error [e #false] #:exit [retcode #false]]
+                (define display-option : (->* () (Output-Port #:program Any #:user-error (Option exn:fail:user) #:exit (Option Byte) #:more-ps (Listof Any)) Void)
+                  (lambda [[/dev/stdout (current-output-port)] #:program [program name] #:user-error [e #false] #:exit [retcode #false] #:more-ps [more-ps null]]
                     (define mwidth : Natural (max 0 msize ...))
                     (define ewidth : Natural (max 0 esize ...))
                     (define awidth : Natural (max 0 asize ...))
@@ -104,6 +106,17 @@
                       (cmdopt-display-flags /dev/stdout (list 'moptions ...) (list (cmdopt-help-identity mdesc) ...) msize width) ...)
                     
                     (cmdopt-display-postscript /dev/stdout (list ps ...))
+                    (cmdopt-display-postscript /dev/stdout more-ps)
 
                     (unless (not retcode)
                       (exit retcode))))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((Option (Pairof Integer Integer))) (-> Symbol String a)))
+  (lambda [predicative? [range #false]]
+    (λ [[option : Symbol] [s : String]] : a
+      (define n : (Option Number) (string->number s))
+      (cond [(not (and (exact-integer? n) (predicative? n))) (error option "expected `~a`, but given '~a'" (object-name predicative?) s)]
+            [(not range) n]
+            [(<= (car range) n (cdr range)) n]
+            [else (error option "expected in range [~a, ~a], but given ~a" (car range) (cdr range) s)]))))

@@ -9,7 +9,7 @@
 (require "prove.rkt")
 (require "typeset.rkt")
 
-(require "../rule.rkt")
+(require "../spec.rkt")
 (require "../phony.rkt")
 (require "../racket.rkt")
 (require "../parameter.rkt")
@@ -20,7 +20,7 @@
 (define-type Tex-Sample-Info (Pairof (Pairof Path Path) (Pairof Index (Option Index))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-implicit-dist-rules : (-> Info-Ref Wisemon-Rules)
+(define make-implicit-dist-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
     (define root-readmes : (Listof Tex-Sample-Info)
       (append (map (λ [[readme : Path]] (cons (cons readme (current-directory)) (cons 0 0)))
@@ -35,28 +35,28 @@
               (find-digimon-typeseting-samples info-ref)))
 
     (cond [(string=? digimon-partner "root") null]
-          [else (for/list : (Listof Wisemon-Rule) ([readme (in-list readmes)])
+          [else (for/list : (Listof Wisemon-Spec) ([readme (in-list readmes)])
                   (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
-                  (list (build-path (cdar readme) "README.md")
-                        (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl)))
-                        (λ [[target : Path]] : Void
-                          (parameterize ([current-namespace (make-base-namespace)]
-                                         [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
-                                         [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!"
-                                                                   (find-relative-path (current-directory) readme.scrbl)))])
-                            (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
-                            (eval `(render (let* ([readme (dynamic-require ,readme.scrbl 'doc)]
-                                                  [subparts (part-parts readme)]
-                                                  [size (length subparts)]
-                                                  [span (- (if (not ,endp1) size (min ,endp1 size)) ,start)])
-                                             (list (cond [(null? subparts) readme]
-                                                         [(or (<= span 0) (>= ,start size)) (struct-copy part readme [parts null])]
-                                                         [(= ,start 0) (struct-copy part readme [parts (take subparts span)])]
-                                                         [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))
-                                           (list ,target)
-                                           #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
-                                           #:quiet? #false #:warn-undefined? #false))
-                            (void)))))])))
+                  (wisemon-spec (build-path (cdar readme) "README.md")
+                                (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl)))
+                                (λ [[target : Path]]
+                                  (parameterize ([current-namespace (make-base-namespace)]
+                                                 [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
+                                                 [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!"
+                                                                           (find-relative-path (current-directory) readme.scrbl)))])
+                                    (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
+                                    (eval `(render (let* ([readme (dynamic-require ,readme.scrbl 'doc)]
+                                                          [subparts (part-parts readme)]
+                                                          [size (length subparts)]
+                                                          [span (- (if (not ,endp1) size (min ,endp1 size)) ,start)])
+                                                     (list (cond [(null? subparts) readme]
+                                                                 [(or (<= span 0) (>= ,start size)) (struct-copy part readme [parts null])]
+                                                                 [(= ,start 0) (struct-copy part readme [parts (take subparts span)])]
+                                                                 [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))
+                                                   (list ,target)
+                                                   #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
+                                                   #:quiet? #false #:warn-undefined? #false))
+                                    (void)))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))
@@ -79,4 +79,5 @@
                             maybe-samples)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;(wisemon-register-phony 'dist void "Create a distribution file of the source files.")
+#;(define dist-phony-goal : Wisemon-Phony
+    (wisemon-make-phony #:name 'dist #:phony make~dist #:desc "Create a distribution file of the source files"))

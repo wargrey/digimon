@@ -30,22 +30,22 @@
     (define n (syntax-e <n>))
     (define maybe-flags (datum->syntax <n> 'maybe-flags))
     
-    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof String))] [name : Symbol] [strings->option : (-> #,@(make-list n #'String) a)]] : (Option a)
+    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof String))] [name : Symbol] [strings->option : (-> Symbol #,@(make-list n #'String) a)]] : (Option a)
         (define #,maybe-flags : (Listof String) (hash-ref opts name (λ [] null)))
         
         (and (= (length #,maybe-flags) #,n)
-             (strings->option #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref maybe-flags i))))))))
+             (strings->option name #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref maybe-flags i))))))))
   
   (define (make-cmdmopt-ref <n>)
     (define n (syntax-e <n>))
     (define flags (datum->syntax <n> 'flags))
     
-    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof (Listof String)))] [name : Symbol] [strings->option : (-> #,@(make-list n #'String) a)]] : (Listof a)
+    #`(λ #:forall (a) [[opts : (HashTable Symbol (Listof (Listof String)))] [name : Symbol] [strings->option : (-> Symbol #,@(make-list n #'String) a)]] : (Listof a)
         (define flagses : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
         
         (filter-map (λ [[#,flags : (Listof String)]]
                       (and (= (length #,flags) #,n)
-                           (strings->option #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref flags i)))))))
+                           (strings->option name #,@(build-list n (λ [i] (datum->syntax <n> (list #'list-ref flags i)))))))
                     (reverse flagses))))
   
   (define (cmd-parse-flags <flags> flagnames multiple?)
@@ -57,7 +57,7 @@
 
   (define (cmd-parse-flag <deflag> flagnames multiple?)
     (syntax-parse <deflag> #:datum-literals [: =>]
-      [(flag+alias (~optional (~seq (~or #:=> =>) string->datum) #:defaults ([string->datum #'values]))
+      [(flag+alias (~optional (~seq (~or #:=> =>) string->datum) #:defaults ([string->datum #'cmdopt-option-identity]))
                    arg:id args:id ...
                    (~optional (~seq (~or #: :) Type) #:defaults ([Type #'String]))
                    description:help ...)
@@ -77,9 +77,9 @@
                 (cons (cmd-format-description (cmd-flag-arguments-description arity) arity argv-data #true)
                       (for/list ([<desc> (syntax-e #'(description.value ...))])
                         (cmd-format-description <desc> arity argv-data #true)))))]
-      [(flag+alias description:help ...)
+      [(flag+alias (~optional (~seq (~or #:=> =>) switch-on) #:defaults ([switch-on #'void])) description:help ...)
        (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias flagnames))
-       (list* name #'Boolean 0 size flags #false (if multiple? #'cmdmopt0-ref #'cmdopt0-ref)
+       (list* name #'Boolean 0 size flags #'switch-on (if multiple? #'cmdmopt0-ref #'cmdopt0-ref)
               (syntax-e #'(description.value ...)))]
       [_ (raise-syntax-error 'cmdopt-parse-flags "malformed flag definition" <deflag>)]))
 
@@ -248,27 +248,31 @@
     (or (not (eq? (string-ref arg 0) #\-))
         (string=? arg "-"))))
 
-(define cmdopt0-ref : (All (a) (-> (HashTable Symbol (Listof String)) Symbol False Boolean))
-  (lambda [opts name string->option]
-    (pair? (hash-ref opts name (λ [] null)))))
+(define cmdopt0-ref : (All (a) (-> (HashTable Symbol (Listof String)) Symbol (-> Boolean Any) Boolean))
+  (lambda [opts name option-switch]
+    (define switch? : Boolean (pair? (hash-ref opts name (λ [] null))))
+    (unless (not switch?) (option-switch switch?))
+    switch?))
 
 
-(define cmdopt1-ref : (All (a) (-> (HashTable Symbol (Listof String)) Symbol (-> String a) (Option a)))
+(define cmdopt1-ref : (All (a) (-> (HashTable Symbol (Listof String)) Symbol (-> Symbol String a) (Option a)))
   (lambda [opts name string->option]
     (define maybe-flag : (Listof String) (hash-ref opts name (λ [] null)))
 
     (and (pair? maybe-flag)
-         (string->option (car maybe-flag)))))
+         (string->option name (car maybe-flag)))))
 
-(define cmdmopt0-ref : (All (a) (-> (HashTable Symbol (Listof (Listof String))) Symbol False (Listof True)))
-  (lambda [opts name string->option]
+(define cmdmopt0-ref : (All (a) (-> (HashTable Symbol (Listof (Listof String))) Symbol (-> Positive-Index Any) (Listof True)))
+  (lambda [opts name option-switch]
     (define flags : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
-    (make-list (length flags) #true)))
+    (define count : Index (length flags))
+    (when (> count 0) (option-switch count))
+    (make-list count #true)))
 
-(define cmdmopt1-ref : (All (a) (-> (HashTable Symbol (Listof (Listof String))) Symbol (-> String a) (Listof a)))
+(define cmdmopt1-ref : (All (a) (-> (HashTable Symbol (Listof (Listof String))) Symbol (-> Symbol String a) (Listof a)))
   (lambda [opts name string->option]
     (define flagses : (Listof (Listof String)) (hash-ref opts name (λ [] null)))
-    (filter-map (λ [[flags : (Listof String)]] (and (pair? flags) (string->option (car flags))))
+    (filter-map (λ [[flags : (Listof String)]] (and (pair? flags) (string->option name (car flags))))
                 (reverse flagses))))
 
 (define cmdarg-ref : (-> Any Symbol (Vectorof String) Nonnegative-Fixnum (Values String Nonnegative-Fixnum))
@@ -374,6 +378,10 @@
   (lambda [help]
     (cond [(string? help) help]
           [else (apply format help)])))
+
+(define cmdopt-option-identity : (-> Symbol String String)
+  (lambda [name argu]
+    argu))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cmdopt-error : (-> Any String Any * Nothing)

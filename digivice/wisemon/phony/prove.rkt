@@ -7,7 +7,7 @@
 (require "../parameter.rkt")
 (require "../phony.rkt")
 
-(require "../rule.rkt")
+(require "../spec.rkt")
 (require "../native.rkt")
 (require "../racket.rkt")
 
@@ -26,7 +26,7 @@
 
 (define make~prove : Make-Phony
   (lambda [digimon info-ref]
-    (wisemon-make (make-native-library-rules info-ref))
+    (wisemon-make (make-native-library-specs info-ref))
     (wisemon-compile (current-directory) digimon info-ref)
 
     (for ([handbook (in-list (if (null? (current-make-real-targets)) (find-digimon-handbooks info-ref) (current-make-real-targets)))])
@@ -53,4 +53,5 @@
                                #:quiet? #false #:warn-undefined? #false)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(wisemon-register-phony 'prove make~prove "Verify and generate test report along with documentation.")
+(define prove-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))

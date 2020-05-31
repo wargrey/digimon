@@ -9,7 +9,7 @@
 (require "../parameter.rkt")
 (require "../phony.rkt")
 (require "../path.rkt")
-(require "../rule.rkt")
+(require "../spec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~clean : Make-Phony
@@ -42,7 +42,7 @@
                     [else (for ([maybe-dirty (in-list maybe-dirties)])
                             (do-clean (if (list? maybe-dirty) (car maybe-dirty) maybe-dirty)))]))))))
     
-    (for-each do-clean (map (λ [[r : Wisemon-Rule]] : Path (car r)) (make-implicit-dist-rules info-ref)))
+    (for-each do-clean (wisemon-targets-flatten (make-implicit-dist-specs info-ref)))
     (for-each do-clean (reverse (find-digimon-files (λ [[file : Path]] : Boolean (regexp-match? px.compiled file))
                                                     (current-directory) #:search-compiled? #true)))))
 
@@ -55,7 +55,14 @@
       (printf "make: deleted ~a~n" (simplify-path dirty)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(wisemon-register-phony 'mostlyclean      make~clean "Delete all except that can be however hard to be remade.")
-(wisemon-register-phony 'clean            make~clean "Delete all except that record the configuration.")
-(wisemon-register-phony 'distclean        make~clean "Delete all that are excluded in the distribution.")
-(wisemon-register-phony 'maintainer-clean make~clean "Delete all that can be remade. [For Maintainers]")
+(define mostlyclean-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'mostlyclean      #:phony make~clean #:desc "Delete all except that can be however hard to be remade."))
+
+(define clean-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'clean            #:phony make~clean #:desc "Delete all except that record the configuration."))
+
+(define distclean-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'distclean        #:phony make~clean #:desc "Delete all that are excluded in the distribution."))
+
+(define maintainer-clean-phony-goal : Wisemon-Phony
+  (wisemon-make-phony #:name 'maintainer-clean #:phony make~clean #:desc "Delete all that can be remade. [For Maintainers]"))

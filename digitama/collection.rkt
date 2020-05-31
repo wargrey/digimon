@@ -6,9 +6,14 @@
 
 (require "../filesystem.rkt")
 
-(struct pkg-info ([ref : Info-Ref] [zone : Path-String] [name : String]) #:transparent)
+(struct pkg-info
+  ([ref : Info-Ref]
+   [zone : Path-String]
+   [name : String])
+  #:type-name Pkg-Info
+  #:transparent)
 
-(define single-collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any) (Values (Option pkg-info)))
+(define single-collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any) (Values (Option Pkg-Info)))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
     (define zone : (Option Path-String) (collection-root dir))
     (define info-ref : (Option Info-Ref) (and zone (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)))
@@ -23,7 +28,7 @@
                          [else (dirname zone)])))))
 
 (define collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any)
-                               (U False pkg-info (Pairof Info-Ref (Listof pkg-info))))
+                               (U False Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
     (define zone : (Option Path-String) (collection-root dir))
     (define info-ref : (Option Info-Ref) (and zone (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)))

@@ -7,16 +7,42 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Make-Phony (-> String Info-Ref Any))
 
-(struct phony
-  ([make : Make-Phony]
+(struct wisemon-phony
+  ([name : Symbol]
+   [make : Make-Phony]
    [description : String])
-  #:constructor-name make-phony
-  #:type-name Phony)
+  #:constructor-name make-wisemon-phony
+  #:type-name Wisemon-Phony
+  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define phony-database : (HashTable Symbol Phony) (make-hasheq))
+(define wisemon-make-phony : (-> #:name Symbol #:phony Make-Phony #:desc String Wisemon-Phony)
+  (lambda [#:name name #:phony phony #:desc desc]
+    (make-wisemon-phony name phony desc)))
 
-(define wisemon-register-phony : (-> Symbol Make-Phony String Void)
-  (lambda [name phony desc]
-    (unless (hash-has-key? phony-database name)
-      (hash-set! phony-database name (make-phony phony desc)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define wisemon-phony-goal-ref : (-> Symbol (Option Wisemon-Phony))
+  (lambda [goal]
+    (define strgoal : String (symbol->string goal))
+    (define goal.rkt : Path (build-path (collection-file-path "phony" "digimon" "digivice" "wisemon") (string-append strgoal ".rkt")))
+
+    (or (and (file-exists? goal.rkt)
+             (let ([heuristic-sym (string->symbol (string-append strgoal "-phony-goal"))])
+               (define maybe-goal (dynamic-require goal.rkt heuristic-sym))
+               (cond [(and (wisemon-phony? maybe-goal) (eq? (wisemon-phony-name maybe-goal) goal)) maybe-goal]
+                     [else #false])))
+        (hash-ref (wisemon-list-phony-goals) goal (λ [] #false)))))
+
+(define wisemon-list-phony-goals : (-> (Immutable-HashTable Symbol Wisemon-Phony))
+  (lambda []
+    (define rootdir : (Option Path) (collection-file-path "phony" "digimon" "digivice" "wisemon"))
+
+    (for/fold ([Phonies : (Immutable-HashTable Symbol Wisemon-Phony) (make-immutable-hasheq)])
+              ([phony.rkt (in-directory rootdir)] #:when (regexp-match? #px".rkt$" phony.rkt))
+      (dynamic-require phony.rkt #false)
+      (parameterize ([current-namespace (module->namespace phony.rkt)])
+        (for/fold ([phonies : (Immutable-HashTable Symbol Wisemon-Phony) Phonies])
+                  ([sym (in-list (namespace-mapped-symbols))])
+          (define maybe-goal (namespace-variable-value sym #false (λ _ #false)))
+          (cond [(not (wisemon-phony? maybe-goal)) phonies]
+                [else (hash-set phonies (wisemon-phony-name maybe-goal) maybe-goal)]))))))
