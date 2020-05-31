@@ -3,8 +3,8 @@
 (provide (all-defined-out))
 
 (require racket/list)
-
-(require typed/racket/unsafe)
+(require racket/path)
+(require racket/string)
 
 (require "dist.rkt")
 
@@ -47,9 +47,12 @@
       (define modpath `(submod ,submake make:files make))
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)))
-    
-    (make/proc (list (list (current-directory) null (λ [] (void '|I don't know how to make all these files|))))
-               (current-make-real-targets))
+
+    (when (pair? (current-make-real-targets))
+      (raise-user-error the-name
+                        (string-join (map (λ [[target : Path]] (format "no recipe make `~a`" (find-relative-path (current-directory) target)))
+                                          (current-make-real-targets))
+                                     (format "~n~a: " the-name))))
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake postmake))

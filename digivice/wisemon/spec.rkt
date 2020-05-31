@@ -17,7 +17,7 @@
  racket/base
  [file-or-directory-modify-seconds (All (a) (-> Path-String (Option Integer) (-> a) a))])
 
-(unsafe-require/typed/provide
+(unsafe-require/typed
  make
  [make/proc (-> Make-Specification (U String (Listof Path-String) (Vectorof Path-String)) Void)])
 
