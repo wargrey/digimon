@@ -39,12 +39,12 @@
 
 (unsafe-require/typed
  racket/base
- [collection-file-path (->* (Path-String #:fail (-> String Boolean)) (#:check-compiled? Boolean) #:rest Path-String Path)])
+ [collection-file-path (All (a) (->* (Path-String #:fail (-> String a)) (#:check-compiled? Boolean) #:rest Path-String (U Path a)))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-compile : (-> Path-String String Info-Ref Void)
   (lambda [pwd digimon info-ref]
-    (if (and (collection-file-path "." digimon #:fail (λ [[errmsg : String]] #false)) (> (parallel-workers) 1))
+    (if (and ((inst collection-file-path Boolean) "." digimon #:fail (λ [[errmsg : String]] #false)) (> (parallel-workers) 1))
         (compile-collection digimon)
         (compile-directory pwd info-ref))))
 
