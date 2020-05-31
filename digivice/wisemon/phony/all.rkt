@@ -14,6 +14,8 @@
 (require "../native.rkt")
 (require "../parameter.rkt")
 
+(require "../../../echo.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony
   (lambda [digimon info-ref]
@@ -49,10 +51,11 @@
         (dynamic-require modpath #false)))
 
     (when (pair? (current-make-real-targets))
-      (raise-user-error the-name
-                        (string-join (map (λ [[target : Path]] (format "no recipe make `~a`" (find-relative-path (current-directory) target)))
-                                          (current-make-real-targets))
-                                     (format "~n~a: " the-name))))
+      (define fgcolor : Symbol (if (make-keep-going) 'yellow 'red))
+      (for ([target (in-list (current-make-real-targets))])
+        (eechof #:fgcolor fgcolor "~a: no recipe make `~a`~n" the-name (find-relative-path (current-directory) target)))
+      (unless (make-keep-going)
+        (raise-user-error the-name "Stop")))
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake postmake))

@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/path)
+
 (require "digitama/cmdopt.rkt")
 
 (require (for-syntax racket/base))
@@ -112,7 +114,7 @@
                       (exit retcode))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((Option (Pairof Integer Integer))) (-> Symbol String a)))
+(define make-cmdopt-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((Option (Pairof Integer Integer))) (-> Symbol String a)))
   (lambda [predicative? [range #false]]
     (λ [[option : Symbol] [s : String]] : a
       (define n : (Option Number) (string->number s))
@@ -120,3 +122,7 @@
             [(not range) n]
             [(<= (car range) n (cdr range)) n]
             [else (error option "expected in range [~a, ~a], but given ~a" (car range) (cdr range) s)]))))
+
+(define cmdopt-string->path : (-> Symbol String Path)
+  (lambda [option file]
+    (simple-form-path file)))

@@ -28,6 +28,7 @@
 (define make-always-run : (Parameterof Boolean) (make-parameter #false))
 (define make-just-touch : (Parameterof Boolean) (make-parameter #false))
 (define make-trace-log : (Parameterof Boolean) (make-parameter #false))
+(define make-keep-going : (Parameterof Boolean) (make-parameter #false))
 (define make-errno : (Parameterof Byte) (make-parameter 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -41,6 +42,7 @@
     (make-dry-run #false)
     (make-always-run #false)
     (make-just-touch #false)
+    (make-keep-going #false)
     (make-errno 1)))
 
 (define make-set-verbose! : (-> Boolean Void)

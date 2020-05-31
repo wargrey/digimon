@@ -81,7 +81,7 @@
     (wisemon-make (make-native-library-specs info-ref))
     (wisemon-compile (current-directory) digimon info-ref)
 
-    (wisemon-make (make-typesetting-specs info-ref))))
+    (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define filter-typesetting-renderer : (-> Any Boolean (Pairof Symbol (Option String)))

@@ -12,6 +12,7 @@
 
 (require "parameter.rkt")
 (require "../../wisemon.rkt")
+(require "../../echo.rkt")
 
 (unsafe-require/typed
  racket/base
@@ -19,7 +20,7 @@
 
 (unsafe-require/typed
  make
- [make/proc (-> Make-Specification (U String (Listof Path-String) (Vectorof Path-String)) Void)])
+ [make/proc (-> Make-Specification (U Path-String (Listof Path-String) (Vectorof Path-String)) Void)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Make-Spec (List (U Path (Listof Path)) (Listof Path) (-> Void)))
@@ -31,9 +32,15 @@
     (when (pair? specs)
       (define make-specs (map hack-spec specs))
       (when (pair? make-specs)
-        (make/proc make-specs
-                   (cond [(pair? targets) targets]
-                         [else (wisemon-targets-flatten specs)]))))))
+        (define real-targets
+          (cond [(pair? targets) targets]
+                [else (wisemon-targets-flatten specs)]))
+        (if (make-keep-going)
+            (for ([t (in-list real-targets)])
+              (with-handlers ([exn:fail? (λ [[e : exn:fail]] (eechof #:fgcolor 'yellow "~a: ~a~n" the-name (exn-message e)))])
+                (make/proc make-specs t)))
+            (with-handlers ([exn:fail? (λ [[e : exn:fail]] (raise-user-error the-name (exn-message e)))])
+              (make/proc make-specs real-targets)))))))
 
 (define wisemon-targets-flatten : (-> Wisemon-Specification (Listof Path))
   (lambda [specs]

@@ -23,14 +23,18 @@
 
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"
   #:once-each
-  [[(#\B always-make)   #:=> make-always-run                        "Unconditionally make all targets"]
-   [(#\i ignore-errors) #:=> (λ _ (make-errno 0))                   "Do not tell shell there are errors"]
-   [(#\n dry-run)       #:=> make-dry-run                           "Just make without updating targets [Except *.rkt]"]
-   [(#\s slient)        #:=> (λ _ (current-output-port /dev/null))  "Just make and only display errors"]
-   [(#\t touch)         #:=> make-just-touch                        "Touch targets instead of remaking them if it exists"]
-   [(#\d debug)         #:=> make-trace-log                         "Print lots of debug information"]
-   [(#\v verbose)       #:=> make-set-verbose!                      "Build with verbose messages"]
-   [(#\j jobs)          #:=> (make-string->integer byte?) n #: Byte ["Use ~1 parallel jobs [0 for default: ~a]" (parallel-workers)]]])
+  [[(#\B always-make)        #:=> make-always-run                               "Unconditionally make all targets"]
+   [(#\i ignore-errors)      #:=> (λ _ (make-errno 0))                          "Do not tell shell there are errors"]
+   [(#\n dry-run)            #:=> make-dry-run                                  "Just make without updating targets [Except *.rkt]"]
+   [(#\s slient quiet)       #:=> (λ _ (current-output-port /dev/null))         "Just make and only display errors"]
+   [(#\t touch)              #:=> make-just-touch                               "Touch targets instead of remaking them if existed"]
+   [(#\d debug)              #:=> make-trace-log                                "Print lots of debug information"]
+   [(#\v verbose)            #:=> make-set-verbose!                             "Build with verbose messages"]
+   [(#\k keep-going)         #:=> make-keep-going                               "Keep going when some targets cannot be made"]
+   [(#\j jobs)               #:=> (make-cmdopt-string->integer byte?) n #: Byte ["Allow ~1 jobs at once [0 for default: ~a]" (parallel-workers)]]]
+
+  #:multi
+  [[(#\W what-if assume-new) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely new"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -93,6 +97,10 @@
     (let ([jobs (wisemon-flags-jobs options)])
       (when (and jobs (> jobs 0))
         (parallel-workers jobs)))
+
+    (for ([wif (in-list (wisemon-flags-what-if options))])
+      (when (file-exists? wif)
+        (file-or-directory-modify-seconds wif (current-seconds) void)))
 
     (dynamic-wind (λ [] (thread racket-trace-log))
                   (λ [] (let ([digimons (collection-info)])
