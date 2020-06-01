@@ -74,9 +74,9 @@
               (cond [(= arity 1) (if multiple? #'cmdmopt1-ref #'cmdopt1-ref)]
                     [else ((if multiple? make-cmdmopt-ref make-cmdopt-ref) (datum->syntax #'arg arity))])
               (let ([argv-data (map syntax-e argv)])
-                (cons (cmd-format-description (cmd-flag-arguments-description arity) arity argv-data #true)
+                (cons (cmd-format-description (cmd-flag-arguments-description arity) arity argv-data #true multiple?)
                       (for/list ([<desc> (syntax-e #'(description.value ...))])
-                        (cmd-format-description <desc> arity argv-data #true)))))]
+                        (cmd-format-description <desc> arity argv-data #true multiple?)))))]
       [(flag+alias (~optional (~seq (~or #:=> =>) switch-on) #:defaults ([switch-on #'void])) description:help ...)
        (define-values (flags size name) (cmd-collect-flag-aliases #'flag+alias flagnames))
        (list* name #'Boolean 0 size flags #'switch-on (if multiple? #'cmdmopt0-ref #'cmdopt0-ref)
@@ -122,9 +122,9 @@
     (cond [(char? flag) (string->symbol (string flag))]
           [else flag]))
 
-  (define (cmd-format-description <desc> arity args ~~?)
+  (define (cmd-format-description <desc> arity args ~~? multiple?)
     (define desc (syntax-e <desc>))
-    (cond [(list? desc) (list* #'list (cmd-format-description (cadr desc) arity args #false) (cddr desc))]
+    (cond [(list? desc) (list* #'list (cmd-format-description (cadr desc) arity args #false multiple?) (cddr desc))]
           [else (let ([/dev/stdin (open-input-string desc)]
                       [/dev/stdout (open-output-string)])
                   (let ~n ()
@@ -140,7 +140,9 @@
                                                       [(> n arity) (raise-syntax-error 'cmdopt-parse-flags "flag index too large" <desc>)]
                                                       [else (write-char #\< /dev/stdout)
                                                             (write (list-ref args (sub1 n)) /dev/stdout)
-                                                            (write-char #\> /dev/stdout)]))])
+                                                            (write-char #\> /dev/stdout)
+                                                            (unless (not multiple?)
+                                                              (write-char #\s /dev/stdout))]))])
                                   (~n))])))]))
 
   (define (cmd-flag-arguments-description arity)
