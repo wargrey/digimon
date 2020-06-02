@@ -1,13 +1,24 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (all-from-out racket/path))
+(provide (all-from-out racket/path racket/file))
 
 (require racket/path)
+(require racket/file)
+
+(require typed/racket/unsafe)
+
+(unsafe-require/typed
+ racket/base
+ [file-or-directory-modify-seconds (All (a) (case-> [Path-String Integer (-> a) -> a]
+                                                    [Path-String Integer -> Void]
+                                                    [Path-String False -> Nonnegative-Fixnum]
+                                                    [Path-String -> Nonnegative-Fixnum]))])
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-file-reader stx)
   (syntax-case stx [lambda λ]
     [(_ id #:+ Type #:lambda do-read)
@@ -53,7 +64,18 @@
          (memq 'read (file-or-directory-permissions p))
          #true)))
 
-(define file-mtime : (->* (Path-String) (Natural) Natural)
+(define file-mtime : (->* (Path-String) (Nonnegative-Fixnum) Nonnegative-Fixnum)
   (lambda [f [fallback 0]]
     (cond [(file-exists? f) (file-or-directory-modify-seconds f)]
           [else fallback])))
+
+(define file-touch : (All (a) (case-> [Path-String (-> a) -> a]
+                                      [Path-String -> Void]))
+  (case-lambda
+    [(target on-touch-error)
+     (file-or-directory-modify-seconds target (current-seconds) on-touch-error)]
+    [(target)
+     (file-or-directory-modify-seconds target (current-seconds)
+                                       (λ [] (unless (file-exists? target)
+                                               (make-parent-directory* target)
+                                               (call-with-output-file* target void))))]))

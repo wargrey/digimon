@@ -7,13 +7,13 @@
 (require "wisemon/parameter.rkt")
 (require "wisemon/racket.rkt")
 (require "wisemon/phony.rkt")
-(require "wisemon/spec.rkt")
 
 (require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
 
 (require "../cmdopt.rkt")
 (require "../echo.rkt")
+(require "../logger.rkt")
 (require "../debug.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -23,18 +23,19 @@
 
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"
   #:once-each
-  [[(#\B always-make)        #:=> make-always-run                               "Unconditionally make all targets"]
-   [(#\i ignore-errors)      #:=> (λ _ (make-errno 0))                          "Do not tell shell there are errors"]
-   [(#\n dry-run)            #:=> make-dry-run                                  "Just make without updating targets [Except *.rkt]"]
-   [(#\s slient quiet)       #:=> (λ _ (current-output-port /dev/null))         "Just make and only display errors"]
-   [(#\t touch)              #:=> make-just-touch                               "Touch targets instead of remaking them if existed"]
-   [(#\d debug)              #:=> make-trace-log                                "Print lots of debug information"]
-   [(#\v verbose)            #:=> make-set-verbose!                             "Build with verbose messages"]
-   [(#\k keep-going)         #:=> make-keep-going                               "Keep going when some targets cannot be made"]
-   [(#\j jobs)               #:=> (make-cmdopt-string->integer byte?) n #: Byte ["Allow ~1 jobs at once [0 for default: ~a]" (parallel-workers)]]]
+  [[(#\B always-make)         #:=> make-always-run                               "Unconditionally make all targets"]
+   [(#\i ignore-errors)       #:=> (λ _ (make-errno 0))                          "Do not tell shell there are errors"]
+   [(#\n dry-run recon)       #:=> make-dry-run                                  "Don't actually run any commands; just print them [Except *.rkt]"]
+   [(#\s slient quiet)        #:=> (λ _ (current-output-port /dev/null))         "Just make and only display errors"]
+   [(#\t touch)               #:=> make-just-touch                               "Touch targets instead of remaking them if existed"]
+   [(#\d debug)               #:=> make-trace-log                                "Print lots of debug information"]
+   [(#\v verbose)             #:=> make-set-verbose!                             "Build with verbose messages"]
+   [(#\k keep-going)          #:=> make-keep-going                               "Keep going when some targets cannot be made"]
+   [(#\j jobs)                #:=> (make-cmdopt-string->integer byte?) n #: Byte ["Allow ~1 jobs at once [0 for default: ~a]" (parallel-workers)]]]
 
   #:multi
-  [[(#\W what-if assume-new) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely new"]])
+  [[(#\W new-file assume-new) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely new"]
+   [(#\o old-file assume-old) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely old and do not remaking them"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -65,26 +66,25 @@
   (lambda [info reals phonies]
     (cond [(pair? info) (for/fold ([retcode : Byte 0]) ([subinfo (in-list (cdr info))]) (make-digimon subinfo reals phonies))]
           [else (let ([zone (pkg-info-zone info)]
-                      [info-ref (pkg-info-ref info)])
+                      [info-ref (pkg-info-ref info)]
+                      [tracer (thread (make-racket-trace))])
                   (parameterize ([current-make-real-targets reals]
                                  [current-digimon (pkg-info-name info)]
                                  [current-free-zone zone]
                                  [current-directory zone])
-                    (dynamic-wind (λ [] (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (current-digimon)))
-                                  (λ [] (for/fold ([retcode : Byte 0])
-                                                  ([phony (in-list phonies)])
-                                          (parameterize ([current-make-phony-goal (wisemon-phony-name phony)])
-                                            (with-handlers ([exn:break? (λ [[e : exn:break]] 130)]
-                                                            [exn:fail? (λ [[e : exn]]
-                                                                         (let ([/dev/stderr (open-output-string)])
-                                                                           (parameterize ([current-error-port /dev/stderr])
-                                                                             ((error-display-handler) (exn-message e) e))
-                                                                           (eechof #:fgcolor 'red "~a" (get-output-string /dev/stderr))
-                                                                           (make-errno)))])
-                                              (file-or-directory-modify-seconds zone (current-seconds) void) ; Windows complains, no such directory
-                                              ((wisemon-phony-make phony) (current-digimon) info-ref)
-                                              retcode))))
-                                  (λ [] (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon))))))])))
+                    (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (current-digimon))
+                    (begin0 (for/fold ([retcode : Byte 0])
+                                      ([phony (in-list phonies)])
+                              (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
+                                             [current-custodian (make-custodian)])
+                                (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                                                        [exn:fail? (λ [[e : exn]] (log-exception e #:topic the-name) (make-errno))])
+                                          ((wisemon-phony-make phony) (current-digimon) info-ref)
+                                          retcode)
+                                        (custodian-shutdown-all (current-custodian)))))
+                            (log-datum 'info eof #:topic the-name)
+                            (thread-wait tracer)
+                            (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))])))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
@@ -98,16 +98,13 @@
       (when (and jobs (> jobs 0))
         (parallel-workers jobs)))
 
-    (for ([wif (in-list (wisemon-flags-what-if options))])
-      (when (file-exists? wif)
-        (file-or-directory-modify-seconds wif (current-seconds) void)))
+    (make-assume-oldfiles (wisemon-flags-old-file options))
+    (make-assume-newfiles (wisemon-flags-new-file options))
 
-    (dynamic-wind (λ [] (thread racket-trace-log))
-                  (λ [] (let ([digimons (collection-info)])
-                          (cond [(not digimons) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit 1)]
-                                [else (let-values ([(phonies reals) (wisemon-goal-partition (car (λargv)))])
-                                        (exit (time-apply* (λ [] (make-digimon digimons reals phonies)))))])))
-                  (λ [] (log-message (current-logger) 'info the-name "Job Done!" eof)))))
+    (let ([digimons (collection-info)])
+      (cond [(not digimons) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit (make-errno))]
+            [else (let-values ([(phonies reals) (wisemon-goal-partition (car (λargv)))])
+                    (exit (time-apply* (λ [] (make-digimon digimons reals phonies)))))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

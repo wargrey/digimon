@@ -11,7 +11,7 @@
 (require "../native.rkt")
 (require "../racket.rkt")
 
-(require "../../../echo.rkt")
+(require "../../../logger.rkt")
 (require "../../../format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -33,7 +33,7 @@
       (define pwd : (Option Path) (path-only handbook))
       (when (and pwd (directory-exists? pwd))
         (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook))
-        (echof #:fgcolor 248 "~a prove: ~a~n" the-name ./handbook)
+        (log-string 'debug "~a prove: ~a" the-name ./handbook)
         
         (parameterize ([current-directory pwd]
                        [current-namespace (make-base-namespace)])

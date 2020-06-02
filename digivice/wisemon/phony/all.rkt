@@ -14,7 +14,7 @@
 (require "../native.rkt")
 (require "../parameter.rkt")
 
-(require "../../../echo.rkt")
+(require "../../../logger.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony
@@ -51,9 +51,9 @@
         (dynamic-require modpath #false)))
 
     (when (pair? (current-make-real-targets))
-      (define fgcolor : Symbol (if (make-keep-going) 'yellow 'red))
+      (define level : Log-Level (if (make-keep-going) 'warning 'error))
       (for ([target (in-list (current-make-real-targets))])
-        (eechof #:fgcolor fgcolor "~a: no recipe make `~a`~n" the-name (find-relative-path (current-directory) target)))
+        (log-string level #:topic the-name "no recipe to make `~a`" (find-relative-path (current-directory) target)))
       (unless (make-keep-going)
         (raise-user-error the-name "Stop")))
 

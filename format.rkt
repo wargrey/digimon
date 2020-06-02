@@ -16,6 +16,7 @@
 
 (require typed/racket/date)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~n_w : (-> Integer String String)
   (lambda [count word]
     (format "~a ~a" count (plural count word))))
@@ -80,6 +81,10 @@
     (lambda [n]
       (hash-ref! space n
                  (λ [] (make-string n #\space))))))
+
+(define ~string : (-> String (Listof Any) String)
+  (lambda [msgfmt argl]
+    (if (null? argl) msgfmt (apply format msgfmt argl))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define byte->hex-string : (-> Byte String)

@@ -10,11 +10,8 @@
 
 (require "parameter.rkt")
 
+(require "../../logger.rkt")
 (require "../../echo.rkt")
-
-(unsafe-require/typed
- raco/command-name
- [short-program+command-name (-> String)])
 
 (unsafe-require/typed
  setup/option
@@ -59,7 +56,7 @@
     (define (colorize-stderr [bstr : Bytes])
       (term-colorize (if summary? 'red 224) #false null (bytes->string/utf-8 bstr)))
     (set!-values (again? compiling-round) (values #false round))
-    (parameterize ([setup-program-name (short-program+command-name)]
+    (parameterize ([setup-program-name (symbol->string the-name)]
                    [make-launchers #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]
@@ -78,12 +75,12 @@
     (set! again? #false)
     (define (filter-verbose [info : String])
       (match info
-        [(pregexp #px"checking:") (when (and (make-print-checking) (regexp-match? px.in info)) (traceln info))]
+        [(pregexp #px"checking:") (when (and (make-verbose) (regexp-match? px.in info)) (traceln info))]
         [(pregexp #px"compiling ") (set! again? #true)]
         [(pregexp #px"done:") (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
         [(pregexp #px"maybe-compile-zo starting") (traceln info)]
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
-        [(pregexp #px"(newer|skipping:)") (when (make-print-reasons) (traceln info))]
+        [(pregexp #px"(newer|skipping:)") (when (make-verbose) (traceln info))]
         [_ (traceln info)]))
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
@@ -121,28 +118,27 @@
 (define again? : Boolean #false)
 (define compiling-round : Natural 1)
 
-(define racket-trace-log : (-> Void)
-  (let ([/dev/log (make-log-receiver (current-logger) 'debug)])
-    (lambda []
-      (define log (sync/enable-break /dev/log))
-      (cond [(not (vector? log)) (racket-trace-log)]
-            [(eof-object? (vector-ref log 2)) (make-restore-options!)]
-            [(memq (vector-ref log 3) '(racket/contract optimizer place GC)) (racket-trace-log)]
-            [(eq? (vector-ref log 3) 'setup/parallel-build)
-             (define pce (struct->vector (vector-ref log 2)))
-             (define ce (struct->vector (vector-ref pce 2)))
-             (unless (memq (vector-ref ce 3) '(locking already-done))
-               (if (eq? (vector-ref ce 3) 'finish-compile)
-                   (echof #:fgcolor 250 "round[~a]: processor[~a]: made: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))
-                   (printf "round[~a]: processor[~a]: making: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))))
-             (set! again? #true)
-             (racket-trace-log)]
-            [(make-trace-log)
-             (match log  
-               [(vector 'debug message _ _) (echof #:fgcolor 248 "~a~n" message)]
-               [(vector 'info message _ _) (unless (regexp-match? #rx"^collapsible" message) (echof #:fgcolor 'cyan "~a~n" message))]
-               [(vector 'warning message _ _) (echof #:fgcolor 'yellow "~a~n" message)]
-               [(vector (or 'error 'fatal) message _ _) (echof #:fgcolor 'red "~a~n" message)]
-               [_ (void)])
-             (racket-trace-log)]
-            [else (racket-trace-log)]))))
+(define racket-event-echo : Log-Event-Receiver
+  (lambda [level message urgent topic]
+    (when (make-trace-log)
+      (case level
+        [(debug) (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))]
+        [(info) (echof #:fgcolor 'cyan "~a~n" message)]
+        [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
+        [(error fatal) (echof #:fgcolor 'red "~a~n" message)]))))
+
+(define racket-setup-event-echo : Log-Event-Receiver
+  (lambda [level message urgent topic]
+    (define pce (struct->vector urgent))
+    (define ce (struct->vector (vector-ref pce 2)))
+    (unless (memq (vector-ref ce 3) '(locking already-done))
+      (if (eq? (vector-ref ce 3) 'finish-compile)
+          (echof #:fgcolor 250 "round[~a]: processor[~a]: made: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))
+          (printf "round[~a]: processor[~a]: making: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))))
+    (set! again? #true)))
+
+(define make-racket-trace-log : (-> (-> Void))
+  (lambda []
+    (make-log-trace #:receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
+                    #:else-receiver racket-event-echo
+                    (current-logger))))

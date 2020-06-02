@@ -52,7 +52,7 @@
     (when (path? dirty)
       (cond [(file-exists? dirty) (delete-file dirty)]
             [(directory-exists? dirty) (delete-directory dirty)])
-      (printf "make: deleted ~a~n" (simplify-path dirty)))))
+      (log-message (current-logger) 'info 'rm (path->string (simplify-path dirty)) #false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mostlyclean-phony-goal : Wisemon-Phony

@@ -11,7 +11,6 @@
 (require "../system.rkt")
 
 (require "../../filesystem.rkt")
-(require "../../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-exec : (-> Symbol Tex-Renderer Path-String Path-String Byte Path)
@@ -36,15 +35,15 @@
                                    [else (path->string TEXNAME.tex)])))
                  digimon-system
                  (and (tex-renderer-on-error-logging? latex)
-                      (λ [op program status]
+                      (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer]]
                         (define log-now (file-mtime TEXNAME.log))
                         (when (> log-now 0)
-                          (echof #:fgcolor 'yellow "~a: cat ~a~n" op TEXNAME.log)
+                          (log-message (current-logger) 'warning op (format "cat ~a" TEXNAME.log) #false)
                           (call-with-input-file* TEXNAME.log
                             (λ [[/dev/login : Input-Port]]
                               (copy-port /dev/login (current-error-port)))))
                         (when (<= log-now log-timestamp)
-                          (echof #:fgcolor 'yellow "~a: log has not updated~n" op)))))
+                          (log-message (current-logger) 'warning op "log has not updated" #false)))))
         
         (when (and (file-exists? TEXNAME.log) (> (file-mtime TEXNAME.log) log-timestamp))
           ;;; NOTE

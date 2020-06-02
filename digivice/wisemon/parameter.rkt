@@ -4,18 +4,10 @@
 
 (require racket/future)
 
-(require typed/racket/unsafe)
-
-(unsafe-require/typed/provide
- make
- [make-print-dep-no-line (Parameterof Boolean)]
- [make-print-checking (Parameterof Boolean)]
- [make-print-reasons (Parameterof Boolean)])
-
-(unsafe-require/typed/provide
+(require/typed/provide
  setup/option
  [compiler-verbose (Parameterof Boolean)]
- [parallel-workers (Parameterof Nonnegative-Integer)])
+ [parallel-workers (Parameterof Positive-Integer)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-name 'wisemon)
@@ -28,8 +20,12 @@
 (define make-always-run : (Parameterof Boolean) (make-parameter #false))
 (define make-just-touch : (Parameterof Boolean) (make-parameter #false))
 (define make-trace-log : (Parameterof Boolean) (make-parameter #false))
+(define make-verbose : (Parameterof Boolean) (make-parameter #false))
 (define make-keep-going : (Parameterof Boolean) (make-parameter #false))
 (define make-errno : (Parameterof Byte) (make-parameter 1))
+
+(define make-assume-oldfiles : (Parameterof (Listof Path)) (make-parameter null))
+(define make-assume-newfiles : (Parameterof (Listof Path)) (make-parameter null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-restore-options! : (-> Void)
@@ -43,11 +39,13 @@
     (make-always-run #false)
     (make-just-touch #false)
     (make-keep-going #false)
-    (make-errno 1)))
+    (make-errno 1)
+
+    (make-assume-oldfiles null)
+    (make-assume-newfiles null)))
 
 (define make-set-verbose! : (-> Boolean Void)
   (lambda [switch]
     (for-each (λ [[make-verbose : (Parameterof Boolean)]]
                 (make-verbose switch))
-              (list make-print-dep-no-line make-print-checking
-                    make-print-reasons make-trace-log))))
+              (list make-verbose make-trace-log))))

@@ -12,7 +12,6 @@
 (require "typeset/tex.rkt")
 
 (require "../filesystem.rkt")
-(require "../echo.rkt")
 
 ; register renders
 (require "typeset/bin/pdftex.rkt")
@@ -33,7 +32,7 @@
                   (cond [(or disable-filter (not preamble-filter)) (tex-exec renderer latex src.tex dest-dir retry)]
                         [else (let ([TEXNAME.tex (build-path dest-dir (assert (file-name-from-path src.tex) path?))])
                                 (parameterize ([current-custodian (make-custodian)])
-                                  (echof #:fgcolor 'cyan "~a: ~a: ~a~n" renderer (object-name preamble-filter) src.tex)
+                                  (log-message (current-logger) 'info renderer (format "~a: ~a" (object-name preamble-filter) src.tex) #false)
 
                                   (make-directory* dest-dir)
                                   (with-handlers ([exn:fail? (λ [[e : exn:fail]] (custodian-shutdown-all (current-custodian)) (raise e))])
