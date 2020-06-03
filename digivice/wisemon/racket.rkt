@@ -122,10 +122,10 @@
   (lambda [level message urgent topic]
     (when (make-trace-log)
       (case level
-        [(debug) (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))]
         [(info) (echof #:fgcolor 'cyan "~a~n" message)]
         [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
-        [(error fatal) (echof #:fgcolor 'red "~a~n" message)]))))
+        [(error fatal) (echof #:fgcolor 'red "~a~n" message)]
+        [else (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))]))))
 
 (define racket-setup-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]

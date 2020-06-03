@@ -6,7 +6,7 @@
 (require racket/list)
 
 (require "../../../digitama/latex.rkt")
-(require "../../../echo.rkt")
+(require "../../../dtrace.rkt")
 
 (require "../parameter.rkt")
 (require "../native.rkt")
@@ -36,7 +36,6 @@
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer)) path?))
-      (define logger (current-logger))
       
       (wisemon-spec TEXNAME.ext #: (filter file-exists? (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl))) #:-
                     (define dest-dir : (Option Path) (path-only TEXNAME.ext))
@@ -44,17 +43,17 @@
                       
                     (when (and (path? dest-dir) (path? pwd))
                       (if (not maybe-name)
-                          (echof #:fgcolor 248 "~a ~a: ~a~n" the-name renderer TEXNAME.scrbl)
-                          (echof #:fgcolor 248 "~a ~a: ~a [~a]~n" the-name renderer TEXNAME.scrbl maybe-name))
+                          (dtrace-debug "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
+                          (dtrace-debug "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
                       
                       (if (and raw-tex?)
                           (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
-                            (cond [(not maybe-name) (printf " [Output to ~a]~n" TEXNAME.ext)]
+                            (cond [(not maybe-name) (dtrace-debug " [Output to ~a]" TEXNAME.ext)]
                                   [else (let* ([ext (path-get-extension TEXNAME.ext)]
                                                [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
-                                          (log-message logger 'info 'mv (format "~a ~a" TEXNAME.ext target.ext) #false)
+                                          (dtrace-info #:topic 'mv "~a ~a" TEXNAME.ext target.ext)
                                           (rename-file-or-directory TEXNAME.ext target.ext #true)
-                                          (log-message logger 'debug '|| (format " [Output to ~a]" target.ext) #false))]))
+                                          (dtrace-debug " [Output to ~a]" target.ext))]))
                           (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
                                 [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
                             (parameterize ([current-directory pwd]
@@ -74,7 +73,7 @@
                                              #:quiet? #true #:warn-undefined? #false))
                               
                               (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
-                                (printf " [Output to ~a]~n" TEXNAME.ext))))))))))
+                                (dtrace-debug " [Output to ~a]" TEXNAME.ext))))))))))
 
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]
@@ -92,9 +91,8 @@
     (cons (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
             (cond [(null? renderers)
                    (when (not silent)
-                     (log-message (current-logger) 'warning the-name
-                                  (format "~a typeset: no suitable renderer is found, use `~a` instead"
-                                    the-name tex-fallback-renderer) #false #false))
+                     (dtrace-warning "~a typeset: no suitable renderer is found, use `~a` instead"
+                                     the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))

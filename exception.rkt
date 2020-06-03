@@ -27,27 +27,25 @@
                          (current-continuation-marks)
                          field ...)))
 
-                (define make+exn : (->* (Any Type ... FieldType ... String)
-                                        (#:logger Logger #:level Log-Level #:topic (Option Symbol))
-                                        #:rest Any eid)
+                (define make+exn : (->* (Any Type ... FieldType ... String) (#:topic Any #:level Log-Level #:prefix? Boolean #:brief? Boolean) #:rest Any eid)
                   (lambda [src arg ... field ...
-                               #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic dtrace-blank-topic]
+                               #:topic [logger /dev/dtrace] #:level [level 'error] #:prefix? [prefix? #false] #:brief? [brief? #true]
                                fmt . argl]
                     (let ([errobj (make-exn src arg ... field ... (~string fmt argl))])
-                      (log-exn errobj #:logger logger #:level level #:topic topic)
+                      (log-exn errobj #:topic logger #:level level #:prefix? prefix? #:brief? brief?)
                       errobj)))
 
                 (define throw-exn : (-> Any Type ... FieldType ... String Any * Nothing)
                   (lambda [src arg ... field ... fmt . argl]
                     (raise (make-exn src arg ... field ... (~string fmt argl)))))
 
-                (define throw+exn : (->* (Any Type ... FieldType ... String)
-                                         (#:logger Logger #:level Log-Level #:topic (Option Symbol))
-                                         #:rest Any Nothing)
+                (define throw+exn : (->* (Any Type ... FieldType ... String) (#:topic Any #:level Log-Level #:prefix? Boolean #:brief? Boolean) #:rest Any Nothing)
                   (lambda [src arg ... field ...
-                               #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic dtrace-blank-topic]
+                               #:topic [logger /dev/dtrace] #:level [level 'error] #:prefix? [prefix? #false] #:brief? [brief? #true]
                                fmt . argl]
-                    (raise (make+exn src arg ... field ... #:logger logger #:level level #:topic topic (~string fmt argl)))))))]))
+                    (let ([errobj (make-exn src arg ... field ... (~string fmt argl))])
+                      (log-exn errobj #:topic logger #:level level #:prefix? prefix? #:brief? brief?)
+                      (raise errobj))))))]))
 
 (define-syntax (throw stx)
   (syntax-parse stx

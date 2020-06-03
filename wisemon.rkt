@@ -8,7 +8,7 @@
 
 (require "digitama/wisemon.rkt")
 
-(require "exception.rkt")
+(require "dtrace.rkt")
 (require "filesystem.rkt")
 
 (require (for-syntax racket/base))
@@ -40,7 +40,7 @@
                      [current-logger (make-logger the-name (current-logger))])
         (define phony-all : (Listof Path) (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))
         (for ([t (in-list (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))])
-          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (wisemon-log-error e #:level 'warning #:topic the-name)))])
+          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-exception e #:level 'warning #:topic the-name)))])
             (wisemon-make-target specs t the-name dry-run? always-run? just-touch?
                                  (map simple-form-path oldfiles)
                                  (map simple-form-path newfiles))))))))

@@ -33,7 +33,7 @@
       (define pwd : (Option Path) (path-only handbook))
       (when (and pwd (directory-exists? pwd))
         (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook))
-        (log-string 'debug "~a prove: ~a" the-name ./handbook)
+        (dtrace-debug "~a prove: ~a" the-name ./handbook)
         
         (parameterize ([current-directory pwd]
                        [current-namespace (make-base-namespace)])

@@ -30,20 +30,15 @@
 (define-exception exn:wisemon exn:fail:user
   ([targets : (Listof Path)]
    [cause : Wisemon-Exception-Cause])
-  (wisemon-exn-message)
-  #:log wisemon-log-error)
+  (wisemon-exn-message))
 
 (define wisemon-exn-message : (-> Any (Listof Path) Wisemon-Exception-Cause String String)
   (lambda [func targets cause message]
     (format "~a: ~a" func message)))
 
-(define wisemon-log-error : (->* (exn) (#:logger Logger #:level Log-Level #:topic (Option Symbol)) Void)
-  (lambda [errobj #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic #false]]
-    (log-message logger level topic (exn-message errobj) errobj)))
-
-(define wisemon-log-message : (->* (Symbol Log-Level String) (#:logger Logger #:targets (Listof Path)) #:rest Any Void)
-  (lambda [name level #:logger [logger (current-logger)] #:targets [targets null] msgfmt . argl]
-    (log-message logger level name (~string msgfmt argl) targets)))
+(define wisemon-log-message : (->* (Symbol Log-Level String) (#:targets (Listof Path)) #:rest Any Void)
+  (lambda [name level #:targets [targets null] msgfmt . argl]
+    (dtrace-send name level (~string msgfmt argl) targets #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-make-target : (-> Wisemon-Specification Path Symbol Boolean Boolean Boolean (Listof Path) (Listof Path) Void)

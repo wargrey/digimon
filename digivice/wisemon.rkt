@@ -10,12 +10,15 @@
 
 (require "../digitama/collection.rkt")
 
-(require "../system.rkt")
 (require "../dtrace.rkt")
 (require "../port.rkt")
 (require "../cmdopt.rkt")
 (require "../echo.rkt")
 (require "../debug.rkt")
+
+;;; Racket's initial logger writes error message to stderr
+;;; `system.rkt` will set the current logger to /dev/dtrace which is not a child of the initial logger.
+(require "../system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags
@@ -83,7 +86,7 @@
                                           ((wisemon-phony-make phony) (current-digimon) info-ref)
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))
-                            (log-datum 'info eof #:topic the-name)
+                            (dtrace-datum-info eof #:topic the-name)
                             (thread-wait tracer)
                             (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))])))
 

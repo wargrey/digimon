@@ -53,7 +53,7 @@
     (when (pair? (current-make-real-targets))
       (define level : Log-Level (if (make-keep-going) 'warning 'error))
       (for ([target (in-list (current-make-real-targets))])
-        (log-string level #:topic the-name "no recipe to make `~a`" (find-relative-path (current-directory) target)))
+        (dtrace-message level #:topic the-name "no recipe to make `~a`" (find-relative-path (current-directory) target)))
       (unless (make-keep-going)
         (raise-user-error the-name "Stop")))
 

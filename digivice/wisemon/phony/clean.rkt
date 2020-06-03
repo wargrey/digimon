@@ -11,6 +11,8 @@
 (require "../path.rkt")
 (require "../spec.rkt")
 
+(require "../../../dtrace.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~clean : Make-Phony
   (lambda [digimon info-ref]
@@ -52,7 +54,7 @@
     (when (path? dirty)
       (cond [(file-exists? dirty) (delete-file dirty)]
             [(directory-exists? dirty) (delete-directory dirty)])
-      (log-message (current-logger) 'info 'rm (path->string (simplify-path dirty)) #false))))
+      (dtrace-info #:topic (current-make-phony-goal) "rm ~a" (simplify-path dirty)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mostlyclean-phony-goal : Wisemon-Phony
