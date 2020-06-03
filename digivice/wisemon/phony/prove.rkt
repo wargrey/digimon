@@ -33,6 +33,7 @@
       (define pwd : (Option Path) (path-only handbook))
       (when (and pwd (directory-exists? pwd))
         (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook))
+        
         (dtrace-debug "~a prove: ~a" the-name ./handbook)
         
         (parameterize ([current-directory pwd]
@@ -40,11 +41,11 @@
           (if (equal? (path-get-extension ./handbook) #".rkt")
               (parameterize ([exit-handler (λ [[retcode : Any]]
                                              (when (and (exact-integer? retcode) (<= 1 retcode 255))
-                                               (error the-name "prove: [error] ~a breaks ~a!" ./handbook (~n_w retcode "sample"))))])
+                                               (error the-name "~a prove: [error] ~a breaks ~a!" the-name ./handbook (~n_w retcode "sample"))))])
                 (define modpath `(submod ,handbook main))
                 (when (module-declared? modpath #true)
                   (dynamic-require `(submod ,handbook main) #false)))
-              (parameterize ([exit-handler (λ _ (error the-name "prove: [fatal] ~a needs a proper `exit-handler`!" ./handbook))])
+              (parameterize ([exit-handler (λ _ (error the-name "~a prove: [fatal] ~a needs a proper `exit-handler`!" the-name ./handbook))])
                 (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
                 (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,handbook)
                                #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))

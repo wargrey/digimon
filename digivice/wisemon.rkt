@@ -27,19 +27,19 @@
 
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"
   #:once-each
-  [[(#\B always-make)         #:=> make-always-run                               "Unconditionally make all targets"]
-   [(#\i ignore-errors)       #:=> (λ _ (make-errno 0))                          "Do not tell shell there are errors"]
-   [(#\n dry-run recon)       #:=> make-dry-run                                  "Don't actually run any commands; just print them [Except *.rkt]"]
-   [(#\s slient quiet)        #:=> (λ _ (current-output-port /dev/null))         "Just make and only display errors"]
-   [(#\t touch)               #:=> make-just-touch                               "Touch targets instead of remaking them if existed"]
-   [(#\d debug)               #:=> make-trace-log                                "Print lots of debug information"]
-   [(#\v verbose)             #:=> make-set-verbose!                             "Build with verbose messages"]
-   [(#\k keep-going)          #:=> make-keep-going                               "Keep going when some targets cannot be made"]
-   [(#\j jobs)                #:=> (make-cmdopt-string->integer byte?) n #: Byte ["Allow ~1 jobs at once [0 for default: ~a]" (parallel-workers)]]]
+  [[(#\B always-make)         #:=> make-always-run                       "Unconditionally make all targets"]
+   [(#\i ignore-errors)       #:=> (λ _ (make-errno 0))                  "Do not tell shell there are errors"]
+   [(#\n dry-run recon)       #:=> make-dry-run                          "Don't actually run any commands; just print them [Except *.rkt]"]
+   [(#\s slient quiet)        #:=> (λ _ (current-output-port /dev/null)) "Just make and only display errors"]
+   [(#\t touch)               #:=> make-just-touch                       "Touch targets instead of remaking them if existed"]
+   [(#\d debug)               #:=> make-trace-log                        "Print lots of debug information"]
+   [(#\v verbose)             #:=> make-set-verbose!                     "Build with verbose messages"]
+   [(#\k keep-going)          #:=> make-keep-going                       "Keep going when some targets cannot be made"]
+   [(#\j jobs)                #:=> cmdopt-string->byte n #: Byte         ["Allow ~1 jobs at once [0 for default: ~a]" (parallel-workers)]]]
 
   #:multi
-  [[(#\W new-file assume-new) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely new"]
-   [(#\o old-file assume-old) #:=> cmdopt-string->path FILE #: Path              "Consider ~1 to be infinitely old and do not remaking them"]])
+  [[(#\W new-file assume-new) #:=> cmdopt-string->path FILE #: Path      "Consider ~1 to be infinitely new"]
+   [(#\o old-file assume-old) #:=> cmdopt-string->path FILE #: Path      "Consider ~1 to be infinitely old and do not remaking them"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -86,7 +86,11 @@
                                           ((wisemon-phony-make phony) (current-digimon) info-ref)
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))
-                            (dtrace-datum-info eof #:topic the-name)
+
+                            ;;; TODO: Why the `prove` phony would be blocked if `dtrace-datum-info` is attached with `(current-logger)`?
+                            (dtrace-datum-info eof)
+                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            
                             (thread-wait tracer)
                             (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))])))
 

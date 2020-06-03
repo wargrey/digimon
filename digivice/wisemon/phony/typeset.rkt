@@ -91,8 +91,8 @@
     (cons (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
             (cond [(null? renderers)
                    (when (not silent)
-                     (dtrace-warning "~a typeset: no suitable renderer is found, use `~a` instead"
-                                     the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
+                     (dtrace-debug "~a typeset: no suitable renderer is found, use `~a` instead"
+                                   the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))
