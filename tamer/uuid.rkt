@@ -2,7 +2,7 @@
 
 (require "../uuid.rkt")
 (require "../format.rkt")
-(require "../system.rkt")
+(require "../symbol.rkt")
 
 (require racket/future)
 (require typed/db)

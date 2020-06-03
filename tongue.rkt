@@ -10,7 +10,7 @@
 (require racket/string)
 (require racket/match)
 
-(require "system.rkt")
+(require "dtrace.rkt")
 
 (define-type Tongue-Fold (-> Path (Immutable-HashTable Symbol String) (Immutable-HashTable Symbol String)))
 (struct tongue-info ([fold : Tongue-Fold] [extension : Bytes]) #:type-name Tongue-Info)

@@ -1,8 +1,7 @@
 #lang typed/racket/base
 
-(provide (all-defined-out) current-digimon current-digivice)
-(provide digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
-(provide #%info /dev/stdin /dev/stdout /dev/stderr /dev/eof /dev/null)
+(provide (all-defined-out) current-digimon current-digivice current-free-zone)
+(provide #%info digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
 
 (require racket/fixnum)
 (require racket/format)
@@ -10,41 +9,23 @@
 (require racket/port)
 (require racket/place)
 
-(require typed/racket/random)
-
 (require "digitama/system.rkt")
 (require "digitama/sugar.rkt")
+
+(require "continuation.rkt")
+(require "symbol.rkt")
+(require "dtrace.rkt")
 
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
 (define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
-(define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
-(define /dev/log : Logger (make-logger 'digimon (current-logger)))
-(define /dev/dtrace : Logger (make-logger 'dtrace #false))
-
-(define /dev/zero : Input-Port
-  (make-input-port '/dev/zero
-                   (λ [[bs : Bytes]]
-                     (bytes-fill! bs #x00)
-                     (bytes-length bs))
-                   #false
-                   void))
-
-(define /dev/urandom : Input-Port
-  (make-input-port '/dev/urandom
-                   (λ [[bs : Bytes]]
-                     (let ([bsize (bytes-length bs)])
-                       (bytes-copy! bs 0 (crypto-random-bytes bsize))
-                       bsize))
-                   #false
-                   void))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (void (print-boolean-long-form #true)
       (current-logger /dev/dtrace)
         
       ;;; Ignore DrRacket's convention. But don't change "compiled" since
-      ;;; the compiler checks the bytecodes in the core collection
+      ;;; the compiler checks bytecodes in the core collection
       ;;; which have already been compiled into <path:compiled>.
       (use-compiled-file-paths (list (build-path "compiled"))))
 
@@ -57,13 +38,6 @@
   (lambda [val ?]
     (or (not val)
         (and val (? val)))))
-
-(define value-name : (-> Any Symbol)
-  (lambda [v]
-    (define name (object-name v))
-    (or (and (symbol? name) name)
-        (and name (string->symbol (format "<object-name:~a>" name)))
-        (string->symbol (format "<object-value:~a>" v)))))
 
 (define read:+? : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
   (lambda [src type? #:from-string [? #true]]
@@ -105,36 +79,6 @@
                       [(vector (? evt? next-alarm) (? fixnum? interval) (? fixnum? alarm-time))
                        (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
                        (wait-dotask-loop next-alarm)]))))))
-
-(define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread)) (Listof Continuation-Stack))
-  (lambda [[cm (current-continuation-marks)]]
-    ((inst map (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))) (Pairof (Option Symbol) Any))
-     (λ [[stack : (Pairof (Option Symbol) Any)]]
-       (define maybe-name (car stack))
-       (define maybe-srcinfo (cdr stack))
-       (cons (or maybe-name 'λ)
-             (and (srcloc? maybe-srcinfo)
-                  (let ([src (srcloc-source maybe-srcinfo)]
-                        [line (srcloc-line maybe-srcinfo)]
-                        [column (srcloc-column maybe-srcinfo)])
-                    (vector (if (symbol? src) src (~a src))
-                            (or line -1)
-                            (or column -1))))))
-     (cond [(continuation-mark-set? cm) (continuation-mark-set->context cm)]
-           [else (continuation-mark-set->context (continuation-marks cm))]))))
-
-(define dtrace-send : (->* (Any Symbol String Any) (Any) Void)
-  (lambda [topic level message urgent [prefix? #false]]
-    (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
-    (cond [(logger? topic) (log-message topic log-level message urgent prefix?)]
-          [(symbol? topic) (log-message (current-logger) log-level topic message urgent prefix?)]
-          [else (log-message (current-logger) log-level (value-name topic) message urgent prefix?)])))
-
-(define-values (dtrace-debug dtrace-info dtrace-warning dtrace-error dtrace-fatal)
-  (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
-                  (λ [#:topic [t (current-logger)] #:urgent [u (current-continuation-marks)] #:prefix? [? #false] msgfmt . messages]
-                    (dtrace-send t level (if (null? messages) msgfmt (apply format msgfmt messages)) u ?)))])
-    (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
 
 (define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
   (lambda [e #:level [level 'error] #:detail [detail #false]]
@@ -201,16 +145,6 @@
               (and (vector-ref stat 2) #true)
               (let ([bs : (U Boolean Integer) (vector-ref stat 3)])
                 (if (exact-nonnegative-integer? bs) bs 0))))))
-
-(define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
-  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tmpeek]]
-    (make-input-port name
-                     (λ [[s : Bytes]] : (U EOF Exact-Positive-Integer)
-                       (define peeked : Natural (unbox iobox))
-                       (define r (peek-bytes! s peeked /dev/srcin))
-                       (set-box! iobox (+ peeked (if (number? r) r 1))) r)
-                     #false
-                     void)))
 
 (define call-as-normal-termination : (-> (-> Any) [#:atinit (-> Any)] [#:atexit (-> Any)] Void)
   (lambda [#:atinit [atinit/0 void] main/0 #:atexit [atexit/0 void]]

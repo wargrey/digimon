@@ -18,12 +18,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)
 
-(define /dev/stdin : Input-Port (current-input-port))
-(define /dev/stdout : Output-Port (current-output-port))
-(define /dev/stderr : Output-Port (current-error-port))
-(define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
-(define /dev/null : Output-Port (open-output-nowhere '/dev/null))
-
 (define current-digimon : (Parameterof String) (make-parameter "digimon"))
 (define current-free-zone : (Parameterof (Option Path-String)) (make-parameter #false))
 (define current-digivice : (Parameterof String)

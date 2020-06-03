@@ -8,12 +8,13 @@
 (require "wisemon/racket.rkt")
 (require "wisemon/phony.rkt")
 
-(require "../digitama/system.rkt")
 (require "../digitama/collection.rkt")
 
+(require "../system.rkt")
+(require "../dtrace.rkt")
+(require "../port.rkt")
 (require "../cmdopt.rkt")
 (require "../echo.rkt")
-(require "../logger.rkt")
 (require "../debug.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -67,7 +68,7 @@
     (cond [(pair? info) (for/fold ([retcode : Byte 0]) ([subinfo (in-list (cdr info))]) (make-digimon subinfo reals phonies))]
           [else (let ([zone (pkg-info-zone info)]
                       [info-ref (pkg-info-ref info)]
-                      [tracer (thread (make-racket-trace))])
+                      [tracer (thread (make-racket-log-trace))])
                   (parameterize ([current-make-real-targets reals]
                                  [current-digimon (pkg-info-name info)]
                                  [current-free-zone zone]
@@ -78,7 +79,7 @@
                               (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
                                              [current-custodian (make-custodian)])
                                 (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                        [exn:fail? (λ [[e : exn]] (log-exception e #:topic the-name) (make-errno))])
+                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:topic the-name #:prefix? #false #:brief? #false) (make-errno))])
                                           ((wisemon-phony-make phony) (current-digimon) info-ref)
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))

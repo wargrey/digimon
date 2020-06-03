@@ -5,7 +5,7 @@
 (require racket/string)
 (require racket/path)
 
-(require "../logger.rkt")
+(require "../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdout 'stderr 'both 'none))

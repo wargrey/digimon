@@ -14,7 +14,7 @@
 (require "../native.rkt")
 (require "../parameter.rkt")
 
-(require "../../../logger.rkt")
+(require "../../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony

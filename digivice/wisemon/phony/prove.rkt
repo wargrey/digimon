@@ -11,7 +11,7 @@
 (require "../native.rkt")
 (require "../racket.rkt")
 
-(require "../../../logger.rkt")
+(require "../../../dtrace.rkt")
 (require "../../../format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

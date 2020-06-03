@@ -3,10 +3,6 @@
 (provide (all-defined-out))
 (provide (all-from-out "../../wisemon.rkt"))
 
-(require racket/file)
-(require racket/path)
-(require racket/format)
-
 (require "parameter.rkt")
 
 (require (except-in "../../wisemon.rkt" wisemon-make))

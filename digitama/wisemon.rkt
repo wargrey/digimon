@@ -6,7 +6,7 @@
 (require racket/format)
 (require racket/sandbox)
 
-(require "../logger.rkt")
+(require "../dtrace.rkt")
 (require "../format.rkt")
 
 (require "../exception.rkt")
@@ -37,9 +37,9 @@
   (lambda [func targets cause message]
     (format "~a: ~a" func message)))
 
-(define wisemon-log-error : (->* (exn) (#:logger Logger #:level Log-Level) Void)
-  (lambda [errobj #:logger [logger (current-logger)] #:level [level 'error]]
-    (log-message logger level #false (exn-message errobj) errobj)))
+(define wisemon-log-error : (->* (exn) (#:logger Logger #:level Log-Level #:topic (Option Symbol)) Void)
+  (lambda [errobj #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic #false]]
+    (log-message logger level topic (exn-message errobj) errobj)))
 
 (define wisemon-log-message : (->* (Symbol Log-Level String) (#:logger Logger #:targets (Listof Path)) #:rest Any Void)
   (lambda [name level #:logger [logger (current-logger)] #:targets [targets null] msgfmt . argl]
@@ -126,8 +126,7 @@
       (define maybe-exn
         (call-in-nested-thread
          (λ [] (with-handlers ([exn:fail? values])
-                 (make)
-                 (error 'test "this is a test exn")))))
+                 (make)))))
 
       (custodian-shutdown-all (current-custodian))
       

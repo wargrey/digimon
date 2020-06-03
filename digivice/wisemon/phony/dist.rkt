@@ -15,6 +15,7 @@
 (require "../parameter.rkt")
 
 (require "../../../digitama/system.rkt")
+(require "../../../port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Sample-Info (Pairof (Pairof Path Path) (Pairof Index (Option Index))))

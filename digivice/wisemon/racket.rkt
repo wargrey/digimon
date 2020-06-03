@@ -10,7 +10,7 @@
 
 (require "parameter.rkt")
 
-(require "../../logger.rkt")
+(require "../../dtrace.rkt")
 (require "../../echo.rkt")
 
 (unsafe-require/typed
@@ -118,7 +118,7 @@
 (define again? : Boolean #false)
 (define compiling-round : Natural 1)
 
-(define racket-event-echo : Log-Event-Receiver
+(define racket-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
     (when (make-trace-log)
       (case level
@@ -127,7 +127,7 @@
         [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
         [(error fatal) (echof #:fgcolor 'red "~a~n" message)]))))
 
-(define racket-setup-event-echo : Log-Event-Receiver
+(define racket-setup-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
     (define pce (struct->vector urgent))
     (define ce (struct->vector (vector-ref pce 2)))
@@ -137,8 +137,8 @@
           (printf "round[~a]: processor[~a]: making: ~a~n" compiling-round (vector-ref pce 1) (vector-ref ce 2))))
     (set! again? #true)))
 
-(define make-racket-trace-log : (-> (-> Void))
+(define make-racket-log-trace : (-> (-> Void))
   (lambda []
-    (make-log-trace #:receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
-                    #:else-receiver racket-event-echo
-                    (current-logger))))
+    (make-dtrace-loop #:topic-receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
+                      #:else-receiver racket-event-echo
+                      (current-logger))))

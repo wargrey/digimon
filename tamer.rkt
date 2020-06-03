@@ -25,6 +25,7 @@
 (require "spec.rkt")
 (require "echo.rkt")
 (require "emoji.rkt")
+(require "port.rkt")
 (require "tongue.rkt")
 (require "system.rkt")
 (require "format.rkt")

@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "logger.rkt")
+(require "dtrace.rkt")
 (require "format.rkt")
 
 (require (for-syntax racket/base))
@@ -18,7 +18,7 @@
                     [throw-exn (format-id #'eid "throw-~a" (syntax-e #'eid))]
                     [throw+exn (format-id #'eid "throw+~a" (syntax-e #'eid))]
                     [parent (or (attribute maybe-parent) #'exn:fail)]
-                    [log-exn (or (attribute maybe-log-exn) #'log-exception)])
+                    [log-exn (or (attribute maybe-log-exn) #'dtrace-exception)])
        #'(begin (struct eid parent ([field : FieldType] ...) #:transparent)
 
                 (define make-exn : (-> Any Type ... FieldType ... String Any * eid)
@@ -27,19 +27,27 @@
                          (current-continuation-marks)
                          field ...)))
 
-                (define make+exn : (->* (Any Type ... FieldType ... String) (#:logger Logger #:level Log-Level) #:rest Any eid)
-                  (lambda [src arg ... field ... #:logger [logger (current-logger)] #:level [level 'error] fmt . argl]
+                (define make+exn : (->* (Any Type ... FieldType ... String)
+                                        (#:logger Logger #:level Log-Level #:topic (Option Symbol))
+                                        #:rest Any eid)
+                  (lambda [src arg ... field ...
+                               #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic dtrace-blank-topic]
+                               fmt . argl]
                     (let ([errobj (make-exn src arg ... field ... (~string fmt argl))])
-                      (log-exn errobj #:logger logger #:level level)
+                      (log-exn errobj #:logger logger #:level level #:topic topic)
                       errobj)))
 
                 (define throw-exn : (-> Any Type ... FieldType ... String Any * Nothing)
                   (lambda [src arg ... field ... fmt . argl]
                     (raise (make-exn src arg ... field ... (~string fmt argl)))))
 
-                (define throw+exn : (->* (Any Type ... FieldType ... String) (#:logger Logger #:level Log-Level) #:rest Any Nothing)
-                  (lambda [src arg ... field ... #:logger [logger (current-logger)] #:level [level 'error] fmt . argl]
-                    (raise (make+exn src arg ... field ... #:logger logger #:level level (~string fmt argl)))))))]))
+                (define throw+exn : (->* (Any Type ... FieldType ... String)
+                                         (#:logger Logger #:level Log-Level #:topic (Option Symbol))
+                                         #:rest Any Nothing)
+                  (lambda [src arg ... field ...
+                               #:logger [logger (current-logger)] #:level [level 'error] #:topic [topic dtrace-blank-topic]
+                               fmt . argl]
+                    (raise (make+exn src arg ... field ... #:logger logger #:level level #:topic topic (~string fmt argl)))))))]))
 
 (define-syntax (throw stx)
   (syntax-parse stx
