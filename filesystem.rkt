@@ -64,6 +64,12 @@
          (memq 'read (file-or-directory-permissions p))
          #true)))
 
+(define file-exceutable? : (-> Path-String Boolean)
+  (lambda [p]
+    (and (file-exists? p)
+         (memq 'execute (file-or-directory-permissions p))
+         #true)))
+
 (define file-mtime : (->* (Path-String) (Nonnegative-Fixnum) Nonnegative-Fixnum)
   (lambda [f [fallback 0]]
     (cond [(file-exists? f) (file-or-directory-modify-seconds f)]

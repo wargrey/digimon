@@ -82,7 +82,7 @@
 
 (define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
   (lambda [e #:level [level 'error] #:detail [detail #false]]
-    (vector level (exn-message e) detail (value-name e)
+    (vector level (exn-message e) detail (datum-name e)
             (continuation-mark->stacks (exn-continuation-marks e)))))
 
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
@@ -150,7 +150,7 @@
   (lambda [#:atinit [atinit/0 void] main/0 #:atexit [atexit/0 void]]
     (define exit-racket : (-> Any AnyValues) (exit-handler))
     (define codes : (HashTable Symbol Byte) #hasheq((FATAL . 95) (ECONFIG . 96) (ENOSERVICE . 99) (EPERM . 100)))
-      
+    
     (define (terminate [status : Any]) : Any
       (parameterize ([exit-handler exit-racket])
         (cond [(exact-nonnegative-integer? status) (exit (min status 255))]

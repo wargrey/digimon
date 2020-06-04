@@ -6,6 +6,7 @@
 (require racket/list)
 
 (require "../../../digitama/latex.rkt")
+(require "../../../digitama/exec.rkt")
 (require "../../../dtrace.rkt")
 
 (require "../parameter.rkt")
@@ -35,9 +36,9 @@
     (for/list ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
-      (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer)) path?))
+      (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
       
-      (wisemon-spec TEXNAME.ext #: (filter file-exists? (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl))) #:-
+      (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl))) #:-
                     (define dest-dir : (Option Path) (path-only TEXNAME.ext))
                     (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                       
@@ -47,13 +48,11 @@
                           (dtrace-debug "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
                       
                       (if (and raw-tex?)
-                          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:disable-filter #true)])
-                            (cond [(not maybe-name) (dtrace-debug " [Output to ~a]" TEXNAME.ext)]
-                                  [else (let* ([ext (path-get-extension TEXNAME.ext)]
-                                               [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
-                                          (dtrace-info #:topic 'mv "~a ~a" TEXNAME.ext target.ext)
-                                          (rename-file-or-directory TEXNAME.ext target.ext #true)
-                                          (dtrace-debug " [Output to ~a]" target.ext))]))
+                          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #false)])
+                            (unless (not maybe-name)
+                              (let* ([ext (path-get-extension TEXNAME.ext)]
+                                     [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
+                                (fg-recon-mv renderer TEXNAME.ext target.ext))))
                           (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
                                 [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
                             (parameterize ([current-directory pwd]
@@ -61,7 +60,7 @@
                                            [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
                                                                      (find-relative-path pwd TEXNAME.scrbl)))])
                               (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-                              
+
                               (when (file-exists? hook.rktl)
                                 (eval `(let ([ecc (dynamic-require ,hook.rktl 'extra-character-conversions (λ [] #false))])
                                          (when (procedure? ecc)
@@ -72,8 +71,7 @@
                                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
                                              #:quiet? #true #:warn-undefined? #false))
                               
-                              (let ([TEXNAME.ext (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:disable-filter #false)])
-                                (dtrace-debug " [Output to ~a]" TEXNAME.ext))))))))))
+                              (tex-render renderer src.tex dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
 
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]

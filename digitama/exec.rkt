@@ -3,15 +3,85 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/path)
+(require racket/port)
 
 (require "../dtrace.rkt")
+(require "../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdout 'stderr 'both 'none))
 
 (define fg-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
   (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
+    (fg-do-exec operation program options system on-error-do silent #false)))
+
+(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
+  (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
+    (fg-do-exec operation program options system on-error-do silent #true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-mv : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (dtrace-info #:topic operation "mv ~a ~a" src dest)
+    (rename-file-or-directory src dest #true)))
+
+(define fg-recon-mv : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
+      (fg-mv operation src dest))))
+
+(define fg-mkdir : (-> Symbol Path-String Void)
+  (lambda [operation dir]
+    (dtrace-info #:topic operation "mkdir -p ~a" dir)
+    (make-directory* dir)))
+
+(define fg-recon-mkdir : (-> Symbol Path-String Void)
+  (lambda [operation dir]
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
+      (fg-mkdir operation dir))))
+
+(define fg-touch : (-> Symbol Path-String Void)
+  (lambda [operation file]
+    (dtrace-info #:topic operation "touch ~a" file)
+    (file-touch file)))
+
+(define fg-recon-touch : (-> Symbol Path-String Void)
+  (lambda [operation file]
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
+      (fg-touch operation file))))
+
+(define fg-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
+  (lambda [operation target #:fr? [fr? #false]]
+    (when (or (file-exists? target) (directory-exists? target))
+      (if (not fr?)
+          (dtrace-info #:topic operation "rm ~a" target)
+          (dtrace-info #:topic operation "rm -fr ~a" target))
+      
+      (cond [(file-exists? target) (delete-file target)]
+            [(not fr?) (delete-directory target)]
+            [else (delete-directory/files target)]))))
+
+(define fg-recon-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
+  (lambda [operation file #:fr? [fr? #false]]
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
+      (fg-rm operation file #:fr? fr?))))
+
+(define fg-cat : (->* (Symbol Path-String) (Output-Port) Void)
+  (lambda [operation file [/dev/stdout (current-output-port)]]
+    (dtrace-info #:topic operation "cat ~a" file)
+    
+    (call-with-input-file* file
+      (λ [[/dev/stdin : Input-Port]]
+        (copy-port /dev/stdin /dev/stdout)))))
+
+(define fg-recon-cat : (->* (Symbol Path-String) (Output-Port) Void)
+  (lambda [operation file [/dev/stdout (current-output-port)]]
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
+      (fg-cat operation file /dev/stdout))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-do-exec : (-> Symbol Path (Listof (Listof String)) Symbol (Option (-> Symbol Path Natural Void)) Exec-Silent Boolean Void)
+  (lambda [operation program options system on-error-do silent maybe-recon?]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -19,42 +89,50 @@
       (define /dev/byterr : Output-Port (open-output-bytes))
       (define stdout-silent? : Boolean (or (eq? silent 'stdout) (eq? silent 'both)))
       (define stderr-silent? : Boolean (or (eq? silent 'stderr) (eq? silent 'both)))
-      (define-values (/usr/bin/$0 /dev/outin /dev/stdout /dev/errin)
-        (apply subprocess #false #false #false program args))
-      
+
       (dtrace-info #:topic operation "~a ~a" program (string-join args))
 
-      (with-handlers ([exn? (λ _ (subprocess-kill /usr/bin/$0 #true))])
-        (let wait-response-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
+      (define status : (U 'running Natural exn)
+        (with-handlers ([exn? (λ [[e : exn]] e)])
+          (define-values (/usr/bin/$0 /dev/outin /dev/stdout /dev/errin)
+            (apply subprocess #false #false #false program args))
+          
+          (let wait-dtrace-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])
-          (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
-     
-          (cond [(eq? e /dev/outin)
-                 (let ([line (read-line /dev/outin)])
-                   (cond [(eof-object? line) (wait-response-loop never-evt errin-evt)]
-                         [else (when (not stdout-silent?)
-                                 (dtrace-debug line #:topic operation #:prefix? #false))
-                               (wait-response-loop outin-evt errin-evt)]))]
-                
-                [(eq? e /dev/errin)
-                 (let ([line (read-line /dev/errin)])
-                   (cond [(eof-object? line) (wait-response-loop outin-evt never-evt)]
-                         [else (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
-                                     [else (displayln line /dev/byterr)])
-                               (wait-response-loop outin-evt errin-evt)]))])))
+            (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
+            
+            (cond [(eq? e /dev/outin)
+                   (let ([line (read-line /dev/outin)])
+                     (cond [(eof-object? line) (wait-dtrace-loop never-evt errin-evt)]
+                           [else (when (not stdout-silent?)
+                                   (dtrace-debug line #:topic operation #:prefix? #false))
+                                 (wait-dtrace-loop outin-evt errin-evt)]))]
+                  
+                  [(eq? e /dev/errin)
+                   (let ([line (read-line /dev/errin)])
+                     (cond [(eof-object? line) (wait-dtrace-loop outin-evt never-evt)]
+                           [else (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
+                                       [else (displayln line /dev/byterr)])
+                                 (wait-dtrace-loop outin-evt errin-evt)]))]))
+          
+          (subprocess-wait /usr/bin/$0)
+          (subprocess-status /usr/bin/$0)))
 
-      (subprocess-wait /usr/bin/$0)
-
-      (let ([status (subprocess-status /usr/bin/$0)])
-        (unless (eq? status 0)
-          (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
-            (when (> (bytes-length maybe-errmsg) 0)
-              (dtrace-error (bytes->string/utf-8 maybe-errmsg) #:topic operation #:prefix? #false)))
-
-          ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
-          (custodian-shutdown-all (current-custodian))
-
-          (raise-user-error operation "~a: exit status: ~a"
-                            (file-name-from-path program) status)))
+      (cond [(exact-integer? status)
+             (unless (eq? status 0)
+               (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
+                 (when (> (bytes-length maybe-errmsg) 0)
+                   (dtrace-error (bytes->string/utf-8 maybe-errmsg) #:topic operation #:prefix? #false)))
+               
+               ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
+               (custodian-shutdown-all (current-custodian))
+               
+               (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
+            [(exn:fail? status) (fg-recon-handler operation maybe-recon? status)])
       
       (custodian-shutdown-all (current-custodian)))))
+
+(define fg-recon-handler : (-> Symbol Boolean exn:fail Void)
+  (lambda [operation maybe-recon? e]
+    (cond [(not maybe-recon?) (custodian-shutdown-all (current-custodian)) (raise e)]
+          [else (dtrace-debug #:topic operation (exn-message e)) #|the dry run mode for `wisemon`|#])))

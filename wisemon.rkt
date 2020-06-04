@@ -7,8 +7,8 @@
 (require racket/future)
 
 (require "digitama/wisemon.rkt")
+(require "digitama/exec.rkt")
 
-(require "dtrace.rkt")
 (require "filesystem.rkt")
 
 (require (for-syntax racket/base))
@@ -16,13 +16,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (wisemon-spec stx)
-  (syntax-parse stx #:datum-literals [: :-]
-    [(_ target (~or : #:) prerequisites (~or :- #:-) expr ...)
+  (syntax-parse stx #:datum-literals []
+    [(_ target #:^ prerequisites #:- expr ...)
      #'(unsafe-wisemon-spec target prerequisites
-                            (λ [] expr ... (void))
-                            (make-special-comment (list 'expr ...)))]
-    [(_ target (~or :- #:-) expr ...)
-     #'(wisemon-spec target #: null #:- expr ...)]))
+                            (λ [[$@ : Path] [$? : (Listof Path)]]
+                              expr ... (void)))]
+    [(_ target #:^ prerequisites #:$ [$@ $?] expr ...)
+     #'(unsafe-wisemon-spec target prerequisites
+                            (λ [[$@ : Path] [$? : (Listof Path)]]
+                              expr ... (void)))]
+    [(_ target #:- expr ...)
+     #'(wisemon-spec target #:^ null #:- expr ...)]
+    [(_ target #:$ [$@ $?] expr ...)
+     #'(wisemon-spec target #:^ null #:$ [$@ $?] expr ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-make : (->* (Wisemon-Specification)
@@ -35,12 +41,11 @@
                  #:keep-going? [keep-going? #false] #:dry-run? [dry-run? #false] #:always-run? [always-run? #false] #:just-touch? [just-touch? #false]
                  #:jobs [jobs (processor-count)] #:name [the-name 'wisemon] #:cd [cd (current-directory)]
                  #:assume-old [oldfiles null] #:assume-new [newfiles null]]
-    (when (pair? specs)
-      (parameterize ([current-directory cd]
-                     [current-logger (make-logger the-name (current-logger))])
+    (when (or (pair? specs) (pair? targets))
+      (parameterize ([current-directory cd])
         (define phony-all : (Listof Path) (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))
         (for ([t (in-list (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))])
-          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-exception e #:level 'warning #:topic the-name)))])
+          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-warning-exception the-name e)))])
             (wisemon-make-target specs t the-name dry-run? always-run? just-touch?
                                  (map simple-form-path oldfiles)
                                  (map simple-form-path newfiles))))))))
@@ -53,3 +58,12 @@
       (define ts (wisemon-spec-target spec))
       (cond [(list? ts) (append targets ts)]
             [else (append targets (list ts))]))))
+
+(define wisemon-spec->clean-spec : (->* (Wisemon-Spec) (Symbol) Wisemon-Spec)
+  (lambda [spec [operation 'clean]]
+    (wisemon-path->clean-spec (wisemon-spec-target spec) operation)))
+
+(define wisemon-path->clean-spec : (->* (Wisemon-Targets) (Symbol) Wisemon-Spec)
+  (lambda [path [operation 'clean]]
+    (wisemon-spec path #:$ [$@ $?]
+                  (fg-recon-rm operation $@))))

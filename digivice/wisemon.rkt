@@ -82,14 +82,16 @@
                               (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
                                              [current-custodian (make-custodian)])
                                 (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:topic the-name #:prefix? #false #:brief? #false) (make-errno))])
+                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:brief? (not (make-verbose))) (make-errno))])
                                           ((wisemon-phony-make phony) (current-digimon) info-ref)
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))
 
-                            ;;; TODO: Why the `prove` phony would be blocked if `dtrace-datum-info` is attached with `(current-logger)`?
+                            ;;; TODO
+                            ;; Why the `prove` phony would be blocked if
+                            ;; `dtrace-datum-info` is attached with `(current-logger)`?
                             (dtrace-datum-info eof)
-                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             
                             (thread-wait tracer)
                             (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))])))

@@ -40,7 +40,7 @@
                   (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
                   (define target : Path (build-path (cdar readme) "README.md"))
 
-                  (wisemon-spec target #: (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl))) #:-
+                  (wisemon-spec target #:^ (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl))) #:-
                                 (parameterize ([current-namespace (make-base-namespace)]
                                                [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
                                                [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!"

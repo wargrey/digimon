@@ -26,7 +26,7 @@
 (define make-job : (-> (-> String) Index (-> (Listof UUID)))
   (lambda [mkid fid]
     (λ [] (let ([ids (build-list (processor-count) (λ _ (mkid)))]
-                [type (value-name mkid)])
+                [type (datum-name mkid)])
             (for/list : (Listof UUID) ([id (in-list ids)] [seq (in-naturals)])
               (vector id type fid seq))))))
 

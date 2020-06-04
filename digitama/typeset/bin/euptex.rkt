@@ -16,7 +16,7 @@
     
     (cond [(not /bin/dvipdf) (raise-user-error func-name "cannot find `~a`" dvipdf)]
           [else (parameterize ([current-directory (or (path-only TEXNAME.pdf) (current-directory))])
-                  (fg-exec func-name /bin/dvipdf (list (list (path->string TEXNAME.dvi))) system #:silent 'stderr))])
+                  (fg-recon-exec func-name /bin/dvipdf (list (list (path->string TEXNAME.dvi))) system #:silent 'stderr))])
 
     TEXNAME.pdf))
 

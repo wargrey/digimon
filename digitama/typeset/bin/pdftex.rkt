@@ -19,8 +19,8 @@
     (cond [(not /bin/dvips)  (raise-user-error func-name "cannot find `~a`" dvips)]
           [(not /bin/ps2pdf) (raise-user-error func-name "cannot find `~a`" ps2pdf)]
           [else (parameterize ([current-directory (or (path-only TEXNAME.pdf) (current-directory))])
-                  (fg-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) system #:silent 'stderr)
-                  (fg-exec func-name /bin/ps2pdf (list (list (path->string TEXNAME.ps))) system #:silent 'stderr))])
+                  (fg-recon-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) system #:silent 'stderr)
+                  (fg-recon-exec func-name /bin/ps2pdf (list (list (path->string TEXNAME.ps))) system #:silent 'stderr))])
 
     TEXNAME.pdf))
 

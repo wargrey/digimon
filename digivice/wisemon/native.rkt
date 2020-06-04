@@ -23,6 +23,6 @@
                     (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
                     (define tobj : Path (assert (c-object-destination c contained-in-package?) path?))
                     (define target : Path (assert (c-library-destination c contained-in-package?) path?))
-                    (list* (wisemon-spec tobj #: (c-include-headers c) #:- (c-compile c tobj))
-                           (wisemon-spec target #: (list tobj) #:- (c-link tobj target #:modelines (c-source-modelines c)))
+                    (list* (wisemon-spec tobj #:^ (c-include-headers c) #:- (c-compile c tobj))
+                           (wisemon-spec target #:^ (list tobj) #:- (c-link tobj target #:modelines (c-source-modelines c)))
                            specs)))])))

@@ -14,7 +14,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define current-make-real-targets : (Parameterof (Listof Path)) (make-parameter null))
-(define current-make-phony-goal : (Parameterof (Option Symbol)) (make-parameter #false))
+(define current-make-phony-goal : (Parameterof Symbol) (make-parameter 'all))
 
 (define make-dry-run : (Parameterof Boolean) (make-parameter #false))
 (define make-always-run : (Parameterof Boolean) (make-parameter #false))

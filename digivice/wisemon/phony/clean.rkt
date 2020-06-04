@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
+(require racket/path)
 
 (require "dist.rkt")
 
@@ -11,50 +12,48 @@
 (require "../path.rkt")
 (require "../spec.rkt")
 
-(require "../../../dtrace.rkt")
+(require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~clean : Make-Phony
   (lambda [digimon info-ref]
     (define submakes : (Listof Path) (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
     (define px.compiled : PRegexp (pregexp (format "/~a(?![^/])/?" (car (use-compiled-file-paths)))))
-
-    (when (memq (current-make-phony-goal) '[distclean maintainer-clean])
+    (define clean-phony : Symbol (current-make-phony-goal))
+    
+    (wisemon-make (cons (let ([compiled (find-digimon-files (λ [[file : Path]] (regexp-match? px.compiled file)) (current-directory) #:search-compiled? #true)])
+                          (wisemon-path->clean-spec (reverse #| ensure directories second |# compiled) clean-phony))
+                        (for/list : Wisemon-Specification ([spec (in-list (make-implicit-dist-specs info-ref))])
+                          (wisemon-spec->clean-spec spec clean-phony)))
+                  null #true)
+    
+    (when (memq clean-phony '[distclean maintainer-clean])
       (for ([submake (in-list submakes)])
         (define clbpath `(submod ,submake make:files clobber))
         (when (module-declared? clbpath #true)
           (dynamic-require clbpath #false))))
-
+    
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake make:files))
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
-        (parameterize ([current-namespace (module->namespace modpath)])
-          (define cleans : (Option (Listof String))
-            (let ([maybe-phony (current-make-phony-goal)])
-              (and maybe-phony
-                   (member (string-replace (symbol->string maybe-phony) #px"(?<!^)-?clean" "")
-                           '["maintainer" "dist" "clean" "mostly"]))))
-          (when (list? cleans)
-            (define px.filter : PRegexp (pregexp (string-join cleans "|" #:before-first "^(.+?:)?" #:after-last ":.+:")))
-            (for ([var (in-list (namespace-mapped-symbols))]
-                  #:when (regexp-match? px.filter (symbol->string var)))
-              (define maybe-dirties (namespace-variable-value var #false (λ [] #false)))
-              (cond [(not (list? maybe-dirties)) (do-clean maybe-dirties)]
-                    [else (for ([maybe-dirty (in-list maybe-dirties)])
-                            (do-clean (if (list? maybe-dirty) (car maybe-dirty) maybe-dirty)))]))))))
-    
-    (for-each do-clean (wisemon-targets-flatten (make-implicit-dist-specs info-ref)))
-    (for-each do-clean (reverse (find-digimon-files (λ [[file : Path]] : Boolean (regexp-match? px.compiled file))
-                                                    (current-directory) #:search-compiled? #true)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define do-clean : (-> Any Void)
-  (lambda [dirty]
-    (when (path? dirty)
-      (cond [(file-exists? dirty) (delete-file dirty)]
-            [(directory-exists? dirty) (delete-directory dirty)])
-      (dtrace-info #:topic (current-make-phony-goal) "rm ~a" (simplify-path dirty)))))
+        (define cleans : (Option (Listof String))
+          (member (string-replace (symbol->string clean-phony) #px"(?<!^)-?clean" "")
+                  '["maintainer" "dist" "clean" "mostly"]))
+        (when (pair? cleans)
+          (define px.filter : PRegexp (pregexp (string-join cleans "|" #:before-first "^(.+?:)?" #:after-last ":.+:")))
+          (define ns : Namespace (module->namespace modpath))
+          (define clean-specs : Wisemon-Specification
+            (for/fold ([clean-specs : Wisemon-Specification null])
+                      ([var (in-list (namespace-mapped-symbols ns))]
+                       #:when (regexp-match? px.filter (symbol->string var)))
+              (define maybe-spec (namespace-variable-value var #false (λ [] #false) ns))
+              (cond [(wisemon-spec? maybe-spec) (append clean-specs (list maybe-spec))]
+                    [(list? maybe-spec) (append clean-specs (filter wisemon-spec? maybe-spec))]
+                    [else clean-specs])))
+          (wisemon-make (for/list ([spec (in-list clean-specs)])
+                          (wisemon-spec->clean-spec spec clean-phony))
+                        null #true))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mostlyclean-phony-goal : Wisemon-Phony

@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(define value-name : (-> Any Symbol)
+(define datum-name : (-> Any Symbol)
   (lambda [v]
     (define name (object-name v))
     (or (and (symbol? name) name)

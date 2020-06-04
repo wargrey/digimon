@@ -42,7 +42,8 @@
           (do-make (for/fold ([specs : Wisemon-Specification null])
                              ([var (in-list (namespace-mapped-symbols))])
                      (define maybe-spec (namespace-variable-value var #false (λ _ #false)))
-                     (cond [(wisemon-spec? maybe-spec) (cons maybe-spec specs)]
+                     (cond [(list? maybe-spec) (append specs (filter wisemon-spec? maybe-spec))]
+                           [(wisemon-spec? maybe-spec) (cons maybe-spec specs)]
                            [else specs]))))))
 
     (for ([submake (in-list submakes)])
@@ -50,12 +51,7 @@
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)))
 
-    (when (pair? (current-make-real-targets))
-      (define level : Log-Level (if (make-keep-going) 'warning 'error))
-      (for ([target (in-list (current-make-real-targets))])
-        (dtrace-message level #:topic the-name "no recipe to make `~a`" (find-relative-path (current-directory) target)))
-      (unless (make-keep-going)
-        (raise-user-error the-name "Stop")))
+    (wisemon-make null (current-make-real-targets))
 
     (for ([submake (in-list submakes)])
       (define modpath `(submod ,submake postmake))
