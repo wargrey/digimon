@@ -15,7 +15,9 @@
 (require "../parameter.rkt")
 
 (require "../../../digitama/system.rkt")
+(require "../../../digitama/exec.rkt")
 (require "../../../port.rkt")
+(require "../../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Sample-Info (Pairof (Pairof Path Path) (Pairof Index (Option Index))))
@@ -41,22 +43,27 @@
                   (define target : Path (build-path (cdar readme) "README.md"))
 
                   (wisemon-spec target #:^ (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl))) #:-
+                                (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
+
+                                (dtrace-debug "~a dist: ~a" the-name ./readme.scrbl)
+                                
                                 (parameterize ([current-namespace (make-base-namespace)]
                                                [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
-                                               [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!"
-                                                                         (find-relative-path (current-directory) readme.scrbl)))])
-                                  (eval `(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
-                                  (eval `(render (let* ([readme (dynamic-require ,readme.scrbl 'doc)]
-                                                        [subparts (part-parts readme)]
-                                                        [size (length subparts)]
-                                                        [span (- (if (not ,endp1) size (min ,endp1 size)) ,start)])
-                                                   (list (cond [(null? subparts) readme]
-                                                               [(or (<= span 0) (>= ,start size)) (struct-copy part readme [parts null])]
-                                                               [(= ,start 0) (struct-copy part readme [parts (take subparts span)])]
-                                                               [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))
-                                                 (list ,target)
-                                                 #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin
-                                                 #:quiet? #false #:warn-undefined? #false)))))])))
+                                               [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!" ./readme.scrbl))])
+                                  (eval '(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
+                                
+                                  (eval `(define (dynamic-extract-readme readme.scrbl start endp1)
+                                           (let* ([readme (dynamic-require readme.scrbl 'doc)]
+                                                  [subparts (part-parts readme)]
+                                                  [size (length subparts)]
+                                                  [span (- (if (not endp1) size (min endp1 size)) start)])
+                                             (list (cond [(null? subparts) readme]
+                                                         [(or (<= span 0) (>= start size)) (struct-copy part readme [parts null])]
+                                                         [(= start 0) (struct-copy part readme [parts (take subparts span)])]
+                                                         [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))))
+
+                                  (fg-recon-eval 'dist `(render (dynamic-extract-readme ,readme.scrbl ,start ,endp1) (list ,target)
+                                                                #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin)))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))

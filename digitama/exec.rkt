@@ -7,81 +7,21 @@
 
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
+(require "../format.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct exn:recon exn () #:constructor-name make-exn:recon)
+
+(define exec-abort : (-> String Any * Nothing)
+  (lambda [msgfmt . argl]
+    (raise (make-exn:recon (~string msgfmt argl)
+                           (current-continuation-marks)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdout 'stderr 'both 'none))
 
-(define fg-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
-  (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
-    (fg-do-exec operation program options system on-error-do silent #false)))
-
 (define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
   (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
-    (fg-do-exec operation program options system on-error-do silent #true)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-mv : (-> Symbol Path-String Path-String Void)
-  (lambda [operation src dest]
-    (dtrace-info #:topic operation "mv ~a ~a" src dest)
-    (rename-file-or-directory src dest #true)))
-
-(define fg-recon-mv : (-> Symbol Path-String Path-String Void)
-  (lambda [operation src dest]
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
-      (fg-mv operation src dest))))
-
-(define fg-mkdir : (-> Symbol Path-String Void)
-  (lambda [operation dir]
-    (dtrace-info #:topic operation "mkdir -p ~a" dir)
-    (make-directory* dir)))
-
-(define fg-recon-mkdir : (-> Symbol Path-String Void)
-  (lambda [operation dir]
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
-      (fg-mkdir operation dir))))
-
-(define fg-touch : (-> Symbol Path-String Void)
-  (lambda [operation file]
-    (dtrace-info #:topic operation "touch ~a" file)
-    (file-touch file)))
-
-(define fg-recon-touch : (-> Symbol Path-String Void)
-  (lambda [operation file]
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
-      (fg-touch operation file))))
-
-(define fg-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
-  (lambda [operation target #:fr? [fr? #false]]
-    (when (or (file-exists? target) (directory-exists? target))
-      (if (not fr?)
-          (dtrace-info #:topic operation "rm ~a" target)
-          (dtrace-info #:topic operation "rm -fr ~a" target))
-      
-      (cond [(file-exists? target) (delete-file target)]
-            [(not fr?) (delete-directory target)]
-            [else (delete-directory/files target)]))))
-
-(define fg-recon-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
-  (lambda [operation file #:fr? [fr? #false]]
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
-      (fg-rm operation file #:fr? fr?))))
-
-(define fg-cat : (->* (Symbol Path-String) (Output-Port) Void)
-  (lambda [operation file [/dev/stdout (current-output-port)]]
-    (dtrace-info #:topic operation "cat ~a" file)
-    
-    (call-with-input-file* file
-      (λ [[/dev/stdin : Input-Port]]
-        (copy-port /dev/stdin /dev/stdout)))))
-
-(define fg-recon-cat : (->* (Symbol Path-String) (Output-Port) Void)
-  (lambda [operation file [/dev/stdout (current-output-port)]]
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (fg-recon-handler operation #true e))])
-      (fg-cat operation file /dev/stdout))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-do-exec : (-> Symbol Path (Listof (Listof String)) Symbol (Option (-> Symbol Path Natural Void)) Exec-Silent Boolean Void)
-  (lambda [operation program options system on-error-do silent maybe-recon?]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -128,11 +68,82 @@
                (custodian-shutdown-all (current-custodian))
                
                (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
-            [(exn:fail? status) (fg-recon-handler operation maybe-recon? status)])
+            [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))])
       
       (custodian-shutdown-all (current-custodian)))))
 
-(define fg-recon-handler : (-> Symbol Boolean exn:fail Void)
-  (lambda [operation maybe-recon? e]
-    (cond [(not maybe-recon?) (custodian-shutdown-all (current-custodian)) (raise e)]
+(define fg-eval : (->* (Symbol Any) (Namespace) AnyValues)
+  (lambda [operation s-expr [ns (current-namespace)]]
+    (dtrace-info #:topic operation "eval: ~a" s-expr)
+    (eval s-expr ns)))
+
+(define fg-recon-eval : (->* (Symbol Any) (Namespace) AnyValues)
+  (lambda [operation s-expr [ns (current-namespace)]]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-eval operation s-expr ns))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-mv : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (dtrace-info #:topic operation "mv ~a ~a" src dest)
+    (rename-file-or-directory src dest #true)))
+
+(define fg-recon-mv : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-mv operation src dest))))
+
+(define fg-mkdir : (-> Symbol Path-String Void)
+  (lambda [operation dir]
+    (dtrace-info #:topic operation "mkdir -p ~a" dir)
+    (make-directory* dir)))
+
+(define fg-recon-mkdir : (-> Symbol Path-String Void)
+  (lambda [operation dir]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-mkdir operation dir))))
+
+(define fg-touch : (-> Symbol Path-String Void)
+  (lambda [operation file]
+    (dtrace-info #:topic operation "touch ~a" file)
+    (file-touch file)))
+
+(define fg-recon-touch : (-> Symbol Path-String Void)
+  (lambda [operation file]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-touch operation file))))
+
+(define fg-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
+  (lambda [operation target #:fr? [fr? #false]]
+    (when (or (file-exists? target) (directory-exists? target))
+      (if (not fr?)
+          (dtrace-info #:topic operation "rm ~a" target)
+          (dtrace-info #:topic operation "rm -fr ~a" target))
+      
+      (cond [(file-exists? target) (delete-file target)]
+            [(not fr?) (delete-directory target)]
+            [else (delete-directory/files target)]))))
+
+(define fg-recon-rm : (-> Symbol Path-String [#:fr? Boolean] Void)
+  (lambda [operation file #:fr? [fr? #false]]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-rm operation file #:fr? fr?))))
+
+(define fg-cat : (->* (Symbol Path-String) (Output-Port) Void)
+  (lambda [operation file [/dev/stdout (current-output-port)]]
+    (dtrace-info #:topic operation "cat ~a" file)
+    
+    (call-with-input-file* file
+      (λ [[/dev/stdin : Input-Port]]
+        (copy-port /dev/stdin /dev/stdout)))))
+
+(define fg-recon-cat : (->* (Symbol Path-String) (Output-Port) Void)
+  (lambda [operation file [/dev/stdout (current-output-port)]]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-cat operation file /dev/stdout))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)
+  (lambda [operation e [clean void]]
+    (cond [(not (exn:recon? e)) (clean) (raise e)]
           [else (dtrace-debug #:topic operation (exn-message e)) #|the dry run mode for `wisemon`|#])))

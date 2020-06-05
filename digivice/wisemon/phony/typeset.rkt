@@ -43,6 +43,8 @@
                     (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                       
                     (when (and (path? dest-dir) (path? pwd))
+                      (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
+
                       (if (not maybe-name)
                           (dtrace-debug "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
                           (dtrace-debug "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
@@ -57,19 +59,18 @@
                                 [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
                             (parameterize ([current-directory pwd]
                                            [current-namespace (make-base-namespace)]
-                                           [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!"
-                                                                     (find-relative-path pwd TEXNAME.scrbl)))])
+                                           [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
                               (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-
-                              (when (file-exists? hook.rktl)
-                                (eval `(let ([ecc (dynamic-require ,hook.rktl 'extra-character-conversions (λ [] #false))])
-                                         (when (procedure? ecc)
-                                           (tex:extra-character-conversions ecc)))))
                               
-                              (eval `(render (list ,(dynamic-require TEXNAME.scrbl 'doc)) (list ,(file-name-from-path src.tex))
-                                             #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
-                                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                                             #:quiet? #true #:warn-undefined? #false))
+                              (when (file-exists? hook.rktl)
+                                (eval `(define (dynamic-load-character-conversions hook.rktl)
+                                         (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
+                                           (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
+                                (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
+                              
+                              (fg-recon-eval renderer `(render (list (dynamic-require ,TEXNAME.scrbl 'doc)) (list ,(file-name-from-path src.tex))
+                                                               #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
+                                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))))
                               
                               (tex-render renderer src.tex dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
 

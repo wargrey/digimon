@@ -48,31 +48,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define compile-collection : (->* (String) (Natural) Void)
   (lambda [digimon [round 1]]
-    (define summary? : Boolean #false)
-    (define (colorize-stdout [bstr : Bytes])
-      (when (= round 1)
-        (when (regexp-match? #px"--- summary of errors ---"  bstr) (set! summary? #true))
-        (term-colorize 248 #false null (bytes->string/utf-8 bstr))))
-    (define (colorize-stderr [bstr : Bytes])
-      (term-colorize (if summary? 'red 224) #false null (bytes->string/utf-8 bstr)))
+    (define context : Symbol 'platform)
     (set!-values (again? compiling-round) (values #false round))
+
+    (define (stdout-level [line : String]) : (Values Log-Level (Option String))
+      (values 'debug
+              (and (= round 1)
+                   (case context
+                     [(platform) (when (regexp-match? #px"main collects" line) (set! context 'paths))]
+                     [(paths) (when (regexp-match? #px"---" line) (set! context 'compiling))]
+                     [(compiling) (when (regexp-match? #px"--- summary of errors ---" line) (set! context 'summary))])
+                   (not (eq? context 'paths))
+                   line)))
+
+    (define (stderr-level [line : String]) : (Values Log-Level (Option String))
+      (values (if (eq? context 'summary) 'error 'warning) line))
+    
     (parameterize ([setup-program-name (symbol->string the-name)]
                    [make-launchers #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]
                    [call-install #false]
                    [call-post-install #false]
-                   [current-output-port (filter-write-output-port (current-output-port) colorize-stdout)]
-                   [current-error-port (filter-write-output-port (current-error-port) colorize-stderr)])
+                   [current-output-port (open-output-dtrace stdout-level)]
+                   [current-error-port (open-output-dtrace stderr-level)])
       (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true)
           (error the-name "compiling failed.")))
+
     (when again? (compile-collection digimon (add1 round)))))
 
 (define compile-directory : (->* (Path-String Info-Ref) (Natural) Void)
   (lambda [pwd info-ref [round 1]]
     (define px.in (pregexp (path->string (current-directory))))
-    (define traceln (λ [[line : Any]] (printf "round[~a]: ~a~n" round line)))
+    (define traceln (λ [[line : Any]] (dtrace-debug "round[~a]: ~a" round line)))
     (set! again? #false)
+
     (define (filter-verbose [info : String])
       (match info
         [(pregexp #px"checking:") (when (and (make-verbose) (regexp-match? px.in info)) (traceln info))]
@@ -82,10 +92,12 @@
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
         [(pregexp #px"(newer|skipping:)") (when (make-verbose) (traceln info))]
         [_ (traceln info)]))
+
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
-                     [error-display-handler (λ [s e] (eechof #:fgcolor 'red ">> ~a~n" s))])
+                     [error-display-handler (λ [s e] (dtrace-error ">> ~a" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
+
     (when again? (compile-directory pwd info-ref (add1 round)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -101,18 +113,6 @@
                (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=[\"}])"
                               rktin))))))
 
-(define filter-write-output-port : (->* (Output-Port (-> Bytes Any)) (Boolean) Output-Port)
-  (lambda [/dev/stdout write-wrap [close? #false]]
-    (make-output-port (object-name /dev/stdout)
-                      /dev/stdout
-                      (λ [[bytes : Bytes] [start : Natural] [end : Natural] [flush? : Boolean] [enable-break? : Boolean]]
-                        (define transformed (write-wrap (subbytes bytes start end)))
-                        (cond [(string? transformed) (write-string transformed /dev/stdout)]
-                              [(bytes? transformed) (write-bytes-avail* transformed /dev/stdout)])
-                        (- end start))
-                      (λ [] (unless (not close?) (close-output-port /dev/stdout)))
-                      #false #false #false)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; WARNING: parameters are thread specific in which these variables case cannot be shared by `racket-trace-log` 
 (define again? : Boolean #false)
@@ -120,15 +120,17 @@
 
 (define racket-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
+    (define info-color (if (make-dry-run) 'lightblue 'cyan))
+    
     (cond [(make-trace-log)
            (case level
-             [(info) (echof #:fgcolor 'cyan "~a~n" message)]
+             [(info) (echof #:fgcolor info-color "~a~n" message)]
              [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
              [(error fatal) (echof #:fgcolor 'red "~a~n" message)]
              [else (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))])]
           [(make-dry-run)
            (case level
-             [(info) (echof #:fgcolor 'lightblue "~a~n" message)])])))
+             [(info) (echof #:fgcolor info-color "~a~n" message)])])))
 
 (define racket-setup-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]

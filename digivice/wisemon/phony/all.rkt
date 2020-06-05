@@ -15,6 +15,7 @@
 (require "../parameter.rkt")
 
 (require "../../../dtrace.rkt")
+(require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony

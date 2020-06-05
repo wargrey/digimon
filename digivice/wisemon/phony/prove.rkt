@@ -13,6 +13,7 @@
 
 (require "../../../dtrace.rkt")
 (require "../../../format.rkt")
+(require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-handbooks : (-> Info-Ref (Listof Path))
@@ -49,11 +50,10 @@
                                  (dynamic-require `(submod ,handbook main) #false)))
                              (parameterize ([exit-handler (λ _ (error the-name "~a prove: [fatal] ~a needs a proper `exit-handler`!" the-name ./handbook))])
                                (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
-                               (eval `(render (list ,(dynamic-require handbook 'doc)) (list ,handbook)
-                                              #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
-                                              #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))
-                                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                                              #:quiet? #false #:warn-undefined? #false))))))))
+                               (fg-recon-eval 'prove `(render (list (dynamic-require ,handbook 'doc)) (list ,handbook)
+                                                              #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
+                                                              #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))
+                                                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))))))))))
      (current-make-real-targets) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

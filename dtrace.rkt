@@ -2,6 +2,10 @@
 
 (provide (all-defined-out))
 
+(require racket/port)
+
+(require "digitama/bytes.rkt")
+
 (require "continuation.rkt")
 (require "symbol.rkt")
 (require "format.rkt")
@@ -81,6 +85,68 @@
       (parameterize ([current-logger logger]) (proc))
       (log-message logger 'debug "Done" sentry)
       (thread-wait dtrace))))
+
+(define open-output-dtrace : (->* ()
+                                  ((U Log-Level (-> String (Values Log-Level (Option String))))
+                                   #:special (U Log-Level (-> Any (Values (Option Log-Level) Any String)) False)
+                                   #:line-mode Symbol #:prefix? Boolean #:fallback-char (Option Char))
+                                  Output-Port)
+  (lambda [[line-level 'debug] [topic /dev/dtrace] #:special [special-level #false] #:line-mode [mode 'any] #:prefix? [prefix? #false] #:fallback-char [echar #\uFFFD]]
+    (define name : Symbol (string->symbol (format "<~a:~a>" (datum-name topic) mode)))
+    (define /dev/bufout : Output-Port (open-output-bytes name))
+
+    (define scan-line : (-> Bytes Index Index (Values (Option Index) Byte))
+      (case mode
+        [(any) unsafe-bytes-scan-any]
+        [(return-linefeed) unsafe-bytes-scan-refeed]
+        [(linefeed) unsafe-bytes-scan-linefeed]
+        [(return) unsafe-bytes-scan-return]
+        [(any-one) unsafe-bytes-scan-anyone]
+        [else unsafe-bytes-scan-any]))
+    
+    (define (dtrace-write-line [line : String]) : Void
+      (cond [(symbol? line-level) (dtrace-send topic line-level line #false prefix?)]
+            [else (let-values ([(level message) (line-level line)])
+                    (when (string? message)
+                      (dtrace-send topic level message #false prefix?)))]))
+
+    (define (dtrace-flush)
+      (when (> (file-position /dev/bufout) 0)
+        (dtrace-write-line (bytes->string/utf-8 (get-output-bytes /dev/bufout #true) echar))))
+
+    (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [flush? : Boolean] [enable-break? : Boolean]) : Integer
+      (with-asserts ([end index?])
+        (cond [(and (= start end) (not flush?)) (dtrace-flush)]
+              [else (let write-line ([pos : Index (assert start index?)]
+                                     [bufsize : Natural (file-position /dev/bufout)])
+                      (define-values (brkpos offset) (scan-line bs pos end))
+                      (cond [(not brkpos) (write-bytes bs /dev/bufout pos end)]
+                            [else (let ([nxtpos (+ brkpos offset)])
+                                    (dtrace-write-line
+                                     (cond [(= bufsize 0) (bytes->string/utf-8 bs echar pos brkpos)]
+                                           [else (let ([total (+ bufsize (write-bytes bs /dev/bufout pos brkpos))])
+                                                   (bytes->string/utf-8 (get-output-bytes /dev/bufout #true 0 total) echar 0 total))]))
+                                    (when (< nxtpos end)
+                                      (write-line nxtpos 0)))]))]))
+      (- end start))
+
+    (define (dtrace-write-special [datum : Any] [flush? : Boolean] [breakable? : Boolean]) : Boolean
+      (and special-level
+           (cond [(symbol? special-level) (dtrace-send topic special-level "#<special>" datum prefix?)]
+                 [else (let-values ([(level value message) (special-level datum)])
+                         (when (symbol? level)
+                           (dtrace-send topic level message value prefix?)))])
+           #t))
+
+    (define (dtrace-close) : Void
+      (dtrace-flush)
+      (close-output-port /dev/bufout))
+    
+    (make-output-port name always-evt dtrace-write dtrace-close
+                      (and special-level dtrace-write-special)
+                      (λ [[bytes : Bytes] [start : Natural] [end : Natural]] (wrap-evt always-evt (λ [x] (- end start))))
+                      (and special-level (λ [[special : Any]] always-evt))
+                      #false void #false #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dtrace-send : (->* (Any Symbol String Any) (Any) Void)

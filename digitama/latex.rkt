@@ -7,6 +7,7 @@
 (require racket/port)
 (require racket/string)
 
+(require "exec.rkt")
 (require "typeset/renderer.rkt")
 (require "typeset/exec.rkt")
 (require "typeset/tex.rkt")
@@ -33,11 +34,11 @@
                   (if (and enable-filter preamble-filter)
                       (let ([TEXNAME.tex (build-path dest-dir (assert (file-name-from-path src.tex) path?))])
                         (parameterize ([current-custodian (make-custodian)])
-                          (dtrace-info #:topic renderer "(~a ~a)" (object-name preamble-filter) src.tex)
                           
                           (fg-recon-mkdir renderer dest-dir)
-
-                          (with-handlers ([exn:fail? (λ [[e : exn:fail]] (custodian-shutdown-all (current-custodian)) (raise e))])
+                          (dtrace-info #:topic renderer "(~a ~a)" (object-name preamble-filter) src.tex)
+                          
+                          (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler renderer e (λ [] (custodian-shutdown-all (current-custodian)))))])
                             (define /dev/texin : Input-Port
                               (cond [(equal? src.tex TEXNAME.tex) (open-input-bytes (file->bytes src.tex))]
                                     [else (open-input-file src.tex)]))

@@ -2,8 +2,11 @@
 
 (provide (all-defined-out))
 
+(require "exec.rkt")
+
 (require "../dtrace.rkt")
 (require "../format.rkt")
+(require "../port.rkt")
 
 (require "../exception.rkt")
 (require "../filesystem.rkt")
@@ -90,7 +93,7 @@
 
                  (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
                        [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
-                       [else (wisemon-dry-run (wisemon-spec-recipe spec) t newers)])
+                       [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
 
                  (wisemon-log-message name 'debug t #:prerequisites newers "~aremade `~a`" indent ./target)))
              
@@ -101,21 +104,12 @@
     (void (make target null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wisemon-spec-ref : (-> Wisemon-Specification Path-String (Option Wisemon-Spec))
-  (lambda [specs target]
-    (define t (simple-form-path target))
-    (findf (λ [[s : Wisemon-Spec]] : Boolean
-             (let ([ts (wisemon-spec-target s)])
-               (cond [(list? ts) (and (member t ts) #true)]
-                     [else (equal? t ts)])))
-           specs)))
+;;; Racket parameters are thread-specific data.
+;; More precisely, change a parameter out of `parameterize` does not affect the same parameter in other threads.
+;; Here the recipe is running in a thread so that the recipe has no chance to hurt others.   
 
 (define wisemon-run : (-> Symbol (-> Path (Listof Path) Any) Path (Listof Path) Void)
   (lambda [name make target prerequisites]
-    ;;; Racket parameters are thread-specific data.
-    ;; More precisely, change a parameter out of `parameterize` does not affect the same parameter in other threads.
-    ;; Here the recipe is running in a thread so that the recipe has no chance to hurt others.
-    
     (parameterize ([current-custodian (make-custodian)])
       (define maybe-exn
         (call-in-nested-thread
@@ -127,26 +121,38 @@
       (when (exn:fail? maybe-exn)
         (throw-exn:wisemon name target prerequisites maybe-exn (exn-message maybe-exn))))))
 
+(define wisemon-dry-run : (-> Symbol (-> Path (Listof Path) Any) Path (Listof Path) Void)
+  (lambda [name make target prerequisites]
+    (parameterize ([current-custodian (make-custodian)]
+                   [current-security-guard (wisemon-security-guard)]
+                   [current-output-port /dev/null]
+                   [current-error-port /dev/null])
+      (define maybe-exn
+        (call-in-nested-thread
+         (λ [] (with-handlers ([exn? values])
+                 (make target prerequisites)))))
+
+      (custodian-shutdown-all (current-custodian))
+      
+      #;(when (exn:fail? maybe-exn)
+        (throw-exn:wisemon name target prerequisites maybe-exn (exn-message maybe-exn))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(module unsafe racket/base
-  (provide (all-defined-out))
+(define wisemon-spec-ref : (-> Wisemon-Specification Path-String (Option Wisemon-Spec))
+  (lambda [specs target]
+    (define t (simple-form-path target))
+    (findf (λ [[s : Wisemon-Spec]] : Boolean
+             (let ([ts (wisemon-spec-target s)])
+               (cond [(list? ts) (and (member t ts) #true)]
+                     [else (equal? t ts)])))
+           specs)))
 
-  (require racket/sandbox)
-
-  (define path-permissons
-    (list (list 'read #px#".")
-          (list 'exists #px#".")))
-  
-  (define wisemon-dry-run
-    (lambda [wisemon-exec target prerequisites]
-       (parameterize ([sandbox-output #false]
-                      [sandbox-error-output #false]
-                      ;[sandbox-propagate-exceptions #false]
-                      [sandbox-path-permissions path-permissons])
-         (call-in-sandbox-context (make-evaluator 'racket/base)
-                                  (λ [] (wisemon-exec target prerequisites)))
-         (void)))))
-
-(require/typed
- (submod "." unsafe)
- [wisemon-dry-run (-> (-> Path (Listof Path) Any) Path (Listof Path) Void)])
+(define wisemon-security-guard : (->* () (Security-Guard) Security-Guard)
+  (lambda [[parent (current-security-guard)]]
+    (make-security-guard
+     parent
+     (λ [[who : Symbol] [maybe-path : (Option Path)] [perms : (Listof Symbol)]]
+       (when (path? maybe-path)
+         (when (or (memq 'execute perms) (memq 'write perms) (memq 'delete perms))
+           (exec-abort "@~a[~a]: access denied: ~a" who maybe-path perms))))
+     void)))
