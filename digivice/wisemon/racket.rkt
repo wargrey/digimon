@@ -121,7 +121,7 @@
 (define racket-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
     (define info-color (if (make-dry-run) 'lightblue 'cyan))
-    
+
     (cond [(make-trace-log)
            (case level
              [(info) (echof #:fgcolor info-color "~a~n" message)]

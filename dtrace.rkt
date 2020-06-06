@@ -51,7 +51,7 @@
       (define message : String (vector-ref log 1))
       (define urgent-data : Any (vector-ref log 2))
       (define topic : (Option Symbol) (vector-ref log 3))
-
+      
       (cond [(exit? urgent-data) (void (atexit))]
             [(memq topic silent-topics) (trace)]
             [(eq? topic dtrace-topic) (dtrace-receiver level message urgent-data dtrace-topic) (trace)]

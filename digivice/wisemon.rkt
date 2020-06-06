@@ -90,7 +90,7 @@
                             ;;; TODO
                             ;; Why the `prove` phony would be blocked if
                             ;; `dtrace-datum-info` is attached with `(current-logger)`?
-                            (dtrace-datum-info eof)
+                            (dtrace-datum-info eof "Job Done")
                             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             
                             (thread-wait tracer)
