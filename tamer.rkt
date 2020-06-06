@@ -84,6 +84,11 @@
   (lambda [get]
     (handbook-renderer? get 'latex)))
 
+(define make-prefab-style
+  (lambda properties
+    (make-style #false
+                (filter symbol? properties))))
+
 (define register-handbook-finalizer
   (lambda [atexit/0]
     (void ((curry plumber-add-flush! (current-plumber))
