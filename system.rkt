@@ -14,7 +14,6 @@
 
 (require "continuation.rkt")
 (require "symbol.rkt")
-(require "dtrace.rkt")
 
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
@@ -22,7 +21,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (void (print-boolean-long-form #true)
-      (current-logger /dev/dtrace)
         
       ;;; Ignore DrRacket's convention. But don't change "compiled" since
       ;;; the compiler checks bytecodes in the core collection

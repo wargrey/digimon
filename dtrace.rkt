@@ -11,6 +11,13 @@
 (require "format.rkt")
 (require "echo.rkt")
 
+;;; Racket's initial logger writes error messages to stderr (and syslog)
+;;; The logger facility is a thing that deep into the Racket Virtual Machine and parameters are thread specific data.
+;;; The point is `current-logger` is not guaranteed to be the same one even though their names say so.
+;;; If your `make-dtrace-loop` does not dispatch some messages, it probably has not received them at all.
+
+;;; Please keep above in mind whenever you want to send messages to `current-logger`.
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Dtrace-Receiver (-> Symbol String Any Symbol Any))
 
@@ -153,8 +160,8 @@
   (lambda [topic level message urgent [prefix? #true]]
     (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
     (cond [(logger? topic) (log-message topic log-level message urgent (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
-          [(symbol? topic) (log-message (current-logger) log-level topic message urgent (and prefix? (not (eq? topic dtrace-topic))))]
-          [else (log-message (current-logger) log-level (datum-name topic) message urgent prefix?)])))
+          [(symbol? topic) (log-message /dev/dtrace log-level topic message urgent (and prefix? (not (eq? topic dtrace-topic))))]
+          [else (log-message /dev/dtrace log-level (datum-name topic) message urgent prefix?)])))
 
 (define dtrace-message : (->* (Log-Level String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
   (lambda [level #:topic [t /dev/dtrace] #:urgent [u (current-continuation-marks)] #:prefix? [? #true] msgfmt . messages]

@@ -145,5 +145,4 @@
 (define make-racket-log-trace : (-> (-> Void))
   (lambda []
     (make-dtrace-loop #:topic-receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
-                      #:else-receiver racket-event-echo
-                      (current-logger))))
+                      #:else-receiver racket-event-echo)))

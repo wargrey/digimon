@@ -15,9 +15,6 @@
 (require "../cmdopt.rkt")
 (require "../echo.rkt")
 (require "../debug.rkt")
-
-;;; Racket's initial logger writes error message to stderr
-;;; `system.rkt` will set the current logger to /dev/dtrace which is not a child of the initial logger.
 (require "../system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -87,9 +84,6 @@
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))
 
-                            ;;; TODO
-                            ;; Why the `prove` phony would be blocked if
-                            ;; `dtrace-datum-info` is attached with `(current-logger)`?
                             (dtrace-datum-info eof "Job Done")
                             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
                             
