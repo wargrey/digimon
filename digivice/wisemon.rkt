@@ -11,11 +11,11 @@
 (require "../digitama/collection.rkt")
 
 (require "../dtrace.rkt")
-(require "../port.rkt")
 (require "../cmdopt.rkt")
-(require "../echo.rkt")
 (require "../debug.rkt")
 (require "../system.rkt")
+(require "../port.rkt")
+(require "../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags
@@ -73,7 +73,7 @@
                                  [current-digimon (pkg-info-name info)]
                                  [current-free-zone zone]
                                  [current-directory zone])
-                    (echof #:fgcolor 'green "Enter Digimon Zone: ~a~n" (current-digimon))
+                    (dtrace-notice "Enter Digimon Zone: ~a" (current-digimon))
                     (begin0 (for/fold ([retcode : Byte 0])
                                       ([phony (in-list phonies)])
                               (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
@@ -84,11 +84,8 @@
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))
 
-                            (dtrace-datum-info eof "Job Done")
-                            ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                            
-                            (thread-wait tracer)
-                            (echof #:fgcolor 'green "Leave Digimon Zone: ~a~n" (current-digimon)))))])))
+                            (dtrace-datum-notice eof "Leave Digimon Zone: ~a" (current-digimon))
+                            (thread-wait tracer))))])))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
@@ -105,10 +102,14 @@
     (make-assume-oldfiles (wisemon-flags-old-file options))
     (make-assume-newfiles (wisemon-flags-new-file options))
 
-    (let ([digimons (collection-info)])
-      (cond [(not digimons) (eechof #:fgcolor 'red "fatal: not in a digimon zone.~n") (exit (make-errno))]
-            [else (let-values ([(phonies reals) (wisemon-goal-partition (car (λargv)))])
-                    (exit (time-apply* (λ [] (make-digimon digimons reals phonies)))))]))))
+    (parameterize ([current-logger /dev/dtrace])
+      (define digimons (collection-info))
+      (if (not digimons)
+          (let ([retcode (make-errno)])
+            (call-with-dtrace (λ [] (dtrace-fatal "fatal: not in a digimon zone")))
+            (exit retcode))
+          (let-values ([(phonies reals) (wisemon-goal-partition (car (λargv)))])
+            (exit (time-apply* (λ [] (make-digimon digimons reals phonies)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

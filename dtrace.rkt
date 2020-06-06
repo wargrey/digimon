@@ -3,7 +3,9 @@
 (provide (all-defined-out))
 
 (require racket/port)
+(require racket/string)
 
+(require "digitama/dtrace.rkt")
 (require "digitama/bytes.rkt")
 
 (require "continuation.rkt")
@@ -20,6 +22,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Dtrace-Receiver (-> Symbol String Any Symbol Any))
+(define-type Dtrace-Level (U 'emergency 'alert 'critical 'fatal 'error 'warning 'notice 'info 'debug 'trace))
 
 (define dtrace-topic : Symbol 'dtrace)
 
@@ -35,43 +38,65 @@
   (lambda [level message urgent topic]
     (case level
       [(info) (echof #:fgcolor 'cyan "~a~n" message)]
+      [(notice) (echof #:fgcolor 'green "~a~n" message)]
       [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
-      [(error fatal) (echof #:fgcolor 'red "~a~n" message)]
-      [else (displayln message)])))
+      [(error) (echof #:fgcolor 'red "~a~n" message)]
+      [(fatal) (echof #:fgcolor 'darkred "~a~n" message)]
+      [(critical alert emergency) (echof #:bgcolor 'darkred "~a~n" message)]
+      [(debug) (displayln message)]
+      [else (echof #:fgcolor 'darkgray "~a~n" message)])))
+
+(define dtrace-symbol->level : (-> Symbol Log-Level)
+  (lambda [level]
+    (case level
+      [(debug info warning error fatal) level]
+      [(notice) 'info]
+      [(emergency alert critical) 'fatal]
+      [else 'debug])))
+
+(define dtrace-received-message : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Values Symbol String Any (Option Symbol) Symbol))
+  (lambda [log]
+    (define level : Symbol (vector-ref log 0))
+    (define message : String (vector-ref log 1))
+    (define udata : Any (vector-ref log 2))
+    (define topic : (Option Symbol) (vector-ref log 3))
+
+    (if (dtrace? udata)
+        (values (dtrace-level udata) message (dtrace-urgent udata) topic level)
+        (values level message udata topic level))))
 
 (define make-dtrace-loop : (->* ()
-                                (Logger Log-Level
-                                        #:exit-predicate? (-> Any Boolean) #:atexit (-> Any) #:silent-topics (Listof Symbol)
-                                        #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
+                                (Logger Dtrace-Level
+                                        #:exit-predicate? (-> Any Boolean) #:atexit (-> Any) #:display-exit-message? Boolean
+                                        #:silent-topics (Listof Symbol) #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
                                         #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:else-receiver Dtrace-Receiver)
                                 (-> Void))
-  (lambda [[logger /dev/dtrace] [level 'debug]
-                  #:exit-predicate? [exit? eof-object?] #:atexit [atexit void] #:silent-topics [silent-topics dtrace-silent-topics]
-                  #:false-receiver [false-receiver void] #:dtrace-receiver [dtrace-receiver dtrace-event-echo]
-                  #:topic-receivers [receivers null] #:else-receiver [else-receiver dtrace-event-echo]]
-    (define /dev/log : Log-Receiver (make-log-receiver logger level))
+  (lambda [[logger /dev/dtrace] [dt-level 'debug]
+                  #:exit-predicate? [exit? eof-object?] #:atexit [atexit void] #:display-exit-message? [show? #true]
+                  #:silent-topics [silent-topics dtrace-silent-topics] #:false-receiver [false-receiver void]
+                  #:dtrace-receiver [dtrace-receiver dtrace-event-echo] #:topic-receivers [receivers null]
+                  #:else-receiver [else-receiver dtrace-event-echo]]
+    (define /dev/log : Log-Receiver (make-log-receiver logger (dtrace-symbol->level dt-level)))
     
     (define (trace) : Void
       (define log : (Immutable-Vector Symbol String Any (Option Symbol)) (sync/enable-break /dev/log))
+
+      (define-values  (rdt-level message urgent-data topic rlevel) (dtrace-received-message log))
       
-      (define level : Symbol (vector-ref log 0))
-      (define message : String (vector-ref log 1))
-      (define urgent-data : Any (vector-ref log 2))
-      (define topic : (Option Symbol) (vector-ref log 3))
-      
-      (cond [(exit? urgent-data) (void (atexit))]
+      (cond [(exit? urgent-data) (when (and show? (non-empty-string? message)) (dtrace-receiver rdt-level message urgent-data dtrace-topic)) (void (atexit))]
             [(memq topic silent-topics) (trace)]
-            [(eq? topic dtrace-topic) (dtrace-receiver level message urgent-data dtrace-topic) (trace)]
+            [(not (dtrace-level-okay? dt-level rdt-level rlevel)) (trace)]
+            [(eq? topic dtrace-topic) (dtrace-receiver rdt-level message urgent-data dtrace-topic) (trace)]
             [else (let ([maybe-receiver (assq topic receivers)])
-                    (cond [(and maybe-receiver) ((cdr maybe-receiver) level message urgent-data (assert topic))]
-                          [(not topic) (false-receiver level message urgent-data '_)]
-                          [else (else-receiver level message urgent-data topic)])
+                    (cond [(and maybe-receiver) ((cdr maybe-receiver) rdt-level message urgent-data (assert topic))]
+                          [(not topic) (false-receiver rdt-level message urgent-data '_)]
+                          [else (else-receiver rdt-level message urgent-data topic)])
                     (trace))]))
 
     trace))
 
 (define call-with-dtrace : (All (a) (->* ((-> a))
-                                         (Logger Log-Level
+                                         (Logger Dtrace-Level
                                                  #:silent-topics (Listof Symbol) #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
                                                  #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:else-receiver Dtrace-Receiver)
                                          a))
@@ -84,7 +109,7 @@
     
     (define dtrace : Thread
       (thread (make-dtrace-loop logger level
-                                #:exit-predicate? sentry? #:silent-topics silent-topics
+                                #:exit-predicate? sentry? #:display-exit-message? #false #:silent-topics silent-topics
                                 #:false-receiver false-receiver #:dtrace-receiver dtrace-receiver
                                 #:topic-receivers receivers #:else-receiver else-receiver)))
 
@@ -94,7 +119,7 @@
       (thread-wait dtrace))))
 
 (define open-output-dtrace : (->* ()
-                                  ((U Log-Level (-> String (Values Log-Level (Option String))))
+                                  ((U Dtrace-Level (-> String (Values Log-Level (Option String))))
                                    #:special (U Log-Level (-> Any (Values (Option Log-Level) Any String)) False)
                                    #:line-mode Symbol #:prefix? Boolean #:fallback-char (Option Char))
                                   Output-Port)
@@ -158,30 +183,35 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dtrace-send : (->* (Any Symbol String Any) (Any) Void)
   (lambda [topic level message urgent [prefix? #true]]
-    (define log-level : Log-Level (case level [(debug info warning error fatal) level] [else 'debug]))
-    (cond [(logger? topic) (log-message topic log-level message urgent (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
-          [(symbol? topic) (log-message /dev/dtrace log-level topic message urgent (and prefix? (not (eq? topic dtrace-topic))))]
-          [else (log-message /dev/dtrace log-level (datum-name topic) message urgent prefix?)])))
+    (define log-level : Log-Level (dtrace-symbol->level level))
+    (define urgent-data : Any (if (eq? log-level level) urgent (dtrace level urgent)))
+    (cond [(logger? topic) (log-message topic log-level message urgent-data (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
+          [(symbol? topic) (log-message /dev/dtrace log-level topic message urgent-data (and prefix? (not (eq? topic dtrace-topic))))]
+          [else (log-message /dev/dtrace log-level (datum-name topic) message urgent-data prefix?)])))
 
-(define dtrace-message : (->* (Log-Level String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
+(define dtrace-message : (->* (Symbol String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
   (lambda [level #:topic [t /dev/dtrace] #:urgent [u (current-continuation-marks)] #:prefix? [? #true] msgfmt . messages]
     (dtrace-send t level (~string msgfmt messages) u ?)))
 
-(define-values (dtrace-debug dtrace-info dtrace-warning dtrace-error dtrace-fatal)
+(define-values (dtrace-trace dtrace-debug dtrace-info dtrace-notice dtrace-warning dtrace-error
+                             dtrace-fatal dtrace-critical dtrace-alert dtrace-emergency)
   (let ([dtrace (lambda [[level : Symbol]] : (->* (String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
                   (λ [#:topic [t /dev/dtrace] #:urgent [u (current-continuation-marks)] #:prefix? [? #true] msgfmt . messages]
                     (dtrace-send t level (~string msgfmt messages) u ?)))])
-    (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
+    (values (dtrace 'trace) (dtrace 'debug) (dtrace 'info) (dtrace 'notice) (dtrace 'warning) (dtrace 'error)
+            (dtrace 'fatal) (dtrace 'critical) (dtrace 'altert) (dtrace 'emergency))))
 
 (define dtrace-datum : (->* (Log-Level Any) (#:topic Any #:prefix? Boolean String) #:rest Any Void)
   (lambda [level u #:topic [t /dev/dtrace] #:prefix? [? #true] [msgfmt ""] . messages]
     (dtrace-send t level (~string msgfmt messages) u ?)))
 
-(define-values (dtrace-datum-debug dtrace-datum-info dtrace-datum-warning dtrace-datum-error dtrace-datum-fatal)
+(define-values (dtrace-datum-trace dtrace-datum-debug dtrace-datum-info dtrace-datum-notice dtrace-datum-warning dtrace-datum-error
+                                   dtrace-datum-fatal dtrace-datum-critical dtrace-datum-alert dtrace-datum-emergency)
   (let ([dtrace (lambda [[level : Symbol]] : (->* (Any) (#:topic Any #:prefix? Boolean String) #:rest Any Void)
                   (λ [u #:topic [t /dev/dtrace] #:prefix? [? #true] [msgfmt ""] . messages]
                     (dtrace-send t level (~string msgfmt messages) u ?)))])
-    (values (dtrace 'debug) (dtrace 'info) (dtrace 'warning) (dtrace 'error) (dtrace 'fatal))))
+    (values (dtrace 'trace) (dtrace 'debug) (dtrace 'info) (dtrace 'notice) (dtrace 'warning) (dtrace 'error)
+            (dtrace 'fatal) (dtrace 'critical) (dtrace 'altert) (dtrace 'emergency))))
 
 (define dtrace-exception : (->* (exn) (#:topic Any #:level Log-Level #:prefix? Boolean #:brief? Boolean) Void)
   (lambda [errobj #:topic [topic /dev/dtrace] #:level [level 'error] #:prefix? [prefix? #true] #:brief? [brief? #true]]

@@ -125,9 +125,13 @@
     (cond [(make-trace-log)
            (case level
              [(info) (echof #:fgcolor info-color "~a~n" message)]
+             [(notice) (echof #:fgcolor 'green "~a~n" message)]
              [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
-             [(error fatal) (echof #:fgcolor 'red "~a~n" message)]
-             [else (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))])]
+             [(error) (echof #:fgcolor 'red "~a~n" message)]
+             [(fatal) (echof #:fgcolor 'darkred "~a~n" message)]
+             [(critical alert emergency) (echof #:bgcolor 'darkred "~a~n" message)]
+             [(debug) (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))]
+             [else (when (make-verbose) (echof #:fgcolor 'darkgray "~a~n" message))])]
           [(make-dry-run)
            (case level
              [(info) (echof #:fgcolor info-color "~a~n" message)])])))
