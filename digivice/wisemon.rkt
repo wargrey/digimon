@@ -79,7 +79,7 @@
                               (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
                                              [current-custodian (make-custodian)])
                                 (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:brief? (not (make-verbose))) (make-errno))])
+                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
                                           ((wisemon-phony-make phony) (current-digimon) info-ref)
                                           retcode)
                                         (custodian-shutdown-all (current-custodian)))))

@@ -46,8 +46,8 @@
                       (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
 
                       (if (not maybe-name)
-                          (dtrace-debug "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
-                          (dtrace-debug "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
+                          (dtrace-note "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
+                          (dtrace-note "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
                       
                       (if (and raw-tex?)
                           (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #false)])
@@ -90,8 +90,8 @@
     (cons (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
             (cond [(null? renderers)
                    (when (not silent)
-                     (dtrace-debug "~a typeset: no suitable renderer is found, use `~a` instead"
-                                   the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
+                     (dtrace-note "~a typeset: no suitable renderer is found, use `~a` instead"
+                                  the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))

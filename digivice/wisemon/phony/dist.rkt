@@ -45,7 +45,7 @@
                   (wisemon-spec target #:^ (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl))) #:-
                                 (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
 
-                                (dtrace-debug "~a dist: ~a" the-name ./readme.scrbl)
+                                (dtrace-note "~a dist: ~a" the-name ./readme.scrbl)
                                 
                                 (parameterize ([current-namespace (make-base-namespace)]
                                                [current-input-port /dev/eof] ; tell scribble this is rendering to markdown

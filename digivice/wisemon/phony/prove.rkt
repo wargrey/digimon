@@ -37,7 +37,7 @@
                      (when (and pwd (directory-exists? pwd))
                        (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook))
          
-                       (dtrace-debug "~a prove: ~a" the-name ./handbook)
+                       (dtrace-note "~a prove: ~a" the-name ./handbook)
          
                        (parameterize ([current-directory pwd]
                                       [current-namespace (make-base-namespace)])

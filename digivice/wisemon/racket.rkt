@@ -51,8 +51,8 @@
     (define context : Symbol 'platform)
     (set!-values (again? compiling-round) (values #false round))
 
-    (define (stdout-level [line : String]) : (Values Log-Level (Option String))
-      (values 'debug
+    (define (stdout-level [line : String]) : (Values Symbol (Option String))
+      (values 'note
               (and (= round 1)
                    (case context
                      [(platform) (when (regexp-match? #px"main collects" line) (set! context 'paths))]
@@ -61,7 +61,7 @@
                    (not (eq? context 'paths))
                    line)))
 
-    (define (stderr-level [line : String]) : (Values Log-Level (Option String))
+    (define (stderr-level [line : String]) : (Values Symbol (Option String))
       (values (if (eq? context 'summary) 'error 'warning) line))
     
     (parameterize ([setup-program-name (symbol->string the-name)]
@@ -80,7 +80,7 @@
 (define compile-directory : (->* (Path-String Info-Ref) (Natural) Void)
   (lambda [pwd info-ref [round 1]]
     (define px.in (pregexp (path->string (current-directory))))
-    (define traceln (λ [[line : Any]] (dtrace-debug "round[~a]: ~a" round line)))
+    (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
     (set! again? #false)
 
     (define (filter-verbose [info : String])
@@ -122,19 +122,16 @@
   (lambda [level message urgent topic]
     (define info-color (if (make-dry-run) 'lightblue 'cyan))
 
-    (cond [(make-trace-log)
+    (cond [(make-dry-run)
            (case level
+             [(info) (echof #:fgcolor info-color "~a~n" message)])]
+          [(make-trace-log)
+           (case level
+             [(note) (echof #:fgcolor 246 "~a~n" message)]
              [(info) (echof #:fgcolor info-color "~a~n" message)]
-             [(notice) (echof #:fgcolor 'green "~a~n" message)]
-             [(warning) (echof #:fgcolor 'yellow "~a~n" message)]
-             [(error) (echof #:fgcolor 'red "~a~n" message)]
-             [(fatal) (echof #:fgcolor 'darkred "~a~n" message)]
-             [(critical alert emergency) (echof #:bgcolor 'darkred "~a~n" message)]
-             [(debug) (when (make-verbose) (echof #:fgcolor 248 "~a~n" message))]
-             [else (when (make-verbose) (echof #:fgcolor 'darkgray "~a~n" message))])]
-          [(make-dry-run)
-           (case level
-             [(info) (echof #:fgcolor info-color "~a~n" message)])])))
+             [else (dtrace-event-echo level message urgent topic)])]
+          [(dtrace-level<? level 'info)
+           (dtrace-event-echo level message urgent topic)])))
 
 (define racket-setup-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
@@ -149,4 +146,7 @@
 (define make-racket-log-trace : (-> (-> Void))
   (lambda []
     (make-dtrace-loop #:topic-receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
-                      #:else-receiver racket-event-echo)))
+                      #:default-receiver racket-event-echo
+                      (cond [(make-verbose) 'trace]
+                            [(make-trace-log) 'note]
+                            [else 'info]))))

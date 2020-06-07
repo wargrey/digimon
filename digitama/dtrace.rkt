@@ -11,8 +11,9 @@
           'warning 5
           'notice 6
           'info 7
-          'debug 8
-          'trace 9))
+          'note 8
+          'debug 9
+          'trace 10))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct dtrace
@@ -21,9 +22,13 @@
   #:type-name Dtrace
   #:transparent)
 
+(define dtrace-level<? : (-> Symbol Symbol Boolean)
+  (lambda [lv rv]
+    (< (hash-ref dtrace-severities lv (λ [] 100))
+       (hash-ref dtrace-severities rv (λ [] 0)))))
+
 (define dtrace-level-okay? : (-> Symbol Symbol Symbol Boolean)
   (lambda [listened received racket]
     (or (eq? received racket) ; already filtered by racket logging facility
         (eq? listened received)
-        (< (hash-ref dtrace-severities received (λ [] 100))
-           (hash-ref dtrace-severities listened (λ [] 0))))))
+        (dtrace-level<? received listened))))

@@ -44,8 +44,7 @@
             (cond [(eq? e /dev/outin)
                    (let ([line (read-line /dev/outin)])
                      (cond [(eof-object? line) (wait-dtrace-loop never-evt errin-evt)]
-                           [else (when (not stdout-silent?)
-                                   (dtrace-debug line #:topic operation #:prefix? #false))
+                           [else (when (not stdout-silent?) (dtrace-note line))
                                  (wait-dtrace-loop outin-evt errin-evt)]))]
                   
                   [(eq? e /dev/errin)
@@ -146,4 +145,4 @@
 (define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)
   (lambda [operation e [clean void]]
     (cond [(not (exn:recon? e)) (clean) (raise e)]
-          [else (dtrace-debug #:topic operation (exn-message e)) #|the dry run mode for `wisemon`|#])))
+          [else (dtrace-note #:topic operation (exn-message e)) #|the dry run mode for `wisemon`|#])))

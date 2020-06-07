@@ -84,18 +84,18 @@
                  (define indent (~space (* (length ts) 2)))
                  
                  (for ([p (in-list newers)])
-                   (wisemon-log-message name 'debug t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
+                   (wisemon-log-message name 'note t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
                                         indent (find-relative-path (current-directory) p) ./target))
 
-                 (cond [(and always-run?) (wisemon-log-message name 'debug t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
-                       [(not target-existed?) (wisemon-log-message name 'debug t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
-                       [else (wisemon-log-message name 'debug t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
+                 (cond [(and always-run?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
+                       [(not target-existed?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
+                       [else (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
 
                  (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
                        [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
                        [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
 
-                 (wisemon-log-message name 'debug t #:prerequisites newers "~aremade `~a`" indent ./target)))
+                 (wisemon-log-message name 'note t #:prerequisites newers "~aremade `~a`" indent ./target)))
              
              (wisemon-mtime t)]
             [(file-exists? t) (wisemon-mtime t)]
