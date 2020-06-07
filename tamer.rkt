@@ -16,6 +16,7 @@
 (require scribble/latex-properties)
 
 (require (for-syntax syntax/parse))
+(require (for-syntax syntax/location))
 
 (require (for-label racket))
 
@@ -129,7 +130,9 @@
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~optional (~seq #:style s:expr)) contents ...)
+    [(_ (~alt (~optional (~seq #:style style:expr))
+              (~optional (~seq #:source src:string))) ...
+        contents ...)
      #`(begin (tamer-taming-start! scribble)
 
               (define-cite ~cite ~cites ~reference #:style number-style)
@@ -137,8 +140,10 @@
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
+              (declare-exporting ,(or #,(attribute src) (tamer-story)))
+
               (title #:tag (tamer-story->tag (tamer-story))
-                     #:style #,(attribute s)
+                     #:style #,(attribute style)
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]

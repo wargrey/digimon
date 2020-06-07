@@ -44,8 +44,8 @@
   (lambda [name e]
     (define cause : Wisemon-Exception-Cause (exn:wisemon-cause e))
     
-    (cond [(symbol? cause) (dtrace-exception e #:level 'warning #:topic name #:prefix? #false #:brief? #true)]
-          [else (dtrace-exception cause #:level 'warning #:topic name #:prefix? #false #:brief? #true)])))
+    (cond [(symbol? cause) (dtrace-exception e #:level 'fatal #:topic name #:prefix? #false #:brief? #true)]
+          [else (dtrace-exception cause #:level 'fatal #:topic name #:prefix? #false #:brief? #true)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-make-target : (-> Wisemon-Specification Path Symbol Boolean Boolean Boolean (Listof Path) (Listof Path) Void)
