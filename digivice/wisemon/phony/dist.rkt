@@ -62,8 +62,12 @@
                                                          [(= start 0) (struct-copy part readme [parts (take subparts span)])]
                                                          [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))))
 
-                                  (fg-recon-eval 'dist `(render (dynamic-extract-readme ,readme.scrbl ,start ,endp1) (list ,target)
-                                                                #:dest-dir ,(path-only target) #:render-mixin markdown:render-mixin)))))])))
+                                  (eval `(define (markdown:render readme #:dest-dir dest-dir)
+                                           (render #:dest-dir dest-dir #:render-mixin markdown:render-mixin
+                                                   readme (list ,target))))
+
+                                  (fg-recon-eval 'dist `(markdown:render (dynamic-extract-readme ,readme.scrbl ,start ,endp1)
+                                                                          #:dest-dir ,(path-only target))))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))

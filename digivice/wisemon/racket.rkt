@@ -48,6 +48,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define compile-collection : (->* (String) (Natural) Void)
   (lambda [digimon [round 1]]
+    (define verbose! : Boolean (make-verbose))
     (define context : Symbol 'platform)
     (set!-values (again? compiling-round) (values #false round))
 
@@ -58,7 +59,7 @@
                      [(platform) (when (regexp-match? #px"main collects" line) (set! context 'paths))]
                      [(paths) (when (regexp-match? #px"---" line) (set! context 'compiling))]
                      [(compiling) (when (regexp-match? #px"--- summary of errors ---" line) (set! context 'summary))])
-                   (not (eq? context 'paths))
+                   (or verbose! (not (eq? context 'paths)))
                    line)))
 
     (define (stderr-level [line : String]) : (Values Symbol (Option String))
@@ -79,18 +80,20 @@
 
 (define compile-directory : (->* (Path-String Info-Ref) (Natural) Void)
   (lambda [pwd info-ref [round 1]]
+    (define verbose? : Boolean (make-verbose))
     (define px.in (pregexp (path->string (current-directory))))
     (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
+    
     (set! again? #false)
 
     (define (filter-verbose [info : String])
       (match info
-        [(pregexp #px"checking:") (when (and (make-verbose) (regexp-match? px.in info)) (traceln info))]
+        [(pregexp #px"checking:") (when (and verbose? (regexp-match? px.in info)) (traceln info))]
         [(pregexp #px"compiling ") (set! again? #true)]
         [(pregexp #px"done:") (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
         [(pregexp #px"maybe-compile-zo starting") (traceln info)]
         [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
-        [(pregexp #px"(newer|skipping:)") (when (make-verbose) (traceln info))]
+        [(pregexp #px"(newer|skipping:)") (when (and verbose?) (traceln info))]
         [_ (traceln info)]))
 
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])

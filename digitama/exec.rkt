@@ -144,5 +144,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)
   (lambda [operation e [clean void]]
-    (cond [(not (exn:recon? e)) (clean) (raise e)]
-          [else (dtrace-note #:topic operation (exn-message e)) #|the dry run mode for `wisemon`|#])))
+    (cond [(exn:recon? e) (dtrace-note #:topic operation (exn-message e))]
+          [(exn:fail? e) (clean) (raise e)]
+          [else #;(exn:break? e) (clean)])))

@@ -61,6 +61,10 @@
                                            [current-namespace (make-base-namespace)]
                                            [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
                               (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+                              (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
+                                       (render (list (dynamic-require TEXNAME.scrbl 'doc)) (list ,src.tex)
+                                               #:render-mixin tex:render-mixin #:dest-dir dest-dir
+                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                               
                               (when (file-exists? hook.rktl)
                                 (eval `(define (dynamic-load-character-conversions hook.rktl)
@@ -68,10 +72,7 @@
                                            (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
                                 (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
                               
-                              (fg-recon-eval renderer `(render (list (dynamic-require ,TEXNAME.scrbl 'doc)) (list ,(file-name-from-path src.tex))
-                                                               #:render-mixin tex:render-mixin #:dest-dir ,dest-dir
-                                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))))
-                              
+                              (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
                               (tex-render renderer src.tex dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
 
 (define make~typeset : Make-Phony

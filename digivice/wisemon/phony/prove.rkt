@@ -31,11 +31,11 @@
     (wisemon-compile (current-directory) digimon info-ref)
 
     (wisemon-make
-     (for/list : Wisemon-Specification ([handbook (in-list (append (find-digimon-handbooks info-ref) (current-make-real-targets)))])
-       (wisemon-spec handbook #:-
-                     (define pwd : (Option Path) (path-only handbook))
+     (for/list : Wisemon-Specification ([handbook.scrbl (in-list (append (find-digimon-handbooks info-ref) (current-make-real-targets)))])
+       (wisemon-spec handbook.scrbl #:-
+                     (define pwd : (Option Path) (path-only handbook.scrbl))
                      (when (and pwd (directory-exists? pwd))
-                       (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook))
+                       (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook.scrbl))
          
                        (dtrace-note "~a prove: ~a" the-name ./handbook)
          
@@ -45,15 +45,16 @@
                              (parameterize ([exit-handler (λ [[retcode : Any]]
                                                             (when (and (exact-integer? retcode) (<= 1 retcode 255))
                                                               (error the-name "~a prove: [error] ~a breaks ~a!" the-name ./handbook (~n_w retcode "sample"))))])
-                               (define modpath `(submod ,handbook main))
+                               (define modpath `(submod ,handbook.scrbl main))
                                (when (module-declared? modpath #true)
-                                 (dynamic-require `(submod ,handbook main) #false)))
+                                 (dynamic-require `(submod ,handbook.scrbl main) #false)))
                              (parameterize ([exit-handler (λ _ (error the-name "~a prove: [fatal] ~a needs a proper `exit-handler`!" the-name ./handbook))])
                                (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
-                               (fg-recon-eval 'prove `(render (list (dynamic-require ,handbook 'doc)) (list ,handbook)
-                                                              #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %)))
-                                                              #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))
-                                                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))))))))))
+                               (eval `(define (multi-html:render handbook.scrbl #:dest-dir dest-dir)
+                                        (render (list (dynamic-require handbook.scrbl 'doc)) (list ,handbook.scrbl)
+                                                #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %))) #:dest-dir dest-dir
+                                                #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
+                               (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))
      (current-make-real-targets) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

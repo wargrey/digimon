@@ -45,7 +45,7 @@
       (parameterize ([current-directory cd])
         (define phony-all : (Listof Path) (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))
         (for ([t (in-list (if (pair? targets) (map simple-form-path targets) (wisemon-targets-flatten specs)))])
-          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-warning-exception the-name e)))])
+          (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-warn-exception the-name e)))])
             (wisemon-make-target specs t the-name dry-run? always-run? just-touch?
                                  (map simple-form-path oldfiles)
                                  (map simple-form-path newfiles))))))))

@@ -101,12 +101,12 @@
 
     (define (trace) : Void
       (define log : (Immutable-Vector Symbol String Any (Option Symbol)) (sync/enable-break /dev/log))
-      (define-values  (rdt-level message urgent-data topic rlevel) (dtrace-received-message log))
-      
-      (cond [(exit? urgent-data) (quit rdt-level message urgent-data topic rlevel)]
+      (define-values  (rdt-level message udata topic rlevel) (dtrace-received-message log))
+
+      (cond [(exit? udata) (quit rdt-level message udata topic rlevel)]
             [(not (dtrace-level-okay? dt-level rdt-level rlevel)) (trace)]
             [(memq topic silent-topics) (trace)]
-            [else (dispatch rdt-level message urgent-data topic rlevel) (trace)]))
+            [else (dispatch rdt-level message udata topic rlevel) (trace)]))
     
     trace))
 
@@ -198,10 +198,11 @@
 (define dtrace-send : (->* (Any Symbol String Any) (Any) Void)
   (lambda [topic level message urgent [prefix? #true]]
     (define log-level : Log-Level (dtrace-symbol->level level))
-    (define urgent-data : Any (if (eq? log-level level) urgent (dtrace level urgent)))
-    (cond [(logger? topic) (log-message topic log-level message urgent-data (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
-          [(symbol? topic) (log-message /dev/dtrace log-level topic message urgent-data (and prefix? (not (eq? topic dtrace-topic))))]
-          [else (log-message /dev/dtrace log-level (datum-name topic) message urgent-data prefix?)])))
+    (define udata : Any (if (eq? log-level level) urgent (dtrace level urgent)))
+    
+    (cond [(logger? topic) (log-message topic log-level message udata (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
+          [(symbol? topic) (log-message /dev/dtrace log-level topic message udata (and prefix? (not (eq? topic dtrace-topic))))]
+          [else (log-message /dev/dtrace log-level (datum-name topic) message udata prefix?)])))
 
 (define dtrace-message : (->* (Symbol String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)
   (lambda [level #:topic [t /dev/dtrace] #:urgent [u (current-continuation-marks)] #:prefix? [? #true] msgfmt . messages]
