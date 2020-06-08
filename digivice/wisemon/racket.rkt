@@ -133,7 +133,7 @@
              [(note) (echof #:fgcolor 246 "~a~n" message)]
              [(info) (echof #:fgcolor info-color "~a~n" message)]
              [else (dtrace-event-echo level message urgent topic)])]
-          [(dtrace-level<? level 'info)
+          [(dtrace-level<? level 'note)
            (dtrace-event-echo level message urgent topic)])))
 
 (define racket-setup-event-echo : Dtrace-Receiver
