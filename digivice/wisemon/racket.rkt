@@ -24,7 +24,7 @@
 
 (unsafe-require/typed
  setup/setup
- [setup (-> [#:collections (Option (Listof (Listof Path-String)))] [#:make-docs? Boolean] [#:fail-fast? Boolean] Boolean)])
+ [setup (-> [#:collections (Option (Listof (Listof Path-String)))] [#:make-docs? Boolean] [#:fail-fast? Boolean] [#:recompile-only? Boolean] Boolean)])
 
 (unsafe-require/typed
  compiler/cm
@@ -49,12 +49,13 @@
 (define compile-collection : (->* (String) (Natural) Void)
   (lambda [digimon [round 1]]
     (define verbose! : Boolean (make-verbose))
+    (define recompiling? : Boolean (> round 1))
     (define context : Symbol 'platform)
     (set!-values (again? compiling-round) (values #false round))
 
     (define (stdout-level [line : String]) : (Values Symbol (Option String))
       (values 'note
-              (and (= round 1)
+              (and (not recompiling?)
                    (case context
                      [(platform) (when (regexp-match? #px"main collects" line) (set! context 'paths))]
                      [(paths) (when (regexp-match? #px"---" line) (set! context 'compiling))]
@@ -73,7 +74,7 @@
                    [call-post-install #false]
                    [current-output-port (open-output-dtrace stdout-level)]
                    [current-error-port (open-output-dtrace stderr-level)])
-      (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true)
+      (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true #:recompile-only? recompiling?)
           (error the-name "compiling failed.")))
 
     (when again? (compile-collection digimon (add1 round)))))
