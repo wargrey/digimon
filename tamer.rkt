@@ -131,7 +131,8 @@
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style:expr))
-              (~optional (~seq #:source src:string))) ...
+              (~optional (~seq #:source src:string))
+              (~optional (~seq #:index? index?))) ...
         contents ...)
      #`(begin (tamer-taming-start! scribble)
 
@@ -141,6 +142,11 @@
               (tamer-cite ~cite)
 
               (declare-exporting ,(or #,(attribute src) (tamer-story)))
+
+              (when #,(attribute index?)
+                (tamer-index-story
+                 (cons (add1 (car (tamer-index-story)))
+                       (tamer-story))))
 
               (title #:tag (tamer-story->tag (tamer-story))
                      #:style #,(attribute style)
@@ -192,14 +198,14 @@
 
 (define handbook-reference
   (lambda [#:auto-hide? [auto-hide? #true]]
+    ;;; NOTE
+    ; This section only contains references in the resulting `part` object,
+    ; It is a good chance to hide other contents such as verbose Literate Chunks if they are moved after.
+
     (define references
       ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
                          #:sec-title (speak 'reference #:dialect 'tamer)))
 
-    ;;; NOTE
-    ; This section only contains references in the resulting `part` object,
-    ; It is a good chance to hide other contents such as verbose Literate Chunks if they are moved after.
-    
     (tamer-story #false)
 
     (when (or (not auto-hide?)
@@ -233,7 +239,7 @@
 (define handbook-smart-table
   (lambda []
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (if (false? (handbook-renderer? get 'markdown))
            (table-of-contents)
            (make-delayed-block
@@ -270,6 +276,7 @@
                                                                            [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
                                                                            [_ 'lightcyan])))]))))))))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-action stx)
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
@@ -280,7 +287,7 @@
                  [else label]))
          (tamer-zone-reference this-story)
          (make-traverse-block
-          (λ [get set]
+          (λ [get set!]
             (define repl (examples #:label example-label #:eval (tamer-zone-ref this-story) s-exps ...))
             (tamer-zone-destory this-story)
             repl)))]))
@@ -327,7 +334,7 @@
     (define raco-setup-forget-my-digimon (current-digimon))
     
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (if (handbook-renderer? get 'markdown)
            (para (literal "---"))
            (make-delayed-block
@@ -412,14 +419,14 @@
     (define raco-setup-forget-my-digimon (current-digimon))
     
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (parameterize ([current-digimon raco-setup-forget-my-digimon])
          (define htag (tamer-story->tag this-story))
          (define toplevel-indent 2)
 
-         (define scenarios (traverse-ref! get set tamer-scribble-story-id make-hash))
-         (define btimes (traverse-ref! get set tamer-scribble-story-times make-hash))
-         (define issues (traverse-ref! get set tamer-scribble-story-issues make-hash))
+         (define scenarios (traverse-ref! get set! tamer-scribble-story-id make-hash))
+         (define btimes (traverse-ref! get set! tamer-scribble-story-times make-hash))
+         (define issues (traverse-ref! get set! tamer-scribble-story-issues make-hash))
          
          (margin-note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
                       (parameterize ([tamer-story this-story]
@@ -465,7 +472,7 @@
                         (define population (apply + (hash-values summary)))
 
                         (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
-                        (hash-set! btimes htag (map + (list cpu real gc) (hash-ref btimes htag (λ [] (list 0 0 0)))))
+                        (hash-set! btimes htag (map + (list cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
                         (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
                         
                         (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
@@ -483,7 +490,7 @@
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
@@ -497,7 +504,7 @@
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
@@ -535,7 +542,7 @@
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     (make-traverse-block
-     (λ [get set]
+     (λ [get set!]
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
@@ -565,3 +572,37 @@
                           (codeblock #:line-numbers line0 #:keep-lang-line? #true
                                      (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                   (string-join contents (string #\newline)))))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-tamer-indexed-traverse-block
+  (lambda [traverse index-type]
+    (define this-index-story (tamer-index-story))
+
+    (make-traverse-block
+     (λ [get set!]
+       (parameterize ([tamer-index-story this-index-story])
+         (define this-story (cdr this-index-story))
+         (define local-tags (traverse-indexed-tagbase get this-story index-type))
+         (define current-index (hash-ref local-tags 0 (λ [] 1)))
+         (define-values (current-tag block) (traverse index-type (car this-index-story) current-index))
+
+         (hash-set! local-tags current-tag current-index)
+         (hash-set! local-tags 0 (add1 current-index))
+         (traverse-indexed-tagbase set! this-story index-type local-tags get)
+
+         block)))))
+
+(define make-tamer-indexed-elemref
+  (lambda [resolve index-type tag]
+    (define this-index-story (tamer-index-story))
+    (define order (car this-index-story))
+    
+    (make-delayed-element
+     (λ [render% pthis infobase]
+       (parameterize ([tamer-index-story this-index-story])
+         (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+         (define local-tags (traverse-indexed-tagbase get (cdr this-index-story) index-type))
+         (define maybe-target-index (hash-ref local-tags tag (λ [] #false)))
+         (resolve index-type order maybe-target-index)))
+     (λ [] (content-width (resolve index-type order #false)))
+     (λ [] (content->string (resolve index-type order #false))))))

@@ -18,6 +18,8 @@
 (require (for-syntax racket/base))
 
 (define tamer-story (make-parameter #false))
+(define tamer-index-story (make-parameter (cons 1 #false)))
+
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
 (define tamer-reference (make-parameter void))
@@ -95,8 +97,8 @@
 (define tamer-scribble-story-times 'digimon:tamer:story:times)
 (define tamer-scribble-story-issues 'digimon:tamer:story:issues)
 
-(define tamer-empty-issues (make-immutable-hash))
 (define tamer-empty-times (list 0 0 0))
+(define tamer-empty-issues (make-immutable-hash))
 
 (define tamer-feature-reverse-merge
   (lambda [srutaef]
@@ -136,14 +138,32 @@
            (cons (tamer-tag-value (car val)) (tamer-tag-value (cdr val)))]
           [else val])))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; For indexed traverse blocks and elements
+(define tamer-scribble-story-index 'digimon:tamer:story:index)
+
+(define traverse-indexed-tagbase
+  (case-lambda
+    [(get story index-type) ; (HashTable (U Symbol Zero) Natural)
+     (define indices (or (get tamer-scribble-story-index #false) (make-hasheq)))
+     (define tags (hash-ref indices index-type (λ [] #false)))
+     
+     (or (and tags (hash-ref tags story (λ [] #false)))
+         (make-hasheq))]
+    [(set! story index-type local-tags get)
+     (define indices (traverse-ref! get set! tamer-scribble-story-index make-hasheq))
+     (define tags (hash-ref! indices index-type (λ [] (make-hash))))
+
+     (hash-set! tags story local-tags)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define traverse-ref!
-  (lambda [get set symbol make-default]
+  (lambda [get set! symbol make-default]
     (unless (get symbol #false)
-      (set symbol (make-default)))
+      (set! symbol (make-default)))
 
     (get symbol #false)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~markdown
   (lambda [line]
     (define padding (λ [line] (make-string (- 72 (remainder (string-length (format "~a" line)) 72)) #\space)))
