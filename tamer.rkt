@@ -581,28 +581,25 @@
     (make-traverse-block
      (λ [get set!]
        (parameterize ([tamer-index-story this-index-story])
+         (define order (car this-index-story))
          (define this-story (cdr this-index-story))
-         (define local-tags (traverse-indexed-tagbase get this-story index-type))
-         (define current-index (hash-ref local-tags 0 (λ [] 1)))
-         (define-values (current-tag block) (traverse index-type (car this-index-story) current-index))
+         (define global-tags (traverse-indexed-tagbase get index-type))
+         (define current-index (hash-ref global-tags this-story (λ [] 1)))
+         (define-values (current-tag block) (traverse index-type order current-index))
 
-         (hash-set! local-tags current-tag current-index)
-         (hash-set! local-tags 0 (add1 current-index))
-         (traverse-indexed-tagbase set! this-story index-type local-tags get)
+         (hash-set! global-tags current-tag (cons order current-index))
+         (hash-set! global-tags this-story (add1 current-index))
+         (traverse-indexed-tagbase set! index-type global-tags get)
 
          block)))))
 
 (define make-tamer-indexed-elemref
   (lambda [resolve index-type tag]
-    (define this-index-story (tamer-index-story))
-    (define order (car this-index-story))
-    
     (make-delayed-element
      (λ [render% pthis infobase]
-       (parameterize ([tamer-index-story this-index-story])
-         (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
-         (define local-tags (traverse-indexed-tagbase get (cdr this-index-story) index-type))
-         (define maybe-target-index (hash-ref local-tags tag (λ [] #false)))
-         (resolve index-type order maybe-target-index)))
-     (λ [] (content-width (resolve index-type order #false)))
-     (λ [] (content->string (resolve index-type order #false))))))
+       (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+       (define global-tags (traverse-indexed-tagbase get index-type))
+       (define target-info (hash-ref global-tags tag (λ [] (cons #false #false))))
+       (resolve index-type (car target-info) (cdr target-info)))
+     (λ [] (content-width (resolve index-type #false #false)))
+     (λ [] (content->string (resolve index-type #false #false))))))

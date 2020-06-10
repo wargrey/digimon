@@ -144,17 +144,12 @@
 
 (define traverse-indexed-tagbase
   (case-lambda
-    [(get story index-type) ; (HashTable (U Symbol Zero) Natural)
+    [(get index-type) ; (HashTable (U Symbol Tamer-Story String) Natural)
      (define indices (or (get tamer-scribble-story-index #false) (make-hasheq)))
-     (define tags (hash-ref indices index-type (λ [] #false)))
-     
-     (or (and tags (hash-ref tags story (λ [] #false)))
-         (make-hasheq))]
-    [(set! story index-type local-tags get)
+     (hash-ref indices index-type (λ [] (make-hash)))]
+    [(set! index-type local-tags get)
      (define indices (traverse-ref! get set! tamer-scribble-story-index make-hasheq))
-     (define tags (hash-ref! indices index-type (λ [] (make-hash))))
-
-     (hash-set! tags story local-tags)]))
+     (hash-set! indices index-type local-tags)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define traverse-ref!
