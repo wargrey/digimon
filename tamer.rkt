@@ -85,12 +85,16 @@
   (lambda [get]
     (handbook-renderer? get 'latex)))
 
-(define make-prefab-style
+(define handbook-prefab-style
   (lambda properties
     (make-style #false
                 (filter symbol? properties))))
 
-(define register-handbook-finalizer
+(define handbook-resolve-info-getter
+  (lambda [infobase]
+    (curry hash-ref (collect-info-fp (resolve-info-ci infobase)))))
+
+(define handbook-register-finalizer
   (lambda [atexit/0]
     (void ((curry plumber-add-flush! (current-plumber))
            (λ [this] (with-handlers ([void void])
@@ -339,7 +343,7 @@
            (para (literal "---"))
            (make-delayed-block
             (λ [render% pthis infobase]
-              (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+              (define get (handbook-resolve-info-getter infobase))
               (define scenarios (get tamer-scribble-story-id tamer-empty-issues))
               (define btimes (get tamer-scribble-story-times tamer-empty-issues))
               (define issues (get tamer-scribble-story-issues tamer-empty-issues))
@@ -597,7 +601,7 @@
   (lambda [resolve index-type tag]
     (make-delayed-element
      (λ [render% pthis infobase]
-       (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+       (define get (handbook-resolve-info-getter infobase))
        (define global-tags (traverse-indexed-tagbase get index-type))
        (define target-info (hash-ref global-tags tag (λ [] (cons #false #false))))
        (resolve index-type (car target-info) (cdr target-info)))
