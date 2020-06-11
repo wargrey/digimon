@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
-(provide (all-from-out "spec.rkt" "digitama/citation.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
+(provide (all-from-out "spec.rkt" "digitama/plural.rkt" "digitama/citation.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (require racket/hash)
 
@@ -22,6 +22,7 @@
 
 (require "digitama/tamer.rkt")
 (require "digitama/citation.rkt")
+(require "digitama/plural.rkt")
 
 (require "spec.rkt")
 (require "echo.rkt")
