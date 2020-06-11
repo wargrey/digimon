@@ -80,7 +80,9 @@
 
 (define handbook-renderer?
   (lambda [get render]
-    (memq render (get 'scribble:current-render-mode null))))
+    (memq render
+          (cond [(procedure? get) (get 'scribble:current-render-mode null)]
+                [else (send get current-render-mode)]))))
 
 (define handbook-latex-renderer?
   (lambda [get]
@@ -91,7 +93,7 @@
     (make-style #false
                 (filter symbol? properties))))
 
-(define handbook-resolve-info-getter
+(define handbook-resolved-info-getter
   (lambda [infobase]
     (curry hash-ref (collect-info-fp (resolve-info-ci infobase)))))
 
@@ -344,7 +346,7 @@
            (para (literal "---"))
            (make-delayed-block
             (λ [render% pthis infobase]
-              (define get (handbook-resolve-info-getter infobase))
+              (define get (handbook-resolved-info-getter infobase))
               (define scenarios (get tamer-scribble-story-id tamer-empty-issues))
               (define btimes (get tamer-scribble-story-times tamer-empty-issues))
               (define issues (get tamer-scribble-story-issues tamer-empty-issues))
@@ -602,7 +604,7 @@
   (lambda [resolve index-type tag]
     (make-delayed-element
      (λ [render% pthis infobase]
-       (define get (handbook-resolve-info-getter infobase))
+       (define get (handbook-resolved-info-getter infobase))
        (define global-tags (traverse-indexed-tagbase get index-type))
        (define target-info (hash-ref global-tags tag (λ [] (cons #false #false))))
        (resolve index-type (car target-info) (cdr target-info)))
