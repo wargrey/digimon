@@ -17,5 +17,6 @@
           [else #false])
         (let ([slast (string-ref words (sub1 size))])
           (cond [(not (eq? slast #\s)) words]
+                [(regexp-match? #px"ics$" words) words] ; for branches of study or action
                 [(regexp-match? #px"ies$" words) (string-append (substring words 0 (- size 3)) "y")]
                 [else (substring words 0 (sub1 size))])))))
