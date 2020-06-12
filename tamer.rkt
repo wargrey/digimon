@@ -183,24 +183,25 @@
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
     (define scenario-literal (speak 'scenario #:dialect 'tamer))
     
-    (section #:tag tag #:tag-prefix (tamer-story->tag (tamer-story)) #:style style
+    (section #:tag (or tag (symbol->string (gensym 'scenario)))
+             #:tag-prefix (tamer-story->tag (tamer-story))
+             #:style style
              (cond [(string=? scenario-literal "") pre-contents]
                    [else (list* (literal scenario-literal ":")
                                 ~ pre-contents)]))))
 
 (define handbook-action
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsection #:tag tag #:tag-prefix (tamer-story->tag (tamer-story)) #:style style
+    (subsection #:tag (or tag (symbol->string (gensym 'action)))
+                #:tag-prefix (tamer-story->tag (tamer-story))
+                #:style style
                 pre-contents)))
-
-(define handbook-subaction
-  (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsubsection #:tag tag #:tag-prefix (tamer-story->tag (tamer-story)) #:style style
-                   pre-contents)))
 
 (define handbook-event
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsubsection #:tag tag #:tag-prefix (tamer-story->tag (tamer-story)) #:style style
+    (subsubsection #:tag (or tag (symbol->string (gensym 'event)))
+                   #:tag-prefix (tamer-story->tag (tamer-story))
+                   #:style style
                    pre-contents)))
 
 (define handbook-reference
