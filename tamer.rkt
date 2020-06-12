@@ -80,9 +80,10 @@
 
 (define handbook-renderer?
   (lambda [get render]
-    (memq render
-          (cond [(procedure? get) (get 'scribble:current-render-mode null)]
-                [else (send get current-render-mode)]))))
+    (and (memq render
+               (cond [(procedure? get) (get 'scribble:current-render-mode null)]
+                     [else (send get current-render-mode)]))
+         #true)))
 
 (define handbook-latex-renderer?
   (lambda [get]
@@ -283,6 +284,29 @@
                                                                            [(regexp #px"( [^0]|\\d\\d) TODO") 'lightmagenta]
                                                                            [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
                                                                            [_ 'lightcyan])))]))))))))))))
+
+(define handbook-latex-command0
+  (lambda [cmd]
+    (make-traverse-element
+     (λ [get set!]
+       (cond [(handbook-latex-renderer? get) (elem #:style cmd null)]
+             [else null])))))
+
+(define handbook-texbook-front
+  (lambda []
+    (handbook-latex-command0 "frontmatter")))
+
+(define handbook-texbook-main
+  (lambda []
+    (handbook-latex-command0 "mainmatter")))
+
+(define handbook-texbook-appendix
+  (lambda []
+    (handbook-latex-command0 "appendix")))
+
+(define handbook-texbook-back
+  (lambda []
+    (handbook-latex-command0 "backmatter")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-action stx)
