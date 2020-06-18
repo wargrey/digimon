@@ -9,3 +9,7 @@
           [(and name) (string->symbol (format "<object-name:~a>" name))]
           [(symbol? v) (string->symbol (format "<symbol:~a>" v))]
           [else (string->symbol (format "<object-value:~a>" v))])))
+
+(define list->symbol : (-> (Listof Char) Symbol)
+  (lambda [lst]
+    (string->symbol (list->string lst))))
