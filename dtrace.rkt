@@ -26,7 +26,10 @@
 (define dtrace-topic : Symbol 'dtrace)
 
 (define /dev/log : Logger (make-logger 'digimon (current-logger)))
-(define /dev/dtrace : Logger (make-logger dtrace-topic #false))
+(define /dev/dtrace : Logger
+  (let* ([maybe-dtrace-in-fresh-namespace (current-logger)])
+    (cond [(eq? (logger-name maybe-dtrace-in-fresh-namespace) dtrace-topic) maybe-dtrace-in-fresh-namespace]
+          [else (make-logger dtrace-topic #false)])))
 
 (define dtrace-silent-topics : (Listof Symbol)
   '(GC racket/contract optimizer place syntax-parse
