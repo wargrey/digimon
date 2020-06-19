@@ -13,3 +13,7 @@
 (define list->symbol : (-> (Listof Char) Symbol)
   (lambda [lst]
     (string->symbol (list->string lst))))
+
+(define rlist->symbol : (-> (Listof Char) Symbol)
+  (lambda [lst]
+    (string->symbol (list->string (reverse lst)))))
