@@ -305,6 +305,14 @@
   (lambda []
     (handbook-latex-command0 "backmatter")))
 
+(define handbook-latex-prefab-string
+  (lambda [TeX]
+    (case (string->symbol (string-downcase TeX))
+      [(tex) (handbook-latex-command0 "TeX")]
+      [(latex) (handbook-latex-command0 "LaTeX")]
+      [(latexe) (handbook-latex-command0 "LaTeXe")]
+      [else (handbook-latex-command0 TeX)])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-action stx)
   (syntax-parse stx #:literals []
