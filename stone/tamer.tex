@@ -22,6 +22,163 @@
 \setcounter{secnumdepth}{3}
 \pagestyle{headings}
 
-\newenvironment{boxed}
-{\colorbox{blue}\begin{quote}}
-{\end{quote}\color{blue}}
+\definecolor{OrangeRed}{RGB}{255, 69, 0}
+\definecolor{Tomato}{RGB}{255, 99, 71}
+\definecolor{DarkRed}{RGB}{139, 0, 0}
+\definecolor{Red}{RGB}{255, 0, 0}
+\definecolor{Firebrick}{RGB}{178, 34, 34}
+\definecolor{Crimson}{RGB}{220, 20, 60}
+\definecolor{DeepPink}{RGB}{255, 20, 147}
+\definecolor{Maroon}{RGB}{176, 48, 96}
+\definecolor{IndianRed}{RGB}{205, 92, 92}
+\definecolor{MediumVioletRed}{RGB}{199, 21, 133}
+\definecolor{VioletRed}{RGB}{208, 32, 144}
+\definecolor{LightCoral}{RGB}{240, 128, 128}
+\definecolor{HotPink}{RGB}{255, 105, 180}
+\definecolor{PaleVioletRed}{RGB}{219, 112, 147}
+\definecolor{LightPink}{RGB}{255, 182, 193}
+\definecolor{RosyBrown}{RGB}{188, 143, 143}
+\definecolor{Pink}{RGB}{255, 192, 203}
+\definecolor{Orchid}{RGB}{218, 112, 214}
+\definecolor{LavenderBlush}{RGB}{255, 240, 245}
+\definecolor{Snow}{RGB}{255, 250, 250}
+\definecolor{Chocolate}{RGB}{210, 105, 30}
+\definecolor{SaddleBrown}{RGB}{139, 69, 19}
+\definecolor{Brown}{RGB}{132, 60, 36}
+\definecolor{DarkOrange}{RGB}{255, 140, 0}
+\definecolor{Coral}{RGB}{255, 127, 80}
+\definecolor{Sienna}{RGB}{160, 82, 45}
+\definecolor{Orange}{RGB}{255, 165, 0}
+\definecolor{Salmon}{RGB}{250, 128, 114}
+\definecolor{Peru}{RGB}{205, 133, 63}
+\definecolor{DarkGoldenrod}{RGB}{184, 134, 11}
+\definecolor{Goldenrod}{RGB}{218, 165, 32}
+\definecolor{SandyBrown}{RGB}{244, 164, 96}
+\definecolor{LightSalmon}{RGB}{255, 160, 122}
+\definecolor{DarkSalmon}{RGB}{233, 150, 122}
+\definecolor{Gold}{RGB}{255, 215, 0}
+\definecolor{Yellow}{RGB}{255, 255, 0}
+\definecolor{Olive}{RGB}{128, 128, 0}
+\definecolor{Burlywood}{RGB}{222, 184, 135}
+\definecolor{Tan}{RGB}{210, 180, 140}
+\definecolor{NavajoWhite}{RGB}{255, 222, 173}
+\definecolor{PeachPuff}{RGB}{255, 218, 185}
+\definecolor{Khaki}{RGB}{240, 230, 140}
+\definecolor{DarkKhaki}{RGB}{189, 183, 107}
+\definecolor{Moccasin}{RGB}{255, 228, 181}
+\definecolor{Wheat}{RGB}{245, 222, 179}
+\definecolor{Bisque}{RGB}{255, 228, 196}
+\definecolor{PaleGoldenrod}{RGB}{238, 232, 170}
+\definecolor{BlanchedAlmond}{RGB}{255, 235, 205}
+\definecolor{MediumGoldenrod}{RGB}{234, 234, 173}
+\definecolor{PapayaWhip}{RGB}{255, 239, 213}
+\definecolor{MistyRose}{RGB}{255, 228, 225}
+\definecolor{LemonChiffon}{RGB}{255, 250, 205}
+\definecolor{AntiqueWhite}{RGB}{250, 235, 215}
+\definecolor{Cornsilk}{RGB}{255, 248, 220}
+\definecolor{LightGoldenrodYellow}{RGB}{250, 250, 210}
+\definecolor{OldLace}{RGB}{253, 245, 230}
+\definecolor{Linen}{RGB}{250, 240, 230}
+\definecolor{LightYellow}{RGB}{255, 255, 224}
+\definecolor{SeaShell}{RGB}{255, 245, 238}
+\definecolor{Beige}{RGB}{245, 245, 220}
+\definecolor{FloralWhite}{RGB}{255, 250, 240}
+\definecolor{Ivory}{RGB}{255, 255, 240}
+\definecolor{Green}{RGB}{0, 255, 0}
+\definecolor{LawnGreen}{RGB}{124, 252, 0}
+\definecolor{Chartreuse}{RGB}{127, 255, 0}
+\definecolor{GreenYellow}{RGB}{173, 255, 47}
+\definecolor{YellowGreen}{RGB}{154, 205, 50}
+\definecolor{MediumForestGreen}{RGB}{107, 142, 35}
+\definecolor{OliveDrab}{RGB}{107, 142, 35}
+\definecolor{DarkOliveGreen}{RGB}{85, 107, 47}
+\definecolor{DarkSeaGreen}{RGB}{143, 188, 139}
+\definecolor{Lime}{RGB}{0, 255, 0}
+\definecolor{DarkGreen}{RGB}{0, 100, 0}
+\definecolor{LimeGreen}{RGB}{50, 205, 50}
+\definecolor{ForestGreen}{RGB}{34, 139, 34}
+\definecolor{SpringGreen}{RGB}{0, 255, 127}
+\definecolor{MediumSpringGreen}{RGB}{0, 250, 154}
+\definecolor{SeaGreen}{RGB}{46, 139, 87}
+\definecolor{MediumSeaGreen}{RGB}{60, 179, 113}
+\definecolor{Aquamarine}{RGB}{112, 216, 144}
+\definecolor{LightGreen}{RGB}{144, 238, 144}
+\definecolor{PaleGreen}{RGB}{152, 251, 152}
+\definecolor{MediumAquamarine}{RGB}{102, 205, 170}
+\definecolor{Turquoise}{RGB}{64, 224, 208}
+\definecolor{LightSeaGreen}{RGB}{32, 178, 170}
+\definecolor{MediumTurquoise}{RGB}{72, 209, 204}
+\definecolor{Honeydew}{RGB}{240, 255, 240}
+\definecolor{MintCream}{RGB}{245, 255, 250}
+\definecolor{RoyalBlue}{RGB}{65, 105, 225}
+\definecolor{DodgerBlue}{RGB}{30, 144, 255}
+\definecolor{DeepSkyBlue}{RGB}{0, 191, 255}
+\definecolor{CornflowerBlue}{RGB}{100, 149, 237}
+\definecolor{SteelBlue}{RGB}{70, 130, 180}
+\definecolor{LightSkyBlue}{RGB}{135, 206, 250}
+\definecolor{DarkTurquoise}{RGB}{0, 206, 209}
+\definecolor{Cyan}{RGB}{0, 255, 255}
+\definecolor{Aqua}{RGB}{0, 255, 255}
+\definecolor{DarkCyan}{RGB}{0, 139, 139}
+\definecolor{Teal}{RGB}{0, 128, 128}
+\definecolor{SkyBlue}{RGB}{135, 206, 235}
+\definecolor{CadetBlue}{RGB}{96, 160, 160}
+\definecolor{DarkSlateGray}{RGB}{47, 79, 79}
+\definecolor{LightSlateGray}{RGB}{119, 136, 153}
+\definecolor{SlateGray}{RGB}{112, 128, 144}
+\definecolor{LightSteelBlue}{RGB}{176, 196, 222}
+\definecolor{LightBlue}{RGB}{173, 216, 230}
+\definecolor{PowderBlue}{RGB}{176, 224, 230}
+\definecolor{PaleTurquoise}{RGB}{175, 238, 238}
+\definecolor{LightCyan}{RGB}{224, 255, 255}
+\definecolor{AliceBlue}{RGB}{240, 248, 255}
+\definecolor{Azure}{RGB}{240, 255, 255}
+\definecolor{MediumBlue}{RGB}{0, 0, 205}
+\definecolor{DarkBlue}{RGB}{0, 0, 139}
+\definecolor{MidnightBlue}{RGB}{25, 25, 112}
+\definecolor{Navy}{RGB}{36, 36, 140}
+\definecolor{Blue}{RGB}{0, 0, 255}
+\definecolor{Indigo}{RGB}{75, 0, 130}
+\definecolor{BlueViolet}{RGB}{138, 43, 226}
+\definecolor{MediumSlateBlue}{RGB}{123, 104, 238}
+\definecolor{SlateBlue}{RGB}{106, 90, 205}
+\definecolor{Purple}{RGB}{160, 32, 240}
+\definecolor{DarkSlateBlue}{RGB}{72, 61, 139}
+\definecolor{DarkViolet}{RGB}{148, 0, 211}
+\definecolor{DarkOrchid}{RGB}{153, 50, 204}
+\definecolor{MediumPurple}{RGB}{147, 112, 219}
+\definecolor{MediumOrchid}{RGB}{186, 85, 211}
+\definecolor{Magenta}{RGB}{255, 0, 255}
+\definecolor{Fuchsia}{RGB}{255, 0, 255}
+\definecolor{DarkMagenta}{RGB}{139, 0, 139}
+\definecolor{Violet}{RGB}{238, 130, 238}
+\definecolor{Plum}{RGB}{221, 160, 221}
+\definecolor{Lavender}{RGB}{230, 230, 250}
+\definecolor{Thistle}{RGB}{216, 191, 216}
+\definecolor{GhostWhite}{RGB}{248, 248, 255}
+\definecolor{White}{RGB}{255, 255, 255}
+\definecolor{WhiteSmoke}{RGB}{245, 245, 245}
+\definecolor{Gainsboro}{RGB}{220, 220, 220}
+\definecolor{LightGray}{RGB}{211, 211, 211}
+\definecolor{Silver}{RGB}{192, 192, 192}
+\definecolor{Gray}{RGB}{190, 190, 190}
+\definecolor{DarkGray}{RGB}{169, 169, 169}
+\definecolor{DimGray}{RGB}{105, 105, 105}
+\definecolor{Black}{RGB}{0, 0, 0}
+
+\newcommand{\PlainBox}[1] {
+  \begin{quote} #1 \end{quote}
+}
+
+% NOTE: minipage does not break page
+\newcommand{\ColorBox}[2]{
+  \colorbox{#2}{
+    \begin{minipage}[c]{0.965\linewidth}
+      \PlainBox{#1}
+    \end{minipage}
+  }
+}
+
+\newcommand{\boxed}[1]{
+  \ColorBox{#1}{AliceBlue}
+}

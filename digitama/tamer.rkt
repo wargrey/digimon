@@ -154,7 +154,7 @@
      (hash-set! indices index-type local-tags)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-boxed-style (make-style "boxed" null))
+(define handbook-boxed-style (make-style "boxed" (list 'command)))
 
 (define smart-nested-filebox
   (lambda [latex? /path/file block]
