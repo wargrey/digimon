@@ -634,11 +634,16 @@
 
 (define make-tamer-indexed-elemref
   (lambda [resolve index-type tag]
+    (define sym:tag
+      (cond [(symbol? tag) tag]
+            [(string? tag) (string->symbol tag)]
+            [else (string->symbol (~a tag))]))
+    
     (make-delayed-element
      (λ [render% pthis infobase]
        (define get (handbook-resolved-info-getter infobase))
        (define global-tags (traverse-indexed-tagbase get index-type))
-       (define target-info (hash-ref global-tags tag (λ [] (cons #false #false))))
+       (define target-info (hash-ref global-tags sym:tag (λ [] (cons #false #false))))
        (resolve index-type (car target-info) (cdr target-info)))
      (λ [] (content-width (resolve index-type #false #false)))
      (λ [] (content->string (resolve index-type #false #false))))))
