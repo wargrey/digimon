@@ -109,6 +109,8 @@
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
      #'(begin (enter-digimon-zone!)
+              (tamer-index-story (cons 0 (tamer-story)))
+              
               (title #:tag "tamer-book"
                      #:version (format "~a" (#%info 'version (const "Baby")))
                      #:style (let* ([local-stone (digimon-path 'stone)])
