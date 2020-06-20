@@ -22,8 +22,8 @@
 (require "typeset/bin/luahbtex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-render : (->* (Symbol Path-String Path-String) (Boolean #:fallback Symbol #:retry Byte #:enable-filter Boolean) Path)
-  (lambda [renderer src.tex dest-dir [verbose? #true] #:fallback [fallback 'latex] #:retry [retry 4] #:enable-filter [enable-filter #false]]
+(define tex-render : (->* (Symbol Path-String Path-String) (#:fallback Symbol #:retry Byte #:enable-filter Boolean) Path)
+  (lambda [renderer src.tex dest-dir #:fallback [fallback 'latex] #:retry [retry 4] #:enable-filter [enable-filter #false]]
     (define latex : (Option Tex-Renderer)
       (hash-ref latex-database renderer
                 (λ [] (hash-ref latex-database fallback (λ [] #false)))))
@@ -56,8 +56,8 @@
                             (copy-port /dev/texin /dev/texout))
                           
                           (custodian-shutdown-all (current-custodian)))
-                        (tex-exec renderer latex TEXNAME.tex dest-dir retry verbose?))
-                      (tex-exec renderer latex src.tex dest-dir retry verbose?)))])))
+                        (tex-exec renderer latex TEXNAME.tex dest-dir retry))
+                      (tex-exec renderer latex src.tex dest-dir retry)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes) (Option Path))

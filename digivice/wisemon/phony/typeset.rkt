@@ -50,7 +50,7 @@
                           (dtrace-note "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
                       
                       (if (and raw-tex?)
-                          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #false)])
+                          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:enable-filter #false)])
                             (unless (not maybe-name)
                               (let* ([ext (path-get-extension TEXNAME.ext)]
                                      [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
@@ -73,7 +73,7 @@
                                 (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
                               
                               (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
-                              (tex-render renderer src.tex dest-dir (make-verbose) #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
+                              (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
 
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]

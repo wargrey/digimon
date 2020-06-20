@@ -12,8 +12,8 @@
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-exec : (-> Symbol Tex-Renderer Path-String Path-String Byte Boolean Path)
-  (lambda [renderer latex TEXNAME.tex dest-dir retry on-error-logging]
+(define tex-exec : (-> Symbol Tex-Renderer Path-String Path-String Byte Path)
+  (lambda [renderer latex TEXNAME.tex dest-dir retry]
     (define post-exec : (Option Tex-Post-Exec) (tex-renderer-post-exec latex))
     (define TEXNAME : Path (assert (file-name-from-path TEXNAME.tex) path?))
     (define TEXNAME.ext : Path (build-path dest-dir (path-replace-extension TEXNAME (tex-renderer-extension latex))))
@@ -33,12 +33,10 @@
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                          [else (path->string TEXNAME.tex)])))
                        digimon-system
-                       (and on-error-logging
-                            (tex-renderer-on-error-logging? latex)
-                            (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer]]
-                              (define log-now (file-mtime TEXNAME.log))
-                              (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
-                                    [(> log-now 0) (fg-recon-cat renderer TEXNAME.log (current-error-port))]))))
+                       (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer]]
+                         (define log-now (file-mtime TEXNAME.log))
+                         (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
+                               [(> log-now 0) (tex-log-cat renderer TEXNAME.log)])))
         
         (when (and (file-exists? TEXNAME.log) (> (file-mtime TEXNAME.log) log-timestamp))
           ;;; NOTE
@@ -53,3 +51,19 @@
     
     (cond [(not post-exec) TEXNAME.ext]
           [else (post-exec renderer TEXNAME.ext digimon-system)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define tex-log-cat : (-> Symbol Path Void)
+  (lambda [renderer TEXNAME.log]
+    (call-with-input-file* TEXNAME.log
+      (λ [[/dev/login : Input-Port]]
+        (let cat : Void ([error? : Boolean #false])
+          (define log (read-line /dev/login 'any))
+          (when (string? log)
+            (case (if (eq? (string-length log) 0) 0 (eq? (string-ref log 0) #\!))
+              [(#true) (dtrace-error log #:topic renderer) (cat #true)]
+              [(#false)
+               (cond [(not error?) (dtrace-debug log #:topic renderer) (cat error?)]
+                     [(regexp-match? #px"^l[.]\\d+" log) (dtrace-note log #:topic renderer) (cat #false)]
+                     [else (dtrace-debug log #:topic renderer) (cat error?)])]
+              [else (cat error?)])))))))
