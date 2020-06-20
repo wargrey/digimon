@@ -17,6 +17,7 @@
 
 (require (for-syntax racket/base))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-story (make-parameter #false))
 (define tamer-index-story (make-parameter (cons 1 #false)))
 
@@ -24,6 +25,7 @@
 (define tamer-cites (make-parameter void))
 (define tamer-reference (make-parameter void))
   
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-story->tag stx)
   (syntax-case stx []
     [(_ story-sexp)
@@ -150,6 +152,17 @@
     [(set! index-type local-tags get)
      (define indices (traverse-ref! get set! tamer-scribble-story-index make-hasheq))
      (hash-set! indices index-type local-tags)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-boxed-style (make-style "boxed" null))
+
+(define smart-nested-filebox
+  (lambda [latex? /path/file block]
+    (nested #:style handbook-boxed-style
+            (filebox (if (not latex?)
+                         (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                         (italic (path->string (tr-if-path /path/file))))
+                     block))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define traverse-ref!

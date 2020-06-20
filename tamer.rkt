@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out))
+(provide (all-defined-out) handbook-boxed-style)
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "spec.rkt" "digitama/plural.rkt" "digitama/citation.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
@@ -384,7 +384,7 @@
               (define issues (get tamer-scribble-story-issues tamer-empty-issues))
 
               (parameterize ([current-digimon raco-setup-forget-my-digimon])
-                (nested #:style (make-style "boxed" null)
+                (nested #:style handbook-boxed-style
                         (filebox (if (module-path? this-story)
                                      (italic (seclink "tamer-book" (string open-book#)) ~
                                              (~a "Behaviors in " (tamer-story->tag this-story)))
@@ -533,10 +533,10 @@
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (nested #:style (make-style "boxed" null)
-                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                          (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number starts from 1
-                                     (string-trim (file->string /path/file) #:left? #false #:right? #true)))))))))
+         (smart-nested-filebox (handbook-latex-renderer? get)
+                               /path/file
+                               (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
+                                          (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
 
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
@@ -570,11 +570,11 @@
                         (read-next lang line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next lang (add1 line0) contents end)])))))
-         (nested #:style (make-style "boxed" null)
-                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                          (codeblock #:line-numbers line0 #:keep-lang-line? #false
-                                     (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                  (string-join contents (string #\newline)))))))))))
+         (smart-nested-filebox (handbook-latex-renderer? get)
+                               /path/file
+                               (codeblock #:line-numbers line0 #:keep-lang-line? #false
+                                          (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                       (string-join contents (string #\newline))))))))))
 
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
@@ -606,11 +606,11 @@
                         (read-next line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next (add1 line0) contents end)])))))
-         (nested #:style (make-style "boxed" null)
-                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                          (codeblock #:line-numbers line0 #:keep-lang-line? #true
-                                     (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                  (string-join contents (string #\newline)))))))))))
+         (smart-nested-filebox (handbook-latex-renderer? get)
+                               /path/file
+                               (codeblock #:line-numbers line0 #:keep-lang-line? #true
+                                          (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                       (string-join contents (string #\newline))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block
