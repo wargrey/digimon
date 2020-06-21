@@ -634,6 +634,7 @@
 
 (define make-tamer-indexed-elemref
   (lambda [resolve index-type tag]
+    (define this-index-story (tamer-index-story))
     (define sym:tag
       (cond [(symbol? tag) tag]
             [(string? tag) (string->symbol tag)]
@@ -643,7 +644,7 @@
      (λ [render% pthis infobase]
        (define get (handbook-resolved-info-getter infobase))
        (define global-tags (traverse-indexed-tagbase get index-type))
-       (define target-info (hash-ref global-tags sym:tag (λ [] (cons #false #false))))
+       (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car this-index-story) #false))))
        (resolve index-type (car target-info) (cdr target-info)))
-     (λ [] (content-width (resolve index-type #false #false)))
-     (λ [] (content->string (resolve index-type #false #false))))))
+     (λ [] (content-width (resolve index-type (car this-index-story) #false)))
+     (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
