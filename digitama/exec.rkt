@@ -81,9 +81,9 @@
     (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
       (fg-eval operation s-expr ns))))
 
-(define fg-recon-replace-file : (All (a) (-> Symbol Path-String (-> Output-Port a) (U a Void)))
+(define fg-recon-save-file : (All (a) (-> Symbol Path-String (-> Output-Port a) (U a Void)))
   (lambda [operation path write]
-    (dtrace-info #:topic operation "(write-with-file ~a ~a)" path (object-name write))
+    (dtrace-info #:topic operation "(call-to-save-file ~a ~a)" path (object-name write))
     (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
       (call-with-output-file* path write #:exists 'truncate/replace))))
 

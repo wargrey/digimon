@@ -102,7 +102,7 @@
                                     (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
                                     (displayln "}" /dev/stdout)
                                     (newline /dev/stdout))
-                                  (fg-recon-replace-file renderer pdfinfo.tex hypersetup)))))))
+                                  (fg-recon-save-file renderer pdfinfo.tex hypersetup)))))))
     
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]
