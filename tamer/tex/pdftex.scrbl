@@ -1,4 +1,4 @@
-#lang scribble/base
+#lang scribble/manual
  
 @title{On the Cookie-Eating Habits of Mice}
  
@@ -13,8 +13,16 @@ suppose that you give him some in a big glass.
 He's a small mouse. The glass is too big---way too
 big. So, he'll probably ask you for a straw. You might as
 well give it to him.
+
+The @deftech{term} is defined here.
  
 @section{Not the Last Straw}
  
 For now, to handle the milk moustache, it's enough to give
 him a napkin. But it doesn't end there... oh, no.
+
+It should jump to the @tech{term}.
+
+The @elemtag["tag"]{element} is tagged here.
+
+It should jump to the @elemref["tag"]{element}.
