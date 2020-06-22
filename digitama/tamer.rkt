@@ -56,12 +56,11 @@
 (define tamer-resource-files
   (lambda [basename tamer.res]
     (define local-stone (digimon-path 'stone))
-    (define basename.res (~a basename (substring tamer.res 5)))
     
     (remove-duplicates (filter file-exists?
                                (list (collection-file-path tamer.res "digimon" "stone")
                                      (build-path local-stone tamer.res)
-                                     (build-path local-stone basename.res))))))
+                                     (build-path local-stone basename tamer.res))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Scribble and Racket

@@ -38,16 +38,22 @@
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
+    (define local-info.rkt : Path (digimon-path 'info))
+    (define local-stone : Path (digimon-path 'stone))
+    
     (for/fold ([specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
       (define scrbl-dependencies (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
+      (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
       (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
+      (define docmentclass.tex (build-path this-stone "documentclass.tex"))
+      (define style.tex (build-path this-stone "style.tex"))
 
       (append specs
-              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex (digimon-path 'info) (filter file-exists? scrbl-dependencies)) #:-
+              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (list* docmentclass.tex style.tex scrbl-dependencies))) #:-
                                   (define dest-dir : (Option Path) (path-only TEXNAME.ext))
                                   (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                                   
@@ -72,7 +78,9 @@
                                             (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
                                             (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
                                                      (render (list (dynamic-require TEXNAME.scrbl 'doc)) (list ,src.tex)
-                                                             #:render-mixin tex:render-mixin #:dest-dir dest-dir #:style-extra-files (list ,pdfinfo.tex)
+                                                             #:render-mixin tex:render-mixin #:dest-dir dest-dir
+                                                             #:prefix-file (and (file-exists? ,docmentclass.tex) ,docmentclass.tex)
+                                                             #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)
                                                              #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                                             
                                             (when (file-exists? hook.rktl)
@@ -84,7 +92,7 @@
                                             (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
                                             (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true))))))
 
-                    (wisemon-spec pdfinfo.tex #:^ (list (digimon-path 'info) TEXNAME.scrbl) #:-
+                    (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
                                   (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
                                   (define (hypersetup [/dev/stdout : Output-Port]) : Void
                                     (displayln "\\hypersetup{" /dev/stdout)
