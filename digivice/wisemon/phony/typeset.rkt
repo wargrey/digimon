@@ -40,20 +40,23 @@
   (lambda [info-ref]
     (define local-info.rkt : Path (digimon-path 'info))
     (define local-stone : Path (digimon-path 'stone))
-    
+    (define local-tamer.tex (build-path local-stone "tamer.tex"))
+
     (for/fold ([specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
-      (define scrbl-dependencies (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
       (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
       (define docmentclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
-
+      (define this-tamer.tex (build-path this-stone "tamer.tex"))
+      (define scrbl-dependencies (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
+      (define tex-dependencies (list docmentclass.tex style.tex this-tamer.tex local-tamer.tex))
+      
       (append specs
-              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (list* docmentclass.tex style.tex scrbl-dependencies))) #:-
+              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (append tex-dependencies scrbl-dependencies))) #:-
                                   (define dest-dir : (Option Path) (path-only TEXNAME.ext))
                                   (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                                   
