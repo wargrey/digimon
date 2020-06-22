@@ -108,30 +108,28 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
-     #'(begin (enter-digimon-zone!)
-              (tamer-index-story (cons 0 (tamer-story)))
-              
-              (title #:tag "tamer-book"
-                     #:version (format "~a" (#%info 'version (const "Baby")))
-                     #:style (let* ([local-stone (digimon-path 'stone)])
-                               (make-style #false (foldl (λ [resrcs properties]
-                                                           (append properties
-                                                                   (map (car resrcs)
-                                                                        (let ([tamer.res (cdr resrcs)])
-                                                                          (remove-duplicates (filter file-exists?
-                                                                                                     (list (collection-file-path tamer.res "digimon" "stone")
-                                                                                                           (build-path local-stone tamer.res))))))))
-                                                         null
-                                                         (list (cons make-css-addition "tamer.css")
-                                                               (cons make-tex-addition "tamer.tex")
-                                                               (cons make-js-addition "tamer.js")
-                                                               (cons make-css-style-addition "tamer-style.css")
-                                                               (cons make-js-style-addition "tamer-style.js")))))
-                     (let ([contents (list pre-contents ...)])
-                       (cond [(pair? contents) contents]
-                             [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
-                                         (current-digimon))])))
-              (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun)))))))]))
+     #'(let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
+         (enter-digimon-zone!)
+         (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
+
+         (list (title #:tag "tamer-book"
+                      #:version (~a (#%info 'version (const "Baby")))
+                      #:style (make-style #false
+                                          (foldl (λ [resrcs properties]
+                                                   (append properties
+                                                           (map (car resrcs)
+                                                                (tamer-resource-files modname (cdr resrcs)))))
+                                                 null
+                                                 (list (cons make-css-addition "tamer.css")
+                                                       (cons make-tex-addition "tamer.tex")
+                                                       (cons make-js-addition "tamer.js")
+                                                       (cons make-css-style-addition "tamer-style.css")
+                                                       (cons make-js-style-addition "tamer-style.js"))))
+                      (let ([contents (list pre-contents ...)])
+                        (cond [(pair? contents) contents]
+                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
+                                          (current-digimon))])))
+               (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun))))))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
@@ -533,10 +531,10 @@
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (smart-nested-filebox (handbook-latex-renderer? get)
-                               /path/file
-                               (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
-                                          (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
+         (handbook-nested-filebox (handbook-latex-renderer? get)
+                                  /path/file
+                                  (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
+                                             (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
 
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
@@ -570,11 +568,11 @@
                         (read-next lang line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next lang (add1 line0) contents end)])))))
-         (smart-nested-filebox (handbook-latex-renderer? get)
-                               /path/file
-                               (codeblock #:line-numbers line0 #:keep-lang-line? #false
-                                          (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                       (string-join contents (string #\newline))))))))))
+         (handbook-nested-filebox (handbook-latex-renderer? get)
+                                  /path/file
+                                  (codeblock #:line-numbers line0 #:keep-lang-line? #false
+                                             (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                          (string-join contents (string #\newline))))))))))
 
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
@@ -606,11 +604,11 @@
                         (read-next line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next (add1 line0) contents end)])))))
-         (smart-nested-filebox (handbook-latex-renderer? get)
-                               /path/file
-                               (codeblock #:line-numbers line0 #:keep-lang-line? #true
-                                          (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                       (string-join contents (string #\newline))))))))))
+         (handbook-nested-filebox (handbook-latex-renderer? get)
+                                  /path/file
+                                  (codeblock #:line-numbers line0 #:keep-lang-line? #true
+                                             (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                          (string-join contents (string #\newline))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block

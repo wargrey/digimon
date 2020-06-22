@@ -42,7 +42,7 @@
                   (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
                   (define target : Path (build-path (cdar readme) "README.md"))
 
-                  (wisemon-spec target #:^ (filter file-exists? (list* (build-path (digimon-path 'zone) "info.rkt") (racket-smart-dependencies readme.scrbl))) #:-
+                  (wisemon-spec target #:^ (filter file-exists? (list* (digimon-path 'info) (racket-smart-dependencies readme.scrbl))) #:-
                                 (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
 
                                 (dtrace-note "~a dist: ~a" the-name ./readme.scrbl)
@@ -67,7 +67,7 @@
                                                    readme (list ,target))))
 
                                   (fg-recon-eval 'dist `(markdown:render (dynamic-extract-readme ,readme.scrbl ,start ,endp1)
-                                                                          #:dest-dir ,(path-only target))))))])))
+                                                                         #:dest-dir ,(path-only target))))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))

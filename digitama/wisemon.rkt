@@ -84,7 +84,7 @@
                  (define indent (~space (* (length ts) 2)))
                  
                  (for ([p (in-list newers)])
-                   (wisemon-log-message name 'note t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
+                   (wisemon-log-message name 'debug t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
                                         indent (find-relative-path (current-directory) p) ./target))
 
                  (cond [(and always-run?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]

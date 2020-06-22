@@ -53,6 +53,16 @@
     (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
       (make-base-eval #:pretty-print? #true))))
 
+(define tamer-resource-files
+  (lambda [basename tamer.res]
+    (define local-stone (digimon-path 'stone))
+    (define basename.res (~a basename (substring tamer.res 5)))
+    
+    (remove-duplicates (filter file-exists?
+                               (list (collection-file-path tamer.res "digimon" "stone")
+                                     (build-path local-stone tamer.res)
+                                     (build-path local-stone basename.res))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Scribble and Racket
 (define handbook-stories #;(HashTable Symbol (U Spec-Feature (Listof String))) (make-hash))
@@ -69,6 +79,23 @@
       (unless (member htag books)
         (hash-set! handbook-stories books#
                    (cons htag books))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; For LaTeX
+(define handbook-metainfo
+  (lambda [src.scrbl author-sep]
+    (define pthis (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc)))
+    (define maybe-authors
+      (let search-authors ([blocks (part-blocks pthis)])
+        (and (pair? blocks)
+             (or (let ([block (car blocks)])
+                   (cond [(paragraph? block) (and (eq? (style-name (paragraph-style block)) 'author) (paragraph-content block))]
+                         [(compound-paragraph? block) (search-authors (compound-paragraph-blocks block))]
+                         [else #false]))
+                 (search-authors (cdr blocks))))))
+    
+    (values (content->string (or (part-title-content pthis) null))
+            (if (not maybe-authors) "" (string-join (map content->string maybe-authors) author-sep)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Examples
@@ -156,7 +183,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-boxed-style (make-style "boxed" (list 'command)))
 
-(define smart-nested-filebox
+(define handbook-nested-filebox
   (lambda [latex? /path/file block]
     (nested #:style handbook-boxed-style
             (filebox (if (not latex?)

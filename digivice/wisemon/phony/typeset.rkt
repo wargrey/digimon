@@ -7,6 +7,7 @@
 
 (require "../../../digitama/latex.rkt")
 (require "../../../digitama/exec.rkt")
+(require "../../../digitama/system.rkt")
 (require "../../../dtrace.rkt")
 
 (require "../parameter.rkt")
@@ -14,6 +15,10 @@
 (require "../phony.rkt")
 (require "../spec.rkt")
 (require "../racket.rkt")
+
+(require/typed
+ "../../../digitama/tamer.rkt"
+ [handbook-metainfo (-> Path-String String (Values String String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Info (Pairof Path (Pairof Symbol (Option String))))
@@ -33,48 +38,64 @@
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
-    (for/list ([typesetting (in-list (find-digimon-typesettings info-ref))])
+    (for/fold ([specs : Wisemon-Specification null])
+              ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
-      
-      (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl))) #:-
-                    (define dest-dir : (Option Path) (path-only TEXNAME.ext))
-                    (define pwd : (Option Path) (path-only TEXNAME.scrbl))
-                      
-                    (when (and (path? dest-dir) (path? pwd))
-                      (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
+      (define scrbl-dependencies (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
+      (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
 
-                      (if (not maybe-name)
-                          (dtrace-note "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
-                          (dtrace-note "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
-                      
-                      (if (and raw-tex?)
-                          (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:enable-filter #false)])
-                            (unless (not maybe-name)
-                              (let* ([ext (path-get-extension TEXNAME.ext)]
-                                     [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
-                                (fg-recon-mv renderer TEXNAME.ext target.ext))))
-                          (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
-                                [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
-                            (parameterize ([current-directory pwd]
-                                           [current-namespace (make-base-namespace)]
-                                           [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
-                              (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-                              (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
-                                       (render (list (dynamic-require TEXNAME.scrbl 'doc)) (list ,src.tex)
-                                               #:render-mixin tex:render-mixin #:dest-dir dest-dir
-                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
-                              
-                              (when (file-exists? hook.rktl)
-                                (eval `(define (dynamic-load-character-conversions hook.rktl)
-                                         (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
-                                           (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
-                                (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
-                              
-                              (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
-                              (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true)))))))))
+      (append specs
+              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex (digimon-path 'info) (filter file-exists? scrbl-dependencies)) #:-
+                                  (define dest-dir : (Option Path) (path-only TEXNAME.ext))
+                                  (define pwd : (Option Path) (path-only TEXNAME.scrbl))
+                                  
+                                  (when (and (path? dest-dir) (path? pwd))
+                                    (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
+                                    
+                                    (if (not maybe-name)
+                                        (dtrace-note "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
+                                        (dtrace-note "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))
+                                    
+                                    (if (and raw-tex?)
+                                        (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:enable-filter #false)])
+                                          (unless (not maybe-name)
+                                            (let* ([ext (path-get-extension TEXNAME.ext)]
+                                                   [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
+                                              (fg-recon-mv renderer TEXNAME.ext target.ext))))
+                                        (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
+                                              [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
+                                          (parameterize ([current-directory pwd]
+                                                         [current-namespace (make-base-namespace)]
+                                                         [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
+                                            (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+                                            (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
+                                                     (render (list (dynamic-require TEXNAME.scrbl 'doc)) (list ,src.tex)
+                                                             #:render-mixin tex:render-mixin #:dest-dir dest-dir #:style-extra-files (list ,pdfinfo.tex)
+                                                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
+                                            
+                                            (when (file-exists? hook.rktl)
+                                              (eval `(define (dynamic-load-character-conversions hook.rktl)
+                                                       (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
+                                                         (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
+                                              (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
+                                            
+                                            (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
+                                            (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true))))))
 
+                    (wisemon-spec pdfinfo.tex #:^ (list (digimon-path 'info) TEXNAME.scrbl) #:-
+                                  (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
+                                  (define (hypersetup [/dev/stdout : Output-Port]) : Void
+                                    (displayln "\\hypersetup{" /dev/stdout)
+                                    (dtrace-debug "~a ~a: title: ~a" the-name renderer title)
+                                    (fprintf /dev/stdout "  pdftitle={~a},~n" title)
+                                    (dtrace-debug "~a ~a: authors: ~a" the-name renderer authors)
+                                    (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
+                                    (displayln "}" /dev/stdout)
+                                    (newline /dev/stdout))
+                                  (fg-recon-replace-file renderer pdfinfo.tex hypersetup)))))))
+    
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]
     (wisemon-make (make-native-library-specs info-ref))
