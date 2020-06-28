@@ -36,6 +36,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
+(define subsub*toc-style (make-style #false '(toc)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
 (define $err (open-output-bytes '/dev/tamer/stderr))
