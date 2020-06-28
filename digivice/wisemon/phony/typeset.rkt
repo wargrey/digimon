@@ -105,6 +105,7 @@
                                     (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
                                     (displayln "}" /dev/stdout)
                                     (newline /dev/stdout))
+                                  (fg-recon-mkdir renderer (assert (path-only pdfinfo.tex)))
                                   (fg-recon-save-file renderer pdfinfo.tex hypersetup)))))))
     
 (define make~typeset : Make-Phony
