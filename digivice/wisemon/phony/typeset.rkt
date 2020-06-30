@@ -14,6 +14,7 @@
 (require "../native.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
+(require "../path.rkt")
 (require "../racket.rkt")
 
 (require/typed
@@ -21,20 +22,21 @@
  [handbook-metainfo (-> Path-String String (Values String String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Tex-Info (Pairof Path (Pairof Symbol (Option String))))
+(define-type Tex-Info (Pairof Path (List Symbol (Option String) (Listof (U Regexp Byte-Regexp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typesettings : (->* (Info-Ref) (Boolean) (Listof Tex-Info))
   (lambda [info-ref [silent #false]]
     (define maybe-typesettings (info-ref 'typesettings (λ [] null)))
     (cond [(not (list? maybe-typesettings)) (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings)]
-          [else (filter-map (λ [typesetting]
-                              (if (and (pair? typesetting) (path-string? (car typesetting)))
-                                  (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
-                                    (and (file-exists? setting.scrbl)
-                                         (cons setting.scrbl (filter-typesetting-renderer (cdr typesetting) silent))))
-                                  (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
-                            maybe-typesettings)])))
+          [else ((inst filter-map Tex-Info Any)
+                 (λ [typesetting]
+                   (if (and (pair? typesetting) (path-string? (car typesetting)))
+                       (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
+                         (and (file-exists? setting.scrbl)
+                              (cons setting.scrbl (filter-typesetting-renderer (cdr typesetting) silent))))
+                       (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
+                 maybe-typesettings)])))
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
@@ -44,7 +46,7 @@
 
     (for/fold ([specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define-values (TEXNAME.scrbl renderer maybe-name) (values (car typesetting) (cadr typesetting) (cddr typesetting)))
+      (define-values (TEXNAME.scrbl renderer maybe-name regexps) (values (car typesetting) (cadr typesetting) (caddr typesetting) (cadddr typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
@@ -52,11 +54,12 @@
       (define docmentclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
-      (define scrbl-dependencies (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
-      (define tex-dependencies (list docmentclass.tex style.tex this-tamer.tex local-tamer.tex))
+      (define scrbl-deps (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
+      (define tex-deps (list docmentclass.tex style.tex this-tamer.tex local-tamer.tex))
+      (define stone-deps (if (pair? regexps) (find-digimon-files (typeset-make-filter regexps) local-stone) null))
       
       (append specs
-              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (append tex-dependencies scrbl-dependencies))) #:-
+              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
                                   (define dest-dir : (Option Path) (path-only TEXNAME.ext))
                                   (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                                   
@@ -116,12 +119,12 @@
     (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define filter-typesetting-renderer : (-> Any Boolean (Pairof Symbol (Option String)))
+(define filter-typesetting-renderer : (-> Any Boolean (List Symbol (Option String) (Listof (U Regexp Byte-Regexp))))
   (lambda [argv silent]
     (define candidates : (Listof Symbol) (tex-list-renderers))
     (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
     (define maybe-names (filter string? rest))
-    (cons (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
+    (list (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
             (cond [(null? renderers)
                    (when (not silent)
                      (dtrace-note "~a typeset: no suitable renderer is found, use `~a` instead"
@@ -129,10 +132,16 @@
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))
-          (and (pair? maybe-names) (car maybe-names)))))
+          (and (pair? maybe-names) (car maybe-names))
+          (filter typeset-regexp? rest))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-fallback-renderer 'latex)
+
+(define typeset-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))
+  (lambda [v]
+    (or (byte-regexp? v)
+        (regexp? v))))
 
 (define tex-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
@@ -145,6 +154,15 @@
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
                               texin))))))
+
+(define typeset-make-filter : (-> (Listof (U Regexp Byte-Regexp)) (-> Path Boolean))
+  (lambda [regexps]
+    (case (length regexps)
+      [(0) (λ [[p : Path]] #false)]
+      [(1) (let ([rx (car regexps)]) (λ [[p : Path]] (regexp-match? rx p)))]
+      [else (λ [[p : Path]]
+              (for/or ([rx (in-list regexps)])
+                (regexp-match? rx p)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony
