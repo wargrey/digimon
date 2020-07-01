@@ -139,9 +139,9 @@
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style:expr))
-              (~optional (~seq #:source src:string))
-              (~optional (~seq #:index? index?))) ...
+    [(_ (~alt (~optional (~seq #:style style:expr) #:defaults ([style #'#false]))
+              (~optional (~seq #:source src:string) #:defaults ([src #'#false]))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))) ...
         contents ...)
      #`(begin (tamer-taming-start! scribble)
 
@@ -150,15 +150,15 @@
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
-              (declare-exporting ,(or #,(attribute src) (tamer-story)))
+              (declare-exporting ,(or src (tamer-story)))
 
-              (when #,(attribute index?)
+              (when (or index?)
                 (tamer-index-story
                  (cons (add1 (car (tamer-index-story)))
                        (tamer-story))))
 
               (title #:tag (tamer-story->tag (tamer-story))
-                     #:style #,(attribute style)
+                     #:style style
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]

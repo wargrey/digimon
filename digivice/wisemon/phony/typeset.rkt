@@ -56,7 +56,7 @@
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
       (define scrbl-deps (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
       (define tex-deps (list docmentclass.tex style.tex this-tamer.tex local-tamer.tex))
-      (define stone-deps (if (pair? regexps) (find-digimon-files (typeset-make-filter regexps) local-stone) null))
+      (define stone-deps (if (pair? regexps) (find-digimon-files (make-regexps-filter regexps) local-stone) null))
       
       (append specs
               (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
@@ -154,15 +154,6 @@
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
                               texin))))))
-
-(define typeset-make-filter : (-> (Listof (U Regexp Byte-Regexp)) (-> Path Boolean))
-  (lambda [regexps]
-    (case (length regexps)
-      [(0) (λ [[p : Path]] #false)]
-      [(1) (let ([rx (car regexps)]) (λ [[p : Path]] (regexp-match? rx p)))]
-      [else (λ [[p : Path]]
-              (for/or ([rx (in-list regexps)])
-                (regexp-match? rx p)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony
