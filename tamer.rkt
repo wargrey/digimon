@@ -79,6 +79,14 @@
         (apply (tamer-cites) bib bibs)
         (apply (tamer-cite) bib bibs))))
 
+(define ~subcite
+  (lambda [bib #:same-author? [same? #false] . bibs]
+    (subscript (apply ~cite bib #:same-author? same? bibs))))
+
+(define subcite
+  (lambda keys
+    (subscript (apply cite keys))))
+
 (define handbook-renderer?
   (lambda [get render]
     (and (memq render

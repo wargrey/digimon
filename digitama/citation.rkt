@@ -32,10 +32,10 @@
   (lambda [number title #:author [author #false] #:date [date #false] #:key [key #false] #:note [note #false]]
     (define request-for-comments (number->string number))
     
-    (bib-entry #:key      (cond [(string? key) key] [(symbol? key) (symbol->string key)] [else (string-append "RFC" request-for-comments)])
+    (bib-entry #:key      (bib-entry~key key (λ [] (string-append "RFC" request-for-comments)))
                #:title    title
                #:author   author
-               #:date     (cond [(string? date) date] [(number? date) (number->string date)] [else #false])
+               #:date     (bib-entry~date date)
                #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                #:url      (format "https://www.rfc-editor.org/rfc/rfc~a.txt" request-for-comments)
                #:note     note)))
@@ -68,12 +68,51 @@
   (lambda [key title author publisher
                #:date [date #false] #:note [note #false] #:url [url #false]
                #:edition [edition #false] #:chapter [chapter #false] #:series [series #false] #:pages [pages #false] #:volume [volume #false]]
-    (bib-entry #:key      (cond [(string? key) key] [(symbol? key) (symbol->string key)] [else (~a key)])
+    (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   author
                #:location (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
                                 [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)])
-               #:date     (cond [(string? date) date] [(number? date) (number->string date)] [else #false])
+               #:date     (bib-entry~date date)
                #:url      url
                #:note     note
                #:is-book? #true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-url-bib stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ key title url
+        (~alt (~optional (~seq #:author author) #:defaults ([author #'#false]))
+              (~optional (~seq #:date date) #:defaults ([date #'#false]))
+              (~optional (~seq #:note note) #:defaults ([note #'#false])))
+        ...)
+     #'(define key
+         (in-bib (make-bib #:title title
+                           #:author author
+                           #:url url
+                           #:date date
+                           #:note note)
+                 (format ":~a" 'key)))]))
+
+(define url-bib-entry
+  (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false]]
+    (bib-entry #:key      (bib-entry~key key)
+               #:title    title
+               #:author   author
+               #:date     (bib-entry~date date)
+               #:url      url
+               #:note     note)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bib-entry~key
+  (lambda [key [~key #false]]
+    (cond [(string? key) key]
+          [(symbol? key) (symbol->string key)]
+          [(procedure? ~key) (~key)]
+          [else (~a key)])))
+
+(define bib-entry~date
+  (lambda [date]
+    (cond [(string? date) date]
+          [(number? date) (number->string date)]
+          [else #false])))
