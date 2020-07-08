@@ -16,12 +16,14 @@
 (define-syntax (define-rfc-bib stx)
   (syntax-parse stx #:datum-literals []
     [(_ key number title
-        (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
+        (~alt (~optional (~seq #:author author) #:defaults ([author #'#false]))
+              (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false])))
         ...)
      #'(define key
          (let ([request-for-comments (number->string number)])
            (in-bib (make-bib #:title title
+                             #:author author
                              #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                              #:url (format "https://www.rfc-editor.org/rfc/rfc~a.txt" request-for-comments)
                              #:date date

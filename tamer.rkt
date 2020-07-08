@@ -138,12 +138,15 @@
                         (cond [(pair? contents) contents]
                               [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                           (current-digimon))])))
-               (apply author (map ~a (#%info 'pkg-authors (const (list (#%info 'pkg-idun))))))))]))
+               (apply author
+                      (map ~a (#%info 'pkg-authors
+                                      (const (list (#%info 'pkg-idun
+                                                           (const (string->symbol digimon-partner))))))))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
-     #'(handbook-title (#%info 'pkg-desc))]))
+     #'(handbook-title (#%info 'pkg-desc (const (current-digimon))))]))
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
