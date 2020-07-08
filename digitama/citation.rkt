@@ -79,6 +79,128 @@
                #:is-book? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-proceedings-bib stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ key title author location
+        (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
+              (~optional (~seq #:url url) #:defaults ([url #'#false]))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:series series) #:defaults ([series #'#false]))
+              (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
+              (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
+        ...)
+     #'(define key
+         (in-bib (make-bib #:title title
+                           #:author author
+                           #:location (proceedings-location location #:pages pages #:series series #:volume volume)
+                           #:date date
+                           #:url url
+                           #:note note)
+                 (format ":~a" 'key)))]))
+
+(define proceedings-bib-entry
+  (lambda [key title author location
+               #:date [date #false] #:note [note #false] #:url [url #false]
+               #:number [number #false] #:pages [pages #false] #:volume [volume #false]]
+    (bib-entry #:key      (bib-entry~key key)
+               #:title    title
+               #:author   author
+               #:location (proceedings-location location #:pages pages #:number number #:volume volume)
+               #:date     (bib-entry~date date)
+               #:url      url
+               #:note     note)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-journal-bib stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ key title author location
+        (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
+              (~optional (~seq #:url url) #:defaults ([url #'#false]))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
+              (~optional (~seq #:number number) #:defaults ([number #'#false]))
+              (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
+        ...)
+     #'(define key
+         (in-bib (make-bib #:title title
+                           #:author author
+                           #:location (journal-location location #:pages pages #:number number #:volume volume)
+                           #:date date
+                           #:url url
+                           #:note note)
+                 (format ":~a" 'key)))]))
+
+(define journal-bib-entry
+  (lambda [key title author location
+               #:date [date #false] #:note [note #false] #:url [url #false]
+               #:volume [volume #false] #:number [number #false] #:pages [pages #false]]
+    (bib-entry #:key      (bib-entry~key key)
+               #:title    title
+               #:author   author
+               #:location (journal-location location #:pages pages #:number number #:volume volume)
+               #:date     (bib-entry~date date)
+               #:url      url
+               #:note     note)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-dissertation-bib stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ key title author institution
+        (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
+              (~optional (~seq #:url url) #:defaults ([url #'#false]))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:degree degree) #:defaults ([degree #'"PhD"])))
+        ...)
+     #'(define key
+         (in-bib (make-bib #:title title
+                           #:author author
+                           #:location (dissertation-location #:institution institution #:degree degree)
+                           #:date date
+                           #:url url
+                           #:note note)
+                 (format ":~a" 'key)))]))
+
+(define dissertation-bib-entry
+  (lambda [key title author institution #:degree [degree "PhD"]
+               #:date [date #false] #:note [note #false] #:url [url #false]]
+    (bib-entry #:key      (bib-entry~key key)
+               #:title    title
+               #:author   author
+               #:location (dissertation-location #:institution institution #:degree degree)
+               #:date     (bib-entry~date date)
+               #:url      url
+               #:note     note)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-report-bib stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ key title author institution number
+        (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
+              (~optional (~seq #:url url) #:defaults ([url #'#false]))
+              (~optional (~seq #:note note) #:defaults ([note #'#false])))
+        ...)
+     #'(define key
+         (in-bib (make-bib #:title title
+                           #:author author
+                           #:location (techrpt-location #:institution institution #:number number)
+                           #:date date
+                           #:url url
+                           #:note note)
+                 (format ":~a" 'key)))]))
+
+(define report-bib-entry
+  (lambda [key title author institution number
+               #:date [date #false] #:note [note #false] #:url [url #false]]
+    (bib-entry #:key      (bib-entry~key key)
+               #:title    title
+               #:author   author
+               #:location (techrpt-location #:institution institution #:number number)
+               #:date     (bib-entry~date date)
+               #:url      url
+               #:note     note)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-url-bib stx)
   (syntax-parse stx #:datum-literals []
     [(_ key title url
