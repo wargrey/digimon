@@ -150,8 +150,9 @@
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style:expr) #:defaults ([style #'#false]))
-              (~optional (~seq #:source src:string) #:defaults ([src #'#false]))
+    [(_ (~alt (~optional (~seq #:source source) #:defaults ([source #'#false]))
+              (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
+              (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))) ...
         contents ...)
      #`(begin (tamer-taming-start! scribble)
@@ -160,8 +161,6 @@
               (tamer-reference ~reference)
               (tamer-cites ~cites)
               (tamer-cite ~cite)
-
-              (declare-exporting ,(or src (tamer-story)))
 
               (when (or index?)
                 (tamer-index-story
@@ -173,7 +172,14 @@
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]
-                             [else (list* (literal story-literal ":")) ~ input-contents]))))]))
+                             [else (list* (literal story-literal ":")) ~ input-contents])))
+
+
+              ; (defmodule) does exporting at compile time
+              (declare-exporting ,(or 'source (tamer-story)))
+              (unless (not 'source)
+                (cond [(eq? 'lang #true) (tamer-lang-module source)]
+                      [else (tamer-module #:lang lang source)])))]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
@@ -326,6 +332,22 @@
       [else (handbook-latex-command0 TeX)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (tamer-module stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:lang lang:id) #:defaults ([lang #'racket/base])))
+        ...
+        modname modnames ...)
+     #'(begin (unless (pair? (tamer-story-lang+modules))
+                (tamer-story-lang+modules (list 'lang 'modname 'modnames ...)))
+              (defmodule*/no-declare (modname modnames ...)))]))
+
+(define-syntax (tamer-lang-module stx)
+  (syntax-parse stx #:literals []
+    [(_ lang extra-langs ...)
+     #'(begin (unless (pair? (tamer-story-lang+modules))
+                (tamer-story-lang+modules (list 'lang 'extra-langs ...)))
+              (defmodule*/no-declare (lang extra-langs ...) #:lang))]))
+
 (define-syntax (tamer-action stx)
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
@@ -334,11 +356,11 @@
          (define example-label
            (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
                  [else label]))
-         (tamer-zone-reference this-story)
+         (tamer-zone-reference this-story (tamer-story-lang+modules))
          (make-traverse-block
           (λ [get set!]
             (define repl (examples #:label example-label #:eval (tamer-zone-ref this-story) s-exps ...))
-            (tamer-zone-destory this-story)
+            (tamer-zone-destory this-story #true)
             repl)))]))
 
 (define-syntax (tamer-answer stx)

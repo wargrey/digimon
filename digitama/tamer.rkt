@@ -19,6 +19,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-story (make-parameter #false))
+(define tamer-story-lang+modules (make-parameter null))
 (define tamer-index-story (make-parameter (cons 1 #false)))
 
 (define tamer-cite (make-parameter void))
@@ -41,17 +42,21 @@
     `(submod ,story-path tamer)))
 
 (define tamer-story->module
-  (lambda [story]
+  (lambda [story [use-tamer? #true]]
     (cond [(module-declared? story #true) story]
+          [(not use-tamer?) #false]
           [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
              (and (file-exists? tamer.rkt) tamer.rkt)) => values]
           [else (collection-file-path "tamer.rkt" "digimon")])))
 
 (define make-tamer-zone
-  (lambda [story]
-    (define tamer-module (tamer-story->module story))
-    (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
-      (make-base-eval #:pretty-print? #true))))
+  (lambda [story lang+modules]
+    (define tamer-module (tamer-story->module story (not (pair? lang+modules))))
+    (if (and tamer-module)
+        (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
+          (make-base-eval #:pretty-print? #true))
+        (apply make-base-eval #:pretty-print? #true #:lang (car lang+modules)
+               (map (λ [mod] `(require ,mod)) (cdr lang+modules))))))
 
 (define tamer-resource-files
   (lambda [basename tamer.res]
@@ -101,8 +106,8 @@
 (define tamer-zones #;(HastTable Any (Pairof Integer Evaluation)) (make-hash))
 
 (define tamer-zone-reference
-  (lambda [story]
-    (define z (hash-ref tamer-zones story (λ [] (cons 0 (make-tamer-zone story)))))
+  (lambda [story [lang+modules null]]
+    (define z (hash-ref tamer-zones story (λ [] (cons 0 (make-tamer-zone story lang+modules)))))
     (hash-set! tamer-zones story (cons (add1 (car z)) (cdr z)))))
 
 (define tamer-zone-ref
@@ -110,12 +115,15 @@
     (cdr (hash-ref tamer-zones story (λ [] (cons 0 #false))))))
 
 (define tamer-zone-destory
-  (lambda [story]
+  (lambda [story clear-modules?]
     (define z (hash-ref tamer-zones story (λ [] #false)))
 
     (when (pair? z)
-      (cond [(<= (car z) 1) (close-eval (cdr z)) (hash-remove! tamer-zones story)]
-            [else (hash-set! tamer-zones story (cons (sub1 (car z)) (cdr z)))]))))
+      (cond [(> (car z) 1) (hash-set! tamer-zones story (cons (sub1 (car z)) (cdr z)))]
+            [else (close-eval (cdr z))
+                  (hash-remove! tamer-zones story)
+                  (unless (not clear-modules?)
+                    (tamer-story-lang+modules null))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Summaries, the `compiled specification`, all features and behaviors have been proved.
