@@ -177,25 +177,32 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))
+              (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
         ...
         modpath:id contents ...)
-     #'(begin (require (for-label modpath))
-              
-              (handbook-story #:style style #:index? index? contents ...)
-              
-              (declare-exporting modpath)
-              (cond [(eq? 'lang #true) (tamer-lang-module modpath)]
-                    [else (tamer-module #:lang lang modpath)]))]))
+     (with-syntax ([(reqs ...) (let ([maybe-extras (syntax-e #'extras)])
+                                 (cond [(list? maybe-extras) maybe-extras]
+                                       [else (list maybe-extras)]))])
+       #'(begin (require (for-label modpath))
+                
+                (handbook-story #:style style #:index? index? contents ...)
+                
+                (declare-exporting modpath)
+                (tamer-story-private-modules (list 'reqs ...))
+                (cond [(eq? 'lang #true) (tamer-lang-module modpath)]
+                      [else (tamer-module #:lang lang modpath)])))]))
 
 (define-syntax (handbook-typed-module-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'typed/racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))
+              (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
         ...
         modpath:id contents ...)
-     #'(handbook-module-story #:lang lang #:style style #:index? index? modpath contents ...)]))
+     #'(handbook-module-story #:lang lang #:style style #:index? index? #:requires extras
+                              modpath contents ...)]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]

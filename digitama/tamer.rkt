@@ -20,6 +20,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-story (make-parameter #false))
 (define tamer-story-lang+modules (make-parameter null))
+(define tamer-story-private-modules (make-parameter null))
 (define tamer-index-story (make-parameter (cons 1 #false)))
 
 (define tamer-cite (make-parameter void))
@@ -56,7 +57,9 @@
         (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
           (make-base-eval #:pretty-print? #true))
         (apply make-base-eval #:pretty-print? #true #:lang (car lang+modules)
-               (map (λ [mod] `(require ,mod)) (cdr lang+modules))))))
+               (map (λ [mod] `(require ,mod))
+                    (append (cdr lang+modules)
+                            (tamer-story-private-modules)))))))
 
 (define tamer-resource-files
   (lambda [basename tamer.res]
@@ -123,7 +126,8 @@
             [else (close-eval (cdr z))
                   (hash-remove! tamer-zones story)
                   (unless (not clear-modules?)
-                    (tamer-story-lang+modules null))]))))
+                    (tamer-story-lang+modules null)
+                    (tamer-story-private-modules null))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Summaries, the `compiled specification`, all features and behaviors have been proved.
