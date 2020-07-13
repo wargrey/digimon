@@ -150,10 +150,9 @@
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:source source) #:defaults ([source #'#false]))
-              (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
-              (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))) ...
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+        ...
         contents ...)
      #`(begin (tamer-taming-start! scribble)
 
@@ -172,14 +171,31 @@
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]
-                             [else (list* (literal story-literal ":")) ~ input-contents])))
+                             [else (list* (literal story-literal ":")) ~ input-contents]))))]))
 
+(define-syntax (handbook-module-story stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
+              (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+        ...
+        modpath:id contents ...)
+     #'(begin (require (for-label modpath))
 
-              ; (defmodule) does exporting at compile time
-              (declare-exporting ,(or 'source (tamer-story)))
-              (unless (not 'source)
-                (cond [(eq? 'lang #true) (tamer-lang-module source)]
-                      [else (tamer-module #:lang lang source)])))]))
+              (handbook-story #:style style #:index? index? contents ...)
+
+              (declare-exporting modpath)
+              (cond [(eq? 'lang #true) (tamer-lang-module modpath)]
+                    [else (tamer-module #:lang lang modpath)]))]))
+
+(define-syntax (handbook-typed-module-story stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'typed/racket/base]))
+              (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+        ...
+        modpath:id contents ...)
+     #'(handbook-module-story #:lang lang #:style style #:index? index? modpath contents ...)]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
