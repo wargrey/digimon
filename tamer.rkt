@@ -181,9 +181,9 @@
         ...
         modpath:id contents ...)
      #'(begin (require (for-label modpath))
-
+              
               (handbook-story #:style style #:index? index? contents ...)
-
+              
               (declare-exporting modpath)
               (cond [(eq? 'lang #true) (tamer-lang-module modpath)]
                     [else (tamer-module #:lang lang modpath)]))]))
@@ -355,6 +355,7 @@
         modname modnames ...)
      #'(begin (unless (pair? (tamer-story-lang+modules))
                 (tamer-story-lang+modules (list 'lang 'modname 'modnames ...)))
+              
               (defmodule*/no-declare (modname modnames ...)))]))
 
 (define-syntax (tamer-lang-module stx)
