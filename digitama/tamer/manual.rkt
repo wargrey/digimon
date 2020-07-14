@@ -19,15 +19,35 @@
      #'(defstruct* struct-name (fields ...) options ... pre-flow ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define tamer-indexed-keyword-element
+  (lambda [keyword]
+    (define content (racket '#,keyword))
+    (index* (list (symbol->string keyword))
+            (list content)
+            content)))
+
+(define tamer-keyword-element
+  (lambda [keyword]
+    (racket '#,keyword)))
+
+(define tamer-indexed-keywords
+  (lambda [keyword [seq ", "] [before-last ", and "]]
+    (tamer-make-keywords tamer-indexed-keyword-element
+                         keyword seq before-last)))
+
 (define tamer-keywords
   (lambda [keyword [seq ", "] [before-last ", and "]]
-    (if (symbol? keyword)
-        (let ([content (racket '#,keyword)])
-          (index* (list (symbol->string keyword)) (list content) content))
-        (let* ([keywords (filter symbol? keyword)]
-               [size (length keywords)])
-          (for/list ([kw (in-list keyword)]
-                     [idx (in-naturals 1)])
-            (cond [(= idx 1) (tamer-keywords kw)]
-                  [(= idx size) (list (or before-last seq) (tamer-keywords kw))]
-                  [else (list seq (tamer-keywords kw))]))))))
+    (tamer-make-keywords tamer-keyword-element
+                         keyword seq before-last)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define tamer-make-keywords
+  (lambda [make-element keyword [seq ", "] [before-last ", and "]]
+    (cond [(symbol? keyword) (make-element keyword)]
+          [else (let* ([keywords (filter symbol? keyword)]
+                       [size (length keywords)])
+                  (for/list ([kw (in-list keyword)]
+                             [idx (in-naturals 1)])
+                    (cond [(= idx 1) (make-element kw)]
+                          [(= idx size) (list (or before-last seq) (make-element kw))]
+                          [else (list seq (make-element kw))])))])))
