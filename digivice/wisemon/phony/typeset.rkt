@@ -53,9 +53,10 @@
       (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
       (define docmentclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
+      (define load.tex (build-path this-stone "load.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
       (define scrbl-deps (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
-      (define tex-deps (list docmentclass.tex style.tex this-tamer.tex local-tamer.tex))
+      (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
       (define stone-deps (if (pair? regexps) (find-digimon-files (make-regexps-filter regexps) local-stone) null))
       
       (append specs
@@ -82,8 +83,28 @@
                                                          [current-namespace (make-base-namespace)]
                                                          [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
                                             (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+
+                                            (when (file-exists? load.tex)
+                                              (dtrace-debug "~a ~a: load hook: ~a" the-name renderer load.tex)
+                                              
+                                              (eval '(require scribble/core scribble/latex-properties))
+                                              (eval `(define (tex:replace-property p)
+                                                       (cond [(not (latex-defaults? p)) p]
+                                                             [else (make-latex-defaults+replacements
+                                                                    (latex-defaults-prefix p)
+                                                                    (latex-defaults-style p)
+                                                                    (latex-defaults-extra-files p)
+                                                                    (hash "scribble-load-replace.tex" ,load.tex))])))
+                                              (eval '(define (tex:replace doc)
+                                                       (define tex:style (part-style doc))
+                                                       (struct-copy part doc
+                                                                    [style (make-style (style-name tex:style)
+                                                                                       (map tex:replace-property
+                                                                                            (style-properties tex:style)))]))))
+
                                             (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
-                                                     (render (list (dynamic-require TEXNAME.scrbl 'doc)) (list ,src.tex)
+                                                     (define TEXNAME.doc (dynamic-require TEXNAME.scrbl 'doc))
+                                                     (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
                                                              #:render-mixin tex:render-mixin #:dest-dir dest-dir
                                                              #:prefix-file (and (file-exists? ,docmentclass.tex) ,docmentclass.tex)
                                                              #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)

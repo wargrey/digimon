@@ -34,7 +34,8 @@
 (define dtrace-silent-topics : (Listof Symbol)
   '(GC racket/contract optimizer place syntax-parse
        collapsible-value-bailout collapsible-contract-bailout
-       module-prefetch tr-timing online-check-syntax cm-accomplice))
+       module-prefetch tr-timing online-check-syntax cm-accomplice
+       sequence-specialization))
 
 (define dtrace-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]

@@ -123,7 +123,7 @@
      #'(let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
-
+         
          (list (title #:tag "tamer-book"
                       #:version (~a (#%info 'version (const "Baby")))
                       #:style (make-style #false
