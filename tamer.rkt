@@ -1,6 +1,9 @@
 #lang racket
 
 (provide (all-defined-out) handbook-boxed-style)
+(provide handbook-center-figure-style handbook-left-figure-style handbook-right-figure-style)
+(provide handbook-default-figure-label handbook-default-figure-label-style handbook-default-figure-label-separator handbook-default-figure-caption-style)
+
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "digitama/tamer/citation.rkt"  "digitama/tamer/manual.rkt" "digitama/plural.rkt"))
@@ -23,6 +26,7 @@
 
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
+(require "digitama/tamer/figure.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -707,3 +711,74 @@
        (resolve index-type (car target-info) (cdr target-info)))
      (λ [] (content-width (resolve index-type (car this-index-story) #false)))
      (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-figure
+  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
+    
+    (make-tamer-indexed-traverse-block
+     (λ [type chapter-index current-index]
+       (values sym:extag
+               (make-figure-block figure-style style
+                                  chapter-index current-index
+                                  sym:extag caption pre-flows)))
+     handbook-figure-index-type)))
+
+(define handbook-figure*
+  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
+    
+    (make-tamer-indexed-traverse-block
+     (λ [type chapter-index current-index]
+       (values sym:extag
+               (make-figure-block figuremulti-style style
+                                  chapter-index current-index
+                                  sym:extag caption pre-flows)))
+     handbook-figure-index-type)))
+
+(define handbook-figure**
+  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
+    
+    (make-tamer-indexed-traverse-block
+     (λ [type chapter-index current-index]
+       (values sym:extag
+               (make-figure-block figuremultiwide-style style
+                                  chapter-index current-index
+                                  sym:extag caption pre-flows)))
+     handbook-figure-index-type)))
+
+(define handbook-figure-here
+  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
+    
+    (make-tamer-indexed-traverse-block
+     (λ [type chapter-index current-index]
+       (values sym:extag
+               (make-figure-block herefigure-style style
+                                  chapter-index current-index
+                                  sym:extag caption pre-flows)))
+     handbook-figure-index-type)))
+
+(define handbook-figure-ref
+  (lambda [#:elem [ex-element values] id]
+    (make-tamer-indexed-elemref
+     (λ [type chapter-index maybe-index]
+       (define label (string-downcase (handbook-default-figure-label)))
+       (if (not maybe-index)
+           (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
+           (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
+     handbook-figure-index-type
+     (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))
+
+(define handbook-Figure-ref
+  (lambda [#:elem [ex-element values] id]
+    (make-tamer-indexed-elemref
+     (λ [type chapter-index maybe-index]
+       (define label (string-titlecase (handbook-default-figure-label)))
+       (if (not maybe-index)
+           (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
+           (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
+     handbook-figure-index-type
+     (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))
