@@ -1,8 +1,8 @@
 #lang racket
 
 (provide (all-defined-out) handbook-boxed-style)
-(provide handbook-center-figure-style handbook-left-figure-style handbook-right-figure-style)
-(provide handbook-default-figure-label handbook-default-figure-label-style handbook-default-figure-label-separator handbook-default-figure-caption-style)
+(provide tamer-center-figure-style tamer-left-figure-style tamer-right-figure-style)
+(provide tamer-default-figure-label tamer-default-figure-label-style tamer-default-figure-label-separator tamer-default-figure-caption-style)
 
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -43,6 +43,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
+(define phantomsection-style (make-style "phantomsection" null))
 (define subsub*toc-style (make-style #false '(toc)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
@@ -334,7 +335,7 @@
   (lambda [cmd]
     (make-traverse-element
      (λ [get set!]
-       (cond [(handbook-latex-renderer? get) (elem #:style cmd null)]
+       (cond [(handbook-latex-renderer? get) (make-element cmd null)]
              [else null])))))
 
 (define handbook-texbook-front
@@ -677,7 +678,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block
-  (lambda [traverse index-type]
+  (lambda [traverse index-type [block-style #false]]
     (define this-index-story (tamer-index-story))
 
     (make-traverse-block
@@ -688,12 +689,15 @@
          (define global-tags (traverse-indexed-tagbase get index-type))
          (define current-index (hash-ref global-tags this-story (λ [] 1)))
          (define-values (current-tag block) (traverse index-type order current-index))
+         (define phantomsection (and (handbook-latex-renderer? get) (make-paragraph phantomsection-style null)))
 
          (hash-set! global-tags current-tag (cons order current-index))
          (hash-set! global-tags this-story (add1 current-index))
          (traverse-indexed-tagbase set! index-type global-tags get)
 
-         block)))))
+         (make-nested-flow block-style
+                           (cond [(list? block) (if (not phantomsection) block (cons phantomsection block))]
+                                 [else (if (not phantomsection) (list block) (list phantomsection block))])))))))
 
 (define make-tamer-indexed-elemref
   (lambda [resolve index-type tag]
@@ -713,72 +717,72 @@
      (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-figure
-  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+(define tamer-figure
+  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
     (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
     
     (make-tamer-indexed-traverse-block
      (λ [type chapter-index current-index]
        (values sym:extag
-               (make-figure-block figure-style style
-                                  chapter-index current-index
+               (make-figure-block style chapter-index current-index
                                   sym:extag caption pre-flows)))
-     handbook-figure-index-type)))
+     tamer-figure-index-type
+     figure-style)))
 
-(define handbook-figure*
-  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+(define tamer-figure*
+  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
     (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
     
     (make-tamer-indexed-traverse-block
      (λ [type chapter-index current-index]
        (values sym:extag
-               (make-figure-block figuremulti-style style
-                                  chapter-index current-index
+               (make-figure-block style chapter-index current-index
                                   sym:extag caption pre-flows)))
-     handbook-figure-index-type)))
+     tamer-figure-index-type
+     figuremulti-style)))
 
-(define handbook-figure**
-  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+(define tamer-figure**
+  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
     (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
     
     (make-tamer-indexed-traverse-block
      (λ [type chapter-index current-index]
        (values sym:extag
-               (make-figure-block figuremultiwide-style style
-                                  chapter-index current-index
+               (make-figure-block style chapter-index current-index
                                   sym:extag caption pre-flows)))
-     handbook-figure-index-type)))
+     tamer-figure-index-type
+     figuremultiwide-style)))
 
-(define handbook-figure-here
-  (lambda [id caption #:style [style handbook-center-figure-style] . pre-flows]
+(define tamer-figure-here
+  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
     (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
     
     (make-tamer-indexed-traverse-block
      (λ [type chapter-index current-index]
        (values sym:extag
-               (make-figure-block herefigure-style style
-                                  chapter-index current-index
+               (make-figure-block style chapter-index current-index
                                   sym:extag caption pre-flows)))
-     handbook-figure-index-type)))
+     tamer-figure-index-type
+     herefigure-style)))
 
-(define handbook-figure-ref
+(define tamer-figure-ref
   (lambda [#:elem [ex-element values] id]
     (make-tamer-indexed-elemref
      (λ [type chapter-index maybe-index]
-       (define label (string-downcase (handbook-default-figure-label)))
+       (define label (string-downcase (tamer-default-figure-label)))
        (if (not maybe-index)
            (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
            (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
-     handbook-figure-index-type
+     tamer-figure-index-type
      (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))
 
-(define handbook-Figure-ref
+(define Tamer-Figure-ref
   (lambda [#:elem [ex-element values] id]
     (make-tamer-indexed-elemref
      (λ [type chapter-index maybe-index]
-       (define label (string-titlecase (handbook-default-figure-label)))
+       (define label (string-titlecase (tamer-default-figure-label)))
        (if (not maybe-index)
            (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
            (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
-     handbook-figure-index-type
+     tamer-figure-index-type
      (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))

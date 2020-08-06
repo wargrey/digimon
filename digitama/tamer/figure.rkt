@@ -12,26 +12,23 @@
 (require setup/main-collects)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-figure-index-type 'digimon:tamer:figure)
+(define tamer-figure-index-type 'digimon:tamer:figure)
 
-(define handbook-default-figure-label (make-parameter "Figure"))
-(define handbook-default-figure-label-separator (make-parameter ": "))
-(define handbook-default-figure-label-style (make-parameter 'tt))
-(define handbook-default-figure-caption-style (make-parameter #false))
+(define tamer-default-figure-label (make-parameter "Figure"))
+(define tamer-default-figure-label-separator (make-parameter ": "))
+(define tamer-default-figure-label-style (make-parameter 'tt))
+(define tamer-default-figure-caption-style (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-figure-block
-  (lambda [figure-style content-style chpt-idx self-idx tag caption content]
-    (define label (format "~a ~a.~a~a" (handbook-default-figure-label) chpt-idx self-idx (handbook-default-figure-label-separator)))
+  (lambda [content-style chpt-idx self-idx tag caption content]
+    (define label (format "~a ~a.~a~a" (tamer-default-figure-label) chpt-idx self-idx (tamer-default-figure-label-separator)))
     (define legend
-      (list (elemtag (symbol->immutable-string tag) (make-element (handbook-default-figure-label-style) label))
-            (make-element (handbook-default-figure-caption-style) caption)))
+      (list (elemtag (symbol->immutable-string tag) (make-element (tamer-default-figure-label-style) label))
+            (make-element (tamer-default-figure-caption-style) caption)))
     
-    (make-nested-flow figure-style
-                      (list (make-nested-flow content-style
-                                              (list (make-nested-flow figureinside-style (decode-flow content))))
-                            (make-paragraph centertext-style
-                                            (list (make-element legend-style legend)))))))
+    (list (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))
+          (make-paragraph centertext-style (list (make-element legend-style legend))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define figure-style-extras
@@ -53,6 +50,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API layer
-(define handbook-center-figure-style (make-style "Centerfigure" figure-style-extras))
-(define handbook-left-figure-style (make-style "Leftfigure" figure-style-extras))
-(define handbook-right-figure-style (make-style "Rightfigure" figure-style-extras))
+(define tamer-center-figure-style (make-style "Centerfigure" figure-style-extras))
+(define tamer-left-figure-style (make-style "Leftfigure" figure-style-extras))
+(define tamer-right-figure-style (make-style "Rightfigure" figure-style-extras))
