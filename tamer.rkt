@@ -1,8 +1,8 @@
 #lang racket
 
-(provide (all-defined-out) handbook-boxed-style)
-(provide tamer-center-figure-style tamer-left-figure-style tamer-right-figure-style)
-(provide tamer-default-figure-label tamer-default-figure-label-style tamer-default-figure-label-separator tamer-default-figure-caption-style)
+(provide (all-defined-out))
+(provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
+(provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -26,7 +26,7 @@
 
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
-(require "digitama/tamer/figure.rkt")
+(require "digitama/tamer/block.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -281,15 +281,16 @@
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     (lambda [#:index? [index? #true] . bibentries]
-      ((curry filter-not void?)
-       (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
-                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                          [style noncontent-style]
-                          [parts null])
-             (unless (false? index?)
-               (struct-copy part (index-section #:tag "handbook-index")
-                            [title-content (list (speak 'index #:dialect 'tamer))]
-                            [style noncontent-style])))))))
+      (list (texbook-appendix)
+            ((curry filter-not void?)
+             (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
+                                [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                                [style noncontent-style]
+                                [parts null])
+                   (unless (false? index?)
+                     (struct-copy part (index-section #:tag "handbook-index")
+                                  [title-content (list (speak 'index #:dialect 'tamer))]
+                                  [style noncontent-style]))))))))
   
 (define handbook-smart-table
   (lambda []
@@ -332,27 +333,13 @@
                                                                            [_ 'lightcyan])))]))))))))))))
 
 (define handbook-latex-command0
-  (lambda [cmd]
-    (make-traverse-element
-     (λ [get set!]
-       (cond [(handbook-latex-renderer? get) (make-element cmd null)]
-             [else null])))))
-
-(define handbook-texbook-front
-  (lambda []
-    (handbook-latex-command0 "frontmatter")))
-
-(define handbook-texbook-main
-  (lambda []
-    (handbook-latex-command0 "mainmatter")))
-
-(define handbook-texbook-appendix
-  (lambda []
-    (handbook-latex-command0 "appendix")))
-
-(define handbook-texbook-back
-  (lambda []
-    (handbook-latex-command0 "backmatter")))
+  (let ([cmdbase (make-hash)])
+    (lambda [cmd]
+      (hash-ref! cmdbase cmd
+                 (λ [] (make-traverse-element
+                        (λ [get set!]
+                          (cond [(handbook-latex-renderer? get) (make-element cmd null)]
+                                [else null]))))))))
 
 (define handbook-latex-prefab-string
   (lambda [TeX]
@@ -361,6 +348,26 @@
       [(latex) (handbook-latex-command0 "LaTeX")]
       [(latexe) (handbook-latex-command0 "LaTeXe")]
       [else (handbook-latex-command0 TeX)])))
+
+(define texbook-front
+  (lambda []
+    (handbook-latex-command0 "frontmatter")))
+
+(define texbook-main
+  (lambda []
+    (handbook-latex-command0 "mainmatter")))
+
+(define texbook-appendix
+  (lambda []
+    (handbook-latex-command0 "appendix")))
+
+(define texbook-back
+  (lambda []
+    (handbook-latex-command0 "backmatter")))
+
+(define texbook-phantomsection
+  (lambda []
+    (handbook-latex-command0 "phantomsection")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-module stx)
@@ -677,112 +684,6 @@
                                                           (string-join contents (string #\newline))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-tamer-indexed-traverse-block
-  (lambda [traverse index-type [block-style #false]]
-    (define this-index-story (tamer-index-story))
-
-    (make-traverse-block
-     (λ [get set!]
-       (parameterize ([tamer-index-story this-index-story])
-         (define order (car this-index-story))
-         (define this-story (cdr this-index-story))
-         (define global-tags (traverse-indexed-tagbase get index-type))
-         (define current-index (hash-ref global-tags this-story (λ [] 1)))
-         (define-values (current-tag block) (traverse index-type order current-index))
-         (define phantomsection (and (handbook-latex-renderer? get) (make-paragraph phantomsection-style null)))
-
-         (hash-set! global-tags current-tag (cons order current-index))
-         (hash-set! global-tags this-story (add1 current-index))
-         (traverse-indexed-tagbase set! index-type global-tags get)
-
-         (make-nested-flow block-style
-                           (cond [(list? block) (if (not phantomsection) block (cons phantomsection block))]
-                                 [else (if (not phantomsection) (list block) (list phantomsection block))])))))))
-
-(define make-tamer-indexed-elemref
-  (lambda [resolve index-type tag]
-    (define this-index-story (tamer-index-story))
-    (define sym:tag
-      (cond [(symbol? tag) tag]
-            [(string? tag) (string->symbol tag)]
-            [else (string->symbol (~a tag))]))
-    
-    (make-delayed-element
-     (λ [render% pthis infobase]
-       (define get (handbook-resolved-info-getter infobase))
-       (define global-tags (traverse-indexed-tagbase get index-type))
-       (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car this-index-story) #false))))
-       (resolve index-type (car target-info) (cdr target-info)))
-     (λ [] (content-width (resolve index-type (car this-index-story) #false)))
-     (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tamer-figure
-  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
-    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
-    
-    (make-tamer-indexed-traverse-block
-     (λ [type chapter-index current-index]
-       (values sym:extag
-               (make-figure-block style chapter-index current-index
-                                  sym:extag caption pre-flows)))
-     tamer-figure-index-type
-     figure-style)))
-
-(define tamer-figure*
-  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
-    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
-    
-    (make-tamer-indexed-traverse-block
-     (λ [type chapter-index current-index]
-       (values sym:extag
-               (make-figure-block style chapter-index current-index
-                                  sym:extag caption pre-flows)))
-     tamer-figure-index-type
-     figuremulti-style)))
-
-(define tamer-figure**
-  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
-    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
-    
-    (make-tamer-indexed-traverse-block
-     (λ [type chapter-index current-index]
-       (values sym:extag
-               (make-figure-block style chapter-index current-index
-                                  sym:extag caption pre-flows)))
-     tamer-figure-index-type
-     figuremultiwide-style)))
-
-(define tamer-figure-here
-  (lambda [id caption #:style [style tamer-center-figure-style] . pre-flows]
-    (define sym:extag (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))
-    
-    (make-tamer-indexed-traverse-block
-     (λ [type chapter-index current-index]
-       (values sym:extag
-               (make-figure-block style chapter-index current-index
-                                  sym:extag caption pre-flows)))
-     tamer-figure-index-type
-     herefigure-style)))
-
-(define tamer-figure-ref
-  (lambda [#:elem [ex-element values] id]
-    (make-tamer-indexed-elemref
-     (λ [type chapter-index maybe-index]
-       (define label (string-downcase (tamer-default-figure-label)))
-       (if (not maybe-index)
-           (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
-           (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
-     tamer-figure-index-type
-     (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))
-
-(define Tamer-Figure-ref
-  (lambda [#:elem [ex-element values] id]
-    (make-tamer-indexed-elemref
-     (λ [type chapter-index maybe-index]
-       (define label (string-titlecase (tamer-default-figure-label)))
-       (if (not maybe-index)
-           (racketerror (ex-element (~a label #\space chapter-index #\. '?)))
-           (elemref (~a id) (ex-element (~a label #\space chapter-index #\. maybe-index)))))
-     tamer-figure-index-type
-     (if (symbol? id) id (string->symbol (if (string? id) id (~a id)))))))
+(define-tamer-indexed-block figure #:anchor #false
+  [#:style [style tamer-center-block-style]] #:with [pre-flows]
+  #:λ (make-figure-block style pre-flows))
