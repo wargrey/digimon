@@ -22,7 +22,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-tamer-indexed-block stx)
   (syntax-parse stx #:datum-literals []
-    [(_ id (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
+    [(_ id (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
+                 (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
+        ...
         [args ...] #:with [pre-flows] #:λ make-block ...)
      (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->string (syntax->datum #'id)))))]
                     [id:tyle (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
@@ -32,72 +34,75 @@
                     [tamer-id-here (format-id #'id "tamer-~a-here" (syntax->datum #'id))]
                     [tamer-id-ref (format-id #'id "tamer-~a-ref" (syntax->datum #'id))]
                     [Tamer-Id-ref (format-id #'id "Tamer-~a-ref" (syntax->datum #'Id))]
-                    [tamer-default-id-label (format-id #'id "tamer-default-~a-label" (syntax->datum #'id))]
-                    [tamer-default-id-label-separator (format-id #'id "tamer-default-~a-label-separator" (syntax->datum #'id))]
-                    [tamer-default-id-label-style (format-id #'id "tamer-default-~a-label-style" (syntax->datum #'id))]
-                    [tamer-default-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
-       #'(begin (define tamer-default-id-label (make-parameter (symbol->string 'Id)))
-                (define tamer-default-id-label-separator (make-parameter ": "))
-                (define tamer-default-id-label-style (make-parameter 'tt))
-                (define tamer-default-id-caption-style (make-parameter #false))
+                    [tamer-id-label (format-id #'id "tamer-default-~a-label" (syntax->datum #'id))]
+                    [tamer-id-label-separator (format-id #'id "tamer-default-~a-label-separator" (syntax->datum #'id))]
+                    [tamer-id-label-style (format-id #'id "tamer-default-~a-label-style" (syntax->datum #'id))]
+                    [tamer-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
+       #'(begin (define tamer-id-label (make-parameter (symbol->string 'Id)))
+                (define tamer-id-label-separator (make-parameter ": "))
+                (define tamer-id-label-style (make-parameter 'tt))
+                (define tamer-id-caption-style (make-parameter #false))
                 
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-default-id-label) (tamer-default-id-label-separator) caption
-                                         figure-style (tamer-default-id-label-style) (tamer-default-id-caption-style)
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                                         figure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id*
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-default-id-label) (tamer-default-id-label-separator) caption
-                                         figuremulti-style (tamer-default-id-label-style) (tamer-default-id-caption-style)
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                                         figuremulti-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id**
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-default-id-label) (tamer-default-id-label-separator) caption
-                                         figuremultiwide-style (tamer-default-id-label-style) (tamer-default-id-caption-style)
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                                         figuremultiwide-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id-here
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-default-id-label) (tamer-default-id-label-separator) caption
-                                         herefigure-style (tamer-default-id-label-style) (tamer-default-id-caption-style)
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                                         herefigure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
                 
                 (define tamer-id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:tyle id ref-element
-                                             (string-downcase (tamer-default-id-label)))))
+                                             (string-downcase (tamer-id-label)))))
                 
                 (define Tamer-Id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:tyle id ref-element
-                                             (string-titlecase (tamer-default-id-label)))))))]))
+                                             (string-titlecase (tamer-id-label)))))))]))
 
 (define tamer-indexed-block
-  (lambda [id type label sep caption style label-style caption-style make-block anchor]
-    (define sym:tag (tamer-block-id->tag id))
+  (lambda [id type label sep caption style label-style caption-style target-style make-block anchor]
+    (define sym:tag (tamer-block-id->sym:tag id))
     
     (make-tamer-indexed-traverse-block
      #:latex-anchor anchor
      (λ [type chapter-index current-index]
        (define legend
-         (make-block-legend sym:tag label sep caption
+         (make-block-legend type sym:tag label sep caption
                             chapter-index current-index
-                            label-style caption-style))
+                            label-style caption-style target-style))
        (values sym:tag (list (make-block) legend)))
      type style)))
 
 (define tamer-indexed-block-ref
   (lambda [index-type id ref-element label]
+    (define sym:tag (tamer-block-id->sym:tag id))
+    
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (if (not maybe-index)
            (racketerror (ref-element (~a label #\space chapter-index #\. '?)))
-           (elemref (~a id) (ref-element (~a label #\space chapter-index #\. maybe-index)))))
-     index-type
-     (tamer-block-id->tag id))))
+           (make-link-element #false
+                              (list (ref-element (~a label #\space chapter-index #\. maybe-index)))
+                              (tamer-block-sym:tag->tag index-type sym:tag))))
+     index-type sym:tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block
@@ -147,13 +152,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-legend
-  (lambda [tag label sep caption chpt-idx self-idx label-style caption-style]
+  (lambda [type tag label sep caption chpt-idx self-idx label-style caption-style target-style]
     (make-paragraph centertext-style
                     (list (make-element legend-style
-                                        (list (elemtag (symbol->immutable-string tag)
-                                                       (make-element label-style
-                                                                     (format "~a ~a.~a~a"
-                                                                       label chpt-idx self-idx sep)))
+                                        (list (make-target-element target-style
+                                                                   (make-element label-style
+                                                                                 (format "~a ~a.~a~a"
+                                                                                   label chpt-idx self-idx sep))
+                                                                   (tamer-block-sym:tag->tag type tag))
                                               (make-element caption-style caption)))))))
 
 (define make-figure-block
@@ -161,13 +167,20 @@
     (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define tamer-block-source
+  (lambda [.res]
+    (collection-file-path .res "digimon" "stone")))
+
 (define figure-style-extras
-  (let ([abs (lambda (s)
-               (path->main-collects-relative
-                (collection-file-path s "scriblib")))])
-    (list 'never-indents
-          (make-css-addition (abs "figure.css"))
-          (make-tex-addition (abs "figure.tex")))))
+  (list 'never-indents
+        (make-css-addition (tamer-block-source "figure.css"))
+        (make-tex-addition (tamer-block-source "figure.tex"))))
+
+(define figure-target-style
+  (make-style #f
+              (list
+               (make-attributes '((x-target-lift . "Figure")))
+               (make-js-addition (tamer-block-source "figure.js")))))
 
 (define herefigure-style  (make-style "Herefigure" figure-style-extras))
 (define figure-style (make-style "Figure" figure-style-extras))
@@ -181,11 +194,15 @@
 (define phantomsection (make-paragraph (make-style "phantomsection" null) null))
 (define refstepcounter-style (make-style "refstepcounter" null))
 
-(define tamer-block-id->tag
+(define tamer-block-id->sym:tag
   (lambda [id]
     (cond [(symbol? id) id]
           [(string? id) (string->symbol id)]
           [else (string->symbol (~a id))])))
+
+(define tamer-block-sym:tag->tag
+  (lambda [type tag]
+    (list type (symbol->immutable-string tag))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API layer

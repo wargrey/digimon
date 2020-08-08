@@ -6,7 +6,7 @@
 
 (provide (all-from-out racket))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
-(provide (all-from-out "digitama/tamer/citation.rkt"  "digitama/tamer/manual.rkt" "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/citation.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/texbook.rkt" "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (require racket/hash)
@@ -27,6 +27,7 @@
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
 (require "digitama/tamer/block.rkt")
+(require "digitama/tamer/texbook.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -332,43 +333,6 @@
                                                                            [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
                                                                            [_ 'lightcyan])))]))))))))))))
 
-(define handbook-latex-command0
-  (let ([cmdbase (make-hash)])
-    (lambda [cmd]
-      (hash-ref! cmdbase cmd
-                 (λ [] (make-traverse-element
-                        (λ [get set!]
-                          (cond [(handbook-latex-renderer? get) (make-element cmd null)]
-                                [else null]))))))))
-
-(define handbook-latex-prefab-string
-  (lambda [TeX]
-    (case (string->symbol (string-downcase TeX))
-      [(tex) (handbook-latex-command0 "TeX")]
-      [(latex) (handbook-latex-command0 "LaTeX")]
-      [(latexe) (handbook-latex-command0 "LaTeXe")]
-      [else (handbook-latex-command0 TeX)])))
-
-(define texbook-front
-  (lambda []
-    (handbook-latex-command0 "frontmatter")))
-
-(define texbook-main
-  (lambda []
-    (handbook-latex-command0 "mainmatter")))
-
-(define texbook-appendix
-  (lambda []
-    (handbook-latex-command0 "appendix")))
-
-(define texbook-back
-  (lambda []
-    (handbook-latex-command0 "backmatter")))
-
-(define texbook-phantomsection
-  (lambda []
-    (handbook-latex-command0 "phantomsection")))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-module stx)
   (syntax-parse stx #:literals []
@@ -436,6 +400,14 @@
                                           (for/list ([htag (in-list (reverse (href books#)))])
                                             (make-spec-feature htag (reverse (href htag)))))]))))))
 
+(define tamer-elemtag
+  (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
+    (make-target-element style body `(,type ,tag))))
+
+(define tamer-elemref
+  (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
+    (make-link-element style body `(,type ,tag))))
+
 (define tamer-smart-summary
   (lambda []
     (define this-story (tamer-story))
@@ -485,8 +457,8 @@
                                        
                                        (define symtype (~a (~symbol issue-type)))
                                        (if (module-path? this-story)
-                                           (list (elem (italic (string local#)) ~ (elemref brief (racketkeywordfont (literal brief))))
-                                                 (elemref brief symtype #:underline? #false))
+                                           (list (elem (italic (string local#)) ~ (tamer-elemref brief (racketkeywordfont (literal brief))))
+                                                 (tamer-elemref brief symtype #:underline? #false))
                                            (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
                                                  [stts (make-parameter issue-type)])
                                              (echof #:fgcolor 'lightyellow head)
@@ -547,7 +519,7 @@
 
                           (vector (cons null (vector-ref seed:info 0))
                                   (cond [(= indent toplevel-indent)
-                                         (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (elemtag brief (literal brief)))) flows)]
+                                         (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (tamer-elemtag brief (literal brief)))) flows)]
                                         [(> indent toplevel-indent)
                                          (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
                                         [else flows])))
@@ -565,7 +537,7 @@
                           (define issues (vector-ref seed:info 0))
                           (define idx (add1 (length (car issues))))
                           (define type (spec-issue-type issue))
-                          (define flow (nonbreaking ((if (= indent toplevel-indent) (curry elemtag brief) elem)
+                          (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
                                                      (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
                                                      (racketcommentfont ~ (literal brief)))))
 
