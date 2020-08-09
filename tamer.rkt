@@ -287,18 +287,17 @@
                                   #:title    "The Racket Documentation Tool"
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
-    (lambda [#:index? [index? #true] . bibentries]
-      (list (texbook-appendix)
-            ((curry filter-not void?)
-             (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
-                                [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                [style noncontent-style]
-                                [parts null])
-                   (unless (false? index?)
-                     (struct-copy part (index-section #:tag "handbook-index")
-                                  [title-content (list (speak 'index #:dialect 'tamer))]
-                                  [style noncontent-style]))))))))
-  
+    (lambda [#:index-section? [index? #true] . bibentries]
+      ((curry filter-not void?)
+       (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
+                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                          [style noncontent-style]
+                          [parts null])
+             (unless (false? index?)
+               (struct-copy part (index-section #:tag "handbook-index")
+                            [title-content (list (speak 'index #:dialect 'tamer))]
+                            [style noncontent-style])))))))
+
 (define handbook-smart-table
   (lambda []
     (make-traverse-block

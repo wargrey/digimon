@@ -42,7 +42,7 @@
       [(cmd arg . args)
        (make-traverse-element
         (λ [get set!]
-          (cond [(texbook-renderer? get) (make-multiarg-element cmd (map ~a (car arg args)))]
+          (cond [(texbook-renderer? get) (make-multiarg-element cmd (map ~a (cons arg args)))]
                 [else null])))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -74,3 +74,7 @@
 (define $tex:refstepcounter
   (lambda [counter]
     (texbook-command "refstepcounter" counter)))
+
+(define $tex:setcounter
+  (lambda [counter value]
+    (texbook-command "setcounter" counter value)))
