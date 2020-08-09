@@ -55,12 +55,13 @@
       (define style.tex (build-path this-stone "style.tex"))
       (define load.tex (build-path this-stone "load.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
+      (define static-deps (if (not raw-tex?) (list pdfinfo.tex local-info.rkt) (list local-info.rkt)))
       (define scrbl-deps (if (not raw-tex?) (racket-smart-dependencies TEXNAME.scrbl) (tex-smart-dependencies TEXNAME.scrbl)))
-      (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
       (define stone-deps (if (pair? regexps) (find-digimon-files (make-regexps-filter regexps) local-stone) null))
+      (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
       
       (append specs
-              (list (wisemon-spec TEXNAME.ext #:^ (list* pdfinfo.tex local-info.rkt (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
+              (list (wisemon-spec TEXNAME.ext #:^ (append static-deps (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
                                   (define dest-dir : (Option Path) (path-only TEXNAME.ext))
                                   (define pwd : (Option Path) (path-only TEXNAME.scrbl))
                                   
@@ -117,20 +118,21 @@
                                               (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
                                             
                                             (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))
-                                            (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true))))))
+                                            (tex-render renderer src.tex dest-dir #:fallback tex-fallback-renderer #:enable-filter #true)))))))
 
-                    (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
-                                  (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
-                                  (define (hypersetup [/dev/stdout : Output-Port]) : Void
-                                    (displayln "\\hypersetup{" /dev/stdout)
-                                    (dtrace-debug "~a ~a: title: ~a" the-name renderer title)
-                                    (fprintf /dev/stdout "  pdftitle={~a},~n" title)
-                                    (dtrace-debug "~a ~a: authors: ~a" the-name renderer authors)
-                                    (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
-                                    (displayln "}" /dev/stdout)
-                                    (newline /dev/stdout))
-                                  (fg-recon-mkdir renderer (assert (path-only pdfinfo.tex)))
-                                  (fg-recon-save-file renderer pdfinfo.tex hypersetup)))))))
+              (cond [(and raw-tex?) null]
+                    [else (list (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
+                                              (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
+                                              (define (hypersetup [/dev/stdout : Output-Port]) : Void
+                                                (displayln "\\hypersetup{" /dev/stdout)
+                                                (dtrace-debug "~a ~a: title: ~a" the-name renderer title)
+                                                (fprintf /dev/stdout "  pdftitle={~a},~n" title)
+                                                (dtrace-debug "~a ~a: authors: ~a" the-name renderer authors)
+                                                (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
+                                                (displayln "}" /dev/stdout)
+                                                (newline /dev/stdout))
+                                              (fg-recon-mkdir renderer (assert (path-only pdfinfo.tex)))
+                                              (fg-recon-save-file renderer pdfinfo.tex hypersetup)))])))))
     
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]

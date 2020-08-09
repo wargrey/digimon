@@ -114,11 +114,11 @@
            (append memory (list (if (string? entry) (string->path entry) entry)))
            (call-with-input-file* entry
              (λ [[rktin : Input-Port]]
-               (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=[\"}])"
+               (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=\"?[]}])"
                               rktin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; WARNING: parameters are thread specific in which these variables case cannot be shared by `racket-trace-log` 
+;;; WARNING: parameters are thread specific in which these variables case cannot be shared by `racket-trace-log`
 (define again? : Boolean #false)
 (define compiling-round : Natural 1)
 
