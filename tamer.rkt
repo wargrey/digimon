@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 (provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
+(provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
 (provide (all-from-out racket))
@@ -181,6 +182,11 @@
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]
                              [else (list* (literal story-literal ":")) ~ input-contents]))))]))
+
+(define-syntax (handbook-root-story stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
+     #'(handbook-story #:style style #:index? #true contents ...)]))
 
 (define-syntax (handbook-module-story stx)
   (syntax-parse stx #:literals []
@@ -458,7 +464,7 @@
                                        (define symtype (~a (~symbol issue-type)))
                                        (if (module-path? this-story)
                                            (list (elem (italic (string local#)) ~ (tamer-elemref brief (racketkeywordfont (literal brief))))
-                                                 (tamer-elemref brief symtype #:underline? #false))
+                                                 (tamer-elemref brief symtype #:style "plainlink"))
                                            (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
                                                  [stts (make-parameter issue-type)])
                                              (echof #:fgcolor 'lightyellow head)

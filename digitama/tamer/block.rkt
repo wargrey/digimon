@@ -79,7 +79,7 @@
 
 (define tamer-indexed-block
   (lambda [id type label sep caption style label-style caption-style target-style make-block anchor]
-    (define sym:tag (tamer-block-id->sym:tag id))
+    (define sym:tag (tamer-indexed-block-id->symbol id))
     
     (make-tamer-indexed-traverse-block
      #:latex-anchor anchor
@@ -93,7 +93,7 @@
 
 (define tamer-indexed-block-ref
   (lambda [index-type id ref-element label]
-    (define sym:tag (tamer-block-id->sym:tag id))
+    (define sym:tag (tamer-indexed-block-id->symbol id))
     
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
@@ -150,16 +150,29 @@
      (λ [] (content-width (resolve index-type (car this-index-story) #false)))
      (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
 
+(define tamer-indexed-block-elemtag
+  (lambda [id label chapter-index self-index #:separator [sep ": "] #:type [type #false] #:style [style 'tt]]
+    (make-block-label (tamer-indexed-block-id->symbol (or type (string-downcase (~a label))))
+                      (tamer-indexed-block-id->symbol id)
+                      label sep
+                      chapter-index self-index
+                      style #false)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-block-label
+  (lambda [type tag label sep chpt-idx self-idx label-style target-style]
+    (make-target-element target-style
+                         (make-element label-style
+                                       (cond [(not sep) (format "~a ~a.~a" label chpt-idx self-idx)]
+                                             [else (format "~a ~a.~a~a" label chpt-idx self-idx sep)]))
+                         (tamer-block-sym:tag->tag type tag))))
+
 (define make-block-legend
   (lambda [type tag label sep caption chpt-idx self-idx label-style caption-style target-style]
     (make-paragraph centertext-style
                     (list (make-element legend-style
-                                        (list (make-target-element target-style
-                                                                   (make-element label-style
-                                                                                 (format "~a ~a.~a~a"
-                                                                                   label chpt-idx self-idx sep))
-                                                                   (tamer-block-sym:tag->tag type tag))
+                                        (list (make-block-label type tag label sep
+                                                                chpt-idx self-idx label-style target-style)
                                               (make-element caption-style caption)))))))
 
 (define make-figure-block
@@ -194,7 +207,7 @@
 (define phantomsection (make-paragraph (make-style "phantomsection" null) null))
 (define refstepcounter-style (make-style "refstepcounter" null))
 
-(define tamer-block-id->sym:tag
+(define tamer-indexed-block-id->symbol
   (lambda [id]
     (cond [(symbol? id) id]
           [(string? id) (string->symbol id)]
