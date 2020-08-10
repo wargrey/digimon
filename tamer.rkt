@@ -1,7 +1,7 @@
 #lang racket
 
 (provide (all-defined-out))
-(provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
+(provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
@@ -450,7 +450,7 @@
               (define issues (get tamer-scribble-story-issues tamer-empty-issues))
 
               (parameterize ([current-digimon raco-setup-forget-my-digimon])
-                (nested #:style handbook-boxed-style
+                (nested #:style tamer-boxed-style
                         (filebox (if (module-path? this-story)
                                      (italic (seclink "tamer-book" (string open-book#)) ~
                                              (~a "Behaviors in " (tamer-story->tag this-story)))

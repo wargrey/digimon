@@ -192,11 +192,11 @@
      (hash-set! indices index-type local-tags)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-boxed-style (make-style "boxed" (list 'command)))
+(define tamer-boxed-style (make-style "boxed" (list 'command)))
 
 (define handbook-nested-filebox
   (lambda [latex? /path/file block]
-    (nested #:style handbook-boxed-style
+    (nested #:style tamer-boxed-style
             (filebox (if (not latex?)
                          (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
                          (italic (path->string (tr-if-path /path/file))))
