@@ -45,7 +45,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
-(define phantomsection-style (make-style "phantomsection" null))
+(define placeholder-style (make-style #false '(hidden-number)))
 (define subsub*toc-style (make-style #false '(toc)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
@@ -161,7 +161,7 @@
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false])))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
         ...
         contents ...)
      #`(begin (tamer-taming-start! scribble)
@@ -171,7 +171,7 @@
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
-              (when (or index?)
+              (when (or counter-step?)
                 (tamer-index-story
                  (cons (add1 (car (tamer-index-story)))
                        (tamer-story))))
@@ -183,16 +183,27 @@
                        (cond [(string=? story-literal "") input-contents]
                              [else (list* (literal story-literal ":")) ~ input-contents]))))]))
 
+(define-syntax (handbook-part stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false])))
+        ...
+        pre-contents ...)
+     #'(handbook-story #:counter-step? #false
+                       #:style (cond [(not style) (make-style #false '(grouper))]
+                                     [else (make-style (style-name style)
+                                                       (cons 'grouper (style-properties style)))])
+                       pre-contents ...)]))
+
 (define-syntax (handbook-root-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
-     #'(handbook-story #:style style #:index? #true contents ...)]))
+     #'(handbook-story #:style style #:counter-step? #true contents ...)]))
 
 (define-syntax (handbook-module-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
               (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
         ...
         modpath:id contents ...)
@@ -201,7 +212,7 @@
                                        [else (list maybe-extras)]))])
        #'(begin (require (for-label modpath))
                 
-                (handbook-story #:style style #:index? index? contents ...)
+                (handbook-story #:style style #:counter-step? counter-step? contents ...)
                 
                 (declare-exporting modpath)
                 (tamer-story-private-modules (list 'reqs ...))
@@ -212,11 +223,11 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'typed/racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:index? index?) #:defaults ([index? #'#false]))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
               (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
         ...
         modpath:id contents ...)
-     #'(handbook-module-story #:lang lang #:style style #:index? index? #:requires extras
+     #'(handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras
                               modpath contents ...)]))
 
 (define handbook-preface-title
@@ -287,16 +298,23 @@
                                   #:title    "The Racket Documentation Tool"
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
-    (lambda [#:index-section? [index? #true] . bibentries]
+    (lambda [#:index-section? [index? #true] #:backmatter? [backmatter? #false] . bibentries]
+      (define bibliography-self (apply bibliography #:tag "handbook-bibliography" (append entries bibentries)))
+
       ((curry filter-not void?)
-       (list (struct-copy part (apply bibliography #:tag "handbook-bibliography" (append entries bibentries))
+       (list (struct-copy part bibliography-self
                           [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                          [style noncontent-style]
-                          [parts null])
+                          [blocks (append (part-blocks bibliography-self)
+                                          (cond [(not backmatter?) null]
+                                                [else (list (texbook-command-block "backmatter"))])
+                                          (cond [(not index?) null]
+                                                [else (list (texbook-command-block "twocolumn"))]))])
              (unless (false? index?)
-               (struct-copy part (index-section #:tag "handbook-index")
-                            [title-content (list (speak 'index #:dialect 'tamer))]
-                            [style noncontent-style])))))))
+               (let ([index-self (index-section #:tag "handbook-index")])
+                 (struct-copy part index-self 
+                              [title-content (list (speak 'index #:dialect 'tamer))]
+                              [blocks (append (part-blocks index-self)
+                                              (list (texbook-command-block "onecolumn")))]))))))))
 
 (define handbook-smart-table
   (lambda []

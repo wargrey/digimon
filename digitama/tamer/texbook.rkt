@@ -8,6 +8,12 @@
 (require racket/class)
 (require racket/format)
 
+(require "../tamer.rkt")
+(require "../../tongue.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define phantomsection-style (make-style "phantomsection" null))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-renderer?
   (lambda [get]
@@ -45,6 +51,26 @@
           (cond [(texbook-renderer? get) (make-multiarg-element cmd (map ~a (cons arg args)))]
                 [else null])))])))
 
+(define texbook-command-block
+  (let ([cmd0base (make-hash)])
+    (case-lambda
+      [(cmd)
+       (hash-ref! cmd0base cmd
+                  (λ [] (make-traverse-block
+                         (λ [get set!]
+                           (cond [(texbook-renderer? get) (make-paragraph (make-style cmd null) null)]
+                                 [else (make-paragraph (make-style #false null) null)])))))]
+      [(cmd arg)
+       (make-traverse-block
+        (λ [get set!]
+          (cond [(texbook-renderer? get) (make-nested-flow (make-style cmd null) (if (list? arg) arg (list arg)))]
+                [else arg])))]
+      [(cmd arg . args)
+       (make-traverse-block
+        (λ [get set!]
+          (cond [(texbook-renderer? get) (make-nested-flow (make-style cmd null) (cons arg args))]
+                [else (cons arg args)])))])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-front
   (lambda []
@@ -54,13 +80,16 @@
   (lambda []
     (texbook-command "mainmatter")))
 
+;; Scribble ignores blocks and elements inbetween included subparts
 (define texbook-appendix
-  (lambda []
-    (texbook-command "appendix")))
-
-(define texbook-back
-  (lambda []
-    (texbook-command "backmatter")))
+  (lambda [#:part? [part? #true] #:tag [tag #false] . contents]
+    (make-part #false
+                `((part ,(or tag "tamer-appendix")))
+               (if (pair? contents) contents (list (speak 'appendix #:dialect 'tamer)))
+               (make-style #false (if (not part?) '(unnumbered hidden toc-hidden) '(unnumbered grouper)))
+               null
+               (list (texbook-command-block "appendix"))
+               null)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:phantomsection
