@@ -71,25 +71,37 @@
           (cond [(texbook-renderer? get) (make-nested-flow (make-style cmd null) (cons arg args))]
                 [else (cons arg args)])))])))
 
+;; Scribble ignores blocks and elements inbetween included subparts
+(define texbook-command-part
+  (lambda [#:part? [part? #true] #:tag [tag #false] cmd contents]
+    (make-part #false
+                `((part ,(or tag cmd)))
+                (cond [(pair? contents) contents]
+                      [(not part?) null]
+                      [else (list (speak (string->symbol cmd) #:dialect 'tamer))])
+               (make-style #false (if (not part?) '(unnumbered hidden toc-hidden) '(unnumbered grouper)))
+               null
+               (list (texbook-command-block cmd))
+               null)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define texbook-front
+(define texbook-frontmatter
   (lambda []
     (texbook-command "frontmatter")))
 
-(define texbook-main
+(define texbook-mainmatter
   (lambda []
     (texbook-command "mainmatter")))
 
-;; Scribble ignores blocks and elements inbetween included subparts
 (define texbook-appendix
   (lambda [#:part? [part? #true] #:tag [tag #false] . contents]
-    (make-part #false
-                `((part ,(or tag "tamer-appendix")))
-               (if (pair? contents) contents (list (speak 'appendix #:dialect 'tamer)))
-               (make-style #false (if (not part?) '(unnumbered hidden toc-hidden) '(unnumbered grouper)))
-               null
-               (list (texbook-command-block "appendix"))
-               null)))
+    (texbook-command-part #:part? part? #:tag (or tag "tamer-appendix")
+                          "appendix" contents)))
+
+(define texbook-backmatter
+  (lambda [#:part? [part? #false] #:tag [tag #false] . contents]
+    (texbook-command-part #:part? part? #:tag (or tag "tamer-backmatter")
+                          "backmatter" contents)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:phantomsection

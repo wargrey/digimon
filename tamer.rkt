@@ -45,7 +45,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
-(define placeholder-style (make-style #false '(hidden-number)))
+(define placeholder-style (make-style #false null))
 (define subsub*toc-style (make-style #false '(toc)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
@@ -298,21 +298,21 @@
                                   #:title    "The Racket Documentation Tool"
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
-    (lambda [#:index-section? [index? #true] #:backmatter? [backmatter? #false] . bibentries]
+    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] . bibentries]
       (define bibliography-self (apply bibliography #:tag "handbook-bibliography" (append entries bibentries)))
 
       ((curry filter-not void?)
        (list (struct-copy part bibliography-self
                           [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                          [style (if numbered? placeholder-style (part-style bibliography-self))]
                           [blocks (append (part-blocks bibliography-self)
-                                          (cond [(not backmatter?) null]
-                                                [else (list (texbook-command-block "backmatter"))])
                                           (cond [(not index?) null]
                                                 [else (list (texbook-command-block "twocolumn"))]))])
              (unless (false? index?)
                (let ([index-self (index-section #:tag "handbook-index")])
                  (struct-copy part index-self 
                               [title-content (list (speak 'index #:dialect 'tamer))]
+                              [style (make-style #false (if numbered? null (style-properties (part-style index-self))))]
                               [blocks (append (part-blocks index-self)
                                               (list (texbook-command-block "onecolumn")))]))))))))
 
