@@ -103,6 +103,15 @@
     (texbook-command-part #:part? part? #:tag (or tag "tamer-backmatter")
                           "backmatter" contents)))
 
+(define texbook-onecolumn
+  (lambda []
+    (texbook-command-block "onecolumn")))
+
+(define texbook-twocolumn
+  (lambda []
+    (texbook-command-block "twocolumn")))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:phantomsection
   (lambda []

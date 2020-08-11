@@ -307,14 +307,13 @@
                           [style (if numbered? placeholder-style (part-style bibliography-self))]
                           [blocks (append (part-blocks bibliography-self)
                                           (cond [(not index?) null]
-                                                [else (list (texbook-command-block "twocolumn"))]))])
+                                                [else (list (texbook-twocolumn))]))])
              (unless (false? index?)
                (let ([index-self (index-section #:tag "handbook-index")])
                  (struct-copy part index-self 
                               [title-content (list (speak 'index #:dialect 'tamer))]
                               [style (make-style #false (if numbered? null (style-properties (part-style index-self))))]
-                              [blocks (append (part-blocks index-self)
-                                              (list (texbook-command-block "onecolumn")))]))))))))
+                              [blocks (append (part-blocks index-self) (list (texbook-onecolumn)))]))))))))
 
 (define handbook-smart-table
   (lambda []
