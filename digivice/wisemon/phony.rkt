@@ -21,10 +21,14 @@
     (make-wisemon-phony name phony desc)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define wisemon-phony-goal-rootdir : (-> Path)
+  (lambda []
+    (collection-file-path "phony" "digimon" "digivice" "wisemon")))
+
 (define wisemon-phony-goal-ref : (-> Symbol (Option Wisemon-Phony))
   (lambda [goal]
     (define strgoal : String (symbol->string goal))
-    (define goal.rkt : Path (build-path (collection-file-path "phony" "digimon" "digivice" "wisemon") (string-append strgoal ".rkt")))
+    (define goal.rkt : Path (build-path (wisemon-phony-goal-rootdir) (string-append strgoal ".rkt")))
 
     (or (and (file-exists? goal.rkt)
              (let ([heuristic-sym (string->symbol (string-append strgoal "-phony-goal"))])
@@ -35,10 +39,8 @@
 
 (define wisemon-list-phony-goals : (-> (Immutable-HashTable Symbol Wisemon-Phony))
   (lambda []
-    (define rootdir : (Option Path) (collection-file-path "phony" "digimon" "digivice" "wisemon"))
-
     (for/fold ([Phonies : (Immutable-HashTable Symbol Wisemon-Phony) (make-immutable-hasheq)])
-              ([phony.rkt (in-directory rootdir)] #:when (regexp-match? #px".rkt$" phony.rkt))
+              ([phony.rkt (in-directory (wisemon-phony-goal-rootdir))] #:when (regexp-match? #px".rkt$" phony.rkt))
       (dynamic-require phony.rkt #false)
       (parameterize ([current-namespace (module->namespace phony.rkt)])
         (for/fold ([phonies : (Immutable-HashTable Symbol Wisemon-Phony) Phonies])

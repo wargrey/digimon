@@ -13,7 +13,7 @@
 (require "echo.rkt")
 
 ;;; Racket's initial logger writes error messages to stderr (and syslog)
-;;; The logger facility is a thing that deep into the Racket Virtual Machine and parameters are thread specific data.
+;;; The logger facility is a thing that deep into the Racket Virtual Machine but parameters are thread specific data.
 ;;; The point is `current-logger` is not guaranteed to be the same one even though their names say so.
 ;;; If your `make-dtrace-loop` does not dispatch some messages, it probably has not received them at all.
 
@@ -76,10 +76,10 @@
                                               #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:default-receiver Dtrace-Receiver)
                                 (-> Void))
   (lambda [[dt-level 'note] [logger /dev/dtrace]
-                  #:exit-predicate? [exit? eof-object?] #:atexit [atexit void] #:display-exit-message? [show? #true]
-                  #:silent-topics [silent-topics dtrace-silent-topics]
-                  #:false-receiver [false-receiver void] #:dtrace-receiver [dtrace-receiver dtrace-event-echo]
-                  #:topic-receivers [receivers null] #:default-receiver [default-receiver dtrace-event-echo]]
+                            #:exit-predicate? [exit? eof-object?] #:atexit [atexit void] #:display-exit-message? [show? #true]
+                            #:silent-topics [silent-topics dtrace-silent-topics]
+                            #:false-receiver [false-receiver void] #:dtrace-receiver [dtrace-receiver dtrace-event-echo]
+                            #:topic-receivers [receivers null] #:default-receiver [default-receiver dtrace-event-echo]]
     (define /dev/log : Log-Receiver (make-log-receiver logger (dtrace-symbol->level dt-level)))
 
     (define (quit [rdt-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)] [rlevel : Symbol]) : Void

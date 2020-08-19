@@ -15,11 +15,10 @@
 (require "../debug.rkt")
 (require "../system.rkt")
 (require "../port.rkt")
-(require "../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags
-  #:program 'wisemon
+  #:program the-name
   #:args phony-target丨file-path
 
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"
