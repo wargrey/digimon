@@ -97,10 +97,11 @@
     
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
+       (define chpt-idx (tamer-block-chapter-label chapter-index))
        (if (not maybe-index)
-           (racketerror (ref-element (~a label #\space chapter-index #\. '?)))
+           (racketerror (ref-element (~a label #\space chpt-idx #\. '?)))
            (make-link-element #false
-                              (list (ref-element (~a label #\space chapter-index #\. maybe-index)))
+                              (list (ref-element (~a label #\space chpt-idx #\. maybe-index)))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
      index-type sym:tag)))
 
@@ -160,7 +161,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-label
-  (lambda [type tag label sep chpt-idx self-idx label-style target-style]
+  (lambda [type tag label sep chpt-idx0 self-idx label-style target-style]
+    (define chpt-idx (tamer-block-chapter-label chpt-idx0))
     (make-target-element target-style
                          (make-element label-style
                                        (cond [(not sep) (format "~a ~a.~a" label chpt-idx self-idx)]
@@ -216,6 +218,13 @@
 (define tamer-block-sym:tag->tag
   (lambda [type tag]
     (list type (symbol->immutable-string tag))))
+
+(define tamer-block-chapter-label
+  (lambda [chpt-idx]
+    (define apdx-idx (tamer-appendix-index))
+
+    (cond [(not apdx-idx) chpt-idx]
+          [else (integer->char (+ (- chpt-idx apdx-idx) 65))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API layer

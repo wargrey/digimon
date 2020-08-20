@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
-(provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag)
+(provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
 (provide (all-from-out racket))
@@ -198,6 +198,14 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
      #'(handbook-story #:style style #:counter-step? #true contents ...)]))
+
+(define-syntax (handbook-appendix-story stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
+     #'(begin (handbook-story #:style style #:counter-step? #true contents ...)
+
+              (unless (tamer-appendix-index)
+                (tamer-appendix-index (car (tamer-index-story)))))]))
 
 (define-syntax (handbook-module-story stx)
   (syntax-parse stx #:literals []

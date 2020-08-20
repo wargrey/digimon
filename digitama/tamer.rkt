@@ -22,6 +22,7 @@
 (define tamer-story-lang+modules (make-parameter null))
 (define tamer-story-private-modules (make-parameter null))
 (define tamer-index-story (make-parameter (cons 0 #false)))
+(define tamer-appendix-index (make-parameter #false))
 
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))

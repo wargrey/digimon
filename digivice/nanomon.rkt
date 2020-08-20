@@ -2,14 +2,13 @@
 
 (provide main)
 
-(require racket/path)
-
 (require "nanomon/parameter.rkt")
 (require "nanomon/shell.rkt")
 
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
+(require "../thread.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags
@@ -34,13 +33,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Nanomon-Shell Path Byte)
   (lambda [shell target]
+    (define root-custodian (current-custodian))
     (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
                    [current-custodian (make-custodian)])
-      (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                              [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? #false) (nanomon-errno))])
-                ((nanomon-shell-exec shell) target)
+      (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
+                (define ghostcat : Thread
+                  (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? #false) (nanomon-errno))])
+                                  ((nanomon-shell-exec shell) target)
+                                  0))))
+                (sync/enable-break (thread-dead-evt ghostcat))
                 0)
-              (custodian-shutdown-all (current-custodian))))))
+              (thread-safe-shutdown (current-custodian) root-custodian)))))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
