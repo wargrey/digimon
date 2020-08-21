@@ -5,7 +5,7 @@
 (require typed/setup/getinfo)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Lang-Shell (-> Path Any))
+(define-type Lang-Shell (-> Path Thread Any))
 
 (struct nanomon-shell
   ([name : Symbol]

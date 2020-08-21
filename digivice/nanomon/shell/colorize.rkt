@@ -8,9 +8,9 @@
 (require "../shell.rkt")
 (require "../unsafe/colorize.rkt")
 
-(define shell~colorize : (-> Path Any)
-  (lambda [path]
-    (drracket-colorize path (file->string path))))
+(define shell~colorize : (-> Path Thread Any)
+  (lambda [path env-thread]
+    (drracket-colorize path (file->string path) env-thread)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define colorize-shell : Nanomon-Shell

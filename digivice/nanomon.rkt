@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang typed/racket/gui
 
 (provide main)
 
@@ -33,16 +33,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Nanomon-Shell Path Byte)
   (lambda [shell target]
-    (define root-custodian (current-custodian))
+    (define root-thread : Thread (current-thread))
+    (define root-custodian : Custodian (current-custodian))
     (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
-                   [current-custodian (make-custodian)])
+                   [current-custodian (make-custodian)]
+                   [current-error-port (open-output-dtrace 'error)])
       (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
                 (define ghostcat : Thread
-                  (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? #false) (nanomon-errno))])
-                                  ((nanomon-shell-exec shell) target)
-                                  0))))
-                (sync/enable-break (thread-dead-evt ghostcat))
-                0)
+                  (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]
+                                                [exn:break? void])
+                                  ((nanomon-shell-exec shell) target root-thread)))))
+
+                (yield (thread-receive-evt))
+                (let ([retcode (thread-receive)])
+                  (cond [(byte? retcode) retcode]
+                        [(not (exn:fail? retcode)) 0]
+                        [else (dtrace-exception retcode #:level 'fatal #:brief? #false)
+                              (nanomon-errno)])))
               (thread-safe-shutdown (current-custodian) root-custodian)))))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
