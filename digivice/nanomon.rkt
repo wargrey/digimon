@@ -17,7 +17,7 @@
 
   #:usage-help "A utility for testing #lang"
   #:once-each
-  [[(#\l lang)                          lang  "replace the #lang line with ~1"]
+  [[(#\l lang)                          lang  "replace the #lang line with ~1 (unimplemented yet)"]
    [(#\v verbose) #:=> nanomon-verbose        "run with verbose messages"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
