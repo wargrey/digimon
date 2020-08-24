@@ -9,6 +9,7 @@
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
 (require "../thread.rkt")
+(require "../port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags
@@ -17,8 +18,9 @@
 
   #:usage-help "A utility for testing #lang"
   #:once-each
-  [[(#\l lang)                          lang  "replace the #lang line with ~1 (unimplemented yet)"]
-   [(#\v verbose) #:=> nanomon-verbose        "run with verbose messages"]])
+  [[(#\l lang)                         lang  "replace the #lang line with ~1 (unimplemented yet)"]
+   [(#\s slient quiet) #:=> nanomon-silent   "Suppress lang's standard output"]
+   [(#\v verbose)      #:=> nanomon-verbose  "run with verbose messages"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -37,7 +39,8 @@
     (define root-custodian : Custodian (current-custodian))
     (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
                    [current-custodian (make-custodian)]
-                   [current-error-port (open-output-dtrace 'error)])
+                   [current-error-port (open-output-dtrace 'error)]
+                   [current-output-port (if (nanomon-silent) /dev/null (current-output-port))])
       (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
                 (define ghostcat : Thread
                   (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]

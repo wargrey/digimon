@@ -11,10 +11,12 @@
 (define nanomon-lang : (Parameterof (Option String)) (make-parameter #false))
 (define nanomon-errno : (Parameterof Byte) (make-parameter 1))
 (define nanomon-verbose : (Parameterof Boolean) (make-parameter #false))
+(define nanomon-silent : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nanomon-restore-options! : (-> Void)
   (lambda []
     (nanomon-lang #false)
     (nanomon-errno 1)
-    (nanomon-verbose #false)))
+    (nanomon-verbose #false)
+    (nanomon-silent #false)))
