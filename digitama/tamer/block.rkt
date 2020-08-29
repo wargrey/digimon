@@ -109,10 +109,12 @@
 (define make-tamer-indexed-traverse-block
   (lambda [traverse index-type [block-style #false] #:latex-anchor [anchor? #true]]
     (define this-index-story (tamer-index-story))
+    (define appendix-index (tamer-appendix-index))
 
     (make-traverse-block
      (λ [get set!]
-       (parameterize ([tamer-index-story this-index-story])
+       (parameterize ([tamer-index-story this-index-story]
+                      [tamer-appendix-index appendix-index])
          (define order (car this-index-story))
          (define this-story (cdr this-index-story))
          (define global-tags (traverse-indexed-tagbase get index-type))
@@ -137,6 +139,8 @@
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]
     (define this-index-story (tamer-index-story))
+    (define appendix-index (tamer-appendix-index))
+    
     (define sym:tag
       (cond [(symbol? tag) tag]
             [(string? tag) (string->symbol tag)]
@@ -144,10 +148,12 @@
     
     (make-delayed-element
      (λ [render% pthis infobase]
-       (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
-       (define global-tags (traverse-indexed-tagbase get index-type))
-       (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car this-index-story) #false))))
-       (resolve index-type (car target-info) (cdr target-info)))
+       (parameterize ([tamer-index-story this-index-story]
+                      [tamer-appendix-index appendix-index])
+         (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+         (define global-tags (traverse-indexed-tagbase get index-type))
+         (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car this-index-story) #false))))
+         (resolve index-type (car target-info) (cdr target-info))))
      (λ [] (content-width (resolve index-type (car this-index-story) #false)))
      (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
 
@@ -224,6 +230,7 @@
     (define apdx-idx (tamer-appendix-index))
 
     (cond [(not apdx-idx) chpt-idx]
+          [(< chpt-idx apdx-idx) 0 #| It's in the preface |#]
           [else (integer->char (+ (- chpt-idx apdx-idx) 65))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
