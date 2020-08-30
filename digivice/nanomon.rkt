@@ -84,9 +84,11 @@
     (dtrace-event-echo level message urgent topic)
 
     (when (and (exn:fail? urgent) (nanomon-verbose))
-      (define /dev/stderr (open-output-string))
-      (display-continuation-stacks urgent /dev/stderr)
-      (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic))))
+      (let ([/dev/stderr (open-output-string)])
+        (display-continuation-stacks urgent /dev/stderr)
+        (let ([errmsg (get-output-string /dev/stderr)])
+          (unless (string=? errmsg "")
+            (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic)))))))
 
 (define make-lang-log-trace : (-> (-> Void))
   (lambda []
