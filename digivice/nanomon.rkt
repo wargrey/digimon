@@ -5,6 +5,7 @@
 (require "nanomon/parameter.rkt")
 (require "nanomon/shell.rkt")
 
+(require "../continuation.rkt")
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
@@ -78,9 +79,19 @@
                                              (thread-wait tracer))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define nanomon-event-echo : Dtrace-Receiver
+  (lambda [level message urgent topic]
+    (dtrace-event-echo level message urgent topic)
+
+    (when (and (exn:fail? urgent) (nanomon-verbose))
+      (define /dev/stderr (open-output-string))
+      (display-continuation-stacks urgent /dev/stderr)
+      (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic))))
+
 (define make-lang-log-trace : (-> (-> Void))
   (lambda []
-    (make-dtrace-loop (cond [(nanomon-verbose) 'trace]
+    (make-dtrace-loop #:default-receiver nanomon-event-echo
+                      (cond [(nanomon-verbose) 'trace]
                             [else 'info]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

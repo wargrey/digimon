@@ -24,3 +24,22 @@
      (cond [(continuation-mark-set? cm) (continuation-mark-set->context cm)]
            [(exn? cm) (continuation-mark-set->context (exn-continuation-marks cm))]
            [else (continuation-mark-set->context (continuation-marks cm))]))))
+
+(define display-continuation-stacks : (->* () ((U Continuation-Mark-Set Thread exn) Output-Port) Void)
+  (lambda [[errobj (current-continuation-marks)] [/dev/errout (current-error-port)]]
+    (for ([stack (in-list (continuation-mark->stacks errobj))]
+          [idx (in-naturals)])
+      (define maybe-location (cdr stack))
+      (unless (not maybe-location)
+        (when (> idx 0)
+          (display #\newline /dev/errout))
+        
+        (display "»»»» " /dev/errout)
+        (display (car stack) /dev/errout)
+        (display #\: /dev/errout)
+        (display #\space /dev/errout)
+        (display (vector-ref maybe-location 0) /dev/errout)
+        (display #\: /dev/errout)
+        (display (vector-ref maybe-location 1) /dev/errout)
+        (display #\: /dev/errout)
+        (display (vector-ref maybe-location 2) /dev/errout)))))
