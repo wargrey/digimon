@@ -2,8 +2,11 @@
 
 (provide (all-defined-out))
 
+(require racket/pretty)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define the-name 'nanomon)
+(define the-name : Symbol 'nanomon)
+(define the-print-width : Index 160)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define current-nanomon-shell : (Parameterof (Option Symbol)) (make-parameter #false))
@@ -19,4 +22,5 @@
     (nanomon-lang #false)
     (nanomon-errno 1)
     (nanomon-verbose #false)
-    (nanomon-silent #false)))
+    (nanomon-silent #false)
+    (pretty-print-columns the-print-width)))

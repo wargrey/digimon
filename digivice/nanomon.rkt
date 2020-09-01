@@ -19,9 +19,11 @@
 
   #:usage-help "A utility for testing #lang"
   #:once-each
-  [[(#\l lang)                         lang  "replace the #lang line with ~1 (unimplemented yet)"]
-   [(#\s slient quiet) #:=> nanomon-silent   "Suppress lang's standard output"]
-   [(#\v verbose)      #:=> nanomon-verbose  "run with verbose messages"]])
+  [[(#\l lang)                                       lang          "replace the #lang line with ~1 (unimplemented yet)"]
+   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
+                                                                    the-print-width]]
+   [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]
+   [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -65,7 +67,8 @@
       (wisemon-display-help))
 
     (parameterize ([current-logger /dev/dtrace]
-                   [nanomon-lang (nanomon-flags-lang options)])
+                   [nanomon-lang (nanomon-flags-lang options)]
+                   [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)])
       (define name+target : (List String String) (λargv))
       (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol (car name+target))))
 

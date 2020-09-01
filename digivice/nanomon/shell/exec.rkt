@@ -4,14 +4,22 @@
 
 (require racket/file)
 (require racket/match)
+(require racket/pretty)
 
 (require "../shell.rkt")
+(require "../parameter.rkt")
 (require "../unsafe/colorize.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~exec : (-> Path Thread Any)
   (lambda [path env-thread]
-    (parameterize ([current-namespace (make-base-namespace)])
-      (dynamic-require `(submod ,path main) 0))
+    (parameterize ([current-namespace (make-base-namespace)]
+                   [global-port-print-handler pretty-print])
+      (define main `(submod ,path main))
+      
+      (cond [(module-declared? main #true) (dynamic-require main 0)]
+            [(dynamic-require path 0)]))
+    
     (thread-send env-thread 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
