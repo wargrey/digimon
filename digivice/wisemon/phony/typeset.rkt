@@ -140,7 +140,7 @@
                                       
                                       (fg-recon-save-file renderer pdfinfo.tex hypersetup))
 
-                        (wisemon-spec TEXNAME.ext #:^ (list pdfinfo.tex TEXNAME.tex) #:-
+                        (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
                                       (tex-render #:fallback tex-fallback-renderer #:enable-filter #true
                                                   renderer TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
     

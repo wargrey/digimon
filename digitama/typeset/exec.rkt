@@ -20,8 +20,9 @@
     (define TEXNAME.log : Path (build-path dest-dir (path-replace-extension TEXNAME #".log")))
     (define log-timestamp : Natural (file-mtime TEXNAME.log))
     (define -output-directory : String (format "-output-directory=~a" dest-dir))
-    
-    (fg-recon-mkdir renderer dest-dir)
+
+    (unless (directory-exists? dest-dir)
+      (fg-recon-mkdir renderer dest-dir))
 
     ;;; NOTE: Scribble may generate resources in `(current-directory)`
     (parameterize ([current-directory dest-dir])
