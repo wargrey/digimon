@@ -34,8 +34,10 @@
                   (if (and enable-filter preamble-filter)
                       (let ([TEXNAME.tex (build-path dest-dir (assert (file-name-from-path src.tex) path?))])
                         (parameterize ([current-custodian (make-custodian)])
+
+                          (unless (directory-exists? dest-dir)
+                            (fg-recon-mkdir renderer dest-dir))
                           
-                          (fg-recon-mkdir renderer dest-dir)
                           (dtrace-info #:topic renderer "(~a ~a)" (object-name preamble-filter) src.tex)
                           
                           (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler renderer e (λ [] (custodian-shutdown-all (current-custodian)))))])
