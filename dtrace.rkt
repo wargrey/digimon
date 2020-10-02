@@ -35,7 +35,7 @@
   '(GC racket/contract optimizer TR-optimizer place syntax-parse
        collapsible-value-bailout collapsible-contract-bailout
        module-prefetch tr-timing online-check-syntax cm-accomplice
-       sequence-specialization framework/colorer))
+       sequence-specialization framework/colorer ffi-lib))
 
 (define dtrace-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
