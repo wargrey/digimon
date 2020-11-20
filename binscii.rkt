@@ -4,6 +4,7 @@
 
 (require (prefix-in base64: "digitama/bintext/base64.rkt"))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define base64-encode : (-> (U String Bytes) [#:62nd Positive-Byte] [#:63rd Positive-Byte] Bytes)
   (lambda [/dev/stdin #:62nd [62nd base64:62nd] #:63rd [63rd base64:63rd]]
     (cond [(bytes? /dev/stdin) (base64:encode /dev/stdin 62nd 63rd)]

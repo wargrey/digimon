@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require "digitama/unsafe/number.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nonnegative-fixnum? : (-> Any Boolean : Nonnegative-Fixnum) (λ [n] (and (fixnum? n) (>= n 0))))
 
@@ -46,6 +48,26 @@
                       (i++ (- idx 1))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (msb-bytes->int8 [src : Bytes] [idx : Integer]) : Fixnum (msb-bytes->octet src idx #true))
+(define (msb-bytes->uint8 [src : Bytes] [idx : Integer]) : Byte (msb-bytes->octet src idx #false))
+(define (lsb-bytes->lint8 [src : Bytes] [idx : Integer]) : Fixnum (lsb-bytes->octet src idx #true))
+(define (lsb-bytes->luint8 [src : Bytes] [idx : Integer]) : Byte (lsb-bytes->octet src idx #false))
+
+(define (msb-bytes->int16 [src : Bytes] [idx : Integer]) : Fixnum (msb-bytes->short src idx #true))
+(define (msb-bytes->uint16 [src : Bytes] [idx : Integer]) : Index (msb-bytes->short src idx #false))
+(define (lsb-bytes->lint16 [src : Bytes] [idx : Integer]) : Fixnum (lsb-bytes->short src idx #true))
+(define (lsb-bytes->luint16 [src : Bytes] [idx : Integer]) : Index (lsb-bytes->short src idx #false))
+
+(define (msb-bytes->int32 [src : Bytes] [idx : Integer]) : Fixnum (msb-bytes->int src idx #true))
+(define (msb-bytes->uint32 [src : Bytes] [idx : Integer]) : Index (msb-bytes->int src idx #false))
+(define (lsb-bytes->lint32 [src : Bytes] [idx : Integer]) : Fixnum (lsb-bytes->int src idx #true))
+(define (lsb-bytes->luint32 [src : Bytes] [idx : Integer]) : Index (lsb-bytes->int src idx #false))
+
+(define (msb-bytes->int64 [src : Bytes] [idx : Integer]) : Integer (msb-bytes->long src idx #true))
+(define (msb-bytes->uint64 [src : Bytes] [idx : Integer]) : Natural (msb-bytes->long src idx #false))
+(define (lsb-bytes->lint64 [src : Bytes] [idx : Integer]) : Integer (lsb-bytes->long src idx #true))
+(define (lsb-bytes->luint64 [src : Bytes] [idx : Integer]) : Natural (lsb-bytes->long src idx #false))
+
 (define integer->network-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define isize : Index (integer-bytes-length mpint))

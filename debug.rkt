@@ -5,6 +5,21 @@
 (require "format.rkt")
 (require "echo.rkt")
 
+(require (for-syntax racket/base))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (assert* stx)
+  (syntax-case stx []
+    [(_ sexp pred throw) #'(assert* sexp pred throw 'assert)]
+    [(_ sexp pred throw src)
+     #`(let ([v sexp]
+             [? pred])
+         #,(syntax-property
+            (quasisyntax/loc stx
+              (if (? v) v (throw src (symbol->string (assert (object-name ?) symbol?)) v)))
+            'feature-profile:TR-dynamic-check #t))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tee : (All (a) (-> a [#:printer (-> Any Output-Port Any)] Output-Port * a))
   (lambda [v #:printer [<< pretty-print] . outs]
     (for ([out (in-list (cons (current-output-port) outs))]) (<< v out))
