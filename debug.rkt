@@ -16,7 +16,7 @@
              [? pred])
          #,(syntax-property
             (quasisyntax/loc stx
-              (if (? v) v (throw src (symbol->string (assert (object-name ?) symbol?)) v)))
+              (if (? v) v (throw src (~a (object-name ?)) v)))
             'feature-profile:TR-dynamic-check #t))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
