@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide msb-bytes->double lsb-bytes->double)
+(provide msb-bytes->float lsb-bytes->float
+         msb-bytes->double lsb-bytes->double)
 
 (require "digitama/unsafe/number.rkt")
 (require "digitama/number.rkt")

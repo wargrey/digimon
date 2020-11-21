@@ -2,36 +2,146 @@
 
 (provide (all-defined-out))
 
-(require "debug.rkt")
-
 (require "digitama/ioexn.rkt")
-(require "digitama/number.rkt")
+(require "digitama/stdio.rkt")
 
 (require "digitama/unsafe/number.rkt")
+
+(require (for-syntax racket/base))
+(require (for-syntax racket/syntax))
+(require (for-syntax racket/sequence))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Subbytes (List Bytes Index Index))
 (define-type Octets (U Bytes Subbytes))
 
+(define-for-syntax (stdio-datatype <DataType> <fields>)
+  (define datatype (syntax-e <DataType>))
+
+  (case datatype
+    [(Byte Octet)                (list #'Byte    1 #'read-luint8  #'write-msintptr)]
+    [(Short MShort Int16 MInt16) (list #'Fixnum  2 #'read-msint16 #'write-msintptr)]
+    [(UInt16 MUInt16)            (list #'Index   2 #'read-muint16 #'write-muintptr)]
+    [(LShort LInt16)             (list #'Fixnum  2 #'read-lsint16 #'write-lsintptr)]
+    [(LUInt16)                   (list #'Index   2 #'read-luint16 #'write-luintptr)]
+    [(Int MInt Int32 MInt32)     (list #'Fixnum  4 #'read-msint32 #'write-msintptr)]
+    [(UInt32 MUInt32)            (list #'Index   4 #'read-muint32 #'write-muintptr)]
+    [(LInt LInt32)               (list #'Fixnum  4 #'read-lsint32 #'write-lsintptr)]
+    [(LUInt32)                   (list #'Index   4 #'read-luint32 #'write-luintptr)]
+    [(Long MLong Int64 MInt64)   (list #'Integer 8 #'read-msint64 #'write-msintptr)]
+    [(UInt64 MUInt64)            (list #'Natural 8 #'read-muint64 #'write-muintptr)]
+    [(LLong LInt64)              (list #'Integer 8 #'read-lsint64 #'write-lsintptr)]
+    [(LUInt64)                   (list #'Natural 8 #'read-luint64 #'write-luintptr)]
+    [(Size MSize)                (list #'Index   8 #'read-msize   #'write-muintptr)]
+    [(LSize)                     (list #'Index   8 #'read-lsize   #'write-luintptr)]
+    ;[(Float MFloat)              (list #'flonum 4)]
+    ;[(LFloat)                    (list #'flonum 4)]
+    ;[(Double MDouble)            (list #'flonum 8)]
+    ;[(LDouble)                   (list #'flonum 8)]
+    [else (case (syntax-e (car datatype))
+            [(Bytesof)
+             (let ([<size> (stdio-referenced-field (cadr datatype) <fields>)])
+               (list #'Bytes <size> #'read-nbytes* #'write-nbytes*))]
+            [else (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)])]))
+
+(define-for-syntax (stdio-field-group <field> <DataType>)
+  (define datatype (syntax-e <DataType>))
+
+  (and (pair? datatype)
+       (case (syntax-e (car datatype))
+         [(Bytesof) (list (cadr datatype) <field> #'bytes-length)]
+         [else #false])))
+
+(define-syntax (define-file-header stx)
+  (syntax-case stx [:]
+    [(_ header : Header ([field : DataType defval ...] ...))
+     (with-syntax* ([constructor (format-id #'header "~a" (gensym (format "~a:" (syntax-e #'header))))]
+                    [make-header (format-id #'header "make-~a" (syntax-e #'header))]
+                    [remake-header (format-id #'header "remake-~a" (syntax-e #'header))]
+                    [header? (format-id #'header "~a?" (syntax-e #'header))]
+                    [read-header (format-id #'header "read-~a" (syntax-e #'header))]
+                    [write-header (format-id #'header "write-~a" (syntax-e #'header))]
+                    [([FieldType integer-size read-field write-field] ...)
+                     (let ([<fields> #'(field ...)])
+                       (for/list ([<DataType> (in-syntax #'(DataType ...))])
+                         (stdio-datatype <DataType> <fields>)))]
+                    [([auto-field target-field field-length] ...)
+                     (filter list?
+                             (for/list ([<field> (in-syntax #'(field ...))]
+                                        [<DataType> (in-syntax #'(DataType ...))])
+                               (stdio-field-group <field> <DataType>)))]
+                    [([field-ref auto?] ...)
+                     (let ([autofields (syntax->datum #'(auto-field ...))])
+                       (for/list ([<field> (in-syntax #'(field ...))])
+                         (define field (syntax-e <field>))
+                         (list (format-id <field> "~a-~a" (syntax-e #'header) field)
+                               (and (memq field autofields) #true))))]
+                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...])
+                     (let*-values ([(auto-fields) (syntax->datum #'(auto-field ...))]
+                                   [(args reargs sdleif)
+                                    (for/fold ([args null] [reargs null] [sdleif null])
+                                              ([<field> (in-syntax #'(field ...))]
+                                               [<ref> (in-syntax #'(field-ref ...))]
+                                               [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
+                                               [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
+                                      (define field (syntax-e <field>))
+                                      (cond [(memq field auto-fields) (values args reargs sdleif)]
+                                            [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->string field)))])
+                                                    (values (cons <kw-name> (cons <Argument> args))
+                                                            (cons <kw-name> (cons <ReArgument> reargs))
+                                                            (cons (list <field> <ref>) sdleif)))]))])
+                       (list args reargs (reverse sdleif)))])
+       #'(begin (struct header ([field : FieldType] ...)
+                  #:constructor-name constructor
+                  #:type-name Header
+                  #:transparent)
+
+                (define (make-header kw-args ...) : Header
+                  (let ([auto-field (field-length target-field)] ...)
+                    (constructor field ...)))
+
+                (define (remake-header [src : Header] kw-reargs ...) : Header
+                  (let* ([man-field (or man-field (man-ref src))] ...
+                         [auto-field (field-length target-field)] ...)
+                    (constructor field ...)))
+
+                (define read-header : (->* () (Input-Port (Option Integer)) Header)
+                  (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
+                    (lambda [[/dev/stdin (current-input-port)] [posoff #false]]
+                      (unless (not posoff)
+                        (cond [(>= posoff 0) (file-position /dev/stdin posoff)]
+                              [else (file-position /dev/stdin eof)
+                                    (file-position /dev/stdin (+ (file-position /dev/stdin) posoff))]))
+
+                      (let* ([field (call-datum-reader read-field integer-size /dev/stdin 'field sizes auto?)] ...)
+                        (constructor field ...)))))
+
+                (define write-header : (->* (Header) (Output-Port (Option Natural)) Natural)
+                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
+                    (when (exact-nonnegative-integer? posoff)
+                      (file-position /dev/stdout posoff))
+                    (+ (write-field (field-ref src) (integer-size-for-writer integer-size) /dev/stdout)
+                       ...)))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#;(define read-n:bytes : (-> Input-Port Natural Bytes)
+(define read-n:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (read-nbytes* /dev/stdin (read-msize /dev/stdin size))))
 
-(define-read-integer* read-nbytes*
-  [msb-bytes->octet 1 [read-mint8  #:-> Fixnum]  [read-muint8  #:-> Byte]]
-  [msb-bytes->short 2 [read-mint16 #:-> Fixnum]  [read-muint16 #:-> Index]]
-  [msb-bytes->int   4 [read-mint32 #:-> Fixnum]  [read-muint32 #:-> Index]]
-  [msb-bytes->long  8 [read-mint64 #:-> Integer] [read-muint64 #:-> Natural]])
+(define-read-integer*
+  [msb-bytes->octet 1 [read-msint8  #:-> Fixnum]  [read-muint8  #:-> Byte]]
+  [msb-bytes->short 2 [read-msint16 #:-> Fixnum]  [read-muint16 #:-> Index]]
+  [msb-bytes->int   4 [read-msint32 #:-> Fixnum]  [read-muint32 #:-> Index]]
+  [msb-bytes->long  8 [read-msint64 #:-> Integer] [read-muint64 #:-> Natural]])
 
-(define-read-integer* read-nbytes*
-  [lsb-bytes->octet 1 [read-lint8  #:-> Fixnum]  [read-luint8  #:-> Byte]]
-  [lsb-bytes->short 2 [read-lint16 #:-> Fixnum]  [read-luint16 #:-> Index]]
-  [lsb-bytes->int   4 [read-lint32 #:-> Fixnum]  [read-luint32 #:-> Index]]
-  [lsb-bytes->long  8 [read-lint64 #:-> Integer] [read-luint64 #:-> Natural]])
+(define-read-integer*
+  [lsb-bytes->octet 1 [read-lsint8  #:-> Fixnum]  [read-luint8  #:-> Byte]]
+  [lsb-bytes->short 2 [read-lsint16 #:-> Fixnum]  [read-luint16 #:-> Index]]
+  [lsb-bytes->int   4 [read-lsint32 #:-> Fixnum]  [read-luint32 #:-> Index]]
+  [lsb-bytes->long  8 [read-lsint64 #:-> Integer] [read-luint64 #:-> Natural]])
 
-(define-read-integer read-msize msb-bytes->index read-nbytes* #:-> Index)
-(define-read-integer read-lsize lsb-bytes->index read-nbytes* #:-> Index)
+(define-read-integer read-msize msb-bytes->index #:-> Index)
+(define-read-integer read-lsize lsb-bytes->index #:-> Index)
 
 (define read-signature : (-> Input-Port Bytes Boolean)
   (lambda [/dev/stdin signature]
@@ -64,3 +174,25 @@
     (define bs : (U Bytes EOF) (peek-bytes size skip /dev/stdin))
     (cond [(and (bytes? bs) (= (bytes-length bs) size)) bs]
           [else (throw-eof-error /dev/stdin)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define write-msintptr : (->* (Integer Integer) (Output-Port) Byte)
+  (lambda [n size [/dev/stdout (current-output-port)]]
+    (write-fixed-integer /dev/stdout n size #true #true)))
+
+(define write-lsintptr : (->* (Integer Integer) (Output-Port) Byte)
+  (lambda [n size [/dev/stdout (current-output-port)]]
+    (write-fixed-integer /dev/stdout n size #true #false)))
+
+(define write-muintptr : (->* (Integer Integer) (Output-Port) Byte)
+  (lambda [n size [/dev/stdout (current-output-port)]]
+    (write-fixed-integer /dev/stdout n size #false #true)))
+
+(define write-luintptr : (->* (Integer Integer) (Output-Port) Byte)
+  (lambda [n size [/dev/stdout (current-output-port)]]
+    (write-fixed-integer /dev/stdout n size #false #false)))
+
+(define write-nbytes* : (->* (Bytes Index) (Output-Port) Index)
+  (lambda [bs size [/dev/stdout (current-output-port)]]
+    (cond [(= size 0) (write-bytes bs /dev/stdout 0 (bytes-length bs))]
+          [else (write-bytes bs /dev/stdout 0 size)])))
