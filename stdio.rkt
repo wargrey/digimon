@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require "port.rkt")
+
 (require "digitama/ioexn.rkt")
 (require "digitama/stdio.rkt")
 
@@ -15,9 +17,7 @@
 (define-type Subbytes (List Bytes Index Index))
 (define-type Octets (U Bytes Subbytes))
 
-(define-for-syntax (stdio-datatype <DataType> <fields>)
-  (define datatype (syntax-e <DataType>))
-
+(define-for-syntax (stdio-number-type datatype)
   (case datatype
     [(Byte Octet)                (list #'Byte    1 #'read-luint8  #'write-msintptr)]
     [(Short MShort Int16 MInt16) (list #'Fixnum  2 #'read-msint16 #'write-msintptr)]
@@ -38,11 +38,14 @@
     ;[(LFloat)                    (list #'flonum 4)]
     ;[(Double MDouble)            (list #'flonum 8)]
     ;[(LDouble)                   (list #'flonum 8)]
-    [else (case (syntax-e (car datatype))
-            [(Bytesof)
-             (let ([<size> (stdio-referenced-field (cadr datatype) <fields>)])
-               (list #'Bytes <size> #'read-nbytes* #'write-nbytes*))]
-            [else (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)])]))
+    [else #false]))
+
+(define-for-syntax (stdio-bytes-type datatype <fields>)
+  (case (syntax-e (car datatype))
+    [(Bytesof)        (list #'Bytes (stdio-referenced-field (cadr datatype) <fields>) #'read-nbytes*  #'write-nbytes*)]
+    [(NBytes MNBytes) (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-mn:bytes #'write-mn:bytes)]
+    [(LNBytes)        (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-ln:bytes #'write-ln:bytes)]
+    [else #false]))
 
 (define-for-syntax (stdio-field-group <field> <DataType>)
   (define datatype (syntax-e <DataType>))
@@ -59,12 +62,17 @@
                     [make-header (format-id #'header "make-~a" (syntax-e #'header))]
                     [remake-header (format-id #'header "remake-~a" (syntax-e #'header))]
                     [header? (format-id #'header "~a?" (syntax-e #'header))]
+                    [header-size0 (format-id #'header "~a-size0" (syntax-e #'header))]
                     [read-header (format-id #'header "read-~a" (syntax-e #'header))]
                     [write-header (format-id #'header "write-~a" (syntax-e #'header))]
                     [([FieldType integer-size read-field write-field] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))])
-                         (stdio-datatype <DataType> <fields>)))]
+                         (let ([datatype (syntax-e <DataType>)])
+                           (or (stdio-number-type datatype)
+                               (and (pair? datatype)
+                                    (or (stdio-bytes-type datatype <fields>)))
+                               (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)))))]
                     [([auto-field target-field field-length] ...)
                      (filter list?
                              (for/list ([<field> (in-syntax #'(field ...))]
@@ -105,13 +113,14 @@
                          [auto-field (field-length target-field)] ...)
                     (constructor field ...)))
 
+                (define header-size0 : Natural
+                  (apply + (map abs (filter exact-integer? '(integer-size ...)))))
+
                 (define read-header : (->* () (Input-Port (Option Integer)) Header)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
                     (lambda [[/dev/stdin (current-input-port)] [posoff #false]]
                       (unless (not posoff)
-                        (cond [(>= posoff 0) (file-position /dev/stdin posoff)]
-                              [else (file-position /dev/stdin eof)
-                                    (file-position /dev/stdin (+ (file-position /dev/stdin) posoff))]))
+                        (port-seek /dev/stdin posoff))
 
                       (let* ([field (call-datum-reader read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
@@ -120,13 +129,27 @@
                   (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
+
                     (+ (write-field (field-ref src) (integer-size-for-writer integer-size) /dev/stdout)
                        ...)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-n:bytes : (-> Input-Port Natural Bytes)
+(define read-signature : (-> Input-Port Bytes Boolean)
+  (lambda [/dev/stdin signature]
+    (define siglength : Index (bytes-length signature))
+    
+    (and (equal? signature (peek-nbytes* /dev/stdin siglength))
+         (read-bytes siglength /dev/stdin)
+         #true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define read-mn:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (read-nbytes* /dev/stdin (read-msize /dev/stdin size))))
+
+(define read-ln:bytes : (-> Input-Port Natural Bytes)
+  (lambda [/dev/stdin size]
+    (read-nbytes* /dev/stdin (read-lsize /dev/stdin size))))
 
 (define-read-integer*
   [msb-bytes->octet 1 [read-msint8  #:-> Fixnum]  [read-muint8  #:-> Byte]]
@@ -143,13 +166,20 @@
 (define-read-integer read-msize msb-bytes->index #:-> Index)
 (define-read-integer read-lsize lsb-bytes->index #:-> Index)
 
-(define read-signature : (-> Input-Port Bytes Boolean)
-  (lambda [/dev/stdin signature]
-    (define siglength : Index (bytes-length signature))
-    
-    (and (equal? signature (peek-nbytes* /dev/stdin siglength))
-         (read-bytes siglength /dev/stdin)
-         #true)))
+(define-peek-integer*
+  [msb-bytes->octet 1 [peek-msint8  #:-> Fixnum]  [peek-muint8  #:-> Byte]]
+  [msb-bytes->short 2 [peek-msint16 #:-> Fixnum]  [peek-muint16 #:-> Index]]
+  [msb-bytes->int   4 [peek-msint32 #:-> Fixnum]  [peek-muint32 #:-> Index]]
+  [msb-bytes->long  8 [peek-msint64 #:-> Integer] [peek-muint64 #:-> Natural]])
+
+(define-peek-integer*
+  [lsb-bytes->octet 1 [peek-lsint8  #:-> Fixnum]  [peek-luint8  #:-> Byte]]
+  [lsb-bytes->short 2 [peek-lsint16 #:-> Fixnum]  [peek-luint16 #:-> Index]]
+  [lsb-bytes->int   4 [peek-lsint32 #:-> Fixnum]  [peek-luint32 #:-> Index]]
+  [lsb-bytes->long  8 [peek-lsint64 #:-> Integer] [peek-luint64 #:-> Natural]])
+
+(define-peek-integer peek-msize msb-bytes->index #:-> Index)
+(define-peek-integer peek-lsize lsb-bytes->index #:-> Index)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-bytes* : (-> Input-Port Natural Bytes)
@@ -176,6 +206,20 @@
           [else (throw-eof-error /dev/stdin)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define write-mn:bytes : (->* (Bytes Natural) (Output-Port) Index)
+  (lambda [bs nsize [/dev/stdout (current-output-port)]]
+    (define bsize : Index (bytes-length bs))
+    
+    (write-muintptr bsize nsize /dev/stdout)
+    (write-nbytes* bs bsize /dev/stdout)))
+
+(define write-ln:bytes : (->* (Bytes Natural) (Output-Port) Index)
+  (lambda [bs nsize [/dev/stdout (current-output-port)]]
+    (define bsize : Index (bytes-length bs))
+    
+    (write-luintptr bsize nsize /dev/stdout)
+    (write-nbytes* bs bsize /dev/stdout)))
+
 (define write-msintptr : (->* (Integer Integer) (Output-Port) Byte)
   (lambda [n size [/dev/stdout (current-output-port)]]
     (write-fixed-integer /dev/stdout n size #true #true)))
@@ -192,6 +236,7 @@
   (lambda [n size [/dev/stdout (current-output-port)]]
     (write-fixed-integer /dev/stdout n size #false #false)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define write-nbytes* : (->* (Bytes Index) (Output-Port) Index)
   (lambda [bs size [/dev/stdout (current-output-port)]]
     (cond [(= size 0) (write-bytes bs /dev/stdout 0 (bytes-length bs))]

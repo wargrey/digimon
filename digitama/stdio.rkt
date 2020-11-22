@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (for-syntax stdio-referenced-field))
+(provide (for-syntax (all-defined-out)))
 
 (require "../debug.rkt")
 (require "ioexn.rkt")
@@ -41,12 +41,37 @@
      #'(begin (define-read-integer read-integer do-bytes->integer #true  bsize #:-> Integer) ...
               (define-read-integer read-natural do-bytes->integer #false bsize #:-> Natural) ...)]))
 
+(define-syntax (define-peek-integer stx)
+  (syntax-case stx [:]
+    [(_ peek-integer do-bytes->integer #:-> Integer_t)
+     #'(define peek-integer : (->* (Input-Port Natural) (Natural) (Option Integer_t))
+         (lambda [/dev/stdin size [skip 0]]
+           (define ?intptr (peek-integer-bytes! /dev/stdin size skip))
+           (and ?intptr (do-bytes->integer ?intptr 0 size))))]
+    [(_ peek-integer do-bytes->integer signed? bsize #:-> Integer_t)
+     #'(define peek-integer : (->* (Input-Port) (Natural) (Option Integer_t))
+         (lambda [/dev/stdin [skip 0]]
+           (define ?intptr (peek-integer-bytes! /dev/stdin bsize skip))
+           (and ?intptr (do-bytes->integer ?intptr 0 signed?))))]))
+
+(define-syntax (define-peek-integer* stx)
+  (syntax-case stx [:]
+    [(_ [do-bytes->integer bsize [peek-integer #:-> Integer] [peek-natural #:-> Natural]] ...)
+     #'(begin (define-peek-integer peek-integer do-bytes->integer #true  bsize #:-> Integer) ...
+              (define-peek-integer peek-natural do-bytes->integer #false bsize #:-> Natural) ...)]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (stdio-referenced-field <field> <fields>)
   (define field (syntax-e <field>))
   (unless (memq field (syntax->datum <fields>))
     (raise-syntax-error 'define-file-header "undefined field" <field>))
   <field>)
+
+(define-for-syntax (stdio-word-size <n>)
+  (define n (syntax-e <n>))
+  (unless (memq n (list 1 2 4 8))
+    (raise-syntax-error 'define-file-header "invalid size" <n>))
+  (datum->syntax <n> (- n)))
 
 (define-syntax (call-datum-reader stx)
   (syntax-parse stx #:datum-literals []
@@ -55,11 +80,14 @@
     [(_ read-datum n:nat /dev/stdin self sizes #true)
      #'(let ([v (read-datum /dev/stdin)]) (hash-set! sizes self v) v)]
     [(_ read-datum field:id /dev/stdin self sizes fields ...)
-     #'(read-datum /dev/stdin (hash-ref sizes 'field))]))
+     #'(read-datum /dev/stdin (hash-ref sizes 'field))]
+    [(_ read-datum n:integer /dev/stdin self sizes fields ...)
+     #'(read-datum /dev/stdin (- n))]))
 
 (define-syntax (integer-size-for-writer stx)
   (syntax-parse stx #:datum-literals []
     [(_ n:nat) #'n]
+    [(_ n:integer) #'(- n)]
     [_ #'0]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -69,6 +97,12 @@
       (define s : (U Natural EOF) (read-bytes! intptr /dev/stdin 0 size))
       (cond [(eq? s size) intptr]
             [else (throw-eof-error /dev/stdin)]))))
+
+(define peek-integer-bytes! : (-> Input-Port Natural Natural (Option Bytes))
+  (let ([intptr (make-bytes 8)])
+    (lambda [/dev/stdin size skip]
+      (define s : (U Natural EOF) (peek-bytes! intptr skip /dev/stdin 0 size))
+      (and (eq? s size) intptr))))
 
 (define write-fixed-integer : (-> Output-Port Integer Integer Boolean Boolean Byte)
   (let ([intptr (make-bytes 8)])

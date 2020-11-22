@@ -33,7 +33,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
-  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tmpeek]]
+  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tpkib]]
     (make-input-port name
                      (λ [[s : Bytes]] : (U EOF Exact-Positive-Integer)
                        (define peeked : Natural (unbox iobox))
@@ -41,3 +41,13 @@
                        (set-box! iobox (+ peeked (if (number? r) r 1))) r)
                      #false
                      void)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define port-seek : (-> Input-Port (U Integer EOF) Natural)
+  (lambda [/dev/stdin posoff]
+    (cond [(exact-nonnegative-integer? posoff) (file-position /dev/stdin posoff) posoff]
+          [(eof-object? posoff) (file-position /dev/stdin eof) (file-position /dev/stdin)]
+          [else (file-position /dev/stdin eof)
+                (let ([pos (+ (file-position /dev/stdin) posoff)])
+                  (file-position /dev/stdin pos)
+                  (assert pos exact-nonnegative-integer?))])))
