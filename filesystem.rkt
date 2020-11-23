@@ -6,45 +6,55 @@
 (require racket/path)
 (require racket/file)
 
+(require "port.rkt")
+
 (require typed/racket/unsafe)
 
 (unsafe-require/typed
  racket/base
- [file-or-directory-modify-seconds (All (a) (case-> [Path-String Integer (-> a) -> a]
-                                                    [Path-String Integer -> Void]
-                                                    [Path-String False -> Nonnegative-Fixnum]
-                                                    [Path-String -> Nonnegative-Fixnum]))])
+ [file-or-directory-modify-seconds
+  (All (a) (case-> [Path-String Integer (-> a) -> a]
+                   [Path-String Integer -> Void]
+                   [Path-String False -> Nonnegative-Fixnum]
+                   [Path-String -> Nonnegative-Fixnum]))])
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+(require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-file-reader stx)
-  (syntax-case stx [lambda λ]
-    [(_ id #:+ Type #:lambda do-read)
-     #'(define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
-         (let ([up-to-dates : (HashTable Path (Pairof Nonnegative-Fixnum Type)) (make-hash)]
-               [read-datum : (-> Input-Port Path Type) do-read])
-           (lambda [src #:mode [mode-flag 'binary] #:count-lines? [count-lines? (port-count-lines-enabled)]]
+  (syntax-parse stx #:datum-literals [lambda λ]
+    [(_ id #:+ Type
+        (~or (~and #:binary binary-flag)
+             (~and #:text text-flag))
+        (~or #:lambda #:λ) do-read)
+     #`(define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
+         (let ([up-to-dates : (HashTable Path (Pairof Type Nonnegative-Fixnum)) (make-hash)])
+           (lambda [#:mode [mode 'binary]
+                    #:count-lines? [count-lines? #,(if (attribute text-flag) #'(port-count-lines-enabled) #'#false)]
+                    src]
              (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds src))
              (define src-key : Path (simplify-path src))
-             (define mdatum : (Option (Pairof Nonnegative-Fixnum Type)) (hash-ref up-to-dates src-key (λ [] #false)))
-             (cond [(and mdatum (<= mtime (car mdatum))) (cdr mdatum)]
+             (define mdatum : (Option (Pairof Type Nonnegative-Fixnum)) (hash-ref up-to-dates src-key (λ [] #false)))
+             (cond [(and mdatum (<= mtime (cdr mdatum))) (car mdatum)]
                    [else (let ([datum (parameterize ([port-count-lines-enabled count-lines?])
-                                        (call-with-input-file* src #:mode mode-flag
+                                        (call-with-input-file* src #:mode mode
                                           (λ [[/dev/stdin : Input-Port]] : Type
-                                            (read-datum /dev/stdin src-key))))])
-                           (hash-set! up-to-dates src-key (cons mtime datum))
+                                            (do-read /dev/stdin src-key))))])
+                           (hash-set! up-to-dates src-key (cons datum mtime))
                            datum)]))))]
-    [(_ id #:+ Type (lambda [/dev/stdin src] body ...))
+    [(_ id #:+ Type mode:keyword ((~or lambda λ) [/dev/stdin src] body ...))
      (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])
-       #'(begin (define id : (-> Input-Port Path Type)
-                  (lambda [/dev/stdin src]
-                    body ...))
-
-                (define-file-reader id* #:+ Type #:lambda id)))]
-    [(_ id #:+ Type (λ [/dev/stdin] body ...))
-     #'(define-file-reader id #:+ Type (lambda [/dev/stdin] body ...))]))
+       #'(begin (define id : (case-> [Input-Port Path -> Type]
+                                     [Input-Port -> Type])
+                  (case-lambda
+                    [(/dev/stdin) (id /dev/stdin (port-path /dev/stdin))]
+                    [(/dev/stdin src) body ...]))
+                
+                (define-file-reader id* #:+ Type mode #:lambda id)))]
+    [(_ id #:+ Type (~or #:lambda #:λ) do-read) #'(define-file-reader id #:+ Type #:binary #:lambda do-read)]
+    [(_ id #:+ Type (do-read ...)) #'(define-file-reader id #:+ Type #:binary (do-read ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dirname : (-> Path-String [#:rootname String] String)
@@ -53,7 +63,7 @@
       (let ([dir : Path (simple-form-path path)])
         (cond [(directory-exists? path) path]
               [else (path-only path)])))
-    (cond [(not dir) #| this should not happen |# root]
+    (cond [(not dir) #| DEADCODE |# root]
           [else (let-values ([(_b name _?) (split-path dir)])
                   (cond [(path? name) (path->string name)]
                         [else root]))])))
@@ -64,7 +74,7 @@
          (memq 'read (file-or-directory-permissions p))
          #true)))
 
-(define file-exceutable? : (-> Path-String Boolean)
+(define file-executable? : (-> Path-String Boolean)
   (lambda [p]
     (and (file-exists? p)
          (memq 'execute (file-or-directory-permissions p))

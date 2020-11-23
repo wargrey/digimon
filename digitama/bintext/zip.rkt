@@ -27,9 +27,9 @@
    [crc32 : LUInt32]
    [csize : LUInt32]
    [rsize : LUInt32]
-   [file-name-length : LUInt16]
+   [filename-length : LUInt16]
    [private-length : LUInt16]
-   [file-name : (Bytesof file-name-length)]
+   [filename : (Bytesof filename-length)]
    [privates : (Bytesof private-length)]))
 
 (define-file-header zip-directory : ZIP-Directory
@@ -43,14 +43,14 @@
    [crc32 : LUInt32]
    [csize : LUInt32]
    [rsize : LUInt32]
-   [file-name-length : LUInt16]
+   [filename-length : LUInt16]
    [private-length : LUInt16]
    [comment-length : LUInt16]
    [disk-number : LUInt16]
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
    [relative-offset : LUInt32]
-   [file-name : (Bytesof file-name-length)]
+   [filename : (Bytesof filename-length)]
    [privates : (Bytesof private-length)]
    [comment : (Bytesof comment-length)]))
 
@@ -65,12 +65,11 @@
    [comment : (LNBytes 2)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-seek-signature : (->* (Input-Port) (Integer) Boolean)
-  (lambda [/dev/zipin [comment-maxsize -1]]
-    (define start : Natural (port-seek /dev/zipin (- zip-end-of-central-directory-size0)))
-    (define end : Natural (if (< comment-maxsize 0) 0 (max (- start comment-maxsize) 0)))
+(define zip-seek-signature : (->* (Input-Port) ((Option Natural)) (Option Natural))
+  (lambda [/dev/zipin [comment-maxsize #false]]
+    (define start : Natural (port-seek /dev/zipin (- (sizeof-zip-end-of-central-directory))))
+    (define end : Natural (if (not comment-maxsize) 0 (max (- start comment-maxsize) 0)))
     
-    (let seek ([pos : Natural (port-seek /dev/zipin (- zip-end-of-central-directory-size0))])
-      (or (eq? (peek-luint32 /dev/zipin) #%zip-eocdr)
-          (and (> pos end)
-               (seek (port-seek /dev/zipin (- pos 1))))))))
+    (let seek ([pos : Natural start])
+      (cond [(eq? (peek-luint32 /dev/zipin) #%zip-eocdr) pos]
+            [else (and (> pos end) (seek (port-seek /dev/zipin (- pos 1))))]))))

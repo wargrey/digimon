@@ -19,21 +19,21 @@
 
 (define-for-syntax (stdio-number-type datatype)
   (case datatype
-    [(Byte Octet)                (list #'Byte    1 #'read-luint8  #'write-msintptr)]
-    [(Short MShort Int16 MInt16) (list #'Fixnum  2 #'read-msint16 #'write-msintptr)]
-    [(UInt16 MUInt16)            (list #'Index   2 #'read-muint16 #'write-muintptr)]
-    [(LShort LInt16)             (list #'Fixnum  2 #'read-lsint16 #'write-lsintptr)]
-    [(LUInt16)                   (list #'Index   2 #'read-luint16 #'write-luintptr)]
-    [(Int MInt Int32 MInt32)     (list #'Fixnum  4 #'read-msint32 #'write-msintptr)]
-    [(UInt32 MUInt32)            (list #'Index   4 #'read-muint32 #'write-muintptr)]
-    [(LInt LInt32)               (list #'Fixnum  4 #'read-lsint32 #'write-lsintptr)]
-    [(LUInt32)                   (list #'Index   4 #'read-luint32 #'write-luintptr)]
-    [(Long MLong Int64 MInt64)   (list #'Integer 8 #'read-msint64 #'write-msintptr)]
-    [(UInt64 MUInt64)            (list #'Natural 8 #'read-muint64 #'write-muintptr)]
-    [(LLong LInt64)              (list #'Integer 8 #'read-lsint64 #'write-lsintptr)]
-    [(LUInt64)                   (list #'Natural 8 #'read-luint64 #'write-luintptr)]
-    [(Size MSize)                (list #'Index   8 #'read-msize   #'write-muintptr)]
-    [(LSize)                     (list #'Index   8 #'read-lsize   #'write-luintptr)]
+    [(Byte Octet)                (list #'Byte    1 #'read-luint8  #'write-msintptr #'stdio-fixed-size)]
+    [(Short MShort Int16 MInt16) (list #'Fixnum  2 #'read-msint16 #'write-msintptr #'stdio-fixed-size)]
+    [(UInt16 MUInt16)            (list #'Index   2 #'read-muint16 #'write-muintptr #'stdio-fixed-size)]
+    [(LShort LInt16)             (list #'Fixnum  2 #'read-lsint16 #'write-lsintptr #'stdio-fixed-size)]
+    [(LUInt16)                   (list #'Index   2 #'read-luint16 #'write-luintptr #'stdio-fixed-size)]
+    [(Int MInt Int32 MInt32)     (list #'Fixnum  4 #'read-msint32 #'write-msintptr #'stdio-fixed-size)]
+    [(UInt32 MUInt32)            (list #'Index   4 #'read-muint32 #'write-muintptr #'stdio-fixed-size)]
+    [(LInt LInt32)               (list #'Fixnum  4 #'read-lsint32 #'write-lsintptr #'stdio-fixed-size)]
+    [(LUInt32)                   (list #'Index   4 #'read-luint32 #'write-luintptr #'stdio-fixed-size)]
+    [(Long MLong Int64 MInt64)   (list #'Integer 8 #'read-msint64 #'write-msintptr #'stdio-fixed-size)]
+    [(UInt64 MUInt64)            (list #'Natural 8 #'read-muint64 #'write-muintptr #'stdio-fixed-size)]
+    [(LLong LInt64)              (list #'Integer 8 #'read-lsint64 #'write-lsintptr #'stdio-fixed-size)]
+    [(LUInt64)                   (list #'Natural 8 #'read-luint64 #'write-luintptr #'stdio-fixed-size)]
+    [(Size MSize)                (list #'Index   8 #'read-msize   #'write-muintptr #'stdio-fixed-size)]
+    [(LSize)                     (list #'Index   8 #'read-lsize   #'write-luintptr #'stdio-fixed-size)]
     ;[(Float MFloat)              (list #'flonum 4)]
     ;[(LFloat)                    (list #'flonum 4)]
     ;[(Double MDouble)            (list #'flonum 8)]
@@ -42,9 +42,9 @@
 
 (define-for-syntax (stdio-bytes-type datatype <fields>)
   (case (syntax-e (car datatype))
-    [(Bytesof)        (list #'Bytes (stdio-referenced-field (cadr datatype) <fields>) #'read-nbytes*  #'write-nbytes*)]
-    [(NBytes MNBytes) (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-mn:bytes #'write-mn:bytes)]
-    [(LNBytes)        (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-ln:bytes #'write-ln:bytes)]
+    [(Bytesof)        (list #'Bytes (stdio-referenced-field (cadr datatype) <fields>) #'read-nbytes*  #'write-nbytes*  #'bytes-length)]
+    [(NBytes MNBytes) (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-mn:bytes #'write-mn:bytes #'bytes-length)]
+    [(LNBytes)        (list #'Bytes (stdio-word-size (cadr datatype))                 #'read-ln:bytes #'write-ln:bytes #'bytes-length)]
     [else #false]))
 
 (define-for-syntax (stdio-field-group <field> <DataType>)
@@ -62,10 +62,10 @@
                     [make-header (format-id #'header "make-~a" (syntax-e #'header))]
                     [remake-header (format-id #'header "remake-~a" (syntax-e #'header))]
                     [header? (format-id #'header "~a?" (syntax-e #'header))]
-                    [header-size0 (format-id #'header "~a-size0" (syntax-e #'header))]
+                    [sizeof-header (format-id #'header "sizeof-~a" (syntax-e #'header))]
                     [read-header (format-id #'header "read-~a" (syntax-e #'header))]
                     [write-header (format-id #'header "write-~a" (syntax-e #'header))]
-                    [([FieldType integer-size read-field write-field] ...)
+                    [([FieldType integer-size read-field write-field field-size] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))])
                          (let ([datatype (syntax-e <DataType>)])
@@ -113,8 +113,13 @@
                          [auto-field (field-length target-field)] ...)
                     (constructor field ...)))
 
-                (define header-size0 : Natural
-                  (apply + (map abs (filter exact-integer? '(integer-size ...)))))
+                (define sizeof-header : (->* () ((Option Header)) Natural)
+                  (let ([size0 (apply + (map abs (filter exact-integer? '(integer-size ...))))])
+                    (lambda [[instance #false]]
+                      (cond [(not instance) size0]
+                            [else (apply + size0
+                                         (list (field-size (field-ref instance))
+                                               ...))]))))
 
                 (define read-header : (->* () (Input-Port (Option Integer)) Header)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])

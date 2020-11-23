@@ -43,11 +43,19 @@
                      void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define port-seek : (-> Input-Port (U Integer EOF) Natural)
-  (lambda [/dev/stdin posoff]
-    (cond [(exact-nonnegative-integer? posoff) (file-position /dev/stdin posoff) posoff]
-          [(eof-object? posoff) (file-position /dev/stdin eof) (file-position /dev/stdin)]
-          [else (file-position /dev/stdin eof)
-                (let ([pos (+ (file-position /dev/stdin) posoff)])
-                  (file-position /dev/stdin pos)
+(define port-path : (-> (U Input-Port Output-Port) Path)
+  (lambda [/dev/stdio]
+    (define ?path (object-name /dev/stdio))
+
+    (cond [(path? ?path) ?path]
+          [(string? ?path) (string->path ?path)]
+          [else (string->path (format "~a" ?path))])))
+
+(define port-seek : (-> (U Input-Port Output-Port) (U Integer EOF) Natural)
+  (lambda [/dev/stdio posoff]
+    (cond [(exact-nonnegative-integer? posoff) (file-position /dev/stdio posoff) posoff]
+          [(eof-object? posoff) (file-position /dev/stdio eof) (file-position /dev/stdio)]
+          [else (file-position /dev/stdio eof)
+                (let ([pos (+ (file-position /dev/stdio) posoff)])
+                  (file-position /dev/stdio pos)
                   (assert pos exact-nonnegative-integer?))])))

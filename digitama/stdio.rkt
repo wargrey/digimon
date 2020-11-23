@@ -113,3 +113,8 @@
         [(4) (integer->integer-bytes n size signed? big-endian? intptr 0) (write-bytes intptr /dev/stdout 0 4) 4]
         [(8) (integer->integer-bytes n size signed? big-endian? intptr 0) (write-bytes intptr /dev/stdout 0 8) 8]
         [else 0]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define stdio-fixed-size : (-> Any Zero)
+  (lambda [_]
+    0))
