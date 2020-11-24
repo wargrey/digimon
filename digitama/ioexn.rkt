@@ -54,11 +54,7 @@
 (define throw-range-error : (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
   (lambda [src constraint given . args]
     (define message : String (exn-args->message args "out of range"))
-    (define expected : String
-      (cond [(string? constraint) constraint]
-            [(procedure? constraint) (~a (object-name constraint))]
-            [(pair? constraint) (format "[~a, ~a]" (car constraint) (cdr constraint))]
-            [else (string-join #:before-first "(" ((inst map String Any) ~s constraint) ", " #:after-last ")")]))
+    (define expected : String (exn-constraint->string constraint))
     (raise (make-exn:syntax:range (format "~a: ~a~n expected: ~a~n given: ~s" src message expected given)
                                   (continuation-marks #false)
                                   null))))
@@ -70,6 +66,14 @@
     (cond [(path? portname) (format "~a" (file-name-from-path portname))]
           [(string? portname) portname]
           [else (format "~a" portname)])))
+
+(define exn-constraint->string : (-> Any String)
+  (lambda [constraint]
+    (cond [(string? constraint) constraint]
+          [(procedure? constraint) (~a (object-name constraint))]
+          [(list? constraint) (string-join #:before-first "{" ((inst map String Any) ~s constraint) ", " #:after-last "}")]
+          [(pair? constraint) (format "[~a, ~a]" (car constraint) (cdr constraint))]
+          [else (~a constraint)])))
 
 (define exn-args->message : (-> (Listof Any) String String)
   (lambda [args defmsg]

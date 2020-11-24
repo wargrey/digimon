@@ -11,7 +11,7 @@
 (require "port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-reader zip-list-directory #:+ (Listof ZIP-Directory) #:binary
+(define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
   (lambda [/dev/zipin src]
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
@@ -25,7 +25,7 @@
                                   (ls (cons cdir sridc)
                                       (file-position /dev/zipin)))])))])))
 
-(define-file-reader zip-list-entry #:+ (Listof ZIP-Entry) #:binary
+(define-file-reader zip-list-entries #:+ (Listof ZIP-Entry) #:binary
   (lambda [/dev/zipin src]
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
@@ -35,8 +35,21 @@
                            [cdir-pos : Natural (zip-end-of-central-directory-cdir-offset eocdr)])
                     (cond [(>= cdir-pos maybe-sigoff) (reverse seirtne)]
                           [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
-                                  (ls (cons (read-zip-entry /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
+                                  (ls (cons (read-zip-entry* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
                                       (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
+
+(define-file-reader zip-list-local-entries #:+ (Listof ZIP-Entry) #:binary
+  (lambda [/dev/zipin src]
+    (when (not (zip-seek-signature /dev/zipin))
+      (throw-signature-error /dev/zipin 'zip-entry-list "not a ZIP file"))
+
+    (port-seek /dev/zipin 0)
+    (let ls ([seirtne : (Listof ZIP-Entry) null])
+      (cond [(not (zip-seek-local-file-signature /dev/zipin)) (reverse seirtne)]
+            [else (let-values ([(lfheader dr-size) (read-zip-entry** /dev/zipin)])
+                    (when (= dr-size 0)
+                      (port-skip /dev/zipin (zip-entry-csize lfheader)))
+                    (ls (cons lfheader seirtne)))]))))
 
 (define zip-list : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Listof String))
   (lambda [/dev/zipin]
@@ -46,8 +59,8 @@
 (define zip-list* : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Listof (List String Index Index)))
   (lambda [/dev/zipin]
     (define entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
-      (cond [(input-port? /dev/zipin) (zip-list-directory /dev/zipin)]
-            [(not (list? /dev/zipin)) (zip-list-directory* /dev/zipin)]
+      (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
+            [(not (list? /dev/zipin)) (zip-list-directories* /dev/zipin)]
             [else /dev/zipin]))
     
     (for/list ([e (in-list entries)])
@@ -63,8 +76,8 @@
 (define zip-content-size* : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Values Natural Natural))
   (lambda [/dev/zipin]
     (define entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
-      (cond [(input-port? /dev/zipin) (zip-list-directory /dev/zipin)]
-            [(not (list? /dev/zipin)) (zip-list-directory* /dev/zipin)]
+      (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
+            [(not (list? /dev/zipin)) (zip-list-directories* /dev/zipin)]
             [else /dev/zipin]))
     
     (for/fold ([csize : Natural 0] [rsize : Natural 0])

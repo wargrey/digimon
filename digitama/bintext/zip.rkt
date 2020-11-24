@@ -8,13 +8,23 @@
 
 (require "../../stdio.rkt")
 (require "../../port.rkt")
-
-(require (for-syntax racket/base))
+(require "../../enumeration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%zip-entry : Index #x04034b50)
 (define #%zip-cdirr : Index #x02014b50)
 (define #%zip-eocdr : Index #x06054b50)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-enumeration* zip-compression-method #:+> ZIP-Compression-Method
+  compression-method->short short->compression-method
+  [0 stored shrunk
+     reduced-1 reduced-2 reduced-3 reduced-4
+     imploded tokenizing
+     deflated])
+
+(short->compression-method 12 raise-argument-error)
+(compression-method->short 'qw)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-header zip-entry : ZIP-Entry
@@ -65,6 +75,15 @@
    [comment : (LNBytes 2)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-seek-local-file-signature : (-> Input-Port (Option Natural))
+  (lambda [/dev/zipin]
+    (let seek ([pos : Natural (file-position /dev/zipin)])
+      (define sig : (Option Index) (peek-luint32 /dev/zipin))
+      (cond [(eq? sig #%zip-entry) (file-position /dev/zipin)]
+            [(eq? sig #%zip-cdirr) #false]
+            [(eq? sig #%zip-eocdr) #false]
+            [else (and sig (seek (port-seek /dev/zipin (+ pos 1))))]))))
+
 (define zip-seek-signature : (->* (Input-Port) ((Option Natural)) (Option Natural))
   (lambda [/dev/zipin [comment-maxsize #false]]
     (define start : Natural (port-seek /dev/zipin (- (sizeof-zip-end-of-central-directory))))
@@ -73,3 +92,12 @@
     (let seek ([pos : Natural start])
       (cond [(eq? (peek-luint32 /dev/zipin) #%zip-eocdr) pos]
             [else (and (> pos end) (seek (port-seek /dev/zipin (- pos 1))))]))))
+
+(define read-zip-entry* : (->* (Input-Port) ((Option Index)) ZIP-Entry)
+  (lambda [/dev/zipin [posoff #false]]
+    (define-values (entry dr-size) (read-zip-entry** /dev/zipin posoff))
+    entry))
+
+(define read-zip-entry** : (->* (Input-Port) ((Option Index)) (Values ZIP-Entry Byte))
+  (lambda [/dev/zipin [posoff #false]]
+    (values (read-zip-entry /dev/zipin posoff) 0)))
