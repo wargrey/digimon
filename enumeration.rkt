@@ -17,10 +17,10 @@
               
               (define kw->enum : (All (a) (case-> [TypeU -> (U value ...)]
                                                   [Symbol -> (U False value ...)]
-                                                  [Symbol (-> Symbol String Symbol a) -> (U a value ...)]))
+                                                  [Symbol (U TypeU (-> Symbol String Symbol a)) -> (U a value ...)]))
                 (let ([expected (exn-constraint->string (list 'enum ...))])
                   (case-lambda
-                    [(kw throw) (or (kw->enum kw) (throw 'kw->enum expected kw))]
+                    [(kw throw) (or (kw->enum kw) (if (symbol? throw) (kw->enum throw) (throw 'kw->enum expected kw)))]
                     [(kw) (cond [(eq? kw 'enum) value] ... [else #false])]))))]
 
     [(_ [id ids] : TypeU [enum ...])
@@ -53,10 +53,11 @@
     [(_ id #:+> TypeU kw->enum enum->kw [enum:id value:integer] ...)
      #'(begin (define-enumeration id : TypeU #:with kw->enum #:-> Integer [enum value] ...)
               (define enum->kw : (All (a) (case-> [Integer -> (Option TypeU)]
+                                                  [Integer TypeU -> TypeU]
                                                   [Integer (-> Symbol String Integer a) -> (U TypeU a)]))
                 (let ([expected (exn-constraint->string (list value ...))])
                   (case-lambda
-                    [(kv throw) (or (enum->kw kv) (throw 'enum->kw expected kv))]
+                    [(kv throw) (or (enum->kw kv) (if (symbol? throw) throw (throw 'enum->kw expected kv)))]
                     [(kv) (cond [(= kv value) 'enum] ... [else #false])]))))]
 
     [(_ id #:+> TypeU kw->enum enum->kw [start:integer enum ... enum$])
@@ -64,10 +65,11 @@
                                           (datum->syntax <enum> (+ (syntax-e #'start) idx) #| `start` might be negative integers |#))])
        #'(begin (define-enumeration id : TypeU #:with kw->enum #:-> Integer [enum value] ... [enum$ value$])
                 (define enum->kw : (All (a) (case-> [Integer -> (Option TypeU)]
+                                                    [Integer TypeU -> TypeU]
                                                     [Integer (-> Symbol String Integer a) -> (U TypeU a)]))
                   (let ([expected (exn-constraint->string (cons start value$))])
                     (case-lambda
-                      [(kv throw) (or (enum->kw kv) (throw 'enum->kw expected kv))]
+                      [(kv throw) (or (enum->kw kv) (if (symbol? throw) throw (throw 'enum->kw expected kv)))]
                       [(kv) (cond [(= kv value) 'enum] ... [(= kv value$) 'enum$] [else #false])])))))]
 
     [(_ id #:+> TypeU kw->enum enum->kw #:range Type [enum value] ... [enum$ value$])

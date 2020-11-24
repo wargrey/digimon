@@ -18,37 +18,37 @@
 (define throw-impossible-error : (-> Input-Port Symbol Nothing)
   (lambda [/dev/stdin fname]
     (raise (make-exn:fail:read:eof (format "~a: ~a: [I have a bug report]!" (port-name /dev/stdin) fname)
-                                   (continuation-marks #false)
+                                   (current-continuation-marks)
                                    null))))
 
 (define throw-eof-error : (-> Input-Port Nothing)
   (lambda [/dev/stdin]
     (raise (make-exn:fail:read:eof (format "~a: unexpected end of file!" (port-name /dev/stdin))
-                                   (continuation-marks #false)
+                                   (current-continuation-marks)
                                    null))))
 
 (define throw-read-error : (-> Input-Port Symbol Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:read (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
-                               (continuation-marks #false)
+                               (current-continuation-marks)
                                null))))
 
 (define throw-signature-error : (-> Input-Port Symbol Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:read:signature (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
-                                    (continuation-marks #false)
+                                    (current-continuation-marks)
                                     null))))
 
 (define throw-syntax-error : (-> Input-Port Symbol Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:syntax (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
-                                 (continuation-marks #false)
+                                 (current-continuation-marks)
                                  null))))
 
 (define throw-check-error : (-> Input-Port Symbol Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:syntax:check (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
-                                  (continuation-marks #false)
+                                  (current-continuation-marks)
                                   null))))
 
 (define throw-range-error : (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
@@ -56,7 +56,7 @@
     (define message : String (exn-args->message args "out of range"))
     (define expected : String (exn-constraint->string constraint))
     (raise (make-exn:syntax:range (format "~a: ~a~n expected: ~a~n given: ~s" src message expected given)
-                                  (continuation-marks #false)
+                                  (current-continuation-marks)
                                   null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

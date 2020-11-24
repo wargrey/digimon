@@ -12,6 +12,7 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
+(require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Subbytes (List Bytes Index Index))
@@ -51,16 +52,18 @@
     [(LNBytes)        (list #'Bytes (stdio-word-size (cadr datatype))             #'read-ln:bytes #'write-ln:bytes #'bytes-length)]
     [else #false]))
 
-(define-for-syntax (stdio-enum-type datatype)
-  (define bintype (stdio-integer-type (syntax-e (car datatype))))
-
-  (and (list? bintype)
-       (append (cons #'Symbol (cdr bintype))
-               (list (cadr datatype) (caddr datatype)))))
+(define-for-syntax (stdio-datum-type <DataType>)
+  (syntax-parse <DataType> #:datum-literals []
+    [(#:enum type datum->raw raw-datum (~optional (~seq #:else enum) #:defaults ([enum #'throw-range-error])))
+     (let ([bintype (stdio-integer-type (syntax-e #'type))])
+       (and (list? bintype)
+            (append (cons #'Symbol (cdr bintype))
+                    (list (list #'datum->raw #'enum) (list #'raw-datum #'enum)))))]
+    [_ #false]))
 
 (define-for-syntax (stdio-expand-typeinfo typeinfo)
   (case (length typeinfo)
-    [(5) (append typeinfo (list #'stdio-identity #'stdio-identity))]
+    [(5) (append typeinfo (list null null))]
     [else typeinfo]))
 
 (define-for-syntax (stdio-field-group <field> <DataType>)
@@ -81,7 +84,7 @@
                     [sizeof-header (format-id #'header "sizeof-~a" (syntax-e #'header))]
                     [read-header (format-id #'header "read-~a" (syntax-e #'header))]
                     [write-header (format-id #'header "write-~a" (syntax-e #'header))]
-                    [([FieldType integer-size read-field write-field field-size datum->binary binary->datum] ...)
+                    [([FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))])
                          (define datatype (syntax-e <DataType>))
@@ -90,7 +93,7 @@
                               (stdio-float-type datatype)
                               (and (pair? datatype)
                                    (or (stdio-bytes-type datatype <fields>)
-                                       (stdio-enum-type datatype)))
+                                       (stdio-datum-type <DataType>)))
                               (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)))))]
                     [([auto-field target-field field-length] ...)
                      (filter list?
@@ -146,7 +149,7 @@
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (binary->datum (call-datum-reader read-field integer-size /dev/stdin 'field sizes auto?) throw-range-error)] ...)
+                      (let* ([field (call-datum-reader* [raw->datum ...] read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-header : (->* (Header) (Output-Port (Option Natural)) Natural)
@@ -154,7 +157,7 @@
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
 
-                    (+ (write-field (datum->binary (field-ref src) throw-range-error) (integer-size-for-writer integer-size) /dev/stdout)
+                    (+ (call-datum-writer [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
                        ...)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

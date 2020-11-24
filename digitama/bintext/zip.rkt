@@ -16,6 +16,11 @@
 (define #%zip-eocdr : Index #x06054b50)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-enumeration* zip-system #:+> ZIP-System
+  system->byte byte->system
+  [FAT 0] [Amiga 1] [VAX/MS 2] [Unix 3] [VM/CMS 4] [AtariST 5]
+  [HPFS 6] [Macintosh 7] [Z-System 8] [CP/M 9] [unused 10])
+
 (define-enumeration* zip-compression-method #:+> ZIP-Compression-Method
   compression-method->index index->compression-method
   [0 stored shrunk
@@ -26,9 +31,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-header zip-entry : ZIP-Entry
   ([signature : LUInt32 #%zip-entry]
-   [version : LUInt16]
+   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [extract-version : Byte]
    [flags : LUInt16]
-   [compression : (LUInt16 compression-method->index index->compression-method)]
+   [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
    [lmdate : LUInt16]
    [crc32 : LUInt32]
@@ -41,10 +47,12 @@
 
 (define-file-header zip-directory : ZIP-Directory
   ([signature : LUInt32 #%zip-cdirr]
-   [maker : LUInt16]
-   [version : LUInt16]
+   [create-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [create-version : Byte]
+   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [extract-version : Byte]
    [flags : LUInt16]
-   [compression : LUInt16]
+   [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
    [lmdate : LUInt16]
    [crc32 : LUInt32]

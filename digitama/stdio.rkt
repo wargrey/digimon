@@ -84,6 +84,18 @@
     [(_ read-datum n:integer /dev/stdin self sizes fields ...)
      #'(read-datum /dev/stdin (- n))]))
 
+(define-syntax (call-datum-reader* stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ [] read-datum ...) #'(call-datum-reader read-datum ...)]
+    [(_ [raw->datum args ...] read-datum ...) #'(raw->datum (call-datum-reader read-datum ...) args ...)]))
+
+(define-syntax (call-datum-writer stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ [] write-datum field-value n /dev/stdout)
+     #'(write-datum field-value (integer-size-for-writer n) /dev/stdout)]
+    [(_ [datum->raw args ...] write-datum field-value n /dev/stdout)
+     #'(write-datum (datum->raw field-value args ...) (integer-size-for-writer n) /dev/stdout)]))
+
 (define-syntax (integer-size-for-writer stx)
   (syntax-parse stx #:datum-literals []
     [(_ n:nat) #'n]

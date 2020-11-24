@@ -15,7 +15,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags
   #:program the-name
-  #:args [shell file]
+  #:args [shell file . args]
 
   #:usage-help "A utility for testing #lang"
   #:once-each
@@ -66,18 +66,20 @@
     (when (nanomon-flags-help? options)
       (wisemon-display-help))
 
+    (define name+target+argv : (List String String (Listof String)) (λargv))
+
     (parameterize ([current-logger /dev/dtrace]
                    [nanomon-lang (nanomon-flags-lang options)]
-                   [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)])
-      (define name+target : (List String String) (λargv))
-      (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol (car name+target))))
+                   [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
+                   [current-command-line-arguments (list->vector (caddr name+target+argv))])
+      (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol (car name+target+argv))))
 
       (if (not shell)
           (let ([retcode (nanomon-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
             (exit retcode))
           (exit (time-apply* (λ [] (let ([tracer (thread (make-lang-log-trace))])
-                                     (begin0 (exec-shell shell (cmdopt-string->path the-name (cadr name+target)))
+                                     (begin0 (exec-shell shell (cmdopt-string->path the-name (cadr name+target+argv)))
                                              (dtrace-datum-notice eof)
                                              (thread-wait tracer))))))))))
 
