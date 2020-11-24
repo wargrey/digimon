@@ -5,4 +5,4 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip.zip (collection-file-path "hwzip-1.4.zip" "digimon" "tamer"))
 
-(length (zip-list-entries* zip.zip))
+(zip-list-entries* zip.zip)

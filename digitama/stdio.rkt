@@ -61,7 +61,7 @@
               (define-peek-integer peek-natural do-bytes->integer #false bsize #:-> Natural) ...)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-for-syntax (stdio-referenced-field <field> <fields>)
+(define-for-syntax (stdio-target-field <field> <fields>)
   (define field (syntax-e <field>))
   (unless (memq field (syntax->datum <fields>))
     (raise-syntax-error 'define-file-header "undefined field" <field>))
@@ -118,3 +118,7 @@
 (define stdio-fixed-size : (-> Any Zero)
   (lambda [_]
     0))
+
+(define stdio-identity : (All (a) (-> a Any * a))
+  (lambda [v . _]
+    v))

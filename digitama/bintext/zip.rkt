@@ -17,21 +17,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-enumeration* zip-compression-method #:+> ZIP-Compression-Method
-  compression-method->short short->compression-method
+  compression-method->index index->compression-method
   [0 stored shrunk
      reduced-1 reduced-2 reduced-3 reduced-4
      imploded tokenizing
      deflated])
-
-(short->compression-method 12 raise-argument-error)
-(compression-method->short 'qw)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-header zip-entry : ZIP-Entry
   ([signature : LUInt32 #%zip-entry]
    [version : LUInt16]
    [flags : LUInt16]
-   [compression : LUInt16]
+   [compression : (LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
    [lmdate : LUInt16]
    [crc32 : LUInt32]
