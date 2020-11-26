@@ -86,8 +86,8 @@
 
 (define-syntax (call-datum-reader* stx)
   (syntax-parse stx #:datum-literals []
-    [(_ [] read-datum ...) #'(call-datum-reader read-datum ...)]
-    [(_ [raw->datum args ...] read-datum ...) #'(raw->datum (call-datum-reader read-datum ...) args ...)]))
+    [(_ signature [] read-datum ...) #'(check-signature signature (call-datum-reader read-datum ...))]
+    [(_ signature [raw->datum args ...] read-datum ...) #'(raw->datum (check-signature signature (call-datum-reader read-datum ...)) args ...)]))
 
 (define-syntax (call-datum-writer stx)
   (syntax-parse stx #:datum-literals []
@@ -101,6 +101,11 @@
     [(_ n:nat) #'n]
     [(_ n:integer) #'(- n)]
     [_ #'0]))
+
+(define-syntax (check-signature stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ [#false who-cares ...] datum) #'datum]
+    [(_ [#true /dev/stdin src magic-number] datum) #'(stdio-signature-filter /dev/stdin datum magic-number 'src)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-integer-bytes! : (-> Input-Port Natural Bytes)
@@ -131,6 +136,9 @@
   (lambda [_]
     0))
 
-(define stdio-identity : (All (a) (-> a Any * a))
-  (lambda [v . _]
-    v))
+(define stdio-signature-filter : (All (a) (-> Input-Port a Any Symbol a))
+  (lambda [/dev/stdin given expected src]
+    (unless (eq? given expected)
+      (throw-signature-error /dev/stdin src "signature mismatched"))
+
+    given))

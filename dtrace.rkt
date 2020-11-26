@@ -69,6 +69,7 @@
         (values (dtrace-level udata) message (dtrace-urgent udata) topic level)
         (values level message udata topic level))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-dtrace-loop : (->* ()
                                 (Dtrace-Level Logger 
                                               #:exit-predicate? (-> Any Boolean) #:atexit (-> Any) #:display-exit-message? Boolean

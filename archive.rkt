@@ -51,12 +51,26 @@
                       (port-skip /dev/zipin (zip-entry-csize lfheader)))
                     (ls (cons lfheader seirtne)))]))))
 
+#;(define-file-reader zip-list-comments #:+ (Values String (Listof (Pairof String String))) #:binary
+  (lambda [/dev/zipin src]
+    (define maybe-sigoff (zip-seek-signature /dev/zipin))
+
+    (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-entry-list "not a ZIP file")]
+          [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
+                       [zcomment (zip-end-of-central-directory-comment eocdr)])
+                  (let ls ([seirtne : (Listof (Pairof String String)) null]
+                           [cdir-pos : Natural (zip-end-of-central-directory-cdir-offset eocdr)])
+                    (cond [(>= cdir-pos maybe-sigoff) (values zcomment (reverse seirtne))]
+                          [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
+                                  (ls (cons (cons (zip-directory-filename cdir) (zip-directory-comment cdir)) seirtne)
+                                      (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
+
 (define zip-list : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Listof String))
   (lambda [/dev/zipin]
     (for/list ([lst (in-list (zip-list* /dev/zipin))])
       (car lst))))
 
-(define zip-list* : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Listof (List String Index Index)))
+(define zip-list* : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) (Listof (List String Index Index Index Index)))
   (lambda [/dev/zipin]
     (define entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
       (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
@@ -65,8 +79,12 @@
     
     (for/list ([e (in-list entries)])
       (if (zip-directory? e)
-          (list (bytes->string/utf-8 (zip-directory-filename e)) (zip-directory-csize e) (zip-directory-rsize e))
-          (list (bytes->string/utf-8 (zip-entry-filename e)) (zip-entry-csize e) (zip-entry-rsize e))))))
+          (list (zip-directory-filename e)
+                (zip-directory-csize e) (zip-directory-rsize e)
+                (zip-directory-lmdate e) (zip-directory-lmtime e))
+          (list (zip-entry-filename e)
+                (zip-entry-csize e) (zip-entry-rsize e)
+                (zip-entry-lmdate e) (zip-entry-lmtime e))))))
 
 (define zip-content-size : (-> (U Input-Port Path-String (Listof ZIP-Directory) (Listof ZIP-Entry)) Natural)
   (lambda [/dev/zipin]

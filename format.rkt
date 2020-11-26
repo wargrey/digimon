@@ -25,9 +25,9 @@
   (lambda [count word]
     (format "~a=~a" (plural count word) count)))
 
-(define ~% : (-> Flonum [#:precision (U Integer (List '= Integer))] String)
+(define ~% : (-> Real [#:precision (U Integer (List '= Integer))] String)
   (lambda [% #:precision [prcs '(= 2)]]
-    (string-append (~r (fl* 100.0 %) #:precision prcs) "%")))
+    (string-append (~r (fl* 100.0 (real->double-flonum %)) #:precision prcs) "%")))
 
 (define ~uptime : (-> Integer String)
   (let ([~t : (-> Real String) (λ [n] (if (< n 10) (string-append "0" (number->string n)) (number->string n)))])

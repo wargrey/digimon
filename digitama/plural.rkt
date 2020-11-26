@@ -4,9 +4,12 @@
 
 (define plural : (-> Integer String String)
   (lambda [n word]
-    (define dict : (HashTable String String) #hash(("story" . "stories") ("Story" . "Stories")))
     (cond [(= n 1) word]
-          [else (hash-ref dict word (λ _ (string-append word "s")))])))
+          [else (let ([size-1 (sub1 (string-length word))])
+                  (cond [(= size-1 -1) word]
+                        [(= size-1 0) (string-append word "s")]
+                        [(char-ci=? (string-ref word size-1) #\y) (string-append (substring word 0 size-1) "ies")]
+                        [else (string-append word "s")]))])))
 
 (define singular : (-> String String)
   (lambda [words]
@@ -17,6 +20,6 @@
           [else #false])
         (let ([slast (string-ref words (sub1 size))])
           (cond [(not (eq? slast #\s)) words]
-                [(regexp-match? #px"ics$" words) words] ; for branches of study or action
+                [(regexp-match? #px"ics$" words) words] ; for branch name of study or action
                 [(regexp-match? #px"ies$" words) (string-append (substring words 0 (- size 3)) "y")]
                 [else (substring words 0 (sub1 size))])))))

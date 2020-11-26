@@ -11,8 +11,8 @@
 (define pkg-authors '(wargrey))
 (define test-omit-paths 'all)
 
-(define raco-commands '(["wisemon" digimon/digivice/wisemon "yet another `GNU make` utility" #false]
-                        ["nanomon" digimon/digivice/nanomon "an utility for testing #lang" #false]))
+(define raco-commands '(["wisemon" digimon/digivice/wisemon "compile and build collection before or after installing it" #false]
+                        ["nanomon" digimon/digivice/nanomon "run and test `#lang`s" #false]))
 
 (define scribblings '(["tamer/digimon.scrbl" (main-doc multi-page)]))
 

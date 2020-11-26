@@ -47,9 +47,15 @@
 
 (define-for-syntax (stdio-bytes-type datatype <fields>)
   (case (syntax-e (car datatype))
-    [(Bytesof)        (list #'Bytes (stdio-target-field (cadr datatype) <fields>) #'read-nbytes*  #'write-nbytes*  #'bytes-length)]
-    [(NBytes MNBytes) (list #'Bytes (stdio-word-size (cadr datatype))             #'read-mn:bytes #'write-mn:bytes #'bytes-length)]
-    [(LNBytes)        (list #'Bytes (stdio-word-size (cadr datatype))             #'read-ln:bytes #'write-ln:bytes #'bytes-length)]
+    [(Bytesof)          (list #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes    #'write-nbytes     #'bytes-length)]
+    [(Stringof)         (list #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring  #'write-nbstring   #'string-utf-8-length)]
+
+    [(NBytes MNBytes)   (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes  #'write-mn:bytes   #'bytes-length)]
+    [(LNBytes)          (list #'String (stdio-word-size (cadr datatype))             #'read-mn:string #'write-mn:bstring #'string-utf-8-length)]
+
+    [(NString MNString) (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes  #'write-mn:bytes   #'bytes-length)]
+    [(LNString)         (list #'String (stdio-word-size (cadr datatype))             #'read-ln:string #'write-ln:bstring #'string-utf-8-length)]
+
     [else #false]))
 
 (define-for-syntax (stdio-datum-type <DataType>)
@@ -66,17 +72,30 @@
     [(5) (append typeinfo (list null null))]
     [else typeinfo]))
 
-(define-for-syntax (stdio-field-group <field> <DataType>)
+(define-for-syntax (stdio-signature-field <field> <signature?> <defval>)
+  (and (syntax-e <signature?>)
+       (list <field> (car (syntax-e <defval>)))))
+
+(define-for-syntax (stdio-auto-field <field> <DataType>)
   (define datatype (syntax-e <DataType>))
 
   (and (pair? datatype)
        (case (syntax-e (car datatype))
          [(Bytesof) (list (cadr datatype) <field> #'bytes-length)]
+         [(Stringof) (list (cadr datatype) <field> #'string-utf-8-length)]
          [else #false])))
+
+(define-for-syntax (stdio-field-metainfo <meta>)
+  (syntax-case <meta> []
+    ;[(#:signature defval #:omittable?) (list (list #'defval) #'#true)]
+    [(#:signature defval) (list (list #'defval) #'#true)]
+    [(#:default defval) (list (list #'defval) #'#false)]
+    [(meta0 metan ...) (raise-syntax-error 'define-file-header "unrecognized field info" #'meta0 #false (syntax->list #'(metan ...)))]
+    [_ (list null #'#false)]))
 
 (define-syntax (define-file-header stx)
   (syntax-case stx [:]
-    [(_ header : Header ([field : DataType defval ...] ...))
+    [(_ header : Header ([field : DataType metainfo ...] ...))
      (with-syntax* ([constructor (format-id #'header "~a" (gensym (format "~a:" (syntax-e #'header))))]
                     [make-header (format-id #'header "make-~a" (syntax-e #'header))]
                     [remake-header (format-id #'header "remake-~a" (syntax-e #'header))]
@@ -84,6 +103,9 @@
                     [sizeof-header (format-id #'header "sizeof-~a" (syntax-e #'header))]
                     [read-header (format-id #'header "read-~a" (syntax-e #'header))]
                     [write-header (format-id #'header "write-~a" (syntax-e #'header))]
+                    [([[defval ...] signature?] ...)
+                     (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))])
+                       (stdio-field-metainfo <metainfo>))]
                     [([FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))])
@@ -95,11 +117,17 @@
                                    (or (stdio-bytes-type datatype <fields>)
                                        (stdio-datum-type <DataType>)))
                               (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)))))]
-                    [([auto-field target-field field-length] ...)
+                    [([sig-field magic-number] ...)
+                     (filter list?
+                             (for/list ([<field> (in-syntax #'(field ...))]
+                                        [<signature?> (in-syntax #'(signature? ...))]
+                                        [<defval> (in-syntax #'([defval ...] ...))])
+                               (stdio-signature-field <field> <signature?> <defval>)))]
+                    [([auto-field target-field field->value] ...)
                      (filter list?
                              (for/list ([<field> (in-syntax #'(field ...))]
                                         [<DataType> (in-syntax #'(DataType ...))])
-                               (stdio-field-group <field> <DataType>)))]
+                               (stdio-auto-field <field> <DataType>)))]
                     [([field-ref auto?] ...)
                      (let ([autofields (syntax->datum #'(auto-field ...))])
                        (for/list ([<field> (in-syntax #'(field ...))])
@@ -107,11 +135,12 @@
                          (list (format-id <field> "~a-~a" (syntax-e #'header) field)
                                (and (memq field autofields) #true))))]
                     [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...])
-                     (let*-values ([(auto-fields) (syntax->datum #'(auto-field ...))]
+                     (let*-values ([(auto-fields) (append (syntax->datum #'(sig-field ...)) (syntax->datum #'(auto-field ...)))]
                                    [(args reargs sdleif)
                                     (for/fold ([args null] [reargs null] [sdleif null])
                                               ([<field> (in-syntax #'(field ...))]
                                                [<ref> (in-syntax #'(field-ref ...))]
+                                               [<signature?> (in-syntax #'(signature? ...))]
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
@@ -127,12 +156,14 @@
                   #:transparent)
 
                 (define (make-header kw-args ...) : Header
-                  (let ([auto-field (field-length target-field)] ...)
+                  (let ([sig-field magic-number] ...
+                        [auto-field (field->value target-field)] ...)
                     (constructor field ...)))
 
                 (define (remake-header [src : Header] kw-reargs ...) : Header
-                  (let* ([man-field (or man-field (man-ref src))] ...
-                         [auto-field (field-length target-field)] ...)
+                  (let* ([sig-field magic-number] ...
+                         [man-field (or man-field (man-ref src))] ...
+                         [auto-field (field->value target-field)] ...)
                     (constructor field ...)))
 
                 (define sizeof-header : (->* () ((Option Header)) Natural)
@@ -149,7 +180,9 @@
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (call-datum-reader* [raw->datum ...] read-field integer-size /dev/stdin 'field sizes auto?)] ...)
+                      (let* ([field (call-datum-reader* [signature? /dev/stdin read-header defval ...]
+                                                        [raw->datum ...]
+                                                        read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-header : (->* (Header) (Output-Port (Option Natural)) Natural)
@@ -161,22 +194,35 @@
                        ...)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-signature : (-> Input-Port Bytes Boolean)
+(define try-read-signature : (-> Input-Port Bytes Boolean)
   (lambda [/dev/stdin signature]
     (define siglength : Index (bytes-length signature))
     
-    (and (equal? signature (peek-nbytes* /dev/stdin siglength))
+    (and (equal? signature (peek-nbytes /dev/stdin siglength))
          (read-bytes siglength /dev/stdin)
          #true)))
+
+(define read-signature : (-> Input-Port Bytes Symbol Any * Void)
+  (lambda [/dev/stdin signature who . errmsg]
+    (unless (try-read-signature /dev/stdin signature)
+      (apply throw-signature-error /dev/stdin who errmsg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-mn:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
-    (read-nbytes* /dev/stdin (read-msize /dev/stdin size))))
+    (read-nbytes /dev/stdin (read-msize /dev/stdin size))))
+
+(define read-mn:string : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (bytes->string/utf-8 (read-mn:bytes /dev/stdin bsize))))
 
 (define read-ln:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
-    (read-nbytes* /dev/stdin (read-lsize /dev/stdin size))))
+    (read-nbytes /dev/stdin (read-lsize /dev/stdin size))))
+
+(define read-ln:string : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (bytes->string/utf-8 (read-ln:bytes /dev/stdin bsize))))
 
 (define-read-integer*
   [msb-bytes->octet 1 [read-msint8  #:-> Fixnum]  [read-muint8  #:-> Byte]]
@@ -215,22 +261,30 @@
     (cond [(bytes? bs) bs]
           [(raise (throw-eof-error /dev/stdin))])))
 
-(define read-nbytes* : (-> Input-Port Natural Bytes)
+(define read-nbytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (define bs : (U Bytes EOF) (read-bytes size /dev/stdin))
     (cond [(and (bytes? bs) (= (bytes-length bs) size)) bs]
           [else (throw-eof-error /dev/stdin)])))
+
+(define read-nbstring : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (bytes->string/utf-8 (read-nbytes /dev/stdin bsize))))
 
 (define peek-bytes* : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
     (define bs : (U Bytes EOF) (peek-bytes size skip /dev/stdin))
     (if (bytes? bs) bs (throw-eof-error /dev/stdin))))
 
-(define peek-nbytes* : (->* (Input-Port Natural) (Natural) Bytes)
+(define peek-nbytes : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
     (define bs : (U Bytes EOF) (peek-bytes size skip /dev/stdin))
     (cond [(and (bytes? bs) (= (bytes-length bs) size)) bs]
           [else (throw-eof-error /dev/stdin)])))
+
+(define peek-nbstring : (-> Input-Port Natural String)
+  (lambda [/dev/stdin size]
+    (bytes->string/utf-8 (peek-nbytes /dev/stdin size))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define write-mn:bytes : (->* (Bytes Natural) (Output-Port) Index)
@@ -238,14 +292,21 @@
     (define bsize : Index (bytes-length bs))
     
     (write-muintptr bsize nsize /dev/stdout)
-    (write-nbytes* bs bsize /dev/stdout)))
+    (write-nbytes bs bsize /dev/stdout)))
 
-(define write-ln:bytes : (->* (Bytes Natural) (Output-Port) Index)
-  (lambda [bs nsize [/dev/stdout (current-output-port)]]
-    (define bsize : Index (bytes-length bs))
+(define write-mn:bstring : (->* (String Natural) (Output-Port) Index)
+  (lambda [s nsize [/dev/stdout (current-output-port)]]
+    (define bsize : Index (string-utf-8-length s))
+    
+    (write-muintptr bsize nsize /dev/stdout)
+    (write-nbstring s bsize /dev/stdout)))
+
+(define write-ln:bstring : (->* (String Natural) (Output-Port) Index)
+  (lambda [s nsize [/dev/stdout (current-output-port)]]
+    (define bsize : Index (string-utf-8-length s))
     
     (write-luintptr bsize nsize /dev/stdout)
-    (write-nbytes* bs bsize /dev/stdout)))
+    (write-nbstring s bsize /dev/stdout)))
 
 (define write-msintptr : (->* (Integer Integer) (Output-Port) Byte)
   (lambda [n size [/dev/stdout (current-output-port)]]
@@ -264,7 +325,13 @@
     (write-fixed-integer /dev/stdout n size #false #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define write-nbytes* : (->* (Bytes Index) (Output-Port) Index)
+(define write-nbytes : (->* (Bytes Index) (Output-Port) Index)
   (lambda [bs size [/dev/stdout (current-output-port)]]
     (cond [(= size 0) (write-bytes bs /dev/stdout 0 (bytes-length bs))]
           [else (write-bytes bs /dev/stdout 0 size)])))
+
+(define write-nbstring : (->* (String Index) (Output-Port) Index)
+  (lambda [s bsize [/dev/stdout (current-output-port)]]
+    (cond [(= bsize 0) (write-string s /dev/stdout 0 (string-length s))]
+          [(= bsize (string-utf-8-length s)) (write-string s /dev/stdout 0 (string-length s))]
+          [else (write-bytes (string->bytes/utf-8 s) /dev/stdout 0 bsize)])))

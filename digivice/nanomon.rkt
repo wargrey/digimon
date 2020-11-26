@@ -17,7 +17,7 @@
   #:program the-name
   #:args [shell file . args]
 
-  #:usage-help "A utility for testing #lang"
+  #:usage-help "An utility for testing #lang"
   #:once-each
   [[(#\l lang)                                       lang          "replace the #lang line with ~1 (unimplemented yet)"]
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
@@ -78,7 +78,7 @@
           (let ([retcode (nanomon-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
             (exit retcode))
-          (exit (time-apply* (λ [] (let ([tracer (thread (make-lang-log-trace))])
+          (exit (time-apply* (λ [] (let ([tracer (thread (make-nanomon-log-trace))])
                                      (begin0 (exec-shell shell (cmdopt-string->path the-name (cadr name+target+argv)))
                                              (dtrace-datum-notice eof)
                                              (thread-wait tracer))))))))))
@@ -95,7 +95,7 @@
           (unless (string=? errmsg "")
             (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic)))))))
 
-(define make-lang-log-trace : (-> (-> Void))
+(define make-nanomon-log-trace : (-> (-> Void))
   (lambda []
     (make-dtrace-loop #:default-receiver nanomon-event-echo
                       (cond [(nanomon-verbose) 'trace]

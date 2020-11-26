@@ -30,10 +30,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-header zip-entry : ZIP-Entry
-  ([signature : LUInt32 #%zip-entry]
-   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+  ([signature : LUInt32 #:signature #%zip-entry]
    [extract-version : Byte]
-   [flags : LUInt16]
+   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
    [lmdate : LUInt16]
@@ -42,16 +42,16 @@
    [rsize : LUInt32]
    [filename-length : LUInt16]
    [private-length : LUInt16]
-   [filename : (Bytesof filename-length)]
+   [filename : (Stringof filename-length)]
    [privates : (Bytesof private-length)]))
 
 (define-file-header zip-directory : ZIP-Directory
-  ([signature : LUInt32 #%zip-cdirr]
-   [create-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+  ([signature : LUInt32 #:signature #%zip-cdirr]
    [create-version : Byte]
-   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [create-os : (#:enum Byte system->byte byte->system #:else 'unused)]
    [extract-version : Byte]
-   [flags : LUInt16]
+   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
    [lmdate : LUInt16]
@@ -65,19 +65,19 @@
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
    [relative-offset : LUInt32]
-   [filename : (Bytesof filename-length)]
+   [filename : (Stringof filename-length)]
    [privates : (Bytesof private-length)]
-   [comment : (Bytesof comment-length)]))
+   [comment : (Stringof comment-length)]))
 
 (define-file-header zip-end-of-central-directory : ZIP-End-Of-Central-Directory
-  ([signature : LUInt32 #%zip-eocdr]
+  ([signature : LUInt32 #:signature #%zip-eocdr]
    [disk-idx : LUInt16]       ; Number of this disk (for multi-file-zip which is rarely used these days).
    [cdir0-disk-idx : LUInt16] ; Number of the disk in which the central directory starts
    [entry-count : LUInt16]    ; Number of entries on this disk 
    [entry-total : LUInt16]    ; Number of all entries
    [cdir-size : LUInt32]      ; Size in bytes of the central directory
    [cdir-offset : LUInt32]    ; Offset of the central directory
-   [comment : (LNBytes 2)]))
+   [comment : (LNString 2)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-seek-local-file-signature : (-> Input-Port (Option Natural))
