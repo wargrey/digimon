@@ -6,6 +6,8 @@
 
 (provide (all-defined-out))
 
+(require typed/racket/date)
+
 (require "../../stdio.rkt")
 (require "../../port.rkt")
 (require "../../enumeration.rkt")
@@ -24,15 +26,15 @@
 (define-enumeration* zip-compression-method #:+> ZIP-Compression-Method
   compression-method->index index->compression-method
   [0 stored shrunk
-     reduced-1 reduced-2 reduced-3 reduced-4
+     reduced:1 reduced:2 reduced:3 reduced:4
      imploded tokenizing
      deflated])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-header zip-entry : ZIP-Entry
+(define-binary-struct zip-entry : ZIP-Entry
   ([signature : LUInt32 #:signature #%zip-entry]
    [extract-version : Byte]
-   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [extract-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
@@ -45,12 +47,12 @@
    [filename : (Stringof filename-length)]
    [privates : (Bytesof private-length)]))
 
-(define-file-header zip-directory : ZIP-Directory
+(define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
    [create-version : Byte]
-   [create-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [create-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [extract-version : Byte]
-   [extract-os : (#:enum Byte system->byte byte->system #:else 'unused)]
+   [extract-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [lmtime : LUInt16]
@@ -69,7 +71,7 @@
    [privates : (Bytesof private-length)]
    [comment : (Stringof comment-length)]))
 
-(define-file-header zip-end-of-central-directory : ZIP-End-Of-Central-Directory
+(define-binary-struct zip-end-of-central-directory : ZIP-End-Of-Central-Directory
   ([signature : LUInt32 #:signature #%zip-eocdr]
    [disk-idx : LUInt16]       ; Number of this disk (for multi-file-zip which is rarely used these days).
    [cdir0-disk-idx : LUInt16] ; Number of the disk in which the central directory starts

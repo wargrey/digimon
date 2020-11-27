@@ -5,13 +5,13 @@
 (require "../digitama/bintext/zip.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-header stdio-entry : Stdio-Entry
+(define-binary-struct stdio-entry : Stdio-Entry
   ([signature : MUInt32 #:signature #%zip-entry]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [filename-length : LUInt16]
    [comment : (MNBytes 2)]
    [filename : (Stringof filename-length)]
-   [os : (#:enum Byte system->byte byte->system #:else 'unused)]))
+   [os : (#:enum Byte system->byte byte->system #:fallback 'unused)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

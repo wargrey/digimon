@@ -60,7 +60,7 @@
 
 (define-for-syntax (stdio-datum-type <DataType>)
   (syntax-parse <DataType> #:datum-literals []
-    [(#:enum type datum->raw raw-datum (~optional (~seq #:else enum) #:defaults ([enum #'throw-range-error])))
+    [(#:enum type datum->raw raw-datum (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error])))
      (let ([bintype (stdio-integer-type (syntax-e #'type))])
        (and (list? bintype)
             (append (cons #'Symbol (cdr bintype))
@@ -90,10 +90,10 @@
     ;[(#:signature defval #:omittable?) (list (list #'defval) #'#true)]
     [(#:signature defval) (list (list #'defval) #'#true)]
     [(#:default defval) (list (list #'defval) #'#false)]
-    [(meta0 metan ...) (raise-syntax-error 'define-file-header "unrecognized field info" #'meta0 #false (syntax->list #'(metan ...)))]
+    [(meta0 metan ...) (raise-syntax-error 'define-binary-struct "unrecognized field info" #'meta0 #false (syntax->list #'(metan ...)))]
     [_ (list null #'#false)]))
 
-(define-syntax (define-file-header stx)
+(define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
     [(_ header : Header ([field : DataType metainfo ...] ...))
      (with-syntax* ([constructor (format-id #'header "~a" (gensym (format "~a:" (syntax-e #'header))))]
@@ -116,7 +116,7 @@
                               (and (pair? datatype)
                                    (or (stdio-bytes-type datatype <fields>)
                                        (stdio-datum-type <DataType>)))
-                              (raise-syntax-error 'define-file-header "unrecognized data type" <DataType>)))))]
+                              (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>)))))]
                     [([sig-field magic-number] ...)
                      (filter list?
                              (for/list ([<field> (in-syntax #'(field ...))]

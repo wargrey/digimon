@@ -1,20 +1,20 @@
 #lang typed/racket/base
 
 (provide (all-defined-out) plural)
-(provide (all-from-out typed/racket/date))
 (provide (all-from-out racket/format))
 (provide (all-from-out racket/pretty))
 
 (require "digitama/sugar.rkt")
 (require "digitama/plural.rkt")
 
-(require racket/format)
+(require "enumeration.rkt")
+
 (require racket/flonum)
-(require racket/pretty)
 (require racket/string)
 (require racket/math)
 
-(require typed/racket/date)
+(require racket/format)
+(require racket/pretty)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~n_w : (-> Integer String String)
@@ -29,14 +29,18 @@
   (lambda [% #:precision [prcs '(= 2)]]
     (string-append (~r (fl* 100.0 (real->double-flonum %)) #:precision prcs) "%")))
 
+(define ~0time : (-> Real String)
+  (lambda [n]
+    (cond [(< n 10) (string-append "0" (number->string n))]
+          [else (number->string n)])))
+
 (define ~uptime : (-> Integer String)
-  (let ([~t : (-> Real String) (λ [n] (if (< n 10) (string-append "0" (number->string n)) (number->string n)))])
-    (lambda [s]
-      (let*-values ([(d s) (quotient/remainder s 86400)]
-                    [(h s) (quotient/remainder s 3600)]
-                    [(m s) (quotient/remainder s 60)])
-        (cond [(zero? d) (format "~a:~a:~a" (~t h) (~t m) (~t s))]
-              [else (format "~a+~a:~a:~a" d (~t h) (~t m) (~t s))])))))
+  (lambda [s]
+    (let*-values ([(d s) (quotient/remainder s 86400)]
+                  [(h s) (quotient/remainder s 3600)]
+                  [(m s) (quotient/remainder s 60)])
+      (cond [(zero? d) (format "~a:~a:~a" (~0time h) (~0time m) (~0time s))]
+            [else (format "~a+~a:~a:~a" d (~0time h) (~0time m) (~0time s))]))))
 
 (define ~gctime : (-> Integer String)
   (lambda [ms]
@@ -46,13 +50,13 @@
       (cond [(zero? m) (format "~a.~a~a" s padding ms)]
             [else (format "~a:~a.~a~a" m s padding ms)]))))
 
-(define-type/enum units : Unit 'KB 'MB 'GB 'TB)
-(define ~size : (->* (Real) ((U 'Bytes Unit) #:precision (U Integer (List '= Integer))) String)
-  (lambda [size [unit 'Bytes] #:precision [prcs '(= 3)]]
+(define-enumeration unit : Unit [KB MB GB TB PB EB ZB YB])
+(define ~size : (->* (Real) ((U 'Bytes Unit) #:precision (U Integer (List '= Integer)) #:bytes->string (-> Integer String String)) String)
+  (lambda [size [unit 'Bytes] #:precision [prcs '(= 3)] #:bytes->string [bytes->string ~n_w]]
     (if (eq? unit 'Bytes)
-        (cond [(< -1024.0 size 1024.0) (~n_w (exact-round size) "Byte")]
+        (cond [(< -1024.0 size 1024.0) (bytes->string (exact-round size) "Byte")]
               [else (~size (fl/ (real->double-flonum size) 1024.0) 'KB #:precision prcs)])
-        (let try-next-unit : String ([s : Flonum (real->double-flonum size)] [us : (Option Unit*) (memq unit units)])
+        (let try-next-unit : String ([s : Flonum (real->double-flonum size)] [us : (Option (Listof Unit)) (memq unit units)])
           (cond [(not us) "Typed Racket is buggy if you see this message"]
                 [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))

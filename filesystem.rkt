@@ -35,14 +35,14 @@
                     #:count-lines? [count-lines? #,(if (attribute text-flag) #'(port-count-lines-enabled) #'#false)]
                     src]
              (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds src))
-             (define src-key : Path (simplify-path src))
-             (define mdatum : (Option (Pairof Type Nonnegative-Fixnum)) (hash-ref up-to-dates src-key (λ [] #false)))
+             (define file.src : Path (simplify-path src))
+             (define mdatum : (Option (Pairof Type Nonnegative-Fixnum)) (hash-ref up-to-dates file.src (λ [] #false)))
              (cond [(and mdatum (<= mtime (cdr mdatum))) (car mdatum)]
                    [else (let ([datum (parameterize ([port-count-lines-enabled count-lines?])
-                                        (call-with-input-file* src #:mode mode
+                                        (call-with-input-file* file.src #:mode mode
                                           (λ [[/dev/stdin : Input-Port]] : Type
-                                            (do-read /dev/stdin src-key))))])
-                           (hash-set! up-to-dates src-key (cons datum mtime))
+                                            (do-read /dev/stdin file.src))))])
+                           (hash-set! up-to-dates file.src (cons datum mtime))
                            datum)]))))]
     [(_ id #:+ Type mode:keyword ((~or lambda λ) [/dev/stdin src] body ...))
      (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])

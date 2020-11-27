@@ -51,7 +51,7 @@
                       (port-skip /dev/zipin (zip-entry-csize lfheader)))
                     (ls (cons lfheader seirtne)))]))))
 
-#;(define-file-reader zip-list-comments #:+ (Values String (Listof (Pairof String String))) #:binary
+(define-file-reader zip-list-comments #:+ (Pairof String (Listof (Pairof String String)))
   (lambda [/dev/zipin src]
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
@@ -60,7 +60,7 @@
                        [zcomment (zip-end-of-central-directory-comment eocdr)])
                   (let ls ([seirtne : (Listof (Pairof String String)) null]
                            [cdir-pos : Natural (zip-end-of-central-directory-cdir-offset eocdr)])
-                    (cond [(>= cdir-pos maybe-sigoff) (values zcomment (reverse seirtne))]
+                    (cond [(>= cdir-pos maybe-sigoff) (cons zcomment (reverse seirtne))]
                           [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
                                   (ls (cons (cons (zip-directory-filename cdir) (zip-directory-comment cdir)) seirtne)
                                       (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
