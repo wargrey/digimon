@@ -4,8 +4,8 @@
 
 (require racket/path)
 
-(require digimon/digitama/bintext/zip)
 (require digimon/archive)
+(require digimon/digitama/bintext/zipinfo)
 
 (require digimon/cmdopt)
 (require digimon/format)

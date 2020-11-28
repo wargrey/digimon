@@ -2,7 +2,7 @@
 
 (require digimon/stdio)
 
-(require "../digitama/bintext/zip.rkt")
+(require "../digitama/bintext/zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct stdio-entry : Stdio-Entry

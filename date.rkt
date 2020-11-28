@@ -6,7 +6,7 @@
 (require typed/racket/date)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define msdos-datetime->utc-seconds : (->* (Index Index) (Boolean) Integer)
+(define msdos-datetime->utc-seconds : (->* (Index Index) (Boolean) Natural)
   ; https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-dosdatetimetofiletime?redirectedfrom=MSDN
   (lambda [msdos-date msdos-time [locale? #false]]
     (define year (+ (bitwise-bit-field msdos-date 9 16) 1980))
@@ -16,7 +16,7 @@
     (define minute (bitwise-bit-field msdos-time 5 11))
     (define second (* (bitwise-bit-field msdos-time 0 5) 2))
 
-    (find-seconds second minute hour day month year locale?)))
+    (assert (find-seconds second minute hour day month year locale?) exact-nonnegative-integer?)))
 
 (define utc-seconds->msdos-datetime : (->* (Integer) (Boolean) (Values Index Index))
   ; https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-dosdatetimetofiletime?redirectedfrom=MSDN
