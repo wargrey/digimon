@@ -43,7 +43,7 @@
   (lambda [argument-list]
     (define-values (options λargv) (parse-zipinfo-flags argument-list #:help-output-port (current-output-port)))
 
-    (define file.zip : String (car (λargv)))
+    (define file.zip : String (λargv))
 
     (parameterize ([current-logger /dev/dtrace]
                    [pretty-print-columns 160]

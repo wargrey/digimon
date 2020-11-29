@@ -66,20 +66,20 @@
     (when (nanomon-flags-help? options)
       (wisemon-display-help))
 
-    (define name+target+argv : (List String String (Listof String)) (λargv))
+    (define-values (name target argv) (λargv))
 
     (parameterize ([current-logger /dev/dtrace]
                    [nanomon-lang (nanomon-flags-lang options)]
                    [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
-                   [current-command-line-arguments (list->vector (caddr name+target+argv))])
-      (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol (car name+target+argv))))
+                   [current-command-line-arguments (list->vector argv)])
+      (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol name)))
 
       (if (not shell)
           (let ([retcode (nanomon-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
             (exit retcode))
           (exit (time-apply* (λ [] (let ([tracer (thread (make-nanomon-log-trace))])
-                                     (begin0 (exec-shell shell (cmdopt-string->path the-name (cadr name+target+argv)))
+                                     (begin0 (exec-shell shell (cmdopt-string->path the-name target))
                                              (dtrace-datum-notice eof)
                                              (thread-wait tracer))))))))))
 

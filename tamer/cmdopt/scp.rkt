@@ -31,4 +31,5 @@
 
 (cond [(scp-flags-help? options) (display-scp-flags)]
       [else (with-handlers ([exn:fail:user? (λ [[e : exn:fail:user]] (display-scp-flags #:user-error e #:exit 1))])
-              (apply scp (λargv)))])
+              (let-values ([(srcs dest) (λargv)])
+                (scp srcs dest)))])

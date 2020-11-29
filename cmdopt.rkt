@@ -49,7 +49,7 @@
                 (define parse-option : (->* ()
                                             ((U (Listof String) (Vectorof String))
                                              #:program Any #:help-flag Symbol #:help-output-port (Option Output-Port) #:help-more-ps (Listof Any))
-                                            (Values Opt (-> (List Type ...))))
+                                            (Values Opt (-> (Values Type ...))))
                   (lambda [[argv (current-command-line-arguments)]
                            #:program [program name] #:help-flag [--help help-flag]
                            #:help-output-port [/dev/hlpout #false] #:help-more-ps [more-ps null]]
@@ -77,7 +77,7 @@
                                                        [(argu idx) (ref program 'argu operands idx)] ...)
                                            (when (< idx (vector-length operands))
                                              (cmdopt-error program "too many arguments"))
-                                           (list argu ...))))))
+                                           (values argu ...))))))
                 
                 (define display-option : (->* () (Output-Port #:program Any #:user-error (Option exn:fail:user) #:exit (Option Byte) #:more-ps (Listof Any)) Void)
                   (lambda [[/dev/stdout (current-output-port)] #:program [program name] #:user-error [e #false] #:exit [retcode #false] #:more-ps [more-ps null]]

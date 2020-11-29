@@ -15,21 +15,15 @@
 (require "port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type (Archive-Entry-Readerof a) (-> Input-Port String Boolean Natural a a))
-(define-type Archive-Entry-Reader (Archive-Entry-Readerof Void))
+(define-type (Archive-Entry-Readerof a b) (->* (Input-Port String Boolean Natural) (a) b))
+(define-type (Archive-Readerof a) (Archive-Entry-Readerof a a))
+(define-type Archive-Entry-Reader (Archive-Entry-Readerof Void Void))
 
-(define archive-make-write-entry-reader : (->* () (Output-Port #:add-gap-line? Boolean) (Archive-Entry-Readerof (U Void Natural)))
+(define archive-make-write-entry-reader : (->* () (Output-Port #:add-gap-line? Boolean) (Archive-Readerof (U Void Natural)))
   (lambda [[/dev/zipout (current-output-port)] #:add-gap-line? [addline? #true]]
-    (λ [[/dev/zipin : Input-Port] [entry : String] [directory? : Boolean] [timestamp : Natural] [idx : (U Void Natural)]] : (U Void Natural)
-      (unless (not addline?)
-        (unless (void? idx)
-          (newline /dev/zipout)))
-
+    (λ [/dev/zipin entry directory? timestamp [_ #false]]
       (copy-port /dev/zipin /dev/zipout)
-      (newline /dev/zipout)
-
-      (cond [(void? idx) 1]
-            [else (add1 idx)]))))
+      (newline /dev/zipout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
@@ -123,10 +117,9 @@
           (values (+ csize (zip-directory-csize e)) (+ rsize (zip-directory-rsize e)))
           (values (+ csize (zip-entry-csize e)) (+ rsize (zip-entry-rsize e)))))))
 
-(define zip-directory-partition : (->* ((U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))) (Boolean)
-                                       (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof String)))
-  (lambda [/dev/zipin entries [case-sensitive? #true]]
-    (define path=? : (-> String String Boolean) (if (not case-sensitive?) string-ci=? string=?))
+(define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))
+                                      (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof String)))
+  (lambda [/dev/zipin entries]
     (define cdirectories : (Listof ZIP-Directory)
       (cond [(list? /dev/zipin) /dev/zipin]
             [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
@@ -145,48 +138,83 @@
                                  [sridc : (Listof ZIP-Directory) null])
                       (cond [(null? cdirs) (partition cdirectories rest-path seirotceridc (cons self-path shtap))]
                             [else (let-values ([(self-cdir rest-cdirs) (values (car cdirs) (cdr cdirs))])
-                                    (cond [(not (path=? self-path (zip-directory-filename self-cdir))) (search rest-cdirs (cons self-cdir sridc))]
+                                    (cond [(not (string=? self-path (zip-directory-filename self-cdir))) (search rest-cdirs (cons self-cdir sridc))]
                                           [else (partition (append (reverse sridc) rest-cdirs) rest-path (cons self-cdir seirotceridc) shtap)]))])))]))))
 
 (define #:forall (seed) zip-extract : (case-> [(U Input-Port Path-String) -> Void]
-                                              [(U Input-Port Path-String) (Archive-Entry-Readerof (U Void seed)) -> Void]
-                                              [(U Input-Port Path-String) (Archive-Entry-Readerof seed) seed -> seed])
+                                              [(U Input-Port Path-String) (Archive-Readerof (U Void seed)) -> Void]
+                                              [(U Input-Port Path-String) (Archive-Readerof seed) seed -> seed])
   (case-lambda
     [(/dev/zipin) (zip-extract /dev/zipin (archive-make-write-entry-reader))]
     [(/dev/zipin read-entry) (void (zip-extract /dev/zipin read-entry (void)))]
     [(/dev/zipin read-entry datum0)
-     (cond [(input-port? /dev/zipin) (zip-extract-entry /dev/zipin (zip-list-directories /dev/zipin) read-entry datum0)]
-           [else (call-with-input-file* /dev/zipin
-                   (λ [[/dev/zipin : Input-Port]]
-                     (zip-extract /dev/zipin read-entry datum0)))])]))
+     (if (input-port? /dev/zipin)
+         (zip-extract-entries /dev/zipin (zip-list-directories /dev/zipin) read-entry datum0)
+         (call-with-input-file* /dev/zipin
+           (λ [[/dev/zipin : Input-Port]]
+             (zip-extract /dev/zipin read-entry datum0))))]))
 
-(define #:forall (seed) zip-extract-entry : (case-> [Input-Port (Listof ZIP-Directory) -> Void]
-                                                    [Input-Port (Listof ZIP-Directory) (Archive-Entry-Readerof (U Void seed)) -> Void]
-                                                    [Input-Port (Listof ZIP-Directory) (Archive-Entry-Readerof seed) seed -> seed])
+(define #:forall (seed) zip-extract-entries : (case-> [(U Input-Port Path-String) (Listof ZIP-Directory) -> Void]
+                                                      [(U Input-Port Path-String) (Listof ZIP-Directory) (Archive-Readerof (U Void seed)) -> Void]
+                                                      [(U Input-Port Path-String) (Listof ZIP-Directory) (Archive-Readerof seed) seed -> seed])
   (case-lambda
-    [(/dev/zipin zdirs) (zip-extract-entry /dev/zipin zdirs (archive-make-write-entry-reader))]
-    [(/dev/zipin zdirs read-entry) (void (zip-extract-entry /dev/zipin zdirs read-entry (void)))]
-    [(/dev/zipin zdirs read-entry datum0)
-     (for/fold ([datum : seed datum0])
-               ([cdir (in-list (zip-list-directories /dev/zipin))])
-       (parameterize ([current-custodian (make-custodian)])
-         (begin0 (read-entry (open-input-zip-entry /dev/zipin cdir)
-                             (zip-directory-filename cdir)
-                             (zip-folder-entry? cdir)
-                             (msdos-datetime->utc-seconds (zip-directory-lmdate cdir)
-                                                          (zip-directory-lmtime cdir))
-                             datum)
-                 (custodian-shutdown-all (current-custodian)))))]))
+    [(/dev/zipin cdirs) (zip-extract-entries /dev/zipin cdirs (archive-make-write-entry-reader))]
+    [(/dev/zipin cdirs read-entry) (void (zip-extract-entries /dev/zipin cdirs read-entry (void)))]
+    [(/dev/zipin cdirs read-entry datum0)
+     (if (input-port? /dev/zipin)
+         (for/fold ([datum : seed datum0])
+                   ([cdir (in-list (zip-list-directories /dev/zipin))])
+           (or (zip-extract-entry /dev/zipin cdir read-entry datum)
+               #| DEADCODE |# datum))
+         (call-with-input-file* /dev/zipin
+           (λ [[/dev/zipin : Input-Port]]
+             (zip-extract-entries /dev/zipin cdirs read-entry datum0))))]))
 
-(define #:forall (seed) zip-extract-entry*
+(define #:forall (seed) zip-extract-entries*
   : (case-> [Input-Port (Listof ZIP-Directory) (U String (Listof String)) -> (Values Void (Listof ZIP-Directory) (Listof String))]
-            [Input-Port (Listof ZIP-Directory) (U String (Listof String)) (Archive-Entry-Readerof (U Void seed)) -> (Values Void (Listof ZIP-Directory) (Listof String))]
-            [Input-Port (Listof ZIP-Directory) (U String (Listof String)) (Archive-Entry-Readerof seed) seed -> (Values seed (Listof ZIP-Directory) (Listof String))])
+            [Input-Port (Listof ZIP-Directory) (U String (Listof String)) (Archive-Readerof (U Void seed)) -> (Values Void (Listof ZIP-Directory) (Listof String))]
+            [Input-Port (Listof ZIP-Directory) (U String (Listof String)) (Archive-Readerof seed) seed -> (Values seed (Listof ZIP-Directory) (Listof String))])
   (case-lambda
-    [(/dev/zipin zdirs entry) (zip-extract-entry* /dev/zipin zdirs entry (archive-make-write-entry-reader))]
-    [(/dev/zipin zdirs entry read-entry) (let-values ([(_ rdirs ??) (zip-extract-entry* /dev/zipin zdirs entry read-entry (void))]) (values (void) rdirs ??))]
-    [(/dev/zipin zdirs entry read-entry datum0)
-     (let-values ([(requested-dirs rest-dirs unknowns) (zip-directory-partition zdirs entry)])
-       (values (zip-extract-entry /dev/zipin requested-dirs read-entry datum0) rest-dirs unknowns))]))
+    [(/dev/zipin cdirs entry)
+     (zip-extract-entries* /dev/zipin cdirs entry (archive-make-write-entry-reader))]
+    [(/dev/zipin cdirs entry read-entry)
+     (let-values ([(_ rdirs ??) (zip-extract-entries* /dev/zipin cdirs entry read-entry (void))])
+       (values (void) rdirs ??))]
+    [(/dev/zipin cdirs entry read-entry datum0)
+     (let-values ([(requested-dirs rest-dirs unknowns) (zip-directory-partition cdirs entry)])
+       (values (zip-extract-entries /dev/zipin requested-dirs read-entry datum0) rest-dirs unknowns))]))
+
+(define #:forall (a b) zip-extract-entry
+  : (case-> #| arity 2 |# [Input-Port ZIP-Directory -> Boolean]
+            #| arity 3 |# [Input-Port ZIP-Directory (Archive-Entry-Readerof (U Void a) b) -> Boolean]
+            #| arity 4 |# [Input-Port ZIP-Directory (Archive-Entry-Readerof a b) a -> (Option b)]
+            #| arity 3 |# [Input-Port (Listof ZIP-Directory) String -> Boolean]
+            #| arity 4 |# [Input-Port (Listof ZIP-Directory) String (Archive-Entry-Readerof (U Void a) b) -> Boolean]
+            #| arity 5 |# [Input-Port (Listof ZIP-Directory) String (Archive-Entry-Readerof a b) b -> (Option b)])
+  (case-lambda
+    [(/dev/zipin entry)
+     (zip-extract-entry /dev/zipin entry (archive-make-write-entry-reader))]
+    [(/dev/zipin entry/cdirs read-entry/entry)
+     (if (list? entry/cdirs)
+         (zip-extract-entry /dev/zipin entry/cdirs read-entry/entry (archive-make-write-entry-reader))
+         (and (zip-extract-entry /dev/zipin entry/cdirs read-entry/entry (void)) #true))]
+    [(/dev/zipin cdirs entry read-entry datum0)
+     (let ([name (zip-path-normalize entry)])
+       (let search ([cdirs : (Listof ZIP-Directory) cdirs])
+         (and (null? cdirs)
+              (let ([cdir (car cdirs)])
+                (if (string=? (zip-directory-filename cdir) name)
+                    (zip-extract-entry /dev/zipin cdir read-entry datum0)
+                    (search (cdr cdirs)))))))]
+    [(/dev/zipin cdir read-entry datum0)
+     (cond [(list? cdir) (and (zip-extract-entry /dev/zipin cdir read-entry datum0 (void)) #true)]
+           [else (parameterize ([current-custodian (make-custodian)])
+                   (begin0 (read-entry (open-input-zip-entry /dev/zipin cdir)
+                                       (zip-directory-filename cdir)
+                                       (zip-folder-entry? cdir)
+                                       (msdos-datetime->utc-seconds (zip-directory-lmdate cdir)
+                                                                    (zip-directory-lmtime cdir))
+                                       datum0)
+                           (custodian-shutdown-all (current-custodian))))])]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

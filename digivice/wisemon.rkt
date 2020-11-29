@@ -107,7 +107,7 @@
           (let ([retcode (make-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: not in a digimon zone")))
             (exit retcode))
-          (let-values ([(phonies reals) (wisemon-goal-partition (car (λargv)))])
+          (let-values ([(phonies reals) (wisemon-goal-partition (λargv))])
             (exit (time-apply* (λ [] (make-digimon digimons reals phonies)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
