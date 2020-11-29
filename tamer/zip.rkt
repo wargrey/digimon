@@ -35,7 +35,9 @@
                    [date-display-format 'iso-8601])
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
                                  (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                                   (zip-extract file.zip))
+                                   (cond [(null? entries) (zip-extract file.zip)]
+                                         [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries)])
+                                                 (length unknowns))]))
                                  (dtrace-datum-notice eof)
                                  (thread-wait tracer))))))))
 

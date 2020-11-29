@@ -7,6 +7,13 @@
 
 (require typed/racket/random)
 
+(require "digitama/evt.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Port-Reader-Datum
+  (U (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any)
+     Natural EOF Input-Port (Evtof Any)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/stdin : Input-Port (current-input-port))
 (define /dev/stdout : Output-Port (current-output-port))
@@ -33,7 +40,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-peek-port : (->* (Input-Port) ((Boxof Natural) Symbol) Input-Port)
-  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tpkib]]
+  (lambda [/dev/srcin [iobox ((inst box Natural) 0)] [name '/dev/tpkin]]
     (make-input-port name
                      (λ [[s : Bytes]] : (U EOF Exact-Positive-Integer)
                        (define peeked : Natural (unbox iobox))
@@ -41,6 +48,68 @@
                        (set-box! iobox (+ peeked (if (number? r) r 1))) r)
                      #false
                      void)))
+
+(define open-input-block : (->* (Input-Port Natural) (Boolean #:name Any) Input-Port)
+  (lambda [port size [close-orig? #true] #:name [name #false]]
+    (define lock-semaphore : Semaphore (make-semaphore 1))
+    (define consumed : Natural 0)
+    
+    (define (do-read [str : Bytes]) : Port-Reader-Datum
+      (define count : Integer (min (- size consumed) (bytes-length str)))
+      
+      (cond [(<= count 0) eof]
+            [else (let ([n (read-bytes-avail!* str port 0 count)])
+                    (cond [(eq? n 0) (wrap-evt port (λ (x) 0))]
+                          [(number? n) (set! consumed (+ consumed n)) n]
+                          [(procedure? n) (set! consumed (add1 consumed)) n]
+                          [else n]))]))
+    
+    (define (do-peek [str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]) : (Option Port-Reader-Datum)
+      (define count : Integer (min (- size consumed skip) (bytes-length str)))
+      
+      (cond [(<= count 0) (if (and progress-evt (sync/timeout 0 progress-evt)) #false eof)]
+            [else (let ([n (peek-bytes-avail!* str skip progress-evt port 0 count)])
+                    (cond [(not (eq? n 0)) n]
+                          [(and progress-evt (sync/timeout 0 progress-evt)) #false]
+                          [else (wrap-evt (cond [(zero? skip) port]
+                                                [else (choice-evt (or progress-evt never-evt)
+                                                                  (peek-bytes-evt 1 skip progress-evt port))])
+                                          (λ [x] 0))]))]))
+    
+    (define (try-again) : Port-Reader-Datum
+      (wrap-evt
+       (semaphore-peek-evt lock-semaphore)
+       (λ [x] 0)))
+
+    (make-input-port (or name (object-name port))
+                     
+                     (λ [[str : Bytes]] : Port-Reader-Datum
+                       (call-with-semaphore lock-semaphore do-read try-again str))
+                     
+                     (λ [[str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]] : (Option Port-Reader-Datum)
+                       (call-with-semaphore lock-semaphore do-peek try-again str skip progress-evt))
+                     
+                     (λ [] (when close-orig? (close-input-port port)))
+                     
+                     (and (port-provides-progress-evts? port)
+                          (λ [] (port-progress-evt port)))
+                     
+                     (and (port-provides-progress-evts? port)
+                          (λ [[n : Positive-Integer] [evt : EvtSelf] [target-evt : (Evtof Any)]] : Any
+                            (let commit ()
+                              (if (semaphore-try-wait? lock-semaphore)
+                                  (let ([ok? (port-commit-peeked n evt target-evt port)])
+                                    (when ok? (set! consumed (+ consumed n)))
+                                    (semaphore-post lock-semaphore)
+                                    ok?)
+                                  (sync (handle-evt evt (λ [v] #false))
+                                        (handle-evt (semaphore-peek-evt lock-semaphore)
+                                                    (λ [v] (commit))))))))
+                     
+                     (lambda () (port-next-location port))
+                     (lambda () (port-count-lines! port))
+
+                     port #| initial position |#)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-path : (-> (U Input-Port Output-Port) Path)

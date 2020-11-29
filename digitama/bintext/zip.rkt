@@ -2,7 +2,10 @@
 
 (provide (all-defined-out))
 
+(require racket/path)
+
 (require "zipinfo.rkt")
+(require "../../port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-path-normalize : (-> Path-String String)
@@ -20,4 +23,20 @@
 
 (define open-input-zip-entry : (-> Input-Port ZIP-Directory Input-Port)
   (lambda [/dev/zipin cdir]
-    /dev/zipin))
+    (define ?zip (regexp-match #px"[^.]+$" (zip-port-name /dev/zipin)))
+    (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
+
+    (file-position /dev/zipin (zip-directory-relative-offset cdir))
+    (read-zip-entry /dev/zipin) ; for efficient, no further validity check for entries here.
+    
+    (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-port-name : (-> Input-Port String)
+  (lambda [/dev/zipin]
+    (define name (object-name /dev/zipin))
+
+    (cond [(path? name) (path->string name)]
+          [(string? name) name]
+          [(symbol? name) (symbol->string name)]
+          [else (format "~a" name)])))

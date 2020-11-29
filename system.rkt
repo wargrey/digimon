@@ -11,13 +11,10 @@
 
 (require "digitama/system.rkt")
 (require "digitama/sugar.rkt")
+(require "digitama/evt.rkt")
 
 (require "continuation.rkt")
 (require "symbol.rkt")
-
-(define-type EvtSelf (Rec Evt (Evtof Evt)))
-(define-type Place-EvtExit (Evtof (Pairof Place Integer)))
-(define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (void (print-boolean-long-form #true)
