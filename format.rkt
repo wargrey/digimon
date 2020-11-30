@@ -93,20 +93,24 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define byte->hex-string : (-> Byte String)
   (lambda [b]
-    (~r b #:base 16 #:min-width 2 #:pad-string "0")))
+    (define hex (number->string b 16))
+    
+    (if (> b #xF) hex (string-append "0" hex))))
 
 (define byte->bin-string : (-> Byte String)
   (lambda [b]
     (~r b #:base 2 #:min-width 8 #:pad-string "0")))
 
-(define bytes->hex-string : (-> Bytes [#:separator String] String)
-  (lambda [bstr #:separator [sep ""]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr)]) (byte->hex-string b))
+(define bytes->hex-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
+  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
+    (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
+                   (byte->hex-string b))
                  sep)))
 
-(define bytes->bin-string : (-> Bytes [#:separator String] String)
-  (lambda [bstr #:separator [sep ""]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr)]) (byte->bin-string b))
+(define bytes->bin-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
+  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
+    (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
+                   (byte->bin-string b))
                  sep)))
 
 (define symb0x->number : (-> Symbol (Option Integer))

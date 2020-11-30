@@ -5,15 +5,8 @@
 (require typed/setup/getinfo)
 
 (require racket/fixnum)
-(require racket/port)
 (require racket/path)
 (require racket/match)
-
-(require typed/racket/unsafe)
-
-(unsafe-require/typed
- racket/base
- [collection-file-path (All (a) (->* (Path-String #:fail (-> String a)) (#:check-compiled? Boolean) #:rest Path-String a))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)

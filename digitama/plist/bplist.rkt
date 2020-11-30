@@ -5,7 +5,7 @@
 
 (provide (all-defined-out))
 
-(require typed/racket/unsafe)
+(require typed/racket/date)
 
 (require racket/port)
 
@@ -13,18 +13,6 @@
 
 (require "../../format.rkt")
 (require "../../number.rkt")
-
-(unsafe-require/typed
- "../../number.rkt"
- [network-bytes->natural (-> Bytes Integer Integer Index)])
-
-(unsafe-require/typed
- racket/base
- [seconds->date (->* (Flonum) (Boolean) date)])
-
-(unsafe-require/typed
- racket/date
- [date*->seconds (->* (date) (Boolean) Real)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type BPList-Unique-Objects (Immutable-HashTable Any Natural))
@@ -261,22 +249,22 @@
       (cond [(= object-size #b1111)
              (let-values ([(size-tag size-ln) (bplist-extract-byte-tag (bytes-ref /dev/bplin (+ pos 1)))])
                (define size-size : Nonnegative-Integer (arithmetic-shift 1 size-ln))
-               (define value-idx : Positive-Integer (+ pos 2 size-size))
-               (values (network-bytes->natural /dev/bplin (+ pos 2) value-idx) value-idx size-tag size-ln))]
+               (values (msb-bytes->size /dev/bplin (+ pos 2) size-size)
+                       (+ pos 2 size-size) size-tag size-ln))]
             [(not power?) (values object-size (+ pos 1) 0 0)]
             [else (values (assert (arithmetic-shift 1 object-size) byte?) (+ pos 1) 0 0)]))
     (values object-real-size (assert value-idx index?) size-tag size-ln)))
 
 (define bplist-extract-object-offset : (-> Bytes Integer Byte Index)
   (lambda [/dev/bplin position sizeof-object]
-    (network-bytes->natural /dev/bplin position (+ position sizeof-object))))
+    (msb-bytes->size /dev/bplin position sizeof-object)))
 
 (define bplist-extract-object-position : (-> Bytes Nonnegative-Integer Index Byte Index Index)
   (lambda [/dev/bplin offset offset-table-index sizeof-offset trailer-index]
     (define pos : Nonnegative-Integer (+ offset-table-index (* offset sizeof-offset)))
     (cond [(>= pos trailer-index) trailer-index]
           [(= sizeof-offset 1) (bytes-ref /dev/bplin pos)]
-          [else (network-bytes->natural /dev/bplin pos (+ pos sizeof-offset))])))
+          [else (msb-bytes->size /dev/bplin pos sizeof-offset)])))
 
 (define bplist-extract-offset-table : (-> Bytes Index Byte Index (Listof Index))
   (lambda [/dev/bplin offset-table-index sizeof-offset trailer-index]
@@ -285,16 +273,16 @@
                                [stesffo : (Listof Index) null])
       (cond [(> pos++ trailer-index) (reverse stesffo)]
             [else (extract-offset-table pos++ (+ pos++ sizeof-offset)
-                                        (cons (network-bytes->natural /dev/bplin pos pos++)
+                                        (cons (msb-bytes->size /dev/bplin pos sizeof-offset)
                                               stesffo))]))))
 
 (define bplist-extract-trailer : (-> Bytes Index (Values Byte Byte Index Index Index))
   (lambda [/dev/bplin trailer-idx]
     (values (bytes-ref /dev/bplin (+ trailer-idx 6))
             (bytes-ref /dev/bplin (+ trailer-idx 7))
-            (network-bytes->natural /dev/bplin (+ trailer-idx 8) (+ trailer-idx 16))
-            (network-bytes->natural /dev/bplin (+ trailer-idx 16) (+ trailer-idx 24))
-            (network-bytes->natural /dev/bplin (+ trailer-idx 24) (+ trailer-idx 32)))))
+            (msb-bytes->size /dev/bplin (+ trailer-idx 8) 8)
+            (msb-bytes->size /dev/bplin (+ trailer-idx 16) 8)
+            (msb-bytes->size /dev/bplin (+ trailer-idx 24) 8))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bplist-data-ref : (-> Bytes Index Index Bytes)
@@ -303,13 +291,15 @@
 
 (define bplist-integer-ref : (-> Bytes Index Index Integer)
   (lambda [/dev/bplin pos count]
-    (cond [(< count 8) (network-bytes->natural /dev/bplin pos (+ pos count))]
-          [else (network-bytes->integer /dev/bplin pos (+ pos count))])))
+    (if (< count 8)
+        (network-bytes->natural /dev/bplin pos (+ pos count))
+        (network-bytes->integer /dev/bplin pos (+ pos count)))))
 
 (define bplist-real-ref : (-> Bytes Index Index Flonum)
   (lambda [/dev/bplin pos count]
     (case count
-      [(4 8) (floating-point-bytes->real /dev/bplin #true pos (+ pos count))]
+      [(4) (msb-bytes->float /dev/bplin pos)]
+      [(8) (msb-bytes->double /dev/bplin pos)]
       [else +nan.0])))
 
 (define bplist-string-ref : (-> Bytes Index Index String)

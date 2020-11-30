@@ -14,19 +14,21 @@
 (require digimon/dtrace)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-cmdlet-option zipinfo-flags #: ZipInfo-Flags
+(define-cmdlet-option zip-flags #: Zip-Flags
   #:program 'zipinfo
   #:args [file.zip . entry]
 
   #:once-each
-  [[(#\v)   #:=> zip-verbose "run with verbose messages"]])
+  [[(#\b)                                          "hexdump file content in binary mode"]
+   [(#\w)   #:=> cmdopt-string+>byte width #: Byte "hexdump file content in ~1 bytes per line"]
+   [(#\v)   #:=> zip-verbose                       "run with verbose messages"]])
 
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
-    (define-values (options λargv) (parse-zipinfo-flags argument-list #:help-output-port (current-output-port)))
+    (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
     (define-values (file.zip entries) (λargv))
 
     (parameterize ([current-logger /dev/dtrace]
@@ -35,8 +37,14 @@
                    [date-display-format 'iso-8601])
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
                                  (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                                   (cond [(null? entries) (zip-extract file.zip)]
-                                         [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries)])
+                                   (define hexdump
+                                     (make-archive-hexdump-entry-reader
+                                      #:binary? (zip-flags-b options)
+                                      #:width (or (zip-flags-w options)
+                                                  (if (zip-flags-b options) 16 32))))
+                                   
+                                   (cond [(null? entries) (zip-extract file.zip hexdump)]
+                                         [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])
                                                  (length unknowns))]))
                                  (dtrace-datum-notice eof)
                                  (thread-wait tracer))))))))

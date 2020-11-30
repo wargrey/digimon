@@ -34,10 +34,6 @@
  compiler/compiler
  [compile-directory-zos (-> Path-String Info-Ref [#:verbose Boolean] [#:skip-doc-sources? Boolean] Void)])
 
-(unsafe-require/typed
- racket/base
- [collection-file-path (All (a) (->* (Path-String #:fail (-> String a)) (#:check-compiled? Boolean) #:rest Path-String (U Path a)))])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-compile : (-> Path-String String Info-Ref Void)
   (lambda [pwd digimon info-ref]

@@ -9,6 +9,7 @@
 (require "digitama/ioexn.rkt")
 
 (require "filesystem.rkt")
+(require "format.rkt")
 (require "date.rkt")
 (require "port.rkt")
 
@@ -17,16 +18,41 @@
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof* a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof* Void Void))
 
-(define archive-make-display-entry-reader : (->* () (Output-Port #:add-gap-line? Boolean) (Archive-Entry-Readerof (U Void Natural)))
-  (lambda [[/dev/zipout (current-output-port)] #:add-gap-line? [addline? #true]]
+(define make-archive-hexdump-entry-reader : (->* () (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean)
+                                                 (Archive-Entry-Readerof (U Void Natural)))
+  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false]]
+    (define pool : Bytes (make-bytes width))
+    
     (λ [/dev/zipin entry directory? timestamp idx]
       (unless (not addline?)
         (unless (void? idx)
           (newline /dev/zipout)))
       
       (displayln (object-name /dev/zipin))
-      (copy-port /dev/zipin /dev/zipout)
-      (newline /dev/zipout)
+      
+      (let hexdump ([pos : Natural 0])
+        (define size (read-bytes! pool /dev/zipin))
+
+        (unless (eof-object? size)
+          (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
+          (display #\space)
+
+          (for ([b (in-bytes pool 0 size)])
+            (if (not binary?)
+                (display (byte->hex-string b))
+                (display (byte->bin-string b)))
+            (display #\space))
+
+          (when (< size width)
+            (display (~space (* (assert (- width size) byte?)
+                                (if (not binary?) 3 9)))))
+          
+          (for ([b (in-bytes pool 0 size)])
+            (define ch (integer->char b))
+            (display (if (char-graphic? ch) ch ".")))
+          
+          (newline /dev/zipout)
+          (hexdump (+ pos size))))
 
       (cond [(void? idx) 1]
             [else (add1 idx)]))))
@@ -151,7 +177,7 @@
                                               [(U Input-Port Path-String) (Archive-Entry-Readerof (U Void seed)) -> Void]
                                               [(U Input-Port Path-String) (Archive-Entry-Readerof seed) seed -> seed])
   (case-lambda
-    [(/dev/zipin) (zip-extract /dev/zipin (archive-make-display-entry-reader))]
+    [(/dev/zipin) (zip-extract /dev/zipin (make-archive-hexdump-entry-reader))]
     [(/dev/zipin read-entry) (void (zip-extract /dev/zipin read-entry (void)))]
     [(/dev/zipin read-entry datum0)
      (if (input-port? /dev/zipin)
@@ -175,7 +201,7 @@
             [(U Input-Port Path-String) (U String (Listof String)) (Archive-Entry-Readerof (U Void seed)) -> (Values Void (Listof ZIP-Directory) (Listof String))]
             [(U Input-Port Path-String) (U String (Listof String)) (Archive-Entry-Readerof seed) seed -> (Values seed (Listof ZIP-Directory) (Listof String))])
   (case-lambda
-    [(/dev/zipin entry) (zip-extract* /dev/zipin entry (archive-make-display-entry-reader))]
+    [(/dev/zipin entry) (zip-extract* /dev/zipin entry (make-archive-hexdump-entry-reader))]
     [(/dev/zipin entry read-entry) (let-values ([(_ rdirs ??) (zip-extract* /dev/zipin entry read-entry (void))]) (values (void) rdirs ??))]
     [(/dev/zipin entry read-entry datum0)
      (if (input-port? /dev/zipin)
@@ -191,7 +217,7 @@
                                                           [(U Input-Port Path-String) (Listof ZIP-Directory) (Archive-Entry-Readerof (U Void seed)) -> Void]
                                                           [(U Input-Port Path-String) (Listof ZIP-Directory) (Archive-Entry-Readerof seed) seed -> seed])
   (case-lambda
-    [(/dev/zipin cdirs) (zip-extract-directories /dev/zipin cdirs (archive-make-display-entry-reader))]
+    [(/dev/zipin cdirs) (zip-extract-directories /dev/zipin cdirs (make-archive-hexdump-entry-reader))]
     [(/dev/zipin cdirs read-entry) (void (zip-extract-directories /dev/zipin cdirs read-entry (void)))]
     [(/dev/zipin cdirs read-entry datum0)
      (if (input-port? /dev/zipin)
@@ -212,7 +238,7 @@
                                         -> (Values seed (Listof ZIP-Directory) (Listof String))])
   (case-lambda
     [(/dev/zipin cdirs entry)
-     (zip-extract-directories* /dev/zipin cdirs entry (archive-make-display-entry-reader))]
+     (zip-extract-directories* /dev/zipin cdirs entry (make-archive-hexdump-entry-reader))]
     [(/dev/zipin cdirs entry read-entry)
      (let-values ([(_ rdirs ??) (zip-extract-directories* /dev/zipin cdirs entry read-entry (void))])
        (values (void) rdirs ??))]
@@ -229,10 +255,10 @@
             #| arity 5 |# [(U Input-Port Path-String) (Listof ZIP-Directory) String (Archive-Entry-Readerof* a b) b -> (Option b)])
   (case-lambda
     [(/dev/zipin entry)
-     (zip-extract-entry /dev/zipin entry (archive-make-display-entry-reader))]
+     (zip-extract-entry /dev/zipin entry (make-archive-hexdump-entry-reader))]
     [(/dev/zipin entry/cdirs read-entry/entry)
      (if (list? entry/cdirs)
-         (zip-extract-entry /dev/zipin entry/cdirs read-entry/entry (archive-make-display-entry-reader))
+         (zip-extract-entry /dev/zipin entry/cdirs read-entry/entry (make-archive-hexdump-entry-reader))
          (and (zip-extract-entry /dev/zipin entry/cdirs read-entry/entry (void)) #true))]
     [(/dev/zipin cdirs entry read-entry datum0)
      (let ([name (zip-path-normalize entry)])
