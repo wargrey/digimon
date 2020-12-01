@@ -18,45 +18,6 @@
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof* a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof* Void Void))
 
-(define make-archive-hexdump-entry-reader : (->* () (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean)
-                                                 (Archive-Entry-Readerof (U Void Natural)))
-  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false]]
-    (define pool : Bytes (make-bytes width))
-    
-    (λ [/dev/zipin entry directory? timestamp idx]
-      (unless (not addline?)
-        (unless (void? idx)
-          (newline /dev/zipout)))
-      
-      (displayln (object-name /dev/zipin))
-      
-      (let hexdump ([pos : Natural 0])
-        (define size (read-bytes! pool /dev/zipin))
-
-        (unless (eof-object? size)
-          (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
-          (display #\space)
-
-          (for ([b (in-bytes pool 0 size)])
-            (if (not binary?)
-                (display (byte->hex-string b))
-                (display (byte->bin-string b)))
-            (display #\space))
-
-          (when (< size width)
-            (display (~space (* (assert (- width size) byte?)
-                                (if (not binary?) 3 9)))))
-          
-          (for ([b (in-bytes pool 0 size)])
-            (define ch (integer->char b))
-            (display (if (char-graphic? ch) ch ".")))
-          
-          (newline /dev/zipout)
-          (hexdump (+ pos size))))
-
-      (cond [(void? idx) 1]
-            [else (add1 idx)]))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
   (lambda [/dev/zipin src]
@@ -190,7 +151,8 @@
                            (cond [(>= pos maybe-sigoff) datum]
                                  [else (let ([cdir (read-zip-directory /dev/zipin)]
                                              [pos++ (file-position /dev/zipin)])
-                                         (extract (assert (zip-extract-entry /dev/zipin cdir read-entry datum))
+                                         (extract (or (zip-extract-entry /dev/zipin cdir read-entry datum)
+                                                      #| DEADCODE |# datum)
                                                   (port-seek /dev/zipin pos++)))])))]))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]
@@ -284,3 +246,41 @@
                            (custodian-shutdown-all (current-custodian))))])]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-archive-hexdump-entry-reader : (->* () (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean)
+                                                 (Archive-Entry-Readerof (U Void Natural)))
+  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false]]
+    (define pool : Bytes (make-bytes width))
+    
+    (λ [/dev/zipin entry directory? timestamp idx]
+      (unless (not addline?)
+        (unless (void? idx)
+          (newline /dev/zipout)))
+      
+      (displayln (object-name /dev/zipin))
+      
+      (let hexdump ([pos : Natural 0])
+        (define size (read-bytes! pool /dev/zipin))
+
+        (unless (eof-object? size)
+          (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
+          (display #\space)
+
+          (for ([b (in-bytes pool 0 size)])
+            (if (not binary?)
+                (display (byte->hex-string b))
+                (display (byte->bin-string b)))
+            (display #\space))
+
+          (when (< size width)
+            (display (~space (* (assert (- width size) byte?)
+                                (if (not binary?) 3 9)))))
+          
+          (for ([b (in-bytes pool 0 size)])
+            (define ch (integer->char b))
+            (display (if (char-graphic? ch) ch ".")))
+          
+          (newline /dev/zipout)
+          (hexdump (+ pos size))))
+
+      (cond [(void? idx) 1]
+            [else (add1 idx)]))))

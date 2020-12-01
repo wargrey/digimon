@@ -2,12 +2,6 @@
 
 (require digimon/plist)
 
-(require typed/racket/unsafe)
-
-(unsafe-require/typed
- racket/base
- [seconds->date (->* (Real) (Boolean) date)])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define display? : Boolean #true)
 

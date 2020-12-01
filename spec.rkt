@@ -40,13 +40,12 @@
 
 (define spec-behavior-prove : Spec-Behavior-Prove
   (lambda [brief namepath evaluation]
-    ((inst spec-story Spec-Issue Spec-Issue)
-     (gensym brief)
-     (λ [] (parameterize ([default-spec-issue-brief brief])
-             (with-handlers ([exn:fail? spec-misbehave])
-               (evaluation)
-               (make-spec-issue 'pass))))
-     values)))
+    (spec-story (gensym brief)
+                (λ [] (parameterize ([default-spec-issue-brief brief])
+                        (with-handlers ([exn:fail? spec-misbehave])
+                          (evaluation)
+                          (make-spec-issue 'pass))))
+                values)))
 
 (define spec-unsupported : (-> String Nothing)
   (lambda [reason]

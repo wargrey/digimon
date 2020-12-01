@@ -165,7 +165,7 @@
       (when (> (file-position /dev/bufout) 0)
         (dtrace-write-line (bytes->string/utf-8 (get-output-bytes /dev/bufout #true) echar))))
 
-    (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [flush? : Boolean] [enable-break? : Boolean]) : Natural
+    (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [flush? : Boolean] [enable-break? : Boolean]) : Integer
       (with-asserts ([end index?])
         (cond [(and (= start end) (not flush?)) (dtrace-flush)]
               [else (let write-line ([pos : Index (assert start index?)]
@@ -179,7 +179,7 @@
                                                    (bytes->string/utf-8 (get-output-bytes /dev/bufout #true 0 total) echar 0 total))]))
                                     (when (< nxtpos end)
                                       (write-line nxtpos 0)))]))]))
-      (assert (- end start) exact-nonnegative-integer?))
+      (- end start))
 
     (define (dtrace-write-special [datum : Any] [flush? : Boolean] [breakable? : Boolean]) : Boolean
       (and special-level

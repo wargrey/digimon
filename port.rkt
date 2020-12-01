@@ -7,6 +7,8 @@
 
 (require typed/racket/random)
 
+(require "digitama/evt.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Port-Reader-Datum
   (U (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any)
@@ -62,7 +64,7 @@
                           [(procedure? n) (set! consumed (add1 consumed)) n]
                           [else n]))]))
     
-    (define (do-peek [str : Bytes] [skip : Natural] [progress-evt : (Option (Evtof Any))]) : (Option Port-Reader-Datum)
+    (define (do-peek [str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]) : (Option Port-Reader-Datum)
       (define count : Integer (min (- size consumed skip) (bytes-length str)))
       
       (cond [(<= count 0) (if (and progress-evt (sync/timeout 0 progress-evt)) #false eof)]
@@ -74,7 +76,7 @@
                                                                   (peek-bytes-evt 1 skip progress-evt port))])
                                           (λ [x] 0))]))]))
 
-    (define (do-commit [n : Positive-Integer] [evt : (Evtof Any)] [target-evt : (Evtof Any)]) : Boolean
+    (define (do-commit [n : Positive-Integer] [evt : EvtSelf] [target-evt : (Evtof Any)]) : Boolean
       (let commit ()
         (if (semaphore-try-wait? lock-semaphore)
             (let ([ok? (port-commit-peeked n evt target-evt port)])
@@ -95,7 +97,7 @@
                      (λ [[str : Bytes]] : Port-Reader-Datum
                        (call-with-semaphore lock-semaphore do-read try-again str))
                      
-                     (λ [[str : Bytes] [skip : Natural] [progress-evt : (Option (Evtof Any))]] : (Option Port-Reader-Datum)
+                     (λ [[str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]] : (Option Port-Reader-Datum)
                        (call-with-semaphore lock-semaphore do-peek try-again str skip progress-evt))
                      
                      (λ [] (when close-orig? (close-input-port port)))

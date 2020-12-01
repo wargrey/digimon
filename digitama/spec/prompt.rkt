@@ -4,29 +4,20 @@
 
 (require "issue.rkt")
 
-(require typed/racket/unsafe)
-
-(unsafe-require/typed
- racket/base
- [call-with-continuation-prompt (All (a b) (-> (-> a) (Prompt-Tagof Any Any) (-> (-> Spec-Issue) b) (U a b)))]
- [abort-current-continuation (All (a) (-> (Prompt-Tagof Any Any) a Nothing))]
- [default-continuation-prompt-tag (-> (Prompt-Tagof Any Any))])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; NOTE: (Prompt-Tagof Any (-> a ... a b)) cannot be type-checked meanwhile since it involves 'chaperone/sc'
+(define-type Spec-Prompt-Handler (-> (-> Spec-Issue) Spec-Issue))
+(define-type Spec-Prompt-Tag (Prompt-Tagof Spec-Issue Spec-Prompt-Handler))
 
-(define default-spec-prompt : (Parameterof (Prompt-Tagof Any Any)) (make-parameter (default-continuation-prompt-tag)))
+(define default-spec-prompt : (Parameterof Spec-Prompt-Tag) (make-parameter ((inst make-continuation-prompt-tag Spec-Issue Spec-Prompt-Handler) 'spec)))
 (define default-spec-issue-handler : (Parameterof (-> Spec-Issue Void)) (make-parameter default-spec-issue-display))
 
-(define spec-story : (All (a b) (-> (Option Symbol) (-> a) (-> Spec-Issue b) (U a b)))
+(define spec-story : (-> (Option Symbol) (-> Spec-Issue) (-> Spec-Issue Spec-Issue) Spec-Issue)
   (lambda [tagname do-task handle]
-    (define current-prompt : (Prompt-Tagof Any Any)
-      (cond [(not tagname) (default-continuation-prompt-tag)]
-            [else (make-continuation-prompt-tag tagname)]))
+    (define current-prompt : Spec-Prompt-Tag (make-continuation-prompt-tag (or tagname 'spec)))
 
     (parameterize ([default-spec-prompt current-prompt])
       (call-with-continuation-prompt do-task current-prompt
-        (λ [[at-collapse : (-> Spec-Issue)]] : b
+        (λ [[at-collapse : (-> Spec-Issue)]] : Spec-Issue
           (handle (at-collapse)))))))
 
 (define spec-misbehave : (->* () ((U Spec-Issue Spec-Issue-Type exn:fail)) Nothing)
@@ -36,5 +27,6 @@
       (cond [(symbol? v) (make-spec-issue v)]
             [(exn? v) (make-spec-panic-issue v)]
             [else v]))
+    
     (abort-current-continuation (default-spec-prompt)
-                                (λ [] (handle issue) issue))))
+                                (λ _ (handle issue) issue))))

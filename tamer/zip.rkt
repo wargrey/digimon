@@ -42,7 +42,7 @@
                                       #:binary? (zip-flags-b options)
                                       #:width (or (zip-flags-w options)
                                                   (if (zip-flags-b options) 16 32))))
-                                   
+
                                    (cond [(null? entries) (zip-extract file.zip hexdump)]
                                          [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])
                                                  (length unknowns))]))
