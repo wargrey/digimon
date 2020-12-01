@@ -7,6 +7,32 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-continuation-prompt-control : (All (a b c) (->* () (Symbol)
+                                                             (Values (-> (Option Symbol) (-> a) (-> b c) (U a c))
+                                                                     (-> (-> b) Nothing))))
+  (lambda [[default-prompt-name (gensym 'prompt)]]
+    (define default-prompt : (Parameterof (Prompt-Tagof a (-> (-> b) c)))
+      (make-parameter ((inst make-continuation-prompt-tag a (-> (-> b) c)) default-prompt-name)))
+
+    (define call-with-prompt : (-> (Option Symbol) (-> a) (-> b c) (U a c))
+      (lambda [tagname do-task handle]
+        (define current-prompt : (Prompt-Tagof a (-> (-> b) c))
+          (make-continuation-prompt-tag (or tagname default-prompt-name)))
+        
+        (parameterize ([default-prompt current-prompt])
+          (call-with-continuation-prompt do-task current-prompt
+            (λ [[at-collapse : (-> b)]] : c
+              (handle (at-collapse)))))))
+    
+    (define abort : (-> (-> b) Nothing)
+      (lambda [handlee]
+        (abort-current-continuation (default-prompt)
+                                    (λ _ (handlee)))))
+
+    (values call-with-prompt abort)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread exn)) (Listof Continuation-Stack))
   (lambda [[cm (current-continuation-marks)]]
     ((inst map (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))) (Pairof (Option Symbol) Any))

@@ -3,22 +3,14 @@
 (provide (all-defined-out))
 
 (require "issue.rkt")
+(require "../../continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Spec-Prompt-Handler (-> (-> Spec-Issue) Spec-Issue))
-(define-type Spec-Prompt-Tag (Prompt-Tagof Spec-Issue Spec-Prompt-Handler))
-
-(define default-spec-prompt : (Parameterof Spec-Prompt-Tag) (make-parameter ((inst make-continuation-prompt-tag Spec-Issue Spec-Prompt-Handler) 'spec)))
 (define default-spec-issue-handler : (Parameterof (-> Spec-Issue Void)) (make-parameter default-spec-issue-display))
 
-(define spec-story : (-> (Option Symbol) (-> Spec-Issue) (-> Spec-Issue Spec-Issue) Spec-Issue)
-  (lambda [tagname do-task handle]
-    (define current-prompt : Spec-Prompt-Tag (make-continuation-prompt-tag (or tagname 'spec)))
-
-    (parameterize ([default-spec-prompt current-prompt])
-      (call-with-continuation-prompt do-task current-prompt
-        (λ [[at-collapse : (-> Spec-Issue)]] : Spec-Issue
-          (handle (at-collapse)))))))
+(define-values (spec-story abort-story)
+  ((inst make-continuation-prompt-control Spec-Issue Spec-Issue Spec-Issue)
+   'spec))
 
 (define spec-misbehave : (->* () ((U Spec-Issue Spec-Issue-Type exn:fail)) Nothing)
   (lambda [[v 'misbehaved]]
@@ -28,5 +20,4 @@
             [(exn? v) (make-spec-panic-issue v)]
             [else v]))
     
-    (abort-current-continuation (default-spec-prompt)
-                                (λ _ (handle issue) issue))))
+    (abort-story (λ [] (handle issue) issue))))
