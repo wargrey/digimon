@@ -9,10 +9,6 @@
 (require "../../format.rkt")
 (require "../../echo.rkt")
 
-(require/typed racket/base
-               [srcloc->string (-> srcloc (Option String))]
-               [current-directory-for-user (Parameterof Path)])
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
 

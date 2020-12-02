@@ -8,8 +8,9 @@
 (define-syntax (defconsts stx)
   (syntax-case stx [:]
     [(_ : Type [var val] ...)
-     #'(begin (define var : Type val)
-              ...)]))
+     (syntax/loc stx
+       (begin (define var : Type val)
+              ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defconsts : Char

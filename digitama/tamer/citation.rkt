@@ -20,7 +20,8 @@
               (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (let ([request-for-comments (number->string number)])
            (in-bib (make-bib #:title title
                              #:author author
@@ -28,7 +29,7 @@
                              #:url (format "https://www.rfc-editor.org/rfc/rfc~a.txt" request-for-comments)
                              #:date date
                              #:note note)
-                   (format ":~a" 'key))))]))
+                   (format ":~a" 'key)))))]))
 
 (define rfc-bib-entry
   (lambda [number title #:author [author #false] #:date [date #false] #:key [key #false] #:note [note #false]]
@@ -55,7 +56,8 @@
               (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
               (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:location (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
@@ -64,7 +66,7 @@
                            #:url url
                            #:note note
                            #:is-book? #true)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define book-bib-entry
   (lambda [key title author publisher
@@ -91,14 +93,15 @@
               (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
               (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:location (proceedings-location location #:pages pages #:series series #:volume volume)
                            #:date date
                            #:url url
                            #:note note)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define proceedings-bib-entry
   (lambda [key title author location
@@ -123,14 +126,15 @@
               (~optional (~seq #:number number) #:defaults ([number #'#false]))
               (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:location (journal-location location #:pages pages #:number number #:volume volume)
                            #:date date
                            #:url url
                            #:note note)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define journal-bib-entry
   (lambda [key title author location
@@ -153,14 +157,15 @@
               (~optional (~seq #:note note) #:defaults ([note #'#false]))
               (~optional (~seq #:degree degree) #:defaults ([degree #'"PhD"])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:location (dissertation-location #:institution institution #:degree degree)
                            #:date date
                            #:url url
                            #:note note)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define dissertation-bib-entry
   (lambda [key title author institution #:degree [degree "PhD"]
@@ -182,14 +187,15 @@
               (~optional (~seq #:url url) #:defaults ([url #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:location (techrpt-location #:institution institution #:number number)
                            #:date date
                            #:url url
                            #:note note)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define report-bib-entry
   (lambda [key title author institution number
@@ -210,13 +216,14 @@
               (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false])))
         ...)
-     #'(define key
+     (syntax/loc stx
+       (define key
          (in-bib (make-bib #:title title
                            #:author author
                            #:url url
                            #:date date
                            #:note note)
-                 (format ":~a" 'key)))]))
+                 (format ":~a" 'key))))]))
 
 (define url-bib-entry
   (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false]]

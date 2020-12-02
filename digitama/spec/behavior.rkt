@@ -2,8 +2,7 @@
 
 (provide (all-defined-out))
 
-(require/typed racket
-               [object-name (-> Procedure Symbol)])
+(require "../../symbol.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (Spec-Feature-Upfold s) (-> String (-> Any) (-> Any) s s s))
@@ -61,6 +60,6 @@
 
 (define spec-name->brief : (-> (U String Symbol Procedure) String)
   (lambda [name]
-    (cond [(procedure? name) (symbol->string (object-name name))]
+    (cond [(procedure? name) (symbol->string (datum-name name))]
           [(symbol? name) (symbol->string name)]
           [else name])))

@@ -10,12 +10,12 @@
 
 (define-syntax (fill-box! stx)
   (syntax-case stx [<= =]
-    [(_ (w h d a t b) <= bmp) #'(fill-box! (w h d a t b) ((send bmp get-width) (send bmp get-height) 0 0 0 0))]
-    [(_ (w h d a) <= bmp) #'(fill-box! (w h d a) ((send bmp get-width) (send bmp get-height) 0 0))]
-    [(_ (w h) <= bmp) #'(fill-box! (w h) ((send bmp get-width) (send bmp get-height)))]
-    [(_ (opbox ...) = v) #'(begin (fill-box! opbox v) ...)]
-    [(_ (opbox ...) (v ...)) #'(begin (fill-box! opbox v) ...)]
-    [(_ opbox v) #'(when (box? opbox) (set-box! opbox (max 0 v)))]))
+    [(_ (w h d a t b) <= bmp) (syntax/loc stx (fill-box! (w h d a t b) ((send bmp get-width) (send bmp get-height) 0 0 0 0)))]
+    [(_ (w h d a) <= bmp) (syntax/loc stx (fill-box! (w h d a) ((send bmp get-width) (send bmp get-height) 0 0)))]
+    [(_ (w h) <= bmp) (syntax/loc stx (fill-box! (w h) ((send bmp get-width) (send bmp get-height))))]
+    [(_ (opbox ...) = v) (syntax/loc stx (begin (fill-box! opbox v) ...))]
+    [(_ (opbox ...) (v ...)) (syntax/loc stx (begin (fill-box! opbox v) ...))]
+    [(_ opbox v) (syntax/loc stx (when (box? opbox) (set-box! opbox (max 0 v))))]))
 
 (define default.cur : (Instance Cursor%) (make-object cursor% 'arrow))
 (define blank.cur : (Instance Cursor%) (make-object cursor% 'blank))

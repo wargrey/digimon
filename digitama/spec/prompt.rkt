@@ -8,16 +8,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-spec-issue-handler : (Parameterof (-> Spec-Issue Void)) (make-parameter default-spec-issue-display))
 
-(define-values (spec-story abort-story)
-  ((inst make-continuation-prompt-control Spec-Issue Spec-Issue Spec-Issue)
-   'spec))
-
-(define spec-misbehave : (->* () ((U Spec-Issue Spec-Issue-Type exn:fail)) Nothing)
-  (lambda [[v 'misbehaved]]
-    (define handle : (-> Spec-Issue Void) (default-spec-issue-handler))
-    (define issue : Spec-Issue
-      (cond [(symbol? v) (make-spec-issue v)]
-            [(exn? v) (make-spec-panic-issue v)]
-            [else v]))
-    
-    (abort-story (λ [] (handle issue) issue))))
+(define-continuation-prompt-control (spec-story spec-misbehave) spec #:-> [Spec-Issue]
+  #:default-abort-callback (λ [[issue : Spec-Issue]] ((default-spec-issue-handler) issue))
+  #:default-handler-map values
+  #:with (U Spec-Issue Spec-Issue-Type exn:fail) #:default 'misbehaved
+  (λ [v] (cond [(symbol? v) (make-spec-issue v)]
+               [(exn? v) (make-spec-panic-issue v)]
+               [else v])))

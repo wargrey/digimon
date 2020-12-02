@@ -65,7 +65,8 @@
 (define-syntax (tamer-taming-start! stx)
   (syntax-case stx [scribble +]
     [(_ scribble)
-     #'(let ([modpath (quote-module-path)])
+     (syntax/loc stx
+       (let ([modpath (quote-module-path)])
          (enter-digimon-zone!) ; Scribble modules are independent of each other
 
          (tamer-story
@@ -73,15 +74,16 @@
                 [else (tamer-story->modpath (cadr modpath))]))
          
          (default-spec-handler tamer-record-story)
-         (dynamic-require (tamer-story->module (tamer-story)) #false))]
+         (dynamic-require (tamer-story->module (tamer-story)) #false)))]
     [(_)
-     #'(begin (tamer-taming-start! scribble)
-              (module+ main (call-as-normal-termination tamer-prove)))]))
+     (syntax/loc stx
+       (begin (tamer-taming-start! scribble)
+              (module+ main (call-as-normal-termination tamer-prove))))]))
 
 (define-syntax (define-bib stx)
   (syntax-parse stx #:literals []
     [(_ id bib-args ...)
-     #'(define id (in-bib (make-bib bib-args ...) (format ":~a" 'id)))]))
+     (syntax/loc stx (define id (in-bib (make-bib bib-args ...) (format ":~a" 'id))))]))
 
 (define ~cite
   (lambda [bib #:same-author? [same? #false] . bibs]
@@ -127,7 +129,8 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
-     #'(let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
+     (syntax/loc stx
+       (let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
          
@@ -151,12 +154,12 @@
                (apply author
                       (map ~a (#%info 'pkg-authors
                                       (const (list (#%info 'pkg-idun
-                                                           (const (string->symbol digimon-partner))))))))))]))
+                                                           (const (string->symbol digimon-partner)))))))))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
-     #'(handbook-title (#%info 'pkg-desc (const (current-digimon))))]))
+     (syntax/loc stx (handbook-title (#%info 'pkg-desc (const (current-digimon)))))]))
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
@@ -164,7 +167,8 @@
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
         ...
         contents ...)
-     #`(begin (tamer-taming-start! scribble)
+     (quasisyntax/loc stx
+       (begin (tamer-taming-start! scribble)
 
               (define-cite ~cite ~cites ~reference #:style number-style)
               (tamer-reference ~reference)
@@ -181,31 +185,33 @@
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]
-                             [else (list* (literal story-literal ":")) ~ input-contents]))))]))
+                             [else (list* (literal story-literal ":")) ~ input-contents])))))]))
 
 (define-syntax (handbook-part stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false])))
         ...
         pre-contents ...)
-     #'(handbook-story #:counter-step? #false
+     (syntax/loc stx
+       (handbook-story #:counter-step? #false
                        #:style (cond [(not style) (make-style #false '(grouper))]
                                      [else (make-style (style-name style)
                                                        (cons 'grouper (style-properties style)))])
-                       pre-contents ...)]))
+                       pre-contents ...))]))
 
 (define-syntax (handbook-root-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
-     #'(handbook-story #:style style #:counter-step? #true contents ...)]))
+     (syntax/loc stx (handbook-story #:style style #:counter-step? #true contents ...))]))
 
 (define-syntax (handbook-appendix-story stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
-     #'(begin (handbook-story #:style style #:counter-step? #true contents ...)
+     (syntax/loc stx
+       (begin (handbook-story #:style style #:counter-step? #true contents ...)
 
               (unless (tamer-appendix-index)
-                (tamer-appendix-index (car (tamer-index-story)))))]))
+                (tamer-appendix-index (car (tamer-index-story))))))]))
 
 (define-syntax (handbook-module-story stx)
   (syntax-parse stx #:literals []
@@ -218,14 +224,15 @@
      (with-syntax ([(reqs ...) (let ([maybe-extras (syntax-e #'extras)])
                                  (cond [(list? maybe-extras) maybe-extras]
                                        [else (list maybe-extras)]))])
-       #'(begin (require (for-label modpath))
+       (syntax/loc stx
+         (begin (require (for-label modpath))
                 
                 (handbook-story #:style style #:counter-step? counter-step? contents ...)
                 
                 (declare-exporting modpath)
                 (tamer-story-private-modules (list 'reqs ...))
                 (cond [(eq? 'lang #true) (tamer-lang-module modpath)]
-                      [else (tamer-module #:lang lang modpath)])))]))
+                      [else (tamer-module #:lang lang modpath)]))))]))
 
 (define-syntax (handbook-typed-module-story stx)
   (syntax-parse stx #:literals []
@@ -235,8 +242,9 @@
               (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
         ...
         modpath:id contents ...)
-     #'(handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras
-                              modpath contents ...)]))
+     (syntax/loc stx
+       (handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras
+                              modpath contents ...))]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
@@ -369,23 +377,26 @@
     [(_ (~alt (~optional (~seq #:lang lang:id) #:defaults ([lang #'racket/base])))
         ...
         modname modnames ...)
-     #'(begin (unless (pair? (tamer-story-lang+modules))
+     (syntax/loc stx
+       (begin (unless (pair? (tamer-story-lang+modules))
                 (tamer-story-lang+modules (list 'lang 'modname 'modnames ...)))
               
-              (defmodule*/no-declare (modname modnames ...)))]))
+              (defmodule*/no-declare (modname modnames ...))))]))
 
 (define-syntax (tamer-lang-module stx)
   (syntax-parse stx #:literals []
     [(_ lang extra-langs ...)
-     #'(begin (unless (pair? (tamer-story-lang+modules))
+     (syntax/loc stx
+       (begin (unless (pair? (tamer-story-lang+modules))
                 (tamer-story-lang+modules (list 'lang 'extra-langs ...)))
-              (defmodule*/no-declare (lang extra-langs ...) #:lang))]))
+              (defmodule*/no-declare (lang extra-langs ...) #:lang)))]))
 
 (define-syntax (tamer-action stx)
   (syntax-parse stx #:literals []
     [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
         s-exps ...)
-     #'(let ([this-story (tamer-story)])
+     (syntax/loc stx
+       (let ([this-story (tamer-story)])
          (define example-label
            (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
                  [else label]))
@@ -394,17 +405,17 @@
           (λ [get set!]
             (define repl (examples #:label example-label #:eval (tamer-zone-ref this-story) s-exps ...))
             (tamer-zone-destory this-story #true)
-            repl)))]))
+            repl))))]))
 
 (define-syntax (tamer-answer stx)
   (syntax-case stx []
     [(_ exprs ...)
-     #'(tamer-action #:label 'answer exprs ...)]))
+     (syntax/loc stx (tamer-action #:label 'answer exprs ...))]))
 
 (define-syntax (tamer-solution stx)
   (syntax-case stx []
     [(_ exprs ...)
-     #'(tamer-action #:label 'solution exprs ...)]))
+     (syntax/loc stx (tamer-action #:label 'solution exprs ...))]))
 
 (define tamer-story-space
   (lambda []

@@ -23,17 +23,18 @@
                                     (values (cons <kw-name> (cons #`[#,<field> : (Option #,<FiledType>) #false] args))
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
-       #'(begin (struct id ([field : FieldType] ...) #:transparent #:type-name ID)
+       (syntax/loc stx
+         (begin (struct id ([field : FieldType] ...) #:transparent #:type-name ID)
 
                 (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
                 
                 (define (make-id kw-args ...) : ID
-                  (id (or field (default-parameter)) ...))))]))
+                  (id (or field (default-parameter)) ...)))))]))
 
 (define-syntax (define-object stx)
   (syntax-parse stx #:literals [:]
     [(_ id : ID ([method : MethodType defmth ...] ...))
-     #'(define-object id : ID () ([method : MethodType defmth ...] ...))]
+     (syntax/loc stx (define-object id : ID () ([method : MethodType defmth ...] ...)))]
     [(_ id : ID ([field : FieldType defval ...] ...) ([method : MethodType defmth ...] ...))
      (with-syntax* ([ABS-ID (format-id #'id "Abstract-~a" (syntax-e #'ID))]
                     [abs-id (format-id #'id "abstract-~a" (syntax-e #'id))]
@@ -63,7 +64,8 @@
                                      (define <abs-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <method>)))))
                                      (values (cons <id-apply> sylppa) (cons <id-field> sdleif) (cons <abs-field> sdleif-abs)))])
                        (list (reverse sylppa) (reverse sdleif) (reverse sdleif-abs)))])
-       #'(begin (struct abs-id ([field : FieldType] ... [method : MethodType] ...) #:transparent #:type-name ABS-ID)
+       (syntax/loc stx
+         (begin (struct abs-id ([field : FieldType] ... [method : MethodType] ...) #:transparent #:type-name ABS-ID)
                 (struct id ([interface : abs-id]) #:type-name ID)
 
                 (define (make-id kw-args ...) : ID
@@ -84,4 +86,4 @@
                   (syntax-case stx []
                     [(_ self-expr argl [... ...])
                      #'(let ([self self-expr]) ((abs-method (id-abs self)) self argl [... ...]))]))
-                ...))]))
+                ...)))]))

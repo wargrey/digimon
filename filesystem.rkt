@@ -19,7 +19,8 @@
         (~or (~and #:binary binary-flag)
              (~and #:text text-flag))
         (~or #:lambda #:λ) do-read)
-     #`(define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
+     (quasisyntax/loc stx
+       (define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
          (let ([up-to-dates : (HashTable Path (Pairof Type Nonnegative-Fixnum)) (make-hash)])
            (lambda [#:mode [mode 'binary]
                     #:count-lines? [count-lines? #,(if (attribute text-flag) #'(port-count-lines-enabled) #'#false)]
@@ -33,18 +34,19 @@
                                           (λ [[/dev/stdin : Input-Port]] : Type
                                             (do-read /dev/stdin file.src))))])
                            (hash-set! up-to-dates file.src (cons datum mtime))
-                           datum)]))))]
+                           datum)])))))]
     [(_ id #:+ Type mode:keyword ((~or lambda λ) [/dev/stdin src] body ...))
      (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])
-       #'(begin (define id : (case-> [Input-Port Path -> Type]
+       (syntax/loc stx
+         (begin (define id : (case-> [Input-Port Path -> Type]
                                      [Input-Port -> Type])
                   (case-lambda
                     [(/dev/stdin) (id /dev/stdin (port-path /dev/stdin))]
                     [(/dev/stdin src) body ...]))
                 
-                (define-file-reader id* #:+ Type mode #:lambda id)))]
-    [(_ id #:+ Type (~or #:lambda #:λ) do-read) #'(define-file-reader id #:+ Type #:binary #:lambda do-read)]
-    [(_ id #:+ Type (do-read ...)) #'(define-file-reader id #:+ Type #:binary (do-read ...))]))
+                (define-file-reader id* #:+ Type mode #:lambda id))))]
+    [(_ id #:+ Type (~or #:lambda #:λ) do-read) (syntax/loc stx (define-file-reader id #:+ Type #:binary #:lambda do-read))]
+    [(_ id #:+ Type (do-read ...)) (syntax/loc stx (define-file-reader id #:+ Type #:binary (do-read ...)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dirname : (-> Path-String [#:rootname String] String)

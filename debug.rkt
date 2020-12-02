@@ -10,14 +10,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (assert* stx)
   (syntax-case stx []
-    [(_ sexp pred throw) #'(assert* sexp pred throw 'assert)]
+    [(_ sexp pred throw) (syntax/loc stx (assert* sexp pred throw 'assert))]
     [(_ sexp pred throw src)
-     #`(let ([v sexp]
+     (quasisyntax/loc stx
+       (let ([v sexp]
              [? pred])
          #,(syntax-property
             (quasisyntax/loc stx
               (if (? v) v (throw src (~a (object-name ?)) v)))
-            'feature-profile:TR-dynamic-check #t))]))
+            'feature-profile:TR-dynamic-check #t)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tee : (All (a) (-> a [#:printer (-> Any Output-Port Any)] Output-Port * a))

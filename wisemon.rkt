@@ -18,17 +18,19 @@
 (define-syntax (wisemon-spec stx)
   (syntax-parse stx #:datum-literals []
     [(_ target #:^ prerequisites #:- expr ...)
-     #'(unsafe-wisemon-spec target prerequisites
+     (syntax/loc stx
+       (unsafe-wisemon-spec target prerequisites
                             (λ [[$@ : Path] [$? : (Listof Path)]]
-                              expr ... (void)))]
+                              expr ... (void))))]
     [(_ target #:^ prerequisites #:$ [$@ $?] expr ...)
-     #'(unsafe-wisemon-spec target prerequisites
+     (syntax/loc stx
+       (unsafe-wisemon-spec target prerequisites
                             (λ [[$@ : Path] [$? : (Listof Path)]]
-                              expr ... (void)))]
+                              expr ... (void))))]
     [(_ target #:- expr ...)
-     #'(wisemon-spec target #:^ null #:- expr ...)]
+     (syntax/loc stx (wisemon-spec target #:^ null #:- expr ...))]
     [(_ target #:$ [$@ $?] expr ...)
-     #'(wisemon-spec target #:^ null #:$ [$@ $?] expr ...)]))
+     (syntax/loc stx (wisemon-spec target #:^ null #:$ [$@ $?] expr ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-make : (->* (Wisemon-Specification)

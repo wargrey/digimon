@@ -150,7 +150,8 @@
                                                             (cons <kw-name> (cons <ReArgument> reargs))
                                                             (cons (list <field> <ref>) sdleif)))]))])
                        (list args reargs (reverse sdleif)))])
-       #'(begin (struct header ([field : FieldType] ...)
+       (syntax/loc stx
+         (begin (struct header ([field : FieldType] ...)
                   #:constructor-name constructor
                   #:type-name Header
                   #:transparent)
@@ -191,7 +192,7 @@
                       (file-position /dev/stdout posoff))
 
                     (+ (call-datum-writer [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
-                       ...)))))]))
+                       ...))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define try-read-signature : (-> Input-Port Bytes Boolean)

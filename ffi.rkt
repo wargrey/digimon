@@ -22,7 +22,8 @@
     [(_ libname
         (~optional (~seq #:global? ?:expr) #:defaults ([? #'#true]))
         (~optional (~seq #:on-fail on-fail:expr) #:defaults ([on-fail #'#false])))
-     #'(let ([modpath (variable-reference->module-source (#%variable-reference))]
+     (syntax/loc stx
+       (let ([modpath (variable-reference->module-source (#%variable-reference))]
              [libpath (system-library-subpath #false)])
          (if (not (path? modpath)) ; when distributed as a standalone executable
              (ffi-lib (build-path (ffi-distributed-library-path) libpath libname)
@@ -31,4 +32,4 @@
              (let ([this-root (path-only modpath)])
                (ffi-lib (build-path this-root "compiled" "native" libpath libname)
                         #:global? ? #:fail (λ [] (ffi-lib (build-path this-root libpath libname)
-                                                          #:global? ? #:fail on-fail))))))]))
+                                                          #:global? ? #:fail on-fail)))))))]))

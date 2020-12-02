@@ -38,7 +38,8 @@
                     [tamer-id-label-separator (format-id #'id "tamer-default-~a-label-separator" (syntax->datum #'id))]
                     [tamer-id-label-style (format-id #'id "tamer-default-~a-label-style" (syntax->datum #'id))]
                     [tamer-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
-       #'(begin (define tamer-id-label (make-parameter (symbol->string 'Id)))
+       (syntax/loc stx
+         (begin (define tamer-id-label (make-parameter (symbol->string 'Id)))
                 (define tamer-id-label-separator (make-parameter ": "))
                 (define tamer-id-label-style (make-parameter 'tt))
                 (define tamer-id-caption-style (make-parameter #false))
@@ -75,7 +76,7 @@
                 (define Tamer-Id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:tyle id ref-element
-                                             (string-titlecase (tamer-id-label)))))))]))
+                                             (string-titlecase (tamer-id-label))))))))]))
 
 (define tamer-indexed-block
   (lambda [id type label sep caption style label-style caption-style target-style make-block anchor]

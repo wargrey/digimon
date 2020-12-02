@@ -38,7 +38,8 @@
                     [(flags [efield EType eargc esize (eoptions ...) string->eflags eopt-ref edesc ...] ...) (cmd-parse-flags #'eflags (syntax-e #'flags) #false)]
                     [(flags [afield AType aargc asize (aoptions ...) string->aflags aopt-ref adesc ...] ...) (cmd-parse-flags #'aflags (syntax-e #'flags) #false)]
                     [([Type ...] [argu ...] [<args> ...] [ref ...]) (cmd-parse-args #'args-form)])
-       #`(begin (struct opt ([mfield : (Listof MType)] ...
+       (quasisyntax/loc stx
+         (begin (struct opt ([mfield : (Listof MType)] ...
                              [efield : (Option EType)] ...
                              [afield : (Option AType)] ...
                              [help? : Boolean])
@@ -113,7 +114,7 @@
                     (cmdopt-display-postscript /dev/stdout more-ps)
 
                     (unless (not retcode)
-                      (exit retcode))))))]))
+                      (exit retcode)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-cmdopt-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((U (Pairof Integer Integer) Integer False) Any) (-> Symbol String a)))

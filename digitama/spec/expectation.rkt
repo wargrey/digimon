@@ -16,7 +16,8 @@
   (syntax-parse stx #:literals [:]
     [(_ (id:id [arg:id : Type:expr] ...) body ...)
      (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))])
-       #'(begin (define argv : (Listof String) (list (symbol->string 'arg) ...))
+       (syntax/loc stx
+         (begin (define argv : (Listof String) (list (symbol->string 'arg) ...))
                 (define argc : Index (length argv))
                 
                 (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
@@ -34,15 +35,16 @@
                 (define-syntax (expect-id stx)
                   (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" stx)])
                     (syntax-parse stx
-                      [(_:id . arglist) #'((do-expecting 'id #'loc (take 'arglist argc)) . arglist)]
-                      [_:id #'(do-expecting 'id #'loc 'expect-id)])))))]))
+                      [(_:id . arglist) (syntax/loc stx ((do-expecting 'id #'loc (take 'arglist argc)) . arglist))]
+                      [_:id (syntax/loc stx (do-expecting 'id #'loc 'expect-id))]))))))]))
 
 (define-syntax (define-spec-boolean-expectation stx)
   (syntax-parse stx #:literals [:]
     [(_ (?:id [arg:id : Type:expr] ...) body ...)
-     #'(define-spec-expectation (? [arg : Type] ...)
+     (syntax/loc stx
+       (define-spec-expectation (? [arg : Type] ...)
          (or (let () (void) body ...)
-             (spec-misbehave)))]))
+             (spec-misbehave))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-boolean-expectation (eq [given : Any] [expected : Any]) (eq? expected given))

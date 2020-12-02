@@ -4,33 +4,59 @@
 
 (require racket/format)
 
+(require (for-syntax racket/base))
+(require (for-syntax racket/syntax))
+(require (for-syntax syntax/parse))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-for-syntax (prompt-type stx)
+  (syntax-case stx []
+    [(a b) (list #'a #'b)]
+    [(a b c d ...) (raise-syntax-error 'define-continuation-prompt-control "too many range types" #'c #false (syntax->list #'(d ...)))]
+    [(a) (list #'a #'a)]))
+
+(define-syntax (define-continuation-prompt-control stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ (call abort) (~optional name:id) #:-> [Type ...]
+        (~alt (~optional (~seq #:with AbortInType (~optional (~seq #:default default-datum)) abort-map:expr) #:defaults ([abort-map #'values]))
+              (~optional (~seq #:default-abort-callback default-abort-callback) #:defaults ([default-abort-callback #'void]))
+              (~optional (~seq #:default-handler-map default-handler-map)))
+        ...)
+     (with-syntax* ([default-prompt-name (or (attribute name) (generate-temporary 'prompt))]
+                    [handler-map (generate-temporary 'map)]
+                    [ret-arg (generate-temporary 'arg)]
+                    [(a b) (prompt-type #'(Type ...))]
+                    [c (or (attribute AbortInType) #'b)]
+                    [(Call [def-map ...] call-map)
+                     (if (attribute default-handler-map)
+                         (list #'(->* ((Option Symbol) (-> a)) ((-> b b)) (U a b)) (list #'[handler-map default-handler-map]) #'handler-map)
+                         (list #'(-> (Option Symbol) (-> a) (U a b)) null #'values))]
+                    [(Abort def-arg)
+                     (if (attribute default-datum)
+                         (list #'(->* () (c (-> b Any)) Nothing) #'[ret-arg default-datum])
+                         (list #'(->* (c) ((-> b Any)) Nothing) #'ret-arg))])
+       (syntax/loc stx
+         (begin (define default-prompt : (Parameterof (Prompt-Tagof a (-> (-> b) b)))
+                  (make-parameter ((inst make-continuation-prompt-tag a (-> (-> b) b)) 'default-prompt-name)))
+                
+                (define call : Call
+                  (lambda [tagname do-task def-map ...]
+                    (define current-prompt ((inst make-continuation-prompt-tag a (-> (-> b) b)) (or tagname 'default-prompt-name)))
+                    
+                    (parameterize ([default-prompt current-prompt])
+                      (call-with-continuation-prompt do-task current-prompt
+                        (λ [[at-collapse : (-> b)]] : b
+                          (call-map (at-collapse)))))))
+                
+                (define abort : Abort
+                  (let ([abort-datum-transform : (-> c b) abort-map])
+                    (lambda [def-arg [on-abort default-abort-callback]]
+                      (let ([ret-datum (abort-datum-transform ret-arg)])
+                        (abort-current-continuation (default-prompt)
+                                                    (λ [] (on-abort ret-datum) ret-datum)))))))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Continuation-Stack (Pairof Symbol (Option (Vector (U String Symbol) Integer Integer))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-continuation-prompt-control : (All (a b c) (->* () (Symbol)
-                                                             (Values (-> (Option Symbol) (-> a) (-> b c) (U a c))
-                                                                     (-> (-> b) Nothing))))
-  (lambda [[default-prompt-name (gensym 'prompt)]]
-    (define default-prompt : (Parameterof (Prompt-Tagof a (-> (-> b) c)))
-      (make-parameter ((inst make-continuation-prompt-tag a (-> (-> b) c)) default-prompt-name)))
-
-    (define call-with-prompt : (-> (Option Symbol) (-> a) (-> b c) (U a c))
-      (lambda [tagname do-task handle]
-        (define current-prompt : (Prompt-Tagof a (-> (-> b) c))
-          (make-continuation-prompt-tag (or tagname default-prompt-name)))
-        
-        (parameterize ([default-prompt current-prompt])
-          (call-with-continuation-prompt do-task current-prompt
-            (λ [[at-collapse : (-> b)]] : c
-              (handle (at-collapse)))))))
-    
-    (define abort : (-> (-> b) Nothing)
-      (lambda [handlee]
-        (abort-current-continuation (default-prompt)
-                                    (λ _ (handlee)))))
-
-    (values call-with-prompt abort)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define continuation-mark->stacks : (->* () ((U Continuation-Mark-Set Thread exn)) (Listof Continuation-Stack))

@@ -19,7 +19,7 @@
       [(_ id ...)
        (with-syntax ([(racket-id ...) (for/list ([md-name (in-list (syntax->list #'(id ...)))])
                                         (datum->syntax md-name (format-id #'racket-id "evp-~a" (syntax-e md-name))))])
-         #'(begin (define racket-id (EVP_get_digestbyname 'id)) ...))]))
+         (syntax/loc stx (begin (define racket-id (EVP_get_digestbyname 'id)) ...)))]))
 
   (define openctx (make-EVP_MD_CTX))
   

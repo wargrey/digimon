@@ -21,7 +21,7 @@
 (define-syntax (define-scenario stx)
   (syntax-parse stx
     [(_ id:id expr ...)
-     #'(define id : Spec-Feature (describe 'id expr ...))]))
+     (syntax/loc stx (define id : Spec-Feature (describe 'id expr ...)))]))
 
 (define-syntax (describe stx)
   (syntax-parse stx
@@ -31,17 +31,18 @@
         (~seq #:do expr ...))
      (with-syntax ([setup (or (attribute setup) #'void)]
                    [teardown (or (attribute teardown) #'void)])
-       #'(make-spec-feature brief
+       (syntax/loc stx
+         (make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'it:describe)])
                               (list (spec-expand expr) ...))
-                            #:before setup #:after teardown))]))
+                            #:before setup #:after teardown)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (spec-expand stx)
   (syntax-parse stx #:datum-literals [describe context it]
-    [(_ (describe expr ...)) #'(describe expr ...)]
-    [(_ (context expr ...)) #'(describe expr ...)]
-    [(_ (it expr ...)) #'(it expr ...)]
+    [(_ (describe expr ...)) (syntax/loc stx (describe expr ...))]
+    [(_ (context expr ...)) (syntax/loc stx (describe expr ...))]
+    [(_ (it expr ...)) (syntax/loc stx (it expr ...))]
     [(_ (expect expr ...)) (raise-syntax-error 'spec "unrecognized clause" #'expect)]))
 
 (define-syntax (it:describe stx)
@@ -53,8 +54,9 @@
      (with-syntax ([setup (or (attribute setup) #'void)]
                    [teardown (or (attribute teardown) #'void)]
                    [empty? (null? (syntax->list #'(expr ...)))])
-       #'(if (and empty?)
+       (syntax/loc stx
+         (if (and empty?)
              (make-spec-behavior brief (λ [] (parameterize ([default-spec-issue-location (spec-location #'brief)])
                                                (spec-misbehave 'todo))))
              (make-spec-behavior brief (λ [] expr ... (void))
-                                 #:before setup #:after teardown)))]))
+                                 #:before setup #:after teardown))))]))

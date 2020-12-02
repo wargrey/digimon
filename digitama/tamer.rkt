@@ -32,12 +32,13 @@
 (define-syntax (tamer-story->tag stx)
   (syntax-case stx []
     [(_ story-sexp)
-     #'(let ([modpath (path->string (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp)))]
+     (syntax/loc stx
+       (let ([modpath (path->string (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp)))]
              [literacy (path->string (digimon-path 'literacy))]
              [tamer (path->string (digimon-path 'tamer))])
          (cond [(string-prefix? modpath literacy) (substring modpath (add1 (string-length literacy)))]
                [(string-prefix? modpath tamer) (substring modpath (add1 (string-length tamer)))]
-               [else (path->string (find-relative-path literacy modpath))]))]))
+               [else (path->string (find-relative-path literacy modpath))])))]))
 
 (define tamer-story->modpath
   (lambda [story-path]

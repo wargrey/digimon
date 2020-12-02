@@ -12,11 +12,11 @@
   (syntax-parse stx #:datum-literals [:]
     [(_ struct-name (~or : #:) type-name (fields ...) [options ...] pre-flow ...)
      (with-syntax ([struct-name? (datum->syntax #'struct-name (string->symbol (format "~a?" (syntax-e #'struct-name))))])
-       #'(deftogether [(defthing #:kind "syntax" type-name struct-name?)
+       (syntax/loc stx (deftogether [(defthing #:kind "syntax" type-name struct-name?)
                        (defstruct* struct-name (fields ...) options ...)]
-           pre-flow ...))]
+                         pre-flow ...)))]
     [(_ struct-name (fields ...) [options ...] pre-flow ...)
-     #'(defstruct* struct-name (fields ...) options ... pre-flow ...)]))
+     (syntax/loc stx (defstruct* struct-name (fields ...) options ... pre-flow ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-indexed-keyword-element

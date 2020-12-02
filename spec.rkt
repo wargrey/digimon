@@ -27,9 +27,10 @@
 (define-syntax (spec-begin stx)
   (syntax-case stx [:]
     [(_ id expr ...)
-     #'(begin (define-feature id expr ...)
+     (syntax/loc stx
+       (begin (define-feature id expr ...)
 
-              (void ((default-spec-handler) 'id id)))]))
+              (void ((default-spec-handler) 'id id))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Behavior-Prove (-> String (Listof String) (-> Void) Spec-Issue))
@@ -44,8 +45,7 @@
                 (λ [] (parameterize ([default-spec-issue-brief brief])
                         (with-handlers ([exn:fail? spec-misbehave])
                           (evaluation)
-                          (make-spec-issue 'pass))))
-                values)))
+                          (make-spec-issue 'pass)))))))
 
 (define spec-unsupported : (-> String Nothing)
   (lambda [reason]

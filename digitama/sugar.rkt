@@ -20,21 +20,23 @@
 (define-syntax (require/provide stx)
   (syntax-case stx []
     [(_ spec ...)
-     #'(begin (provide (all-from-out spec)) ...
-              (require spec) ...)]))
+     (syntax/loc stx
+       (begin (provide (all-from-out spec)) ...
+              (require spec) ...))]))
 
 (define-syntax (require/provide/syntax stx)
   (syntax-case stx []
     [(_ spec ...)
-     #'(begin (provide (for-syntax (all-from-out spec))) ...
-              (require (for-syntax spec)) ...)]))
+     (syntax/loc stx
+       (begin (provide (for-syntax (all-from-out spec))) ...
+              (require (for-syntax spec)) ...))]))
 
 (define-syntax (require/typed/provide/batch stx)
   (syntax-case stx [id:]
     [(_ modpath [id: id ...] type-definition)
-     #'(require/typed/provide/batch modpath [id ...] type-definition)]
+     (syntax/loc stx (require/typed/provide/batch modpath [id ...] type-definition))]
     [(_ modpath [id ...] type-definition)
-     #'(require/typed/provide modpath [id type-definition] ...)]))
+     (syntax/loc stx (require/typed/provide modpath [id type-definition] ...))]))
 
 (define-syntax (define-struct stx)
   (syntax-parse stx #:literals [:]
@@ -56,17 +58,20 @@
                                ([argument (in-list (syntax->list #'([property : ArgType defval ...] ...)))])
                        (cons (datum->syntax argument (string->keyword (symbol->string (car (syntax->datum argument)))))
                              (cons argument args)))])
-       #'(begin (struct id ([property : DataType] ...) options ...)
+       (syntax/loc stx
+         (begin (struct id ([property : DataType] ...) options ...)
                 (define (make-instance args ...) : ID (id property-filter ...))
-                (define-type ID id)))]))
+                (define-type ID id))))]))
 
 (define-syntax (match/handlers stx)
   (syntax-case stx [:]
     [(_ s-exp : type? match-clause ...)
-     #'(match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
+     (syntax/loc stx
+       (match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
          match-clause ...
-         [(? type? no-error-value) no-error-value])]
+         [(? type? no-error-value) no-error-value]))]
     [(_ s-exp match-clause ...)
-     #'(match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
+     (syntax/loc stx
+       (match (with-handlers ([exn? (λ [[e : exn]] e)]) s-exp)
          match-clause ...
-         [escaped-value escaped-value])]))
+         [escaped-value escaped-value]))]))

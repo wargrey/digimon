@@ -19,8 +19,9 @@
                     [throw+exn (format-id #'eid "throw+~a" (syntax-e #'eid))]
                     [parent (or (attribute maybe-parent) #'exn:fail)]
                     [log-exn (or (attribute maybe-log-exn) #'dtrace-exception)])
-       #'(begin (struct eid parent ([field : FieldType] ...) #:transparent)
-
+       (syntax/loc stx
+         (begin (struct eid parent ([field : FieldType] ...) #:transparent)
+                
                 (define make-exn : (-> Any Type ... FieldType ... String Any * eid)
                   (lambda [src arg ... field ... fmt . argl]
                     (eid (make-message src arg ... field ... (~string fmt argl))
@@ -45,13 +46,13 @@
                                fmt . argl]
                     (let ([errobj (make-exn src arg ... field ... (~string fmt argl))])
                       (log-exn errobj #:topic logger #:level level #:prefix? prefix? #:brief? brief?)
-                      (raise errobj))))))]))
+                      (raise errobj)))))))]))
 
 (define-syntax (throw stx)
   (syntax-parse stx
     [(_ st:id rest ...)
-     #'(throw [st] rest ...)]
+     (syntax/loc stx (throw [st] rest ...))]
     [(_ [st:id argl ...] frmt:str v ...)
-     #'(throw [st argl ...] (#%function) frmt v ...)]
+     (syntax/loc stx (throw [st argl ...] (#%function) frmt v ...))]
     [(_ [st:id argl ...] src frmt:str v ...)
-     #'(raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) argl ...))]))
+     (syntax/loc stx (raise (st (format (string-append "~s: " frmt) src v ...) (current-continuation-marks) argl ...)))]))
