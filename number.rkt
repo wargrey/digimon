@@ -99,7 +99,8 @@
   (lambda [bmpint [start 0] [end0 0]]
     (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
-    (msb-octets->integer bmpint #:from start #:to end #:-> Integer #:with (if (>= (bytes-ref bmpint start) #b10000000) -1 0))))
+    (msb-octets->integer bmpint #:from start #:to end #:-> Integer
+                         #:with (if (bitwise-bit-set? (bytes-ref bmpint start) 7) -1 0))))
 
 (define natural->network-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
@@ -114,6 +115,38 @@
     (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
     (msb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
+
+(define integer->memory-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
+  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
+    (define isize : Index (integer-bytes-length mpint))
+    (define bsize : Index (if (<= isize bsize0) bsize0 isize))
+    (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
+    
+    (integer->lsb-octets mpint #: (Integer bsize) #:-> bmpint #:at offset)))
+
+(define memory-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
+  (lambda [bmpint [start 0] [end0 0]]
+    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+
+    (lsb-octets->integer bmpint #:from start #:to end #:-> Integer
+                         #:with (let ([sign-idx (- end 1)])
+                                  (if (and (>= sign-idx 0)
+                                           (bitwise-bit-set? (bytes-ref bmpint sign-idx) 7))
+                                      -1 0)))))
+
+(define natural->memory-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
+  (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
+    (define nsize : Index (natural-bytes-length mpint))
+    (define bsize : Index (if (<= nsize bsize0) bsize0 nsize))
+    (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
+    
+    (integer->lsb-octets mpint #: (Natural bsize) #:-> bmpint #:at offset)))
+
+(define memory-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
+  (lambda [bmpint [start 0] [end0 0]]
+    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+
+    (lsb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bits-bytes-length : (-> Natural Index)

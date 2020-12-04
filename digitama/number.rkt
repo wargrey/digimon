@@ -93,6 +93,44 @@
                [(<= idx+1 end) (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))]
                [else x])))]))
 
+(define-syntax (integer->lsb-octets stx)
+  (syntax-case stx [:]
+    [(_ mpint #: (N bsize) #:-> bmpint #:at offset)
+     (syntax/loc stx
+       (let ([end : Index (assert (+ bsize offset) index?)])
+         (let integer->octets ([sth : Index offset]
+                               [mpint : N mpint])
+           (define sth+8 : Nonnegative-Fixnum (+ sth 8))
+           (define sth+4 : Nonnegative-Fixnum (+ sth 4))
+           (define sth+1 : Nonnegative-Fixnum (+ sth 1))
+           
+           (cond [(<= sth+8 end)
+                  (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #false bmpint sth)
+                  (integer->octets sth+8 (arithmetic-shift mpint -64))]
+                 [(<= sth+4 end)
+                  (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #false bmpint sth)
+                  (integer->octets sth+4 (arithmetic-shift mpint -32))]
+                 [(<= sth+1 end)
+                  (bytes-set! bmpint sth (bitwise-and mpint #xFF))
+                  (integer->octets sth+1 (arithmetic-shift mpint -8))])
+           
+           bmpint)))]))
+
+(define-syntax (lsb-octets->integer stx)
+  (syntax-case stx [:]
+    [(_ bmpint #:from start #:to end #:-> N #:with x0)
+     (syntax/loc stx
+       (let octets->integer ([idx : Nonnegative-Fixnum end]
+                             [x : N x0])
+         (define idx-8 : Fixnum (- idx 8))
+         (define idx-4 : Fixnum (- idx 4))
+         (define idx-1 : Fixnum (- idx 1))
+         
+         (cond [(>= idx-8 start) (octets->integer idx-8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #false idx-8 idx)))]
+               [(>= idx-4 start) (octets->integer idx-4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #false idx-4 idx)))]
+               [(>= idx-1 start) (octets->integer idx-1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx-1)))]
+               [else x])))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fixed-integer->bytes : (->* (Integer Integer Boolean Boolean) ((Option Bytes) Natural) Bytes)
   (lambda [n size signed? big-endian? [outbs #false] [offset0 0]]
