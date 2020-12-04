@@ -44,6 +44,21 @@
        (begin (define-read-integer read-integer do-bytes->integer #true  bsize #:-> Integer) ...
               (define-read-integer read-natural do-bytes->integer #false bsize #:-> Natural) ...))]))
 
+(define-syntax (define-write-integer stx)
+  (syntax-case stx [:]
+    [(_ write-integer do-write signed? msb? bsize)
+     (syntax/loc stx
+       (define write-integer : (->* (Integer) (Output-Port) Byte)
+         (lambda [n [/dev/stdout (current-output-port)]]
+           (do-write /dev/stdout n bsize signed? msb?))))]))
+
+(define-syntax (define-write-integer* stx)
+  (syntax-case stx [:]
+    [(_ do-write msb? [bsize write-integer write-natural] ...)
+     (syntax/loc stx
+       (begin (define-write-integer write-integer do-write #true  msb? bsize) ...
+              (define-write-integer write-natural do-write #false msb? bsize) ...))]))
+
 (define-syntax (define-peek-integer stx)
   (syntax-case stx [:]
     [(_ peek-integer do-bytes->integer #:-> Integer_t)

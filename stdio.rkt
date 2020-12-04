@@ -1,6 +1,8 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide (rename-out [write-muintptr write-msize]
+                     [write-luintptr write-lsize]))
 
 (require "port.rkt")
 
@@ -288,6 +290,18 @@
     (bytes->string/utf-8 (peek-nbytes /dev/stdin size))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-write-integer* write-fixed-integer #true
+  [1 [write-msint8]  [write-muint8]]
+  [2 [write-msint16] [write-muint16]]
+  [4 [write-msint32] [write-muint32]]
+  [8 [write-msint64] [write-muint64]])
+
+(define-write-integer* write-fixed-integer #false
+  [1 [write-lsint8]  [write-luint8]]
+  [2 [write-lsint16] [write-luint16]]
+  [4 [write-lsint32] [write-luint32]]
+  [8 [write-lsint64] [write-luint64]])
+
 (define write-mn:bytes : (->* (Bytes Natural) (Output-Port) Index)
   (lambda [bs nsize [/dev/stdout (current-output-port)]]
     (define bsize : Index (bytes-length bs))

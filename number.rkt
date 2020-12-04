@@ -66,44 +66,40 @@
 (define-bytes->integer msb-bytes->size msb-bytes->index [size : Integer] #:-> Index)
 (define-bytes->integer lsb-bytes->size lsb-bytes->index [size : Integer] #:-> Index)
 
+(define-integer->bytes* fixed-integer->bytes #true
+  [1 [msb-int8->bytes]  [msb-uint8->bytes]]
+  [2 [msb-int16->bytes] [msb-uint16->bytes]]
+  [4 [msb-int32->bytes] [msb-uint32->bytes]]
+  [8 [msb-int64->bytes] [msb-uint64->bytes]])
+
+(define-integer->bytes* fixed-integer->bytes #false
+  [1 [lsb-int8->bytes]  [lsb-uint8->bytes]]
+  [2 [lsb-int16->bytes] [lsb-uint16->bytes]]
+  [4 [lsb-int32->bytes] [lsb-uint32->bytes]]
+  [8 [lsb-int64->bytes] [lsb-uint64->bytes]])
+
+(define msb-size->bytes : (->* (Integer Integer) ((Option Bytes) Natural) Bytes)
+  (lambda [n size [bs #false] [offset 0]]
+    (fixed-integer->bytes n size #false #true bs offset)))
+
+(define lsb-size->bytes : (->* (Integer Integer) ((Option Bytes) Natural) Bytes)
+  (lambda [n size [bs #false] [offset 0]]
+    (fixed-integer->bytes n size #false #false bs offset)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define integer->network-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define isize : Index (integer-bytes-length mpint))
     (define bsize : Index (if (<= isize bsize0) bsize0 isize))
     (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
     
-    (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
-                          [mpint : Integer mpint])
-      (define sth-8 : Fixnum (- sth 8))
-      (define sth-4 : Fixnum (- sth 4))
-      (define sth-1 : Fixnum (- sth 1))
-      
-      (cond [(>= sth-8 offset)
-             (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
-             (integer->octets sth-8 (arithmetic-shift mpint -64))]
-            [(>= sth-4 offset)
-             (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
-             (integer->octets sth-4 (arithmetic-shift mpint -32))]
-            [(>= sth-1 offset)
-             (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
-             (integer->octets sth-1 (arithmetic-shift mpint -8))]))
-    
-    bmpint))
+    (integer->msb-octets mpint #: (Integer bsize) #:-> bmpint #:at offset)))
 
 (define network-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
   (lambda [bmpint [start 0] [end0 0]]
     (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
-    (let octets->integer ([idx : Index (assert start index?)]
-                          [x : Integer (if (>= (bytes-ref bmpint start) #b10000000) -1 0)])
-      (define idx+8 : Nonnegative-Fixnum (+ idx 8))
-      (define idx+4 : Nonnegative-Fixnum (+ idx 4))
-      (define idx+1 : Nonnegative-Fixnum (+ idx 1))
-      
-      (cond [(<= idx+8 end) (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))]
-            [(<= idx+4 end) (octets->integer idx+4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #true idx idx+4)))]
-            [(<= idx+1 end) (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))]
-            [else x]))))
+    (msb-octets->integer bmpint #:from start #:to end #:-> Integer #:with (if (>= (bytes-ref bmpint start) #b10000000) -1 0))))
 
 (define natural->network-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
@@ -111,38 +107,13 @@
     (define bsize : Index (if (<= nsize bsize0) bsize0 nsize))
     (define-values (bmpint offset) (use-bytes+offset bmpint0 bsize offset0))
     
-    (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
-                          [mpint : Natural mpint])
-      (define sth-8 : Fixnum (- sth 8))
-      (define sth-4 : Fixnum (- sth 4))
-      (define sth-1 : Fixnum (- sth 1))
-      
-      (cond [(>= sth-8 offset)
-             (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
-             (integer->octets sth-8 (arithmetic-shift mpint -64))]
-            [(>= sth-4 offset)
-             (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
-             (integer->octets sth-4 (arithmetic-shift mpint -32))]
-            [(>= sth-1 offset)
-             (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
-             (integer->octets sth-1 (arithmetic-shift mpint -8))]))
-    
-    bmpint))
+    (integer->msb-octets mpint #: (Natural bsize) #:-> bmpint #:at offset)))
 
 (define network-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
   (lambda [bmpint [start 0] [end0 0]]
     (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
-    (let octets->integer ([idx : Index (assert start index?)]
-                          [x : Natural 0])
-      (define idx+8 : Nonnegative-Fixnum (+ idx 8))
-      (define idx+4 : Nonnegative-Fixnum (+ idx 4))
-      (define idx+1 : Nonnegative-Fixnum (+ idx 1))
-      
-      (cond [(<= idx+8 end) (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))]
-            [(<= idx+4 end) (octets->integer idx+4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #true idx idx+4)))]
-            [(<= idx+1 end) (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))]
-            [else x]))))
+    (msb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bits-bytes-length : (-> Natural Index)

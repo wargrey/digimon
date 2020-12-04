@@ -39,3 +39,65 @@
      (syntax/loc stx
        (begin (define-bytes->integer bytes->integer do-bytes->integer #true  #:-> Integer) ...
               (define-bytes->integer bytes->natural do-bytes->integer #false #:-> Natural) ...))]))
+
+(define-syntax (define-integer->bytes stx)
+  (syntax-case stx [:]
+    [(_ integer->bytes do-integer->bytes signed? msb? bsize)
+     (syntax/loc stx
+       (define integer->bytes : (->* (Integer) ((Option Bytes) Natural) Bytes)
+         (lambda [n [bs #false] [offset 0]]
+           (do-integer->bytes n bsize signed? msb? bs offset))))]))
+
+(define-syntax (define-integer->bytes* stx)
+  (syntax-case stx [:]
+    [(_ do-integer->bytes msb? [bsize [integer->bytes] [natural->bytes]] ...)
+     (syntax/loc stx
+       (begin (define-integer->bytes integer->bytes do-integer->bytes #true  msb? bsize) ...
+              (define-integer->bytes natural->bytes do-integer->bytes #false msb? bsize) ...))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (integer->msb-octets stx)
+  (syntax-case stx [:]
+    [(_ mpint #: (N bsize) #:-> bmpint #:at offset)
+     (syntax/loc stx
+       (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
+                             [mpint : N mpint])
+         (define sth-8 : Fixnum (- sth 8))
+         (define sth-4 : Fixnum (- sth 4))
+         (define sth-1 : Fixnum (- sth 1))
+         
+         (cond [(>= sth-8 offset)
+                (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
+                (integer->octets sth-8 (arithmetic-shift mpint -64))]
+               [(>= sth-4 offset)
+                (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
+                (integer->octets sth-4 (arithmetic-shift mpint -32))]
+               [(>= sth-1 offset)
+                (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
+                (integer->octets sth-1 (arithmetic-shift mpint -8))])
+
+         bmpint))]))
+
+(define-syntax (msb-octets->integer stx)
+  (syntax-case stx [:]
+    [(_ bmpint #:from start #:to end #:-> N #:with x0)
+     (syntax/loc stx
+       (let octets->integer ([idx : Index (assert start index?)]
+                             [x : N x0])
+         (define idx+8 : Nonnegative-Fixnum (+ idx 8))
+         (define idx+4 : Nonnegative-Fixnum (+ idx 4))
+         (define idx+1 : Nonnegative-Fixnum (+ idx 1))
+         
+         (cond [(<= idx+8 end) (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))]
+               [(<= idx+4 end) (octets->integer idx+4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #true idx idx+4)))]
+               [(<= idx+1 end) (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))]
+               [else x])))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fixed-integer->bytes : (->* (Integer Integer Boolean Boolean) ((Option Bytes) Natural) Bytes)
+  (lambda [n size signed? big-endian? [outbs #false] [offset0 0]]
+    (case size
+      [(1 2 4 8)
+       (let-values ([(bs offset) (if (not outbs) (values (make-bytes size) 0) (values outbs offset0))])
+         (integer->integer-bytes n size signed? big-endian? bs offset))]
+      [else (or outbs #"")])))
