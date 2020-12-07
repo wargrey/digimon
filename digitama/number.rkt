@@ -62,21 +62,20 @@
      (syntax/loc stx
        (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
                              [mpint : N mpint])
-         (define sth-8 : Fixnum (- sth 8))
-         (define sth-4 : Fixnum (- sth 4))
-         (define sth-1 : Fixnum (- sth 1))
-         
-         (cond [(>= sth-8 offset)
-                (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
-                (integer->octets sth-8 (arithmetic-shift mpint -64))]
-               [(>= sth-4 offset)
-                (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
-                (integer->octets sth-4 (arithmetic-shift mpint -32))]
-               [(>= sth-1 offset)
-                (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
-                (integer->octets sth-1 (arithmetic-shift mpint -8))])
-
-         bmpint))]))
+         (or (let ([sth-8 : Fixnum (- sth 8)])
+               (and (>= sth-8 offset)
+                    (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
+                    (integer->octets sth-8 (arithmetic-shift mpint -64))))
+             (let ([sth-4 : Fixnum (- sth 4)])
+               (and (>= sth-4 offset)
+                    (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #true bmpint sth-4)
+                    (integer->octets sth-4 (arithmetic-shift mpint -32))))
+             (let ([sth-1 : Fixnum (- sth 1)])
+               (and (>= sth-1 offset)
+                    (bytes-set! bmpint sth-1 (bitwise-and mpint #xFF))
+                    (integer->octets sth-1 (arithmetic-shift mpint -8))))
+             
+             bmpint)))]))
 
 (define-syntax (msb-octets->integer stx)
   (syntax-case stx [:]
@@ -88,10 +87,17 @@
          (define idx+4 : Nonnegative-Fixnum (+ idx 4))
          (define idx+1 : Nonnegative-Fixnum (+ idx 1))
          
-         (cond [(<= idx+8 end) (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))]
-               [(<= idx+4 end) (octets->integer idx+4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #true idx idx+4)))]
-               [(<= idx+1 end) (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))]
-               [else x])))]))
+         (or (let ([idx+8 : Nonnegative-Fixnum (+ idx 8)])
+               (and (<= idx+8 end)
+                    (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))))
+             (let ([idx+4 : Nonnegative-Fixnum (+ idx 4)])
+               (and (<= idx+4 end)
+                    (octets->integer idx+4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #true idx idx+4)))))
+             (let ([idx+1 : Nonnegative-Fixnum (+ idx 1)])
+               (and (<= idx+1 end)
+                    (octets->integer idx+1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx)))))
+
+             x)))]))
 
 (define-syntax (integer->lsb-octets stx)
   (syntax-case stx [:]
@@ -100,21 +106,20 @@
        (let ([end : Index (assert (+ bsize offset) index?)])
          (let integer->octets ([sth : Index offset]
                                [mpint : N mpint])
-           (define sth+8 : Nonnegative-Fixnum (+ sth 8))
-           (define sth+4 : Nonnegative-Fixnum (+ sth 4))
-           (define sth+1 : Nonnegative-Fixnum (+ sth 1))
-           
-           (cond [(<= sth+8 end)
-                  (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #false bmpint sth)
-                  (integer->octets sth+8 (arithmetic-shift mpint -64))]
-                 [(<= sth+4 end)
-                  (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #false bmpint sth)
-                  (integer->octets sth+4 (arithmetic-shift mpint -32))]
-                 [(<= sth+1 end)
-                  (bytes-set! bmpint sth (bitwise-and mpint #xFF))
-                  (integer->octets sth+1 (arithmetic-shift mpint -8))])
-           
-           bmpint)))]))
+           (or (let ([sth+8 : Nonnegative-Fixnum (+ sth 8)])
+                 (and (<= sth+8 end)
+                      (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #false bmpint sth)
+                      (integer->octets sth+8 (arithmetic-shift mpint -64))))
+               (let ([sth+4 : Nonnegative-Fixnum (+ sth 4)])
+                 (and (<= sth+4 end)
+                      (integer->integer-bytes (bitwise-and mpint #xFFFFFFFF) 4 #false #false bmpint sth)
+                      (integer->octets sth+4 (arithmetic-shift mpint -32))))
+               (let ([sth+1 : Nonnegative-Fixnum (+ sth 1)])
+                 (and (<= sth+1 end)
+                      (bytes-set! bmpint sth (bitwise-and mpint #xFF))
+                      (integer->octets sth+1 (arithmetic-shift mpint -8))))
+               
+               bmpint))))]))
 
 (define-syntax (lsb-octets->integer stx)
   (syntax-case stx [:]
@@ -122,14 +127,17 @@
      (syntax/loc stx
        (let octets->integer ([idx : Nonnegative-Fixnum end]
                              [x : N x0])
-         (define idx-8 : Fixnum (- idx 8))
-         (define idx-4 : Fixnum (- idx 4))
-         (define idx-1 : Fixnum (- idx 1))
-         
-         (cond [(>= idx-8 start) (octets->integer idx-8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #false idx-8 idx)))]
-               [(>= idx-4 start) (octets->integer idx-4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #false idx-4 idx)))]
-               [(>= idx-1 start) (octets->integer idx-1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx-1)))]
-               [else x])))]))
+         (or (let ([idx-8 : Fixnum (- idx 8)])
+               (and (>= idx-8 start)
+                    (octets->integer idx-8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #false idx-8 idx)))))
+             (let ([idx-4 : Fixnum (- idx 4)])
+               (and (>= idx-4 start)
+                    (octets->integer idx-4 (bitwise-ior (arithmetic-shift x 32) (integer-bytes->integer bmpint #false #false idx-4 idx)))))
+             (let ([idx-1 : Fixnum (- idx 1)])
+               (and (>= idx-1 start)
+                    (octets->integer idx-1 (bitwise-ior (arithmetic-shift x 8) (bytes-ref bmpint idx-1)))))
+
+             x)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fixed-integer->bytes : (->* (Integer Integer Boolean Boolean) ((Option Bytes) Natural) Bytes)

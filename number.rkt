@@ -100,7 +100,7 @@
     (define end : Index (unsafe-bytes-range-end bmpint start end0))
 
     (msb-octets->integer bmpint #:from start #:to end #:-> Integer
-                         #:with (if (bitwise-bit-set? (bytes-ref bmpint start) 7) -1 0))))
+                         #:with (if (>= (bytes-ref bmpint start) #b10000000) -1 0))))
 
 (define natural->network-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
@@ -131,7 +131,7 @@
     (lsb-octets->integer bmpint #:from start #:to end #:-> Integer
                          #:with (let ([sign-idx (- end 1)])
                                   (if (and (>= sign-idx 0)
-                                           (bitwise-bit-set? (bytes-ref bmpint sign-idx) 7))
+                                           (>= (bytes-ref bmpint sign-idx) #b10000000))
                                       -1 0)))))
 
 (define natural->memory-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
