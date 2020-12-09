@@ -10,9 +10,9 @@
 (require "digitama/evt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Port-Reader-Datum
-  (U (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any)
-     Natural EOF Input-Port (Rec x (Evtof (U Natural EOF Input-Port x)))))
+(define-type Port-Special-Datum (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any))
+(define-type Port-Reader-Plain-Datum (U Natural EOF Input-Port (Rec x (Evtof (U Natural EOF Input-Port x)))))
+(define-type Port-Reader-Datum (U Port-Special-Datum Natural EOF Input-Port (Rec x (Evtof (U Natural EOF Input-Port Port-Special-Datum x)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/stdin : Input-Port (current-input-port))
@@ -50,7 +50,7 @@
                      void)))
 
 (define open-input-block : (->* (Input-Port Natural) (Boolean #:name Any) Input-Port)
-  (lambda [port size [close-orig? #true] #:name [name #false]]
+  (lambda [/dev/srcin size [close-orig? #true] #:name [name #false]]
     (define lock-semaphore : Semaphore (make-semaphore 1))
     (define consumed : Natural 0)
     
@@ -58,8 +58,8 @@
       (define count : Integer (min (- size consumed) (bytes-length str)))
       
       (cond [(<= count 0) eof]
-            [else (let ([n (read-bytes-avail!* str port 0 count)])
-                    (cond [(eq? n 0) (wrap-evt port (λ (x) 0))]
+            [else (let ([n (read-bytes-avail!* str /dev/srcin 0 count)])
+                    (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
                           [(number? n) (set! consumed (+ consumed n)) n]
                           [(procedure? n) (set! consumed (add1 consumed)) n]
                           [else n]))]))
@@ -68,18 +68,18 @@
       (define count : Integer (min (- size consumed skip) (bytes-length str)))
       
       (cond [(<= count 0) (if (and progress-evt (sync/timeout 0 progress-evt)) #false eof)]
-            [else (let ([n (peek-bytes-avail!* str skip progress-evt port 0 count)])
+            [else (let ([n (peek-bytes-avail!* str skip progress-evt /dev/srcin 0 count)])
                     (cond [(not (eq? n 0)) n]
                           [(and progress-evt (sync/timeout 0 progress-evt)) #false]
-                          [else (wrap-evt (cond [(zero? skip) port]
+                          [else (wrap-evt (cond [(zero? skip) /dev/srcin]
                                                 [else (choice-evt (or progress-evt never-evt)
-                                                                  (peek-bytes-evt 1 skip progress-evt port))])
+                                                                  (peek-bytes-evt 1 skip progress-evt /dev/srcin))])
                                           (λ [x] 0))]))]))
 
     (define (do-commit [n : Positive-Integer] [evt : EvtSelf] [target-evt : (Evtof Any)]) : Boolean
       (let commit ()
         (if (semaphore-try-wait? lock-semaphore)
-            (let ([ok? (port-commit-peeked n evt target-evt port)])
+            (let ([ok? (port-commit-peeked n evt target-evt /dev/srcin)])
               (when ok? (set! consumed (+ consumed n)))
               (semaphore-post lock-semaphore)
               ok?)
@@ -92,7 +92,7 @@
        (semaphore-peek-evt lock-semaphore)
        (λ [x] 0)))
 
-    (make-input-port (or name (object-name port))
+    (make-input-port (or name (object-name /dev/srcin))
                      
                      (λ [[str : Bytes]] : Port-Reader-Datum
                        (call-with-semaphore lock-semaphore do-read try-again str))
@@ -100,15 +100,15 @@
                      (λ [[str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]] : (Option Port-Reader-Datum)
                        (call-with-semaphore lock-semaphore do-peek try-again str skip progress-evt))
                      
-                     (λ [] (when close-orig? (close-input-port port)))
+                     (λ [] (when close-orig? (close-input-port /dev/srcin)))
                      
-                     (and (port-provides-progress-evts? port) (λ [] (port-progress-evt port)))
-                     (and (port-provides-progress-evts? port) do-commit)
+                     (and (port-provides-progress-evts? /dev/srcin) (λ [] (port-progress-evt /dev/srcin)))
+                     (and (port-provides-progress-evts? /dev/srcin) do-commit)
                      
-                     (lambda () (port-next-location port))
-                     (lambda () (port-count-lines! port))
+                     (lambda () (port-next-location /dev/srcin))
+                     (lambda () (port-count-lines! /dev/srcin))
 
-                     port #| initial position |#)))
+                     /dev/srcin #| initial position |#)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-path : (-> (U Input-Port Output-Port) Path)

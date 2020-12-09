@@ -9,6 +9,7 @@
 (require "digitama/ioexn.rkt")
 
 (require "filesystem.rkt")
+(require "dtrace.rkt")
 (require "format.rkt")
 (require "date.rkt")
 (require "port.rkt")
@@ -151,8 +152,9 @@
                            (cond [(>= pos maybe-sigoff) datum]
                                  [else (let ([cdir (read-zip-directory /dev/zipin)]
                                              [pos++ (file-position /dev/zipin)])
-                                         (extract (or (zip-extract-entry /dev/zipin cdir read-entry datum)
-                                                      #| DEADCODE |# datum)
+                                         (extract (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e) #false)])
+                                                        (zip-extract-entry /dev/zipin cdir read-entry datum))
+                                                      datum)
                                                   (port-seek /dev/zipin pos++)))])))]))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]
@@ -185,8 +187,9 @@
      (if (input-port? /dev/zipin)
          (for/fold ([datum : seed datum0])
                    ([cdir (in-list (zip-list-directories /dev/zipin))])
-           (or (zip-extract-entry /dev/zipin cdir read-entry datum)
-               #| DEADCODE |# datum))
+           (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e) #false)])
+                 (zip-extract-entry /dev/zipin cdir read-entry datum))
+               datum))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]
              (zip-extract-directories /dev/zipin cdirs read-entry datum0))))]))
@@ -249,7 +252,7 @@
 (define make-archive-hexdump-entry-reader : (->* () (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean)
                                                  (Archive-Entry-Readerof (U Void Natural)))
   (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false]]
-    (define pool : Bytes (make-bytes width))
+    (define magazine : Bytes (make-bytes width))
     
     (λ [/dev/zipin entry directory? timestamp idx]
       (unless (not addline?)
@@ -259,13 +262,13 @@
       (displayln (object-name /dev/zipin))
       
       (let hexdump ([pos : Natural 0])
-        (define size (read-bytes! pool /dev/zipin))
+        (define size (read-bytes! magazine /dev/zipin))
 
         (unless (eof-object? size)
           (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
           (display #\space)
 
-          (for ([b (in-bytes pool 0 size)])
+          (for ([b (in-bytes magazine 0 size)])
             (if (not binary?)
                 (display (byte->hex-string b))
                 (display (byte->bin-string b)))
@@ -275,7 +278,7 @@
             (display (~space (* (assert (- width size) byte?)
                                 (if (not binary?) 3 9)))))
           
-          (for ([b (in-bytes pool 0 size)])
+          (for ([b (in-bytes magazine 0 size)])
             (define ch (integer->char b))
             (display (if (char-graphic? ch) ch ".")))
           

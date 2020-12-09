@@ -5,7 +5,8 @@
 (require racket/path)
 
 (require "zipinfo.rkt")
-(require "huffman.rkt")
+(require "deflate.rkt")
+
 (require "../../port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -28,10 +29,10 @@
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
 
     (file-position /dev/zipin (zip-directory-relative-offset cdir))
-    (read-zip-entry /dev/zipin) ; for efficient, no further validity check for entries here.
+    (read-zip-entry /dev/zipin) ; for the sake of efficiency, no further validity check for entries here.
     
     (case (zip-directory-compression cdir)
-      [(deflated) (open-input-deflated-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)]
+      [(deflated) (open-input-deflated-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name #:error-name 'zip:deflated)]
       [else (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

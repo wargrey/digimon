@@ -2,8 +2,6 @@
 
 (provide main)
 
-(require racket/path)
-
 (require digimon/archive)
 
 (require digimon/cmdopt)

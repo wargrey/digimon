@@ -2,13 +2,9 @@
 
 (provide (all-defined-out))
 
-(require racket/file)
-(require racket/match)
 (require racket/pretty)
 
 (require "../shell.rkt")
-(require "../parameter.rkt")
-(require "../unsafe/colorize.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~exec : (-> Path Thread Any)
