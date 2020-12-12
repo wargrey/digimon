@@ -15,6 +15,7 @@
 (unsafe-require/typed
  racket/unsafe/ops
  [unsafe-fx+ (-> Nonnegative-Fixnum Nonnegative-Fixnum Index)]
- [unsafe-fx- (-> Nonnegative-Fixnum Nonnegative-Fixnum Index)]
- [unsafe-fxlshift (-> Byte Fixnum Index)]
+ [unsafe-fx- (case-> [Byte Byte -> Byte]
+                     [Nonnegative-Fixnum Nonnegative-Fixnum -> Index])]
+ [unsafe-fxlshift (-> Index Fixnum Index)]
  [unsafe-fxrshift (-> Index Byte Index)])

@@ -2,14 +2,11 @@
 
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
-;;; https://www.ietf.org/rfc/rfc1951.txt
-;;; collection: file/gunzip.rkt
+;;; https://www.rfc-editor.org/rfc/rfc1951.html
+;;; collection//file/gunzip.rkt
 
 (provide (all-defined-out))
 
-(require racket/unsafe/ops)
-
-(require "../evt.rkt")
 (require "../ioexn.rkt")
 
 (require "../../port.rkt")
@@ -20,50 +17,57 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-input-deflated-block : (->* (Input-Port Natural) (Boolean #:name String #:error-name Symbol #:commit? Boolean) Input-Port)
   (lambda [/dev/zipin csize [close-orig? #false] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]]
-    (define-values (FEED PEEK FIRE $) (make-input-lsb-bitstream /dev/zipin #:padding-byte #xFF #:limited csize))
+    (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #xFF #:limited csize))
 
     (define BTYPE : (Option Symbol) #false)
     (define BFINAL : Boolean #false)
+    (define stock : Index 0)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define huffman-extract-block-header : (-> (Values Symbol Boolean))
+    (define huffman-read-block-header! : (-> (Values Symbol Boolean))
       (lambda []
-        (if (FEED 3)
-            (let ([BFINAL (PEEK 1 #b1)]
-                  [BTYPE (PEEK 2 #b11 1)])
-              (FIRE 3)
+        (if (FEED-BITS 3)
+            (let ([BFINAL (PEEK-BITS 1 #b1)]
+                  [BTYPE (PEEK-BITS 2 #b11 1)])
+              (FIRE-BITS 3)
               (values (case BTYPE
-                        [(#b00)
-                         ($ 'align)
-                         (FEED 32)
-                         (set! stock (PEEK 16 #xFFFF))
-                         (unless (= stock (bitwise-not (PEEK 16 #xFFFF 16)))
-                           (throw-check-error /dev/blkin ename "stored: invalid block length"))
-                         (FIRE 32)
-                         'stored]
-                        [(#b01)
-                         (set! stock 8)
-                         'fixed]
-                        [(#b10)
-                         (set! stock 16)
-                         'dynamic]
+                        [(#b00) (huffman-begin-stored-block!) 'stored]
+                        [(#b01) (huffman-begin-static-block!) 'static]
+                        [(#b10) (huffman-begin-dynamic-block!) 'dynamic]
                         [else 'reserved])
                       (= BFINAL 1)))
             (values 'EOB #true))))
 
-    (define stock : Index 0)
+    (define huffman-begin-stored-block! : (-> Any)
+      (lambda []
+        ($SHELL 'align)
+        (FEED-BITS 32)
+        (set! stock (PEEK-BITS 16 #xFFFF))
+        (unless (= stock (bitwise-not (PEEK-BITS 16 #xFFFF 16)))
+          (throw-check-error /dev/blkin ename "stored: invalid block length"))
+        (FIRE-BITS 32)))
+    
+    (define huffman-begin-static-block! : (-> Any)
+      (lambda []
+        (void)))
+
+    (define huffman-begin-dynamic-block! : (-> Any)
+      (lambda []
+        (void)))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (read-stored-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
       (define stop : Nonnegative-Fixnum (min (+ start stock) end))
       
-      (let copy-bytes ([start : Index start])
-        (cond [(= start stop) start]
-              [(not (FEED 8)) start]
-              [else (let ([start++ (unsafe-idx+ start 1)])
-                      (unsafe-bytes-set! zipout start (PEEK 8 #xFF))
-                      (FIRE 8)
+      (let copy-bytes ([pos : Index start])
+        (cond [(= pos stop) (set! stock (unsafe-idx- stock (unsafe-idx- pos start))) pos]
+              [(not (FEED-BITS 8)) (set! stock (unsafe-idx- stock (unsafe-idx- pos start))) pos] ; unexpected EOF
+              [else (let ([start++ (unsafe-idx+ pos 1)])
+                      (unsafe-bytes-set! zipout pos (PEEK-BITS 8 #xFF))
+                      (FIRE-BITS 8)
                       (copy-bytes start++))])))
 
-    (define (read-fixed-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
+    (define (read-static-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
       (read-stored-block! zipout start end))
 
     (define (read-dynamic-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
@@ -76,20 +80,20 @@
       (let read-block ([start : Index 0])
         (cond [(not (eq? BTYPE 'EOB))
                (define-values (type last?)
-                 (cond [(not BTYPE) (huffman-extract-block-header)]
+                 (cond [(not BTYPE) (huffman-read-block-header!)]
                        [else (values BTYPE BFINAL)]))
                     
                (define start++ : Index
                  (case type
-                   [(stored) (read-stored-block! zipout start end)]
-                   [(fixed) (read-fixed-block! zipout start end)]
+                   [(stored)  (read-stored-block! zipout start end)]
+                   [(static)  (read-static-block! zipout start end)]
                    [(dynamic) (read-dynamic-block! zipout start end)]
-                   [(EOB) start]
-                   [else (throw-check-error /dev/blkin ename "reserved deflated block type")]))
+                   [(EOB)     (values start)]
+                   [else      (throw-check-error /dev/blkin ename "reserved deflated block type")]))
                
                (cond [(>= start++ end) (set!-values (BTYPE BFINAL) (values type last?)) end]
                      [else (set! BTYPE (and last? 'EOB)) (read-block start++)])]
-              [(= start 0) (unless (not commit?) ($ 'final-commit)) eof]
+              [(= start 0) (unless (not commit?) ($SHELL 'final-commit)) eof]
               [else start])))
     
     (define /dev/blkin : Input-Port

@@ -87,7 +87,7 @@
     (fixed-integer->bytes n size #false #false bs offset)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define integer->network-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
+(define integer->network-bytes : (->* (Integer) (Index (Option Bytes) Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define isize : Index (integer-bytes-length mpint))
     (define bsize : Index (if (<= isize bsize0) bsize0 isize))
@@ -102,7 +102,7 @@
     (msb-octets->integer bmpint #:from start #:to end #:-> Integer
                          #:with (if (>= (bytes-ref bmpint start) #b10000000) -1 0))))
 
-(define natural->network-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
+(define natural->network-bytes : (->* (Natural) (Index (Option Bytes) Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define nsize : Index (natural-bytes-length mpint))
     (define bsize : Index (if (<= nsize bsize0) bsize0 nsize))
@@ -116,7 +116,7 @@
 
     (msb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
 
-(define integer->memory-bytes : (->* (Integer) (Index Bytes Natural) Bytes)
+(define integer->memory-bytes : (->* (Integer) (Index (Option Bytes) Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define isize : Index (integer-bytes-length mpint))
     (define bsize : Index (if (<= isize bsize0) bsize0 isize))
@@ -134,7 +134,7 @@
                                            (>= (bytes-ref bmpint sign-idx) #b10000000))
                                       -1 0)))))
 
-(define natural->memory-bytes : (->* (Natural) (Index Bytes Natural) Bytes)
+(define natural->memory-bytes : (->* (Natural) (Index (Option Bytes) Natural) Bytes)
   (lambda [mpint [bsize0 0] [bmpint0 #false] [offset0 0]]
     (define nsize : Index (natural-bytes-length mpint))
     (define bsize : Index (if (<= nsize bsize0) bsize0 nsize))

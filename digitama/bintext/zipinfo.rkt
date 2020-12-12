@@ -2,7 +2,7 @@
 
 ; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
 ; https://www.hanshq.net/zip.html
-; collection: file/gunzip.rkt
+; collection://file/gunzip.rkt
 
 (provide (all-defined-out))
 

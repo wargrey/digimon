@@ -10,13 +10,16 @@
 (define c #b1011)
 (define d #b10001)
 
-(define abcd
-  (+ a
-     (arithmetic-shift b 4)
-     (arithmetic-shift c 7)
-     (arithmetic-shift d 11)))
+(define /dev/bsout (open-output-bytes))
+(define-values (push-bits flush-bits _) (make-output-lsb-bitstream /dev/bsout))
 
-(define bs (natural->memory-bytes abcd 2))
+(push-bits #b1101  4)
+(push-bits #b110   3)
+(push-bits #b1011  4)
+(push-bits #b10001 5)
+(flush-bits)
+
+(define bs (get-output-bytes /dev/bsout #false))
 
 (define (deal-with-bits [v : Index]) : Void
   (displayln (~binstring v)))
@@ -33,17 +36,18 @@
         
         (bs-shell 'final-commit)))
 
-(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs))])
+(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) 0 0)])
         (displayln (bytes->bin-string bs #:separator " "))
         
-        (feed-bits 16)
+        (feed-bits 255)
         (fire-bits 3)
-        (displayln (cons 'skipped (~binstring (bs-shell 'align))))
+        (displayln (cons (~binstring (bs-shell 'align)) 'skipped))
         (deal-with-bits (peek-bits 8))
+        (deal-with-bits (peek-bits 32))
         
         (bs-shell 'final-commit)))
 
-(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) #:limited 1)])
+(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) 0 0 #:limited 1)])
         (displayln (cons 'limited (not (feed-bits 16))))
         
         (deal-with-bits (peek-bits 4 #b1111))

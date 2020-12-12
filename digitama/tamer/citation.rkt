@@ -26,7 +26,7 @@
            (in-bib (make-bib #:title title
                              #:author author
                              #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
-                             #:url (format "https://www.rfc-editor.org/rfc/rfc~a.txt" request-for-comments)
+                             #:url (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
                              #:date date
                              #:note note)
                    (format ":~a" 'key)))))]))
@@ -40,7 +40,7 @@
                #:author   author
                #:date     (bib-entry~date date)
                #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
-               #:url      (format "https://www.rfc-editor.org/rfc/rfc~a.txt" request-for-comments)
+               #:url      (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
                #:note     note)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
