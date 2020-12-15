@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/path)
+(require racket/symbol)
 
 (require "dist.rkt")
 
@@ -11,8 +11,6 @@
 (require "../phony.rkt")
 (require "../path.rkt")
 (require "../spec.rkt")
-
-(require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~clean : Make-Phony
@@ -38,7 +36,7 @@
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
         (define cleans : (Option (Listof String))
-          (member (string-replace (symbol->string clean-phony) #px"(?<!^)-?clean" "")
+          (member (string-replace (symbol->immutable-string clean-phony) #px"(?<!^)-?clean" "")
                   '["maintainer" "dist" "clean" "mostly"]))
         (when (pair? cleans)
           (define px.filter : PRegexp (pregexp (string-join cleans "|" #:before-first "^(.+?:)?" #:after-last ":.+:")))
@@ -46,7 +44,7 @@
           (define clean-specs : Wisemon-Specification
             (for/fold ([clean-specs : Wisemon-Specification null])
                       ([var (in-list (namespace-mapped-symbols ns))]
-                       #:when (regexp-match? px.filter (symbol->string var)))
+                       #:when (regexp-match? px.filter (symbol->immutable-string var)))
               (define maybe-spec (namespace-variable-value var #false (λ [] #false) ns))
               (cond [(wisemon-spec? maybe-spec) (append clean-specs (list maybe-spec))]
                     [(list? maybe-spec) (append clean-specs (filter wisemon-spec? maybe-spec))]

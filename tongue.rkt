@@ -8,10 +8,12 @@
 (require racket/path)
 (require racket/list)
 (require racket/string)
+(require racket/symbol)
 (require racket/match)
 
 (require "dtrace.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tongue-Fold (-> Path (Immutable-HashTable Symbol String) (Immutable-HashTable Symbol String)))
 (struct tongue-info ([fold : Tongue-Fold] [extension : Bytes]) #:type-name Tongue-Info)
 
@@ -69,7 +71,7 @@
             [else (for/or : (Option String) ([dialects (in-hash-values (hash-ref dictionary-base tongue))])
                     (hash-ref dialects word sorry-for-not-found))]))
     (cond [(string? text) text]
-          [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->string word) "-" " ")]
+          [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->immutable-string word) "-" " ")]
           [else (speak word #:in (default-fallback-tongue) #:dialect dialect #:reload? reload?)])))
 
 (define ~speak : (-> Symbol [#:in Symbol] [#:dialect (Option Symbol)] [#:reload? Boolean] Any * String)
@@ -98,7 +100,7 @@
 
 (define load-tongues : (-> Symbol (Immutable-HashTable Symbol (Immutable-HashTable Symbol String)))
   (lambda [tongue]
-    (define language : String (symbol->string tongue))
+    (define language : String (symbol->immutable-string tongue))
     (for/fold ([dictionaries : (Immutable-HashTable Symbol (Immutable-HashTable Symbol String)) (make-immutable-hasheq)])
               ([tongue-root (in-list (remove-duplicates (cons (collection-file-path "tongue" "digimon" "stone") (default-tongue-paths))))]
                #:when (directory-exists? (build-path tongue-root language)))

@@ -4,6 +4,8 @@
 
 (require typed/setup/getinfo)
 
+(require racket/symbol)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Lang-Shell (-> Path Thread Any))
 
@@ -27,7 +29,7 @@
   
 (define nanomon-shell-ref : (-> Symbol (Option Nanomon-Shell))
   (lambda [shell]
-    (define strshell : String (symbol->string shell))
+    (define strshell : String (symbol->immutable-string shell))
     (define shell.rkt : Path (build-path (nanomon-shell-rootdir) (string-append strshell ".rkt")))
 
     (or (and (file-exists? shell.rkt)

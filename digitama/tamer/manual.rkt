@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/symbol)
+
 (require scribble/manual)
 
 (require (for-syntax racket/base))
@@ -22,7 +24,7 @@
 (define tamer-indexed-keyword-element
   (lambda [keyword]
     (define content (racket '#,keyword))
-    (index* (list (symbol->string keyword))
+    (index* (list (symbol->immutable-string keyword))
             (list content)
             content)))
 

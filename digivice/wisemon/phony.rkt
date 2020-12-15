@@ -4,6 +4,8 @@
 
 (require typed/setup/getinfo)
 
+(require racket/symbol)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Make-Phony (-> String Info-Ref Any))
 
@@ -27,7 +29,7 @@
 
 (define wisemon-phony-goal-ref : (-> Symbol (Option Wisemon-Phony))
   (lambda [goal]
-    (define strgoal : String (symbol->string goal))
+    (define strgoal : String (symbol->immutable-string goal))
     (define goal.rkt : Path (build-path (wisemon-phony-goal-rootdir) (string-append strgoal ".rkt")))
 
     (or (and (file-exists? goal.rkt)

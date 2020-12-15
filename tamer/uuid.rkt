@@ -5,6 +5,8 @@
 (require "../symbol.rkt")
 
 (require racket/future)
+(require racket/symbol)
+
 (require typed/db)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -20,7 +22,7 @@
     (with-handlers ([exn:fail:sql? (λ [[e : exn:fail:sql]] (pretty-write (cons record (exn:fail:sql-info e)) (current-error-port)))])
       (query-exec :memory:
                   "INSERT INTO uuid (id, type, fid, seq) VALUES ($1, $2, $3, $4);"
-                  (vector-ref record 0) (symbol->string (vector-ref record 1))
+                  (vector-ref record 0) (symbol->immutable-string (vector-ref record 1))
                   (vector-ref record 2) (vector-ref record 3)))))
 
 (define make-job : (-> (-> String) Index (-> (Listof UUID)))

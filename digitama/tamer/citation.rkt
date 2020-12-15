@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/format)
+(require racket/symbol)
 
 (require scribble/manual)
 (require scriblib/autobib)
@@ -238,7 +239,7 @@
 (define bib-entry~key
   (lambda [key [~key #false]]
     (cond [(string? key) key]
-          [(symbol? key) (symbol->string key)]
+          [(symbol? key) (symbol->immutable-string key)]
           [(procedure? ~key) (~key)]
           [else (~a key)])))
 

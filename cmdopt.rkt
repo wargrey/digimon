@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/path)
+(require racket/symbol)
 
 (require "digitama/cmdopt.rkt")
 
@@ -11,7 +12,6 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
-(require (for-syntax racket/string))
 
 (require (for-syntax "digitama/cmdopt.rkt"))
 
@@ -58,7 +58,7 @@
                       (let ([mfield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'mfield margc 'multi)))] ...
                             [efield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'efield eargc 'once-each)))] ...
                             [afield (λ [opt] : (Pairof Any (List Symbol Byte Symbol)) (cons opt (list 'afield aargc 'once-any)))] ...)
-                        (cmdopt-parse-arguments program argv (symbol->string --help)
+                        (cmdopt-parse-arguments program argv (symbol->immutable-string --help)
                                                 (make-immutable-hasheq (append (map mfield (list 'moptions ...)) ...
                                                                                (map efield (list 'eoptions ...)) ...
                                                                                (map afield (list 'aoptions ...)) ...))

@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/list)
+(require racket/symbol)
 
 (require "prompt.rkt")
 (require "issue.rkt")
@@ -17,7 +18,7 @@
     [(_ (id:id [arg:id : Type:expr] ...) body ...)
      (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))])
        (syntax/loc stx
-         (begin (define argv : (Listof String) (list (symbol->string 'arg) ...))
+         (begin (define argv : (Listof String) (list (symbol->immutable-string 'arg) ...))
                 (define argc : Index (length argv))
                 
                 (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))

@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/symbol)
+
 (require "../toolchain.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -25,4 +27,4 @@
 
 (define c-find-binary-path : (-> Symbol (Option Path))
   (lambda [basename]
-    (find-executable-path (string-append (symbol->string basename) binary.ext) #false #false)))
+    (find-executable-path (string-append (symbol->immutable-string basename) binary.ext) #false #false)))

@@ -14,6 +14,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 (require (for-syntax racket/string))
+(require (for-syntax racket/symbol))
 (require (for-syntax racket/list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -114,7 +115,7 @@
 
     (hash-set! flagnames name <flag>)
 
-    (cond [(symbol? flag) (+ 2 2 (string-length (symbol->string flag)))]
+    (cond [(symbol? flag) (+ 2 2 (string-length (symbol->immutable-string flag)))]
           [(number? flag) (+ 2 2 (string-length (number->string flag)))]
           [else (+ 2 1 1)]))
 

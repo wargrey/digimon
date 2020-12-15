@@ -60,6 +60,6 @@
 
 (define spec-name->brief : (-> (U String Symbol Procedure) String)
   (lambda [name]
-    (cond [(procedure? name) (symbol->string (datum-name name))]
-          [(symbol? name) (symbol->string name)]
+    (cond [(procedure? name) (symbol->immutable-string (datum-name name))]
+          [(symbol? name) (symbol->immutable-string name)]
           [else name])))

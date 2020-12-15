@@ -18,7 +18,7 @@
                       (cond [(<= idx 143) 8] ; [#b00110000,  #b10111111]
                             [(<= idx 255) 9] ; [#b110010000, #b111111111]
                             [(<= idx 279) 7] ; [#b0000000,   #b0010111]
-                            [else 8]))])     ; [#b11000000,  #b11000111], with a useless value
+                            [else 8]))])     ; [#b11000000,  #b11000111], the value is actually useless
        (syntax/loc stx
          (vector-immutable lengths ...)))]))
 

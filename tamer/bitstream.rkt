@@ -1,15 +1,9 @@
 #lang typed/racket/base
 
 (require digimon/bitstream)
-(require digimon/number)
 (require digimon/format)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define a #b1101)
-(define b #b110)
-(define c #b1011)
-(define d #b10001)
-
 (define /dev/bsout (open-output-bytes))
 (define-values (push-bits flush-bits _) (make-output-lsb-bitstream /dev/bsout))
 

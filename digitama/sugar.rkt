@@ -3,11 +3,11 @@
 (provide (all-defined-out))
 
 (require racket/match)
-(require racket/path)
-(require racket/list)
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/symbol))
 (require (for-syntax racket/syntax))
+
 (require (for-syntax syntax/parse))
 
 (define-type (Listof+ Type) (Pairof Type (Listof Type)))
@@ -56,7 +56,7 @@
                     [(args ...)
                      (for/fold ([args null])
                                ([argument (in-list (syntax->list #'([property : ArgType defval ...] ...)))])
-                       (cons (datum->syntax argument (string->keyword (symbol->string (car (syntax->datum argument)))))
+                       (cons (datum->syntax argument (string->keyword (symbol->immutable-string (car (syntax->datum argument)))))
                              (cons argument args)))])
        (syntax/loc stx
          (begin (struct id ([property : DataType] ...) options ...)

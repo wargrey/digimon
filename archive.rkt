@@ -1,9 +1,11 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide Archive-Entry archive-entry? make-archive-entry)
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
 
+(require "digitama/bintext/archive.rkt")
 (require "digitama/bintext/zipinfo.rkt")
 (require "digitama/bintext/zip.rkt")
 (require "digitama/ioexn.rkt")
@@ -111,6 +113,16 @@
           (values (+ csize (zip-directory-csize e)) (+ rsize (zip-directory-rsize e)))
           (values (+ csize (zip-entry-csize e)) (+ rsize (zip-entry-rsize e)))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-create : (-> (U Path-String Output-Port) Void)
+  (lambda [/dev/zipout]
+    (if (output-port? /dev/zipout)
+        (void)
+        (call-with-output-file* /dev/zipout
+          (λ [[/dev/zipout : Output-Port]]
+            (zip-create /dev/zipout))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))
                                       (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof String)))
   (lambda [/dev/zipin entries]

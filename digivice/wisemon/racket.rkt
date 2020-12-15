@@ -4,6 +4,7 @@
 
 (require racket/path)
 (require racket/match)
+(require racket/symbol)
 
 (require typed/racket/unsafe)
 (require typed/setup/getinfo)
@@ -62,7 +63,7 @@
     (define (stderr-level [line : String]) : (Values Symbol (Option String))
       (values (if (eq? context 'summary) 'error 'warning) line))
     
-    (parameterize ([setup-program-name (symbol->string the-name)]
+    (parameterize ([setup-program-name (symbol->immutable-string the-name)]
                    [make-launchers #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]

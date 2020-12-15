@@ -5,6 +5,7 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
+(require (for-syntax racket/symbol))
 
 (require (for-syntax syntax/parse))
 
@@ -19,7 +20,7 @@
                                             ([<field> (in-syntax #'(field ...))]
                                              [<FiledType> (in-syntax #'(FieldType ...))])
                                     (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
-                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>)))))      
+                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
                                     (values (cons <kw-name> (cons #`[#,<field> : (Option #,<FiledType>) #false] args))
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
@@ -45,7 +46,7 @@
                      (for/fold ([args null])
                                ([<field> (in-syntax #'(field ... method ...))]
                                 [<Argument> (in-syntax #'([field : FieldType defval ...] ... [method : MethodType defmth ...] ...))])
-                       (cons (datum->syntax <field> (string->keyword (symbol->string (syntax-e <field>))))
+                       (cons (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))
                              (cons <Argument> args)))]
                     [([id-field ...] [abs-field ...])
                      (let-values ([(sdleif sdleif-abs)

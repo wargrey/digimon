@@ -11,6 +11,7 @@
 
 (require racket/flonum)
 (require racket/string)
+(require racket/symbol)
 (require racket/math)
 
 (require racket/format)
@@ -58,7 +59,7 @@
               [else (~size (fl/ (real->double-flonum size) 1024.0) 'KB #:precision prcs)])
         (let try-next-unit : String ([s : Flonum (real->double-flonum size)] [us : (Option (Listof Unit)) (memq unit units)])
           (cond [(not us) "Typed Racket is buggy if you see this message"]
-                [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->string (car us)))]
+                [(or (fl< (flabs s) 1024.0) (null? (cdr us))) (string-append (~r s #:precision prcs) (symbol->immutable-string (car us)))]
                 [else (try-next-unit (fl/ s 1024.0) (cdr us))])))))
 
 (define ~MB/s : (-> Natural Flonum Flonum)
@@ -91,6 +92,10 @@
     (if (null? argl) msgfmt (apply format msgfmt argl))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define generate-immutable-string : (-> (U String Symbol) String)
+  (lambda [base]
+    (symbol->immutable-string (gensym base))))
+
 (define byte->hex-string : (-> Byte String)
   (lambda [b]
     (define hex (number->string b 16))
@@ -115,7 +120,7 @@
 
 (define symb0x->number : (-> Symbol (Option Integer))
   (lambda [hex]
-    (define maybe-integer : (Option Number) (string->number (substring (symbol->string hex) 2) 16))
+    (define maybe-integer : (Option Number) (string->number (substring (symbol->immutable-string hex) 2) 16))
     (and (exact-integer? maybe-integer) maybe-integer)))
 
 (define number->symb0x : (-> Integer Symbol)
@@ -124,7 +129,7 @@
 
 (define symb0b->number : (-> Symbol (Option Integer))
   (lambda [bin]
-    (define maybe-integer : (Option Number) (string->number (substring (symbol->string bin) 2) 2))
+    (define maybe-integer : (Option Number) (string->number (substring (symbol->immutable-string bin) 2) 2))
     (and (exact-integer? maybe-integer) maybe-integer)))
 
 (define number->symb0b : (-> Integer Symbol)

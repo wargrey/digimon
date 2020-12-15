@@ -267,7 +267,7 @@
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
     (define scenario-literal (speak 'scenario #:dialect 'tamer))
     
-    (section #:tag (or tag (symbol->string (gensym 'scenario)))
+    (section #:tag (or tag (generate-immutable-string 'scenario))
              #:style style
              (cond [(string=? scenario-literal "") pre-contents]
                    [else (list* (literal scenario-literal ":")
@@ -275,13 +275,13 @@
 
 (define handbook-action
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsection #:tag (or tag (symbol->string (gensym 'action)))
+    (subsection #:tag (or tag (generate-immutable-string 'action))
                 #:style style
                 pre-contents)))
 
 (define handbook-event
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsubsection #:tag (or tag (symbol->string (gensym 'event)))
+    (subsubsection #:tag (or tag (generate-immutable-string 'event))
                    #:style style
                    pre-contents)))
 

@@ -8,6 +8,7 @@
 (require typed/racket/date)
 
 (require racket/port)
+(require racket/symbol)
 
 (require "../plist.rkt")
 
@@ -99,7 +100,7 @@
                  [idx (in-naturals 0)])
         (vector-set! offset-table idx offset-table-index)
         (+ offset-table-index
-           (cond [(symbol? object) (bplist-insert-string /dev/bplout (symbol->string object))]
+           (cond [(symbol? object) (bplist-insert-string /dev/bplout (symbol->immutable-string object))]
                  [(string? object) (bplist-insert-string /dev/bplout object)]
                  [(exact-integer? object) (bplist-insert-integer /dev/bplout object)]
                  [(flonum? object) (bplist-insert-real /dev/bplout object)]

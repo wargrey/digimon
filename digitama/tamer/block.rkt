@@ -17,6 +17,8 @@
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+(require (for-syntax racket/symbol))
+
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -26,7 +28,7 @@
                  (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
         ...
         [args ...] #:with [pre-flows] #:λ make-block ...)
-     (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->string (syntax->datum #'id)))))]
+     (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->immutable-string (syntax->datum #'id)))))]
                     [id:tyle (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
@@ -39,7 +41,7 @@
                     [tamer-id-label-style (format-id #'id "tamer-default-~a-label-style" (syntax->datum #'id))]
                     [tamer-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
        (syntax/loc stx
-         (begin (define tamer-id-label (make-parameter (symbol->string 'Id)))
+         (begin (define tamer-id-label (make-parameter (symbol->immutable-string 'Id)))
                 (define tamer-id-label-separator (make-parameter ": "))
                 (define tamer-id-label-style (make-parameter 'tt))
                 (define tamer-id-caption-style (make-parameter #false))

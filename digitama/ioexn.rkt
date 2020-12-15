@@ -4,6 +4,7 @@
 
 (require racket/string)
 (require racket/format)
+(require racket/symbol)
 (require racket/path)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -83,6 +84,6 @@
 
 (define exn-src+args->message : (-> Symbol (Listof Any) String)
   (lambda [src args]
-    (cond [(null? args) (symbol->string src)]
+    (cond [(null? args) (symbol->immutable-string src)]
           [(string? (car args)) (apply format (string-append "~a: " (car args)) src (cdr args))]
           [else (format "~a: ~s" src args)])))

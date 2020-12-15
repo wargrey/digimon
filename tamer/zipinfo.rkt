@@ -3,6 +3,7 @@
 (provide main)
 
 (require racket/path)
+(require racket/symbol)
 
 (require digimon/archive)
 (require digimon/digitama/bintext/zipinfo)
@@ -85,16 +86,16 @@
                     (filter string?
                             (if (zip-directory? ze)
                                 (let-values ([(csize rsize) (values (zip-directory-csize ze) (zip-directory-rsize ze))])
-                                  (list (zip-version (zip-directory-create-version ze)) (symbol->string (zip-directory-create-os ze))
-                                        (zip-version (zip-directory-extract-version ze)) (symbol->string (zip-directory-extract-os ze))
+                                  (list (zip-version (zip-directory-create-version ze)) (symbol->immutable-string (zip-directory-create-os ze))
+                                        (zip-version (zip-directory-extract-version ze)) (symbol->immutable-string (zip-directory-extract-os ze))
                                         (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size rsize)])
-                                        (symbol->string (zip-directory-compression ze))
+                                        (symbol->immutable-string (zip-directory-compression ze))
                                         (zip-datetime (zip-directory-lmdate ze) (zip-directory-lmtime ze) (zipinfo-flags-T opts))
                                         (zip-directory-filename ze)))
                                 (let-values ([(csize rsize) (values (zip-entry-csize ze) (zip-entry-rsize ze))])
-                                  (list (zip-version (zip-entry-extract-version ze)) (symbol->string (zip-entry-extract-os ze))
+                                  (list (zip-version (zip-entry-extract-version ze)) (symbol->immutable-string (zip-entry-extract-os ze))
                                         (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size rsize)])
-                                        (symbol->string (zip-entry-compression ze))
+                                        (symbol->immutable-string (zip-entry-compression ze))
                                         (zip-datetime (zip-entry-lmdate ze) (zip-entry-lmtime ze) (zipinfo-flags-T opts))
                                         (zip-entry-filename ze))))))]))
 

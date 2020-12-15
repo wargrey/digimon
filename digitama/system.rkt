@@ -7,6 +7,7 @@
 (require racket/fixnum)
 (require racket/path)
 (require racket/match)
+(require racket/symbol)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)
@@ -43,11 +44,11 @@
     (lambda [path . paths]
       (define (map-path [digimon-zone : Path-String] [path : Symbol]) : Path
         (case path
-          [(digivice digitama stone tamer literacy village) (build-path digimon-zone (symbol->string path))]
+          [(digivice digitama stone tamer literacy village) (build-path digimon-zone (symbol->immutable-string path))]
           [(info) (build-path digimon-zone "info.rkt")]
-          [else (build-path digimon-zone "stone" (symbol->string path))]))
+          [else (build-path digimon-zone "stone" (symbol->immutable-string path))]))
       (define (prefab-path [digimon-zone : Path-String] [path : Symbol]) : Path-String
-        (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->string path))))
+        (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->immutable-string path))))
         (define info-ref : (Option Info-Ref) (get-info/full digimon-zone))
         (cond [(eq? path 'zone) digimon-zone]
               [(not info-ref) (map-path digimon-zone path)]

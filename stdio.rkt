@@ -15,6 +15,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
 (require (for-syntax syntax/parse))
+(require (for-syntax racket/symbol))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Subbytes (List Bytes Index Index))
@@ -147,7 +148,7 @@
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
                                       (cond [(memq field auto-fields) (values args reargs sdleif)]
-                                            [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->string field)))])
+                                            [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
                                                     (values (cons <kw-name> (cons <Argument> args))
                                                             (cons <kw-name> (cons <ReArgument> reargs))
                                                             (cons (list <field> <ref>) sdleif)))]))])

@@ -3,6 +3,7 @@
 (provide (all-defined-out) quote-module-path)
 
 (require racket/sandbox)
+(require racket/symbol)
 (require syntax/location)
 
 (require setup/xref)
@@ -172,7 +173,7 @@
                                           (xref-tag->path+anchor xref tag #:external-root-url #false))])
              (or (and path anchor
                       (racketvalfont (hyperlink (format "/~~:/~a#~a" (find-relative-path (find-doc-dir) path) anchor)
-                                                (symbol->string export))))
+                                                (symbol->immutable-string export))))
                  val))]
           [(vector? val)
            (vector-map tamer-tag-value val)]
