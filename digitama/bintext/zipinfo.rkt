@@ -1,34 +1,47 @@
 #lang typed/racket/base
 
-; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
-; https://www.hanshq.net/zip.html
-; collection://file/gunzip.rkt
+;;; https://support.pkware.com/home/pkzip/developer-tools/appnote/application-note-archives
+;;; https://www.hanshq.net/zip.html
+;;; collection://file/gunzip.rkt
 
 (provide (all-defined-out))
-
-(require typed/racket/date)
 
 (require "../../stdio.rkt")
 (require "../../port.rkt")
 (require "../../enumeration.rkt")
+
+(require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%zip-entry : Index #x04034b50)
 (define #%zip-cdirr : Index #x02014b50)
 (define #%zip-eocdr : Index #x06054b50)
 
+(define current-zip-entry : (Parameterof (U False ZIP-Entry ZIP-Directory)) (make-parameter #false))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-enumeration* zip-system #:+> ZIP-System
   system->byte byte->system
-  [FAT 0] [Amiga 1] [VAX/MS 2] [Unix 3] [VM/CMS 4] [AtariST 5]
-  [HPFS 6] [Macintosh 7] [Z-System 8] [CP/M 9] [unused 10])
+  [FAT 0] [Amiga 1] [OpenVMS 2] [UNIX 3] [VM/CMS 4] [AtariST 5]
+  [HPFS 6] [Macintosh 7] [Z-System 8] [CP/M 9] [NTFS 10]
+  [MVS 11] [VSE 12] [AcornRISC 13] [VFAT 14] [AltMVS 15]
+  [BeOS 16] [Tandem 17] [OS/400 18] [Darwin 19]
+  [unused 20])
 
 (define-enumeration* zip-compression-method #:+> ZIP-Compression-Method
   compression-method->index index->compression-method
-  [0 stored shrunk
-     reduced:1 reduced:2 reduced:3 reduced:4
-     imploded tokenizing
-     deflated])
+  [stored 0]
+
+  ;;; Deprecated ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  [shrunk 1] [reduced:1 2] [reduced:2 3] [reduced:3 4] [reduced:4 5] [imploded 6]
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  
+  [tokenizing 7] [deflated 8] [deflate64 9] [terse:old 10] [bzip2 12] [lzma 14] [cmpsc 16]
+  [terse:new 18] [lz77 19] [zstd 93] [mp3 94] [xz 95] [jpeg 96] [wav 97] [ppmd 98] [AE-x 99])
+
+(define-enumeration* zip-deflation-option #:+> ZIP-Deflation-Option
+  deflation-option->index index->deflation-option
+  [0 normal maximum fast superfast])
 
 (define zip-encrypted? : (-> Index Boolean)
   (lambda [flag]
@@ -38,64 +51,78 @@
   (lambda [flag]
     (bitwise-bit-set? flag 3)))
 
-(define zip-deflation-option : (-> Index Symbol)
+(define zip-deflation-option : (-> Index ZIP-Deflation-Option)
   (lambda [flag]
-    (case (bitwise-bit-field flag 1 3)
-      [(1) 'maximum]
-      [(2) 'fast]
-      [(3) 'superfast]
-      [else 'normal])))
+    (index->deflation-option (bitwise-bit-field flag 1 3) 'normal)))
+
+(define zip-deflation-flag : (->* (ZIP-Deflation-Option Boolean) (Boolean) Index)
+  (lambda [option hasdata? [encrypted? #false]]
+    (bitwise-ior (if hasdata?  #b1000 #b0000)
+                 (deflation-option->index option)
+                 (if encrypted? #b1 #b0))))
+
+(define zip-permission-attribute : (->* (Nonnegative-Fixnum) (Boolean) Index)
+  (lambda [permission [dir? #false]]
+    (define dos : Byte (if dir? #x10 0))
+    (define unix : Nonnegative-Fixnum (bitwise-ior (if dir? #o40000 0) permission))
+
+    (bitwise-ior dos (unsafe-idxlshift unix 16))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct zip-entry : ZIP-Entry
   ([signature : LUInt32 #:signature #%zip-entry]
-   [extract-version : Byte]
-   [extract-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [extract-version : Byte] ; version = major * 10 + minor
+   [extract-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
-   [lmtime : LUInt16]
-   [lmdate : LUInt16]
-   [crc32 : LUInt32]
-   [csize : LUInt32]
-   [rsize : LUInt32]
+   [mtime : LUInt16]
+   [mdate : LUInt16]
+   [crc32 : LUInt32 #:default 0]
+   [csize : LUInt32 #:default 0]
+   [rsize : LUInt32 #:default 0]
    [filename-length : LUInt16]
    [private-length : LUInt16]
    [filename : (Stringof filename-length)]
-   [privates : (Bytesof private-length)]))
+   [privates : (Bytesof private-length) #:default #""]))
 
 (define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
    [create-version : Byte]
-   [create-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [create-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [extract-version : Byte]
-   [extract-os : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [extract-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
-   [lmtime : LUInt16]
-   [lmdate : LUInt16]
+   [mtime : LUInt16]
+   [mdate : LUInt16]
    [crc32 : LUInt32]
    [csize : LUInt32]
    [rsize : LUInt32]
    [filename-length : LUInt16]
    [private-length : LUInt16]
    [comment-length : LUInt16]
-   [disk-number : LUInt16]
+   [disk-number : LUInt16 #:default 0]
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
    [relative-offset : LUInt32]
    [filename : (Stringof filename-length)]
-   [privates : (Bytesof private-length)]
+   [privates : (Bytesof private-length) #:default #""]
    [comment : (Stringof comment-length)]))
 
 (define-binary-struct zip-end-of-central-directory : ZIP-End-Of-Central-Directory
   ([signature : LUInt32 #:signature #%zip-eocdr]
-   [disk-idx : LUInt16]       ; Number of this disk (for multi-file-zip which is rarely used these days).
-   [cdir0-disk-idx : LUInt16] ; Number of the disk in which the central directory starts
-   [entry-count : LUInt16]    ; Number of entries on this disk 
-   [entry-total : LUInt16]    ; Number of all entries
-   [cdir-size : LUInt32]      ; Size in bytes of the central directory
-   [cdir-offset : LUInt32]    ; Offset of the central directory section
+   [disk-idx : LUInt16 #:default 0]       ; Number of this disk (for multi-file-zip which is rarely used these days).
+   [cdir0-disk-idx : LUInt16 #:default 0] ; Number of the disk in which the central directory starts
+   [entry-count : LUInt16]                ; Number of entries on this disk
+   [entry-total : LUInt16]                ; Number of all entries
+   [cdir-size : LUInt32]                  ; Size in bytes of the central directory
+   [cdir-offset : LUInt32]                ; Offset of the central directory section
    [comment : (LNString 2)]))
+
+(define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
+  ([crc32 : LUInt32]
+   [csize : LUInt32]
+   [rsize : LUInt32]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-seek-local-file-signature : (-> Input-Port (Option Natural))

@@ -87,3 +87,11 @@
                                        (λ [] (unless (file-exists? target)
                                                (make-parent-directory* target)
                                                (call-with-output-file* target void))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
+  (lambda [path]
+    (cond [(relative-path? path) (if (string? path) (string->path path) path)]
+          [else (let ([elements (explode-path path)])
+                  (cond [(or (null? elements) (null? (cdr elements))) (build-path 'same)]
+                        [else (apply build-path (cdr elements))]))])))

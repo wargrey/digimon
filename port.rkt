@@ -136,3 +136,10 @@
         (define n-- (- n pool-size))
         (cond [(<= n-- 0) (read-bytes! /dev/null /dev/stdin 0 n) (void)]
               [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
+  (lambda [/dev/stdio]
+    (with-handlers ([exn:fail? (λ [[e : exn]] (displayln e) #false)])
+      (file-position /dev/stdio (file-position /dev/stdio))
+      #true)))

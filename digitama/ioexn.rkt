@@ -12,6 +12,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:fail:read:signature exn:fail:read () #:extra-constructor-name make-exn:read:signature)
+(struct exn:fail:read:unsupported exn:fail:read () #:extra-constructor-name make-exn:read:unsupported)
 (struct exn:fail:syntax:check exn:fail:syntax () #:extra-constructor-name make-exn:syntax:check)
 (struct exn:fail:syntax:range exn:fail:syntax () #:extra-constructor-name make-exn:syntax:range)
 
@@ -27,6 +28,12 @@
     (raise (make-exn:fail:read:eof (format "~a: unexpected end of file!" (port-name /dev/stdin))
                                    (current-continuation-marks)
                                    null))))
+
+(define throw-unsupported-error : (-> Input-Port Symbol Any * Nothing)
+  (lambda [/dev/stdin src . args]
+    (raise (make-exn:read:unsupported (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
+                                      (current-continuation-marks)
+                                      null))))
 
 (define throw-read-error : (-> Input-Port Symbol Any * Nothing)
   (lambda [/dev/stdin src . args]

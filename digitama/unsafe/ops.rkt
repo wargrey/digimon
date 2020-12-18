@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide unsafe-bytes-ref unsafe-bytes-set!)
-(provide unsafe-fxand unsafe-fxremainder)
+(provide unsafe-fxand unsafe-fxior unsafe-fxremainder)
 (provide (rename-out [unsafe-fx+ unsafe-idx+]
                      [unsafe-fx- unsafe-idx-]
                      [unsafe-fxlshift unsafe-idxlshift]
@@ -17,5 +17,5 @@
  [unsafe-fx+ (-> Nonnegative-Fixnum Nonnegative-Fixnum Index)]
  [unsafe-fx- (case-> [Byte Byte -> Byte]
                      [Nonnegative-Fixnum Nonnegative-Fixnum -> Index])]
- [unsafe-fxlshift (-> Index Fixnum Index)]
- [unsafe-fxrshift (-> Index Byte Index)])
+ [unsafe-fxlshift (-> Nonnegative-Fixnum Fixnum Index)]
+ [unsafe-fxrshift (-> Nonnegative-Fixnum Byte Index)])

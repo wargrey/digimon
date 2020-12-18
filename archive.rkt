@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide Archive-Entry archive-entry? make-archive-entry)
+(provide Archive-Entry archive-entry?)
+(provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
 
@@ -20,6 +21,9 @@
 (define-type (Archive-Entry-Readerof* a b) (-> Input-Port String Boolean Natural a b))
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof* a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof* Void Void))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define archive-no-compression-suffixes : (Parameterof (Listof Symbol)) (make-parameter null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
@@ -114,13 +118,21 @@
           (values (+ csize (zip-entry-csize e)) (+ rsize (zip-entry-rsize e)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-create : (-> (U Path-String Output-Port) Void)
-  (lambda [/dev/zipout]
-    (if (output-port? /dev/zipout)
-        (void)
-        (call-with-output-file* /dev/zipout
-          (λ [[/dev/zipout : Output-Port]]
-            (zip-create /dev/zipout))))))
+(define zip-create : (->* ((U Path-String Output-Port) (Listof Archive-Entry))
+                          (String #:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)) Void)
+  (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
+           out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+    (parameterize ([current-custodian (make-custodian)])
+      (define /dev/zipout : Output-Port (if (output-port? out.zip) out.zip (open-output-file out.zip)))
+      (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
+      (define seekable? : Boolean (port-random-access? /dev/zipout))
+
+      (dynamic-wind void
+                    (λ [] (zip-write-directories /dev/zipout comment
+                                                 (for/list ([e (in-list entries)])
+                                                   (zip-write-entry /dev/zipout e root zip-root px:suffix seekable?))))
+                    (λ [] (custodian-shutdown-all (current-custodian))))
+      (void))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))
@@ -251,12 +263,13 @@
               (λ [[/dev/zipin : Input-Port]]
                 (zip-extract-entry /dev/zipin cdir read-entry datum0)))]
            [(list? cdir) (and (zip-extract-entry /dev/zipin cdir read-entry datum0 (void)) #true)]
-           [else (parameterize ([current-custodian (make-custodian)])
+           [else (parameterize ([current-custodian (make-custodian)]
+                                [current-zip-entry cdir])
                    (begin0 (read-entry (open-input-zip-entry /dev/zipin cdir)
                                        (zip-directory-filename cdir)
                                        (zip-folder-entry? cdir)
-                                       (msdos-datetime->utc-seconds (zip-directory-lmdate cdir)
-                                                                    (zip-directory-lmtime cdir))
+                                       (msdos-datetime->utc-seconds (zip-directory-mdate cdir)
+                                                                    (zip-directory-mtime cdir))
                                        datum0)
                            (custodian-shutdown-all (current-custodian))))])]))
 
@@ -271,28 +284,34 @@
         (unless (void? idx)
           (newline /dev/zipout)))
       
-      (displayln (object-name /dev/zipin))
+      (displayln (object-name /dev/zipin) /dev/zipout)
+      (let ([cdir (current-zip-entry)])
+        (when (zip-directory? cdir)
+          (let ([comment (zip-directory-comment cdir)])
+            (unless (string=? comment "")
+              (displayln comment /dev/zipout)))))
       
       (let hexdump ([pos : Natural 0])
         (define size (read-bytes! magazine /dev/zipin))
 
         (unless (eof-object? size)
           (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
-          (display #\space)
+          (display #\space /dev/zipout)
 
           (for ([b (in-bytes magazine 0 size)])
             (if (not binary?)
-                (display (byte->hex-string b))
-                (display (byte->bin-string b)))
-            (display #\space))
+                (display (byte->hex-string b) /dev/zipout)
+                (display (byte->bin-string b) /dev/zipout))
+            (display #\space /dev/zipout))
 
           (when (< size width)
             (display (~space (* (assert (- width size) byte?)
-                                (if (not binary?) 3 9)))))
+                                (if (not binary?) 3 9)))
+                     /dev/zipout))
           
           (for ([b (in-bytes magazine 0 size)])
             (define ch (integer->char b))
-            (display (if (char-graphic? ch) ch ".")))
+            (display (if (char-graphic? ch) ch ".") /dev/zipout))
           
           (newline /dev/zipout)
           (hexdump (+ pos size))))

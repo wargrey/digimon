@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require (for-syntax racket/base))
+(require (for-syntax racket/list))
 (require (for-syntax racket/syntax))
 (require (for-syntax racket/sequence))
 (require (for-syntax syntax/parse))
@@ -25,7 +26,14 @@
                     [(kw) (cond [(eq? kw 'enum) value] ... [else #false])])))))]
 
     [(_ [id ids] : TypeU [enum ...])
-     (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))])
+     (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
+                   [_ (let ([enums (syntax->list #'[enum ...])])
+                        (for/list ([<enum> (in-value (check-duplicates enums eq? #:key syntax-e))])
+                          (when (syntax? <enum>)
+                            (raise-syntax-error 'define-enumeration "duplicate name" <enum> #false
+                                                (filter (λ [<e>] (and (eq? (syntax-e <e>) (syntax-e <enum>))
+                                                                      (not (eq? <e> <enum>))))
+                                                        enums)))))])
        (syntax/loc stx
          (begin (define-type TypeU (U 'enum ...))
                 (define ids : (Pairof TypeU (Listof TypeU)) (list 'enum ...))

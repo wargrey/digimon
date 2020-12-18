@@ -27,7 +27,7 @@
                    (arithmetic-shift (date-month the-date) 5)
                    (arithmetic-shift (max (- (date-year the-date) 1980) 0) 9)))
     (define msdos-time : Natural
-      (bitwise-ior (quotient (date-second the-date) 2)
+      (bitwise-ior (quotient (+ (date-second the-date) 1) 2) ; round to the future second
                    (arithmetic-shift (date-minute the-date) 5)
                    (arithmetic-shift (date-hour the-date) 11)))
     
