@@ -43,7 +43,7 @@
         ($SHELL 'align)
         (FEED-BITS 32)
         (set! stock (PEEK-BITS 16 #xFFFF))
-        (unless (= stock (bitwise-not (PEEK-BITS 16 #xFFFF 16)))
+        (unless (= stock (unsafe-uint16-not (PEEK-BITS 16 #xFFFF 16)))
           (throw-check-error /dev/blkin ename "stored: invalid block length"))
         (FIRE-BITS 32)))
     

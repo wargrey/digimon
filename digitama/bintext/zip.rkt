@@ -12,6 +12,7 @@
 
 (require "../../port.rkt")
 (require "../../date.rkt")
+(require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define pkzip-compression-methods : (Listof ZIP-Compression-Method) (list 'stored 'deflated))
@@ -30,6 +31,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean (Option ZIP-Directory))
   (lambda [/dev/zipout entry root zip-root px:suffix seekable?]
+    (define entry-source : (U Bytes Path) (archive-entry-src entry))
+    (define file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-filename (archive-entry-name entry) root zip-root))
     (define-values (mdate mtime) (utc-seconds->msdos-datetime (archive-entry-mtime entry)))
 
@@ -52,26 +55,63 @@
     (define position : Natural (file-position /dev/zipout))
     (define self-local : ZIP-Entry
       (make-zip-entry #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
-                      #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
+                      #:filename (if (not file?) (path->string (path->directory-path entry-name)) entry-name)
+                      #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
 
-    (define-values (crc32 csize rsize)
-      (if (not seekable?)
-          (let ()
-            (write-zip-entry self-local /dev/zipout)
-            (values 0 0 0))
-          (let ([self-size (sizeof-zip-entry self-local)])
-            (file-position /dev/zipout (+ position self-size))
-            (file-position /dev/zipout position)
-            (write-zip-entry self-local /dev/zipout)
-            (values 0 0 0))))
+    (define sizes : ZIP-Data-Descriptor
+      (cond [(not file?)
+             (write-zip-entry self-local /dev/zipout)
+             (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
+            [(not seekable?)
+             (write-zip-entry self-local /dev/zipout)
+             (let ([desc (zip-write-file-entry-content /dev/zipout entry-source method)])
+               (write-zip-data-descriptor desc /dev/zipout)
+               desc)]
+            [else
+             (let* ([self-size (sizeof-zip-entry self-local)]
+                    [desc (zip-write-file-entry-content /dev/zipout entry-source method (+ position self-size))])
+               (file-position /dev/zipout position)
+               (write-zip-entry (remake-zip-entry self-local
+                                                  #:crc32 (zip-data-descriptor-crc32 desc)
+                                                  #:csize (zip-data-descriptor-csize desc)
+                                                  #:rsize (zip-data-descriptor-rsize desc))
+                                /dev/zipout)
+               (file-position /dev/zipout (+ position self-size (zip-data-descriptor-csize desc)))
+               desc)]))
     
     (make-zip-directory #:create-system pkzip-host-system #:create-version pkzip-digimon-version
                         #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
-                        #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
-                        #:crc32 crc32 #:csize csize #:rsize rsize #:relative-offset (assert position index?)
+                        #:filename (zip-entry-filename self-local) #:relative-offset (assert position index?)
+                        #:crc32 (zip-data-descriptor-crc32 sizes) #:csize (zip-data-descriptor-csize sizes) #:rsize (zip-data-descriptor-rsize sizes)
+                        #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
                         #:internal-attributes (if (archive-entry-ascii? entry) #b1 #b0)
-                        #:external-attributes (zip-permission-attribute (archive-entry-permission entry))
+                        #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not file?))
                         #:comment (or (archive-entry-comment entry) ""))))
+
+(define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) ZIP-Compression-Method) ((Option Natural)) ZIP-Data-Descriptor)
+  (let* ([pool-size : Index 4096]
+         [pool : Bytes (make-bytes pool-size)])
+    (lambda [/dev/zipout source method [seek #false]]
+      (when (exact-integer? seek)
+        (file-position /dev/zipout seek))
+      
+      (define-values (crc32 csize rsize)
+        (case method
+          [else #| stored |#
+           (if (bytes? source)
+               (let ([size (write-bytes source /dev/zipout)])
+                 (values (checksum-crc32 source 0 size) size size))
+               (let store : (Values Index Natural Natural) ([/dev/zipin (open-input-file source)]
+                                                            [size : Natural 0]
+                                                            [crc32 : Index 0])
+                 (define read : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+                 (cond [(eof-object? read) (values crc32 size size)]
+                       [else (let ([wrote (write-bytes pool /dev/zipout 0 read)])
+                               (store /dev/zipin (+ size wrote) (checksum-crc32* pool crc32 0 wrote)))])))]))
+
+      (make-zip-data-descriptor #:crc32 (assert crc32 index?)
+                                #:csize (assert csize index?)
+                                #:rsize (assert rsize index?)))))
 
 (define zip-write-directories : (-> Output-Port (Option String) (Listof (Option ZIP-Directory)) Natural)
   (lambda [/dev/zipout comment cdirs]

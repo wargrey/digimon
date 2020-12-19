@@ -25,7 +25,7 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-file-entry : (->* ((U Bytes String))
+(define make-archive-file-entry : (->* ((U Bytes String Path))
                                        (#:alt-name (Option String) #:ascii? Boolean #:methods (Listof Symbol) #:options (Listof Symbol) #:comment (Option String))
                                        Archive-Entry)
   (lambda [src #:alt-name [name #false] #:ascii? [ascii? #true] #:methods [methods null] #:options [options null] #:comment [comment #false]]
