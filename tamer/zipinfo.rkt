@@ -147,7 +147,7 @@
 
 (define zip-datetime : (-> Index Index Boolean String)
   (lambda [date time T?]
-    (define the-date (seconds->date (msdos-datetime->utc-seconds date time) #false))
+    (define the-date (seconds->date (msdos-datetime->utc-seconds date time #true) #true))
 
     (if (not T?)
         (date->string the-date #true)

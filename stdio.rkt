@@ -98,14 +98,14 @@
 
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
-    [(_ header : Header ([field : DataType metainfo ...] ...))
-     (with-syntax* ([constructor (format-id #'header "~a" (gensym (format "~a:" (syntax-e #'header))))]
-                    [make-header (format-id #'header "make-~a" (syntax-e #'header))]
-                    [remake-header (format-id #'header "remake-~a" (syntax-e #'header))]
-                    [header? (format-id #'header "~a?" (syntax-e #'header))]
-                    [sizeof-header (format-id #'header "sizeof-~a" (syntax-e #'header))]
-                    [read-header (format-id #'header "read-~a" (syntax-e #'header))]
-                    [write-header (format-id #'header "write-~a" (syntax-e #'header))]
+    [(_ layout+super : Layout ([field : DataType metainfo ...] ...) options ...)
+     (with-syntax* ([(layout super ...) (let ([id+super (syntax-e #'layout+super)]) (if (symbol? id+super) (list #'layout+super) id+super))]
+                    [constructor (format-id #'layout "~a" (gensym (format "~a:" (syntax-e #'layout))))]
+                    [make-layout (format-id #'layout "make-~a" (syntax-e #'layout))]
+                    [remake-layout (format-id #'layout "remake-~a" (syntax-e #'layout))]
+                    [sizeof-layout (format-id #'layout "sizeof-~a" (syntax-e #'layout))]
+                    [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
+                    [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
                     [([[defval ...] signature?] ...)
                      (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))])
                        (stdio-field-metainfo <metainfo>))]
@@ -135,7 +135,7 @@
                      (let ([autofields (syntax->datum #'(auto-field ...))])
                        (for/list ([<field> (in-syntax #'(field ...))])
                          (define field (syntax-e <field>))
-                         (list (format-id <field> "~a-~a" (syntax-e #'header) field)
+                         (list (format-id <field> "~a-~a" (syntax-e #'layout) field)
                                (and (memq field autofields) #true))))]
                     [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...])
                      (let*-values ([(auto-fields) (append (syntax->datum #'(sig-field ...)) (syntax->datum #'(auto-field ...)))]
@@ -154,23 +154,24 @@
                                                             (cons (list <field> <ref>) sdleif)))]))])
                        (list args reargs (reverse sdleif)))])
        (syntax/loc stx
-         (begin (struct header ([field : FieldType] ...)
+         (begin (struct layout super ... ([field : FieldType] ...)
                   #:constructor-name constructor
-                  #:type-name Header
-                  #:transparent)
+                  #:type-name Layout
+                  #:transparent
+                  options ...)
 
-                (define (make-header kw-args ...) : Header
+                (define (make-layout kw-args ...) : Layout
                   (let ([sig-field magic-number] ...
                         [auto-field (field->value target-field)] ...)
                     (constructor field ...)))
 
-                (define (remake-header [src : Header] kw-reargs ...) : Header
+                (define (remake-layout [src : Layout] kw-reargs ...) : Layout
                   (let* ([sig-field magic-number] ...
                          [man-field (or man-field (man-ref src))] ...
                          [auto-field (field->value target-field)] ...)
                     (constructor field ...)))
 
-                (define sizeof-header : (->* () ((Option Header)) Natural)
+                (define sizeof-layout : (->* () ((Option Layout)) Natural)
                   (let ([size0 (apply + (map abs (filter exact-integer? '(integer-size ...))))])
                     (lambda [[instance #false]]
                       (cond [(not instance) size0]
@@ -178,18 +179,18 @@
                                          (list (field-size (field-ref instance))
                                                ...))]))))
 
-                (define read-header : (->* () (Input-Port (Option Integer)) Header)
+                (define read-layout : (->* () (Input-Port (Option Integer)) Layout)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
                     (lambda [[/dev/stdin (current-input-port)] [posoff #false]]
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (call-datum-reader* [signature? /dev/stdin read-header defval ...]
+                      (let* ([field (call-datum-reader* [signature? /dev/stdin read-layout defval ...]
                                                         [raw->datum ...]
                                                         read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
-                (define write-header : (->* (Header) (Output-Port (Option Natural)) Natural)
+                (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
                   (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))

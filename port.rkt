@@ -140,6 +140,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
   (lambda [/dev/stdio]
-    (with-handlers ([exn:fail? (λ [[e : exn]] (displayln e) #false)])
+    (with-handlers ([exn:fail? (λ [[e : exn]] #false)])
       (file-position /dev/stdio (file-position /dev/stdio))
       #true)))

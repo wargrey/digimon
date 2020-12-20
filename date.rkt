@@ -32,3 +32,7 @@
                    (arithmetic-shift (date-hour the-date) 11)))
     
     (values (assert msdos-date index?) (assert msdos-time index?))))
+
+(define time-zone-utc-bias-seconds : (-> Integer)
+  (lambda []
+    (date-time-zone-offset (seconds->date (current-seconds) #true))))

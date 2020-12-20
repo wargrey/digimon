@@ -81,9 +81,9 @@
    [csize : LUInt32 #:default 0]
    [rsize : LUInt32 #:default 0]
    [filename-length : LUInt16]
-   [private-length : LUInt16]
+   [metainfo-length : LUInt16]
    [filename : (Stringof filename-length)]
-   [privates : (Bytesof private-length) #:default #""]))
+   [metainfo : (Bytesof metainfo-length) #:default #""]))
 
 (define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
@@ -99,14 +99,14 @@
    [csize : LUInt32]
    [rsize : LUInt32]
    [filename-length : LUInt16]
-   [private-length : LUInt16]
+   [metainfo-length : LUInt16]
    [comment-length : LUInt16]
    [disk-number : LUInt16 #:default 0]
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
    [relative-offset : LUInt32]
    [filename : (Stringof filename-length)]
-   [privates : (Bytesof private-length) #:default #""]
+   [metainfo : (Bytesof metainfo-length) #:default #""]
    [comment : (Stringof comment-length)]))
 
 (define-binary-struct zip-end-of-central-directory : ZIP-End-Of-Central-Directory
@@ -123,6 +123,56 @@
   ([crc32 : LUInt32]
    [csize : LUInt32]
    [rsize : LUInt32]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Extensible data fields, 0x0 - 0x31 are reserved by PKWARE
+
+(struct zip-metainfo () #:type-name ZIP-Metainfo)
+
+(define-binary-struct zip-metainfo-header : ZIP-Metainfo-Header
+  ([id : LUInt16]
+   [size : LUInt16]))
+
+(define read-zip-metainfos : (-> Bytes (Listof ZIP-Metainfo))
+  (lambda [block]
+    (define total : Index (bytes-length block))
+    (define /dev/zipin : Input-Port (open-input-bytes block))
+    
+    (let read-metainfo ([sofni : (Listof ZIP-Metainfo) null]
+                        [idx : Nonnegative-Fixnum 0])
+      (cond [(>= idx total) (reverse sofni)]
+            [else (let ([header (read-zip-metainfo-header /dev/zipin)])
+                    (define idx++ : Nonnegative-Fixnum
+                      (+ (unsafe-idx+ idx (sizeof-zip-metainfo-header))
+                         (zip-metainfo-header-size header)))
+                    
+                    (define maybe-info
+                      (case (zip-metainfo-header-id header)
+                        ;[(#x0001) (read-zip64-extended-info /dev/zipin)]
+                        ;[(#x0007) (read-zip-av-info /dev/zipin)]
+                        ;[(#x0008) (read-zip-language-info /dev/zipin)]
+                        ;[(#x0009) (read-zip-os/2-info /dev/zipin)]
+                        ;[(#x000A) (read-zip-ntfs-info /dev/zipin)]
+                        ;[(#x000C) (read-zip-openvms-info /dev/zipin)]
+                        ;[(#x000D) (read-zip-unix-info /dev/zipin)]
+                        ;[(#x000E) (read-zip-fork-descriptor /dev/zipin)]
+                        ;[(#x000F) (read-zip-patch-descriptor /dev/zipin)]
+                        ;[(#x0014) (read-zip-pkcs#7-info /dev/zipin)]
+                        ;[(#x0015) (read-zip-file-x509-info /dev/zipin)]
+                        ;[(#x0016) (read-zip-directory-x509-info /dev/zipin)]
+                        ;[(#x0017) (read-zip-strong-encryption-header /dev/zipin)]
+                        ;[(#x0018) (read-zip-record-management-controls /dev/zipin)]
+                        ;[(#x0019) (read-zip-pkcs#7-list /dev/zipin)]
+                        ;[(#x0020) (read-zip-timestamp-record /dev/zipin)]
+                        ;[(#x0021) (read-zip-policy-decryption-key-record /dev/zipin)]
+                        ;[(#x0022) (read-zip-smartcrypt-key-provider-record /dev/zipin)]
+                        ;[(#x0023) (read-zip-smartcrypt-policy-key-record /dev/zipin)]
+                        ;[(#x0065) (read-zip-ibm-attributes/raw /dev/zipin)]
+                        ;[(#x0066) (read-zip-ibm-attributes/compressed /dev/zipin)]
+                        ;[(#x4690) (read-zip-poszip-info /dev/zipin)]
+                        [else (port-seek /dev/zipin idx++)]))
+
+                    (read-metainfo (if (zip-metainfo? maybe-info) (cons maybe-info sofni) sofni) idx++))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-seek-local-file-signature : (-> Input-Port (Option Natural))

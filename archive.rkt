@@ -274,9 +274,10 @@
                            (custodian-shutdown-all (current-custodian))))])]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-hexdump-entry-reader : (->* () (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean)
+(define make-archive-hexdump-entry-reader : (->* ()
+                                                 (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:metainfo? Boolean)
                                                  (Archive-Entry-Readerof (U Void Natural)))
-  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false]]
+  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:metainfo? [metainfo? #true]]
     (define magazine : Bytes (make-bytes width))
     
     (λ [/dev/zipin entry directory? timestamp idx]
@@ -285,11 +286,16 @@
           (newline /dev/zipout)))
       
       (displayln (object-name /dev/zipin) /dev/zipout)
+      
       (let ([cdir (current-zip-entry)])
         (when (zip-directory? cdir)
           (let ([comment (zip-directory-comment cdir)])
             (unless (string=? comment "")
-              (displayln comment /dev/zipout)))))
+              (displayln comment /dev/zipout)))
+
+          (unless (not metainfo?)
+            (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
+              (displayln info)))))
       
       (let hexdump ([pos : Natural 0])
         (define size (read-bytes! magazine /dev/zipin))

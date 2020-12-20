@@ -18,7 +18,7 @@
    [ascii? : Boolean]
    [methods : (Listof Symbol)]
    [options : (Listof Symbol)]
-   [mtime : Integer]
+   [utc-time : (Option Integer)]
    [permission : Nonnegative-Fixnum]
    [comment : (Option String)])
   #:type-name Archive-Entry
@@ -41,9 +41,9 @@
 
 (define make-archive-ascii-entry : (->* ((U Bytes String))
                                         ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Symbol)
-                                                              #:mtime Integer #:permission Nonnegative-Fixnum #:comment (Option String))
+                                                              #:utc-time (Option Integer) #:permission Nonnegative-Fixnum #:comment (Option String))
                                         Archive-Entry)
-  (lambda [#:mtime [mtime 0] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
+  (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
            src [name #false]]
     (archive-entry (if (string? src) (string->bytes/utf-8 src) src)
                    (or name (symbol->immutable-string (gensym 'ascii)))
@@ -52,9 +52,9 @@
 
 (define make-archive-binary-entry : (->* ((U Bytes String))
                                          ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Symbol)
-                                                               #:mtime Integer #:permission Nonnegative-Fixnum #:comment (Option String))
+                                                               #:utc-time (Option Integer) #:permission Nonnegative-Fixnum #:comment (Option String))
                                          Archive-Entry)
-  (lambda [#:mtime [mtime 0] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
+  (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
            src [name #false]]
     (archive-entry (if (string? src) (string->bytes/utf-8 src) src)
                    (or name (symbol->immutable-string (gensym 'binary)))
@@ -71,10 +71,13 @@
           [(symbol? name) (symbol->immutable-string name)]
           [else (format "~a" name)])))
 
-(define archive-entry-filename : (-> Path-String (Option Path-String) (Option Path-String) String)
-  (lambda [name root zip-root]
-    (cond [(equal? name "") (assert name string?)] ; the source is the stdin
-          [else (let ([rpath (cond [(relative-path? name) name]
+(define archive-entry-reroot : (->* (Path-String (Option Path-String) (Option Path-String)) ((Option Symbol)) String)
+  (lambda [name root zip-root [gen-stdin-name #false]]
+    (define stdin? : Boolean (equal? name ""))
+    
+    (cond [(and stdin? (not gen-stdin-name)) ""]
+          [else (let* ([name (if (not stdin?) name (symbol->immutable-string (gensym gen-stdin-name)))]
+                       [rpath (cond [(relative-path? name) name]
                                    [(not (path-string? root)) (find-root-relative-path name)]
                                    [else (find-relative-path (simple-form-path root) (simplify-path name)
                                                              #:more-than-root? #false ; relative to root

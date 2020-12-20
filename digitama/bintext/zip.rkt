@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
+(require racket/string)
 
 (require "zipinfo.rkt")
 (require "deflate.rkt")
@@ -32,18 +32,19 @@
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean (Option ZIP-Directory))
   (lambda [/dev/zipout entry root zip-root px:suffix seekable?]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
-    (define file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
-    (define entry-name : String (archive-entry-filename (archive-entry-name entry) root zip-root))
-    (define-values (mdate mtime) (utc-seconds->msdos-datetime (archive-entry-mtime entry)))
+    (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
+    (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
+    (define-values (mdate mtime) (utc-seconds->msdos-datetime (or (archive-entry-utc-time entry) (current-seconds)) #true))
 
     (define method : ZIP-Compression-Method
-      (let check-method ([ms : (Listof Symbol) (archive-entry-methods entry)])
-        (cond [(pair? ms)
-               (let ([candidates (memq (car ms) pkzip-compression-methods)])
-                 (cond [(not candidates) (check-method (cdr ms))]
-                       [else (car candidates)]))]
-              [(regexp-match? px:suffix entry-name) 'stored]
-              [else (values 'deflated)])))
+      (cond [(not regular-file?) 'stored]
+            [else (let check-method ([ms : (Listof Symbol) (archive-entry-methods entry)])
+                    (cond [(pair? ms)
+                           (let ([candidates (memq (car ms) pkzip-compression-methods)])
+                             (cond [(not candidates) (check-method (cdr ms))]
+                                   [else (car candidates)]))]
+                          [(regexp-match? px:suffix entry-name) 'stored]
+                          [else 'deflated]))]))
 
     (define flag : Index
       (case method
@@ -55,11 +56,10 @@
     (define position : Natural (file-position /dev/zipout))
     (define self-local : ZIP-Entry
       (make-zip-entry #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
-                      #:filename (if (not file?) (path->string (path->directory-path entry-name)) entry-name)
-                      #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
+                      #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
 
     (define sizes : ZIP-Data-Descriptor
-      (cond [(not file?)
+      (cond [(not regular-file?)
              (write-zip-entry self-local /dev/zipout)
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
@@ -85,7 +85,7 @@
                         #:crc32 (zip-data-descriptor-crc32 sizes) #:csize (zip-data-descriptor-csize sizes) #:rsize (zip-data-descriptor-rsize sizes)
                         #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
                         #:internal-attributes (if (archive-entry-ascii? entry) #b1 #b0)
-                        #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not file?))
+                        #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
 (define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) ZIP-Compression-Method) ((Option Natural)) ZIP-Data-Descriptor)
@@ -149,10 +149,16 @@
       [else (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-path-normalize : (-> Path-String String)
+(define zip-path-normalize : (case-> [Path-String -> String]
+                                     [Path-String Boolean -> String])
   (let ([pxwin-separator #rx"\\\\"])
-    (lambda [filename]
-      (cond [(string? filename) (regexp-replace* pxwin-separator filename "/")]
-            [else (case (path-convention-type filename)
-                    [(windows) (regexp-replace* pxwin-separator (path->string filename) "/")]
-                    [else (path->string filename)])]))))
+    (case-lambda
+      [(filename)
+       (cond [(string? filename) (regexp-replace* pxwin-separator filename "/")]
+             [else (case (path-convention-type filename)
+                     [(windows) (regexp-replace* pxwin-separator (path->string filename) "/")]
+                     [else (path->string filename)])])]
+      [(filename regular-file?)
+       (cond [(not regular-file?) (zip-path-normalize (path->directory-path filename))]
+             [(string? filename) (zip-path-normalize (string-trim filename #rx"(/|\\\\)$" #:left? #false #:right? #true #:repeat? #false))]
+             [else (zip-path-normalize (path->string filename) regular-file?)])])))

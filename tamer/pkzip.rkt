@@ -9,7 +9,7 @@
   (list (make-archive-file-entry (collection-file-path "tamer" "digimon") #:alt-name "folder/digimon/tamer" #:methods '(stored))
         (make-archive-file-entry (collection-file-path "pkzip.rkt" "digimon" "tamer") #:alt-name "stored/pkzip.rkt" #:methods '(stored))
         (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
-        (make-archive-binary-entry #"stored data from stdin" "" #:methods '(stored))))
+        (make-archive-binary-entry #"the stored data from stdin will be renamed randomly, or `unzip` will re-use another entry's name" "" #:methods '(stored))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
