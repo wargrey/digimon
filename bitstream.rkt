@@ -4,7 +4,6 @@
 
 (require "digitama/bitstream.rkt")
 (require "digitama/unsafe/ops.rkt")
-(require "number.rkt")
 
 ;;; https://fgiesen.wordpress.com/2018/02/19/reading-bits-in-far-too-many-ways-part-1
 ;;; https://fgiesen.wordpress.com/2018/02/19/reading-bits-in-far-too-many-ways-part-2
@@ -42,7 +41,7 @@
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define feed-bits : (->* (Byte) ((U Input-Port (-> Input-Port))) Boolean)
       (lambda [nbits [/dev/bsin /dev/defin]]
-        (cond [(< pwidth nbits) (load-bits nbits /dev/bsin)]
+        (cond [(< pwidth nbits) (draw-bits nbits /dev/bsin)]
               [else #true])))
 
     (define peek-bits : (case-> [Byte Index Byte -> Index]
@@ -51,9 +50,9 @@
                                 [Byte Byte -> Byte]
                                 [Byte -> Index])
       (case-lambda
-        [(nbits fast-mask skip) (unsafe-fxand (unsafe-idxrshift payload skip) fast-mask)]
-        [(nbits fast-mask) (unsafe-fxand payload fast-mask)]
-        [(nbits) (unsafe-fxand payload (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]))
+        [(nbits fast-mask skip) (bitwise-and (unsafe-idxrshift payload skip) fast-mask)]
+        [(nbits fast-mask) (bitwise-and payload fast-mask)]
+        [(nbits) (bitwise-and payload (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]))
 
     (define fire-bits : (-> Byte Void)
       (lambda [nbits]
@@ -66,7 +65,7 @@
       #:ingredients [magazine mgz-payload mgz-start payload pwidth]
       #:operation [peek-bits feed-bits fire-bits])
 
-    (define (load-bits [nbits : Byte] [/dev/?in : (U Input-Port (-> Input-Port))]) : Boolean
+    (define (draw-bits [nbits : Byte] [/dev/?in : (U Input-Port (-> Input-Port))]) : Boolean
       (if (< mgz-start mgz-payload)
           (let ([v (unsafe-bytes-ref magazine mgz-start)])
             (set! payload (unsafe-idx+ payload (unsafe-idxlshift v pwidth))) ; <= LSB
@@ -90,53 +89,70 @@
                    [?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start mgz-end)])
               (cond [(and (fixnum? ?n) (> ?n 0))
                      (set! mgz-payload (unsafe-idx+ mgz-start ?n))
-                     (load-bits nbits /dev/bsin)]
+                     (draw-bits nbits /dev/bsin)]
                     [(or (eq? ?n 0) (eof-object? ?n)) ; the bitstream is infinite by design
                      (unsafe-bytes-set! magazine mgz-start eof-byte)
                      (set! mgz-payload (unsafe-idx+ mgz-start 1))
-                     (load-bits nbits /dev/bsin)
+                     (draw-bits nbits /dev/bsin)
                      #false]
-                    [else #| skip special values |# (load-bits nbits /dev/bsin)])))))
+                    [else #| skip special values |# (draw-bits nbits /dev/bsin)])))))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
     (values feed-bits peek-bits fire-bits bs-shell)))
 
-
-(define make-output-lsb-bitstream : (->* ((U Output-Port (-> Output-Port))) (Integer)
+(define make-output-lsb-bitstream : (->* ((U Output-Port (-> Output-Port))) (Integer Byte)
                                          (Values (case-> [Integer Byte Index -> Void]
                                                          [Integer Byte -> Void])
-                                                 (->* () ((U Output-Port (-> Output-Port))) Index)
+                                                 (->* () (#:windup? Boolean (U Output-Port (-> Output-Port))) Index)
                                                  (->* (BitStream-Output-Shell) ((U Output-Port (-> Output-Port))) Void)))
-  (lambda [/dev/defout [mgz-size 8]]
-    (define mgz-capacity : Positive-Integer (max mgz-size 1))
-    (define magazine (make-bytes mgz-capacity))
+  (lambda [/dev/defout [tank-size 4096] [calibre-in-byte 4]]
+    (define tank-capacity : Index (assert (max tank-size 1) index?))
+    (define tank : Bytes (make-bytes tank-capacity))
+    (define tank-payload : Index 0)
     
-    (define payload : Index 0)     ; bit buffer
-    (define pwidth : Index 0)      ; bits in bit buffer
-
+    (define payload : Natural 0) ; bit buffer
+    (define pwidth : Index 0)    ; bits in bit buffer
+    (define calibre : Index (* calibre-in-byte 8))
+    
+    (define inject-maxidx : Index
+      (assert (max (- tank-capacity calibre-in-byte) 0) index?))
+    
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define push-bits : (case-> [Integer Byte Index -> Void]
                                 [Integer Byte -> Void])
       (case-lambda
-        [(n nbits fast-mask)
-         (set! payload (unsafe-idx+ payload (unsafe-idxlshift (unsafe-fxand n fast-mask) pwidth)))
-         (set! pwidth (unsafe-idx+ pwidth nbits))]
         [(n nbits)
-         (push-bits n nbits (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]))
+         (push-bits n nbits (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]
+        [(n nbits fast-mask)
+         (inject-bits (+ payload (arithmetic-shift (unsafe-fxand n fast-mask) pwidth))
+                      (unsafe-idx+ pwidth nbits)
+                      tank-payload)]))
+    
+    (define send-bits : (->* () ((U Output-Port (-> Output-Port)) #:windup? Boolean) Index)
+      (lambda [[/dev/?out /dev/defout] #:windup? [windup? #false]]
+        (define /dev/bsout : Output-Port (if (output-port? /dev/?out) /dev/?out (/dev/?out)))
 
-    (define flush-bits : (->* () ((U Output-Port (-> Output-Port))) Index)
-      (lambda [[/dev/?out /dev/defout]]
-        (cond [(<= pwidth 0) 0]
-              [else (let ([/dev/bsout (if (output-port? /dev/?out) /dev/?out (/dev/?out))])
-                      (begin0 (cond [(<= pwidth 8) (write-byte payload /dev/bsout) 1]
-                                    [else (let*-values ([(q r) (quotient/remainder pwidth 8)]
-                                                        [(bsize) (if (> r 0) (unsafe-idx+ q 1) q)])
-                                            (write-bytes (natural->memory-bytes payload bsize (and (<= bsize mgz-capacity) magazine) 0)
-                                                         /dev/bsout 0 bsize))])
+        (unsafe-idx+
+         (let flush ([count : Index 0])
+           (inject-bits payload pwidth tank-payload)
+           (cond [(<= tank-payload 0) count]
+                 [else (let ([delta (write-bytes tank /dev/bsout 0 tank-payload)])
+                         (set! tank-payload 0)
+                         (flush (unsafe-idx+ count delta)))]))
 
-                              (set! payload 0)
-                              (set! pwidth 0)))])))
+
+         (cond [(not windup?) 0]
+               [else (let windup : Index ([pwidth-- : Index pwidth]
+                                          [payload-- : Natural payload]
+                                          [count : Index 0])
+                       (cond [(> pwidth-- 8)
+                              (write-byte (bitwise-and payload #xFF) /dev/bsout)
+                              (windup (unsafe-idx- pwidth-- 8) (unsafe-idxrshift payload-- 8) (unsafe-idx+ count 1))]
+                             [(> pwidth-- 0)
+                              (write-byte payload-- /dev/bsout)
+                              (windup 0 0 (unsafe-idx+ count 1))]
+                             [else (set!-values (payload pwidth) (values 0 0)) count]))]))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define-bitstream-shell bs-shell (#:-> BitStream-Output-Shell Void)
@@ -144,4 +160,18 @@
       #:ingredients [payload pwidth]
       #:operation [push-bits flush-bits])
 
-    (values push-bits flush-bits bs-shell)))
+    (define (inject-bits [payload++ : Natural] [pwidth++ : Index] [idx : Index]) : Void
+      (if (and (>= pwidth++ calibre) (< idx inject-maxidx))
+          (case calibre-in-byte
+            [(8) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFFFFFFFFFF) 8 #false #false tank idx)
+                 (inject-bits (arithmetic-shift payload++ -64) (unsafe-idx- pwidth++ 64) (unsafe-idx+ idx 8))]
+            [(4) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFF) 4 #false #false tank idx)
+                 (inject-bits (arithmetic-shift payload++ -32) (unsafe-idx- pwidth++ 32) (unsafe-idx+ idx 4))]
+            [(2) (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
+                 (unsafe-bytes-set! tank (+ idx 1) (bitwise-and (arithmetic-shift payload++ -8) #xFF))
+                 (inject-bits (arithmetic-shift payload++ -16) (unsafe-idx- pwidth++ 16) (unsafe-idx+ idx 2))]
+            [else (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
+                  (inject-bits (arithmetic-shift payload++ -8) (unsafe-idx- pwidth++ 8) (unsafe-idx+ idx 1))])
+          (set!-values (payload pwidth tank-payload) (values payload++ pwidth++ idx))))
+
+    (values push-bits send-bits bs-shell)))

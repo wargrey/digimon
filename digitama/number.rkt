@@ -58,10 +58,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (integer->msb-octets stx)
   (syntax-case stx [:]
-    [(_ mpint #: (N bsize) #:-> bmpint #:at offset)
+    [(_ mpint0 #: (N bsize) #:-> bmpint #:at offset)
      (syntax/loc stx
        (let integer->octets ([sth : Nonnegative-Fixnum (+ bsize offset)]
-                             [mpint : N mpint])
+                             [mpint : N mpint0])
          (or (let ([sth-8 : Fixnum (- sth 8)])
                (and (>= sth-8 offset)
                     (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #true bmpint sth-8)
@@ -83,10 +83,6 @@
      (syntax/loc stx
        (let octets->integer ([idx : Index (assert start index?)]
                              [x : N x0])
-         (define idx+8 : Nonnegative-Fixnum (+ idx 8))
-         (define idx+4 : Nonnegative-Fixnum (+ idx 4))
-         (define idx+1 : Nonnegative-Fixnum (+ idx 1))
-         
          (or (let ([idx+8 : Nonnegative-Fixnum (+ idx 8)])
                (and (<= idx+8 end)
                     (octets->integer idx+8 (bitwise-ior (arithmetic-shift x 64) (integer-bytes->integer bmpint #false #true idx idx+8)))))
@@ -101,11 +97,11 @@
 
 (define-syntax (integer->lsb-octets stx)
   (syntax-case stx [:]
-    [(_ mpint #: (N bsize) #:-> bmpint #:at offset)
+    [(_ mpint0 #: (N bsize) #:-> bmpint #:at offset)
      (syntax/loc stx
        (let ([end : Index (assert (+ bsize offset) index?)])
          (let integer->octets ([sth : Index offset]
-                               [mpint : N mpint])
+                               [mpint : N mpint0])
            (or (let ([sth+8 : Nonnegative-Fixnum (+ sth 8)])
                  (and (<= sth+8 end)
                       (integer->integer-bytes (bitwise-and mpint #xFFFFFFFFFFFFFFFF) 8 #false #false bmpint sth)

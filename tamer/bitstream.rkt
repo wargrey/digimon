@@ -5,13 +5,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/bsout (open-output-bytes))
-(define-values (push-bits flush-bits _) (make-output-lsb-bitstream /dev/bsout))
+(define-values (push-bits send-bits _) (make-output-lsb-bitstream /dev/bsout))
 
 (push-bits #b1101  4)
 (push-bits #b110   3)
 (push-bits #b1011  4)
 (push-bits #b10001 5)
-(flush-bits)
+(send-bits #:windup? #true)
 
 (define bs (get-output-bytes /dev/bsout #false))
 
