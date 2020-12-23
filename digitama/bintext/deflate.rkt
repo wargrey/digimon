@@ -8,16 +8,91 @@
 (provide (all-defined-out))
 
 (require "../ioexn.rkt")
+(require "../evt.rkt")
 
 (require "../../port.rkt")
 (require "../../bitstream.rkt")
+(require "../../format.rkt")
 
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-output-deflated-block : (-> Output-Port Index Output-Port)
-  (lambda [/dev/zipout blocksize]
-    /dev/zipout))
+(define open-output-deflated-block : (->* (Output-Port Index) (Boolean) Output-Port)
+  (lambda [/dev/zipout blocksize [close-orig? #false]]
+    (define-values (PUSH-BITS SEND-BITS $SHELL) (make-output-lsb-bitstream /dev/zipout))
+    (define name : Symbol '/dev/dfbout)
+    (define huffman-block : Bytes (make-bytes blocksize))
+    (define huffman-payload : Index 0)
+
+    ;;; WARNING:
+    ; the port counts its position starting from 1,
+    ; whereas `file-position` reports it from 0... 
+    (define huffman-size : Positive-Integer 1)
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define (huffman-write-stored-block! [bsrc : Bytes] [BFINAL : (U One Zero)] [start : Index] [end : Index]) : Any
+      (define size : Index (unsafe-idx- end start))
+
+      (PUSH-BITS BFINAL 3 #b111)
+      ($SHELL 'align)
+      (PUSH-BITS size 16 #xFFFF)
+      (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
+
+      (for ([b (in-bytes bsrc start end)])
+        (PUSH-BITS b)))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define (block-flush [BFINAL : (U One Zero)] [payload : Index] [add-empty-block? : Boolean]) : Void
+      (cond [(> payload 0) (huffman-write-stored-block! huffman-block BFINAL 0 payload)]
+            [(and add-empty-block?) (huffman-write-stored-block! huffman-block BFINAL 0 0)])
+
+      (set! huffman-size (+ huffman-size (SEND-BITS #:windup? (= BFINAL #b1))))
+      (set! huffman-payload 0))
+    
+    (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
+      (define src-size : Integer (- end start))
+      
+      (if (<= src-size 0)
+          ;;; NOTE
+          ; By design, a terminate block would be inserted when flushing the port,
+          ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is #false;
+          
+          ; But when performing a non-block writing with an empty bytes,
+          ; say, via `write-bytes-avail*`, it would reach here too, and
+          ; the `non-block/buffered?` is #true. So that, doing flush as
+          ; usual but do not insert the block as the final one.
+          (block-flush (if (not non-block/buffered?) #b1 #b0) huffman-payload #true)
+          
+          (let deflate ([src-size : Natural src-size]
+                        [start : Natural start]
+                        [available : Index (unsafe-idx- blocksize huffman-payload)])
+            (if (< src-size available)
+                (begin
+                  (bytes-copy! huffman-block huffman-payload bs start end)
+                  (set! huffman-payload (unsafe-idx+ huffman-payload src-size)))
+                (let ([end (+ start available)])
+                  (bytes-copy! huffman-block huffman-payload bs start end)
+                  (block-flush #b0 blocksize #false)
+                  (when (> src-size available)
+                    (deflate (unsafe-idx- src-size available) end blocksize))))))
+
+      ; Conventionally, non-block writing implies flush
+      (unless (not non-block/buffered?)
+        (block-flush #b0 huffman-payload #false))
+      
+      (- end start))
+
+    (define (block-close) : Void
+      (block-flush #b1 huffman-payload #false)
+      
+      (unless (not close-orig?)
+        (close-output-port /dev/zipout)))
+    
+    (make-output-port name always-evt block-write block-close
+                      #false port-always-write-evt #false
+                      #false void
+                      (λ [] huffman-size)
+                      #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-input-deflated-block : (->* (Input-Port Natural) (Boolean #:name String #:error-name Symbol #:commit? Boolean) Input-Port)
@@ -29,36 +104,36 @@
     (define stock : Index 0)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define huffman-read-block-header! : (-> (Values Symbol Boolean))
-      (lambda []
-        (if (FEED-BITS 3)
-            (let ([BFINAL (PEEK-BITS 1 #b1)]
-                  [BTYPE (PEEK-BITS 2 #b11 1)])
-              (FIRE-BITS 3)
-              (values (case BTYPE
-                        [(#b00) (huffman-begin-stored-block!) 'stored]
-                        [(#b01) (huffman-begin-static-block!) 'static]
-                        [(#b10) (huffman-begin-dynamic-block!) 'dynamic]
-                        [else 'reserved])
-                      (= BFINAL 1)))
-            (values 'EOB #true))))
+    (define (huffman-read-block-header!) : (Values Symbol Boolean)
+      (if (FEED-BITS 3)
+          (let ([BFINAL? (= (PEEK-BITS 1 #b1) 1)]
+                [BTYPE (PEEK-BITS 2 #b11 1)])
+            (FIRE-BITS 3)
+            (values (case BTYPE
+                      [(#b00) (huffman-begin-stored-block! BFINAL?) 'stored]
+                      [(#b01) (huffman-begin-static-block! BFINAL?) 'static]
+                      [(#b10) (huffman-begin-dynamic-block! BFINAL?) 'dynamic]
+                      [else 'reserved])
+                    BFINAL?))
+          (values 'EOB #true)))
 
-    (define huffman-begin-stored-block! : (-> Any)
-      (lambda []
-        ($SHELL 'align)
-        (FEED-BITS 32)
-        (set! stock (PEEK-BITS 16 #xFFFF))
-        (unless (= stock (unsafe-uint16-not (PEEK-BITS 16 #xFFFF 16)))
-          (throw-check-error /dev/blkin ename "stored: invalid block length"))
-        (FIRE-BITS 32)))
+    (define (huffman-begin-stored-block! [BFINAL? : Boolean]) : Any
+      ($SHELL 'align)
+      (FEED-BITS 32)
+      (set! stock (PEEK-BITS 16 #xFFFF))
+
+      (let ([chksum (PEEK-BITS 16 #xFFFF 16)])
+        (unless (= (unsafe-uint16-not stock) chksum)
+          (throw-check-error /dev/blkin ename "stored[~a]: invalid block length: ~a ~a"
+                             (if (not BFINAL?) #b0 #b1) (~binstring stock) (~binstring chksum))))
+
+      (FIRE-BITS 32))
     
-    (define huffman-begin-static-block! : (-> Any)
-      (lambda []
-        (void)))
+    (define (huffman-begin-static-block! [BFINAL? : Boolean]) : Any
+      (void))
 
-    (define huffman-begin-dynamic-block! : (-> Any)
-      (lambda []
-        (void)))
+    (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
+      (void))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (read-stored-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
@@ -87,14 +162,14 @@
                (define-values (type last?)
                  (cond [(not BTYPE) (huffman-read-block-header!)]
                        [else (values BTYPE BFINAL)]))
-                    
+
                (define start++ : Index
                  (case type
                    [(stored)  (read-stored-block! zipout start end)]
                    [(static)  (read-static-block! zipout start end)]
                    [(dynamic) (read-dynamic-block! zipout start end)]
                    [(EOB)     (values start)]
-                   [else      (throw-check-error /dev/blkin ename "reserved deflated block type")]))
+                   [else      (throw-check-error /dev/blkin ename "unknown deflated block type")]))
                
                (cond [(>= start++ end) (set!-values (BTYPE BFINAL) (values type last?)) end]
                      [else (set! BTYPE (and last? 'EOB)) (read-block start++)])]

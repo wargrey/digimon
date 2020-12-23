@@ -18,8 +18,8 @@
  racket/unsafe/ops
  [unsafe-fx+ (-> Natural Natural Index)]
  [unsafe-fx- (case-> [Byte Byte -> Byte]
-                     [Natural Natural -> Index]
-                     [Zero Negative-Fixnum -> Index])]
+                     [Zero Negative-Fixnum -> Index]
+                     [Natural Natural -> Index])]
  [unsafe-fxxor (-> Integer Natural Index)]
  [unsafe-fxlshift (-> Natural Fixnum Index)]
  [unsafe-fxrshift (-> Natural Byte Index)])

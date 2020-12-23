@@ -101,9 +101,11 @@
 
     (values feed-bits peek-bits fire-bits bs-shell)))
 
+(require digimon/format)
 (define make-output-lsb-bitstream : (->* ((U Output-Port (-> Output-Port))) (Integer Byte)
                                          (Values (case-> [Integer Byte Index -> Void]
-                                                         [Integer Byte -> Void])
+                                                         [Integer Byte -> Void]
+                                                         [Byte -> Void])
                                                  (->* () (#:windup? Boolean (U Output-Port (-> Output-Port))) Index)
                                                  (->* (BitStream-Output-Shell) ((U Output-Port (-> Output-Port))) Void)))
   (lambda [/dev/defout [tank-size 4096] [calibre-in-byte 4]]
@@ -120,10 +122,11 @@
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define push-bits : (case-> [Integer Byte Index -> Void]
-                                [Integer Byte -> Void])
+                                [Integer Byte -> Void]
+                                [Byte -> Void])
       (case-lambda
-        [(n nbits)
-         (push-bits n nbits (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]
+        [(bs) (push-bits bs 8 #xFF)]
+        [(n nbits) (push-bits n nbits (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]
         [(n nbits fast-mask)
          (inject-bits (+ payload (arithmetic-shift (unsafe-fxand n fast-mask) pwidth))
                       (unsafe-idx+ pwidth nbits)
@@ -133,26 +136,26 @@
       (lambda [[/dev/?out /dev/defout] #:windup? [windup? #false]]
         (define /dev/bsout : Output-Port (if (output-port? /dev/?out) /dev/?out (/dev/?out)))
 
-        (unsafe-idx+
+        (define count : Index
          (let flush ([count : Index 0])
            (inject-bits payload pwidth tank-payload)
            (cond [(<= tank-payload 0) count]
                  [else (let ([delta (write-bytes tank /dev/bsout 0 tank-payload)])
                          (set! tank-payload 0)
-                         (flush (unsafe-idx+ count delta)))]))
+                         (flush (unsafe-idx+ count delta)))])))
 
 
-         (cond [(not windup?) 0]
-               [else (let windup : Index ([pwidth-- : Index pwidth]
-                                          [payload-- : Natural payload]
-                                          [count : Index 0])
-                       (cond [(> pwidth-- 8)
-                              (write-byte (bitwise-and payload #xFF) /dev/bsout)
-                              (windup (unsafe-idx- pwidth-- 8) (unsafe-idxrshift payload-- 8) (unsafe-idx+ count 1))]
-                             [(> pwidth-- 0)
-                              (write-byte payload-- /dev/bsout)
-                              (windup 0 0 (unsafe-idx+ count 1))]
-                             [else (set!-values (payload pwidth) (values 0 0)) count]))]))))
+        (cond [(not windup?) count]
+              [else (let windup : Index ([pwidth-- : Index pwidth]
+                                         [payload-- : Natural payload]
+                                         [count++ : Index count])
+                      (cond [(>= pwidth-- 8)
+                             (write-byte (bitwise-and payload-- #xFF) /dev/bsout)
+                             (windup (unsafe-idx- pwidth-- 8) (arithmetic-shift payload-- -8) (unsafe-idx+ count++ 1))]
+                            [(> pwidth-- 0)
+                             (write-byte payload-- /dev/bsout)
+                             (windup 0 0 (unsafe-idx+ count++ 1))]
+                            [else (set!-values (payload pwidth) (values 0 0)) count++]))])))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define-bitstream-shell bs-shell (#:-> BitStream-Output-Shell Void)

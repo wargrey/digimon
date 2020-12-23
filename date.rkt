@@ -16,7 +16,9 @@
     (define minute (bitwise-bit-field msdos-time 5 11))
     (define second (* (bitwise-bit-field msdos-time 0 5) 2))
 
-    (assert (find-seconds second minute hour day month year locale?) exact-nonnegative-integer?)))
+    (assert (find-seconds (if (>= second 60) 59 second)
+                          minute hour day month year locale?)
+            exact-nonnegative-integer?)))
 
 (define utc-seconds->msdos-datetime : (->* (Integer) (Boolean) (Values Index Index))
   ; https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-dosdatetimetofiletime?redirectedfrom=MSDN
@@ -26,12 +28,14 @@
       (bitwise-ior (date-day the-date)
                    (arithmetic-shift (date-month the-date) 5)
                    (arithmetic-shift (max (- (date-year the-date) 1980) 0) 9)))
+    (define future-second : Natural (quotient (+ (date-second the-date) 1) 2))
     (define msdos-time : Natural
-      (bitwise-ior (quotient (+ (date-second the-date) 1) 2) ; round to the future second
+      (bitwise-ior future-second
                    (arithmetic-shift (date-minute the-date) 5)
                    (arithmetic-shift (date-hour the-date) 11)))
-    
-    (values (assert msdos-date index?) (assert msdos-time index?))))
+
+    (cond [(= future-second 31) (utc-seconds->msdos-datetime (+ utc-seconds 1))]
+          [else (values (assert msdos-date index?) (assert msdos-time index?))])))
 
 (define time-zone-utc-bias-seconds : (-> Integer)
   (lambda []

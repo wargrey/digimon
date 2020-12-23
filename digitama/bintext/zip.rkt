@@ -101,28 +101,28 @@
 
       (define /dev/zipout : Output-Port
         (case method
-          [(deflated) (zip-output-deflated-block /dev/stdout #x8000)]
+          [(deflated) (open-output-deflated-block /dev/stdout #x8000)]
           [else /dev/stdout]))
 
-      (define &csize : (Boxof Natural) (box 0))
-
-      (define-values (crc32 csize rsize)
+      (define-values (crc32 rsize)
         (if (bytes? /dev/zipin)
-            (let ([size (bytes-length /dev/zipin)])
-              (write-bytes /dev/zipin /dev/zipout)
-              (values (checksum-crc32 /dev/zipin 0 size) size size))
-            (let store : (Values Index Natural Natural) ([/dev/zipin : Input-Port /dev/zipin]
-                                                         [rsize : Natural 0]
-                                                         [crc32 : Index 0])
+            (let ([rsize : Natural (bytes-length /dev/zipin)])
+              (when (> rsize 0)
+                (write-bytes /dev/zipin /dev/zipout))
+              (flush-output /dev/zipout)
+              (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
+            (let store : (Values Index Natural) ([rsize : Natural 0]
+                                                 [crc32 : Index 0])
               (define read : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-              (if (eof-object? read)
-                  (let ([maybe-csize (unbox &csize)])
-                    (flush-output /dev/zipout)
-                    (values crc32 (if (zero? maybe-csize) rsize maybe-csize) rsize))
-                  (let ([size++ (+ rsize read)]
-                        [crc++ (checksum-crc32* pool crc32 0 read)])
-                    (write-bytes pool /dev/zipout 0 read)
-                    (store /dev/zipin size++ crc++))))))
+              (cond [(eof-object? read) (flush-output /dev/zipout) (values crc32 rsize)]
+                    [else (let ([size++ (+ rsize read)]
+                                [crc++ (checksum-crc32* pool crc32 0 read)])
+                            (write-bytes pool /dev/zipout 0 read)
+                            (store size++ crc++))]))))
+
+      (define csize : Natural
+        (cond [(eq? /dev/zipout /dev/stdout) rsize]
+              [else (file-position /dev/zipout)]))
 
       (make-zip-data-descriptor #:crc32 (assert crc32 index?)
                                 #:csize (assert csize index?)

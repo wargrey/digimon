@@ -6,6 +6,7 @@
 
 (require "digitama/dtrace.rkt")
 (require "digitama/bytes.rkt")
+(require "digitama/evt.rkt")
 
 (require "continuation.rkt")
 (require "symbol.rkt")
@@ -116,11 +117,11 @@
     trace))
 
 (define call-with-dtrace : (All (a) (->* ((-> a))
-                                         (Logger Dtrace-Level
-                                                 #:silent-topics (Listof Symbol) #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
-                                                 #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:default-receiver Dtrace-Receiver)
+                                         (Dtrace-Level Logger 
+                                                       #:silent-topics (Listof Symbol) #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
+                                                       #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:default-receiver Dtrace-Receiver)
                                          a))
-  (lambda [proc [logger /dev/dtrace] [level 'note]
+  (lambda [proc [level 'note] [logger /dev/dtrace]
                 #:silent-topics [silent-topics dtrace-silent-topics] #:false-receiver [false-receiver dtrace-event-echo]
                 #:dtrace-receiver [dtrace-receiver dtrace-event-echo] #:topic-receivers [receivers null] #:default-receiver [receiver dtrace-event-echo]]
     (define sentry : Symbol (gensym 'dtrace))
@@ -165,9 +166,9 @@
       (when (> (file-position /dev/bufout) 0)
         (dtrace-write-line (bytes->string/utf-8 (get-output-bytes /dev/bufout #true) echar))))
 
-    (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [flush? : Boolean] [enable-break? : Boolean]) : Integer
+    (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (with-asserts ([end index?])
-        (cond [(and (= start end) (not flush?)) (dtrace-flush)]
+        (cond [(= start end) (dtrace-flush)] ; explicitly calling `flush-port`
               [else (let write-line ([pos : Index (assert start index?)]
                                      [bufsize : Natural (file-position /dev/bufout)])
                       (define-values (brkpos offset) (scan-line bs pos end))
@@ -179,6 +180,12 @@
                                                    (bytes->string/utf-8 (get-output-bytes /dev/bufout #true 0 total) echar 0 total))]))
                                     (when (< nxtpos end)
                                       (write-line nxtpos 0)))]))]))
+
+      (unless (not non-block/buffered?)
+        ; do writing without block, say, calling `write-bytes-avail*`,
+        ; usually implies flush, and can return #false if failed.
+        (dtrace-flush))
+      
       (- end start))
 
     (define (dtrace-write-special [datum : Any] [flush? : Boolean] [breakable? : Boolean]) : Boolean
@@ -195,8 +202,7 @@
     
     (make-output-port name always-evt dtrace-write dtrace-close
                       (and special-level dtrace-write-special)
-                      (λ [[bytes : Bytes] [start : Natural] [end : Natural]] (wrap-evt always-evt (λ [x] (- end start))))
-                      (and special-level (λ [[special : Any]] always-evt))
+                      port-always-write-evt (and special-level port-always-write-special-evt)
                       #false void #false #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
