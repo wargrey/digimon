@@ -64,12 +64,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-file-entry-content /dev/zipout entry-source method)])
+             (let ([desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method)])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-file-entry-content /dev/zipout entry-source method (+ position self-size))])
+                    [desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -88,10 +88,10 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
-(define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) ZIP-Compression-Method) ((Option Natural)) ZIP-Data-Descriptor)
+(define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method) ((Option Natural)) ZIP-Data-Descriptor)
   (let* ([pool-size : Index 4096]
          [pool : Bytes (make-bytes pool-size)])
-    (lambda [/dev/stdout source method [seek #false]]
+    (lambda [/dev/stdout source name method [seek #false]]
       (when (exact-integer? seek)
         (file-position /dev/stdout seek))
 
@@ -101,7 +101,7 @@
 
       (define /dev/zipout : Output-Port
         (case method
-          [(deflated) (open-output-deflated-block /dev/stdout #x8000)]
+          [(deflated) (open-output-deflated-block /dev/stdout 1 #:name name)]
           [else /dev/stdout]))
 
       (define-values (crc32 rsize)

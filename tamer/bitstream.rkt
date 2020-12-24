@@ -5,7 +5,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/bsout (open-output-bytes))
-(define-values (push-bits send-bits _) (make-output-lsb-bitstream /dev/bsout))
+(define-values (push-bits send-bits _) (open-output-lsb-bitstream /dev/bsout))
 
 (push-bits #b1101  4)
 (push-bits #b110   3)

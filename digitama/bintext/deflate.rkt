@@ -17,10 +17,10 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-deflated-block : (->* (Output-Port Index) (Boolean) Output-Port)
-  (lambda [/dev/zipout blocksize [close-orig? #false]]
-    (define-values (PUSH-BITS SEND-BITS $SHELL) (make-output-lsb-bitstream /dev/zipout))
-    (define name : Symbol '/dev/dfbout)
+(define open-output-deflated-block : (->* (Output-Port Index) (Boolean #:name Any) Output-Port)
+  (lambda [/dev/zipout blocksize0 [close-orig? #false] #:name [name '/dev/dfbout]]
+    (define blocksize : Index (min blocksize0 #xFFFF))
+    (define bitank : Bytes (make-bytes 4096))
     (define huffman-block : Bytes (make-bytes blocksize))
     (define huffman-payload : Index 0)
 
@@ -30,24 +30,16 @@
     (define huffman-size : Positive-Integer 1)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-write-stored-block! [bsrc : Bytes] [BFINAL : (U One Zero)] [start : Index] [end : Index]) : Any
-      (define size : Index (unsafe-idx- end start))
-
-      (PUSH-BITS BFINAL 3 #b111)
-      ($SHELL 'align)
-      (PUSH-BITS size 16 #xFFFF)
-      (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
-
-      (for ([b (in-bytes bsrc start end)])
-        (PUSH-BITS b)))
-
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (block-flush [BFINAL : (U One Zero)] [payload : Index] [add-empty-block? : Boolean]) : Void
-      (cond [(> payload 0) (huffman-write-stored-block! huffman-block BFINAL 0 payload)]
-            [(and add-empty-block?) (huffman-write-stored-block! huffman-block BFINAL 0 0)])
+      (define written-size : Index
+        (cond [(> payload 0) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)]
+              [(and add-empty-block?) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 0 #:with bitank)]
+              [else 0]))
 
-      (set! huffman-size (+ huffman-size (SEND-BITS #:windup? (= BFINAL #b1))))
-      (set! huffman-payload 0))
+      (when (> written-size 0)
+        (displayln written-size)
+        (set! huffman-size (+ huffman-size written-size))
+        (set! huffman-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
@@ -191,3 +183,19 @@
                        1 #| initial position |#))
 
     /dev/blkin))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define huffman-write-stored-block! : (-> Output-Port Bytes (U One Zero) Index Index [#:with (U Bytes Integer)] Index)
+  (lambda [/dev/zipout bsrc BFINAL start end #:with [tank 0]]
+    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
+    (define size : Index (unsafe-idx- end start))
+
+    (PUSH-BITS BFINAL 3 #b111)
+    ($SHELL 'align)
+    (PUSH-BITS size 16 #xFFFF)
+    (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
+    
+    (for ([b (in-bytes bsrc start end)])
+      (PUSH-BITS b))
+    
+    (SEND-BITS #:windup? (= BFINAL #b1) #:save? #true)))

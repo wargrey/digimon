@@ -11,7 +11,7 @@
         (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
         (make-archive-binary-entry #"the stored data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored))
 
-        (make-archive-binary-entry #"" "deflated/blank.csv" #:methods '(deflated))))
+        (make-archive-binary-entry #"stored block" "deflated/blank.csv" #:methods '(deflated))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
