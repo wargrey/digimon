@@ -17,8 +17,10 @@
 (define-type BitStream-Input-Shell (U 'start-over 'align 'final-commit))
 (define-type BitStream-Output-Shell (U 'start-over 'align 'drop 'save 'restore))
 
+(require digimon/format)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-input-lsb-bitstream : (->* ((U Input-Port (-> Input-Port))) (Integer Byte #:limited Natural #:padding-byte Byte)
+(define make-input-lsb-bitstream : (->* ((U Input-Port (-> Input-Port))) ((U Integer Bytes) Byte #:limited Natural #:padding-byte Byte)
                                         (Values (->* (Byte) ((U Input-Port (-> Input-Port))) Boolean)
                                                 (case-> [Byte Byte Byte -> Byte]
                                                         [Byte Index Byte -> Index]
@@ -27,9 +29,15 @@
                                                         [Byte -> Index])
                                                 (-> Byte Void)
                                                 (->* (BitStream-Input-Shell) ((U Input-Port (-> Input-Port))) (U Natural EOF Void))))
-  (lambda [/dev/defin [mgz-size 4096] [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
-    (define mgz-capacity : Positive-Integer (if (> mgz-size lookahead) mgz-size (+ lookahead (max mgz-size 1))))
-    (define magazine : Bytes (make-bytes mgz-capacity))
+  (lambda [/dev/defin [mgz/size 0] [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
+    (define mgz-capacity : Index
+      (cond [(not (and (index? mgz/size) (> mgz/size 0))) 4096]
+            [(> mgz/size lookahead) mgz/size]
+            [else (+ lookahead 1)]))
+    
+    (define magazine : Bytes
+      (cond [(and (bytes? mgz/size) (>= (bytes-length mgz/size) mgz-capacity)) mgz/size]
+            [else (make-bytes mgz-capacity)]))
     
     (define mgz-payload : Index 0) ; number of bytes in magazine
     (define mgz-start : Index 0)   ; index into magazine = number of used peeked bytes
@@ -75,15 +83,16 @@
           
           (let ([/dev/bsin (if (input-port? /dev/?in) /dev/?in (/dev/?in))])      
             (when (> mgz-payload 0)
-              (when (> truncated 0)
-                (set! stock (max 0 (- stock mgz-payload))))
+              (let ([read-size (max 0 (- mgz-payload lookahead))])
+                (when (> truncated 0)
+                  (set! stock (max 0 (- stock read-size))))
               
-              ;; commit consumed bytes, except for the last `lookahead` ones,
-              ;; which might be unwound(unpeeked) after you are done dealing with the bitstream.
-              (read-bytes! magazine /dev/bsin 0 (max 0 (- mgz-payload lookahead)))
-              ;; awkwardly, the `unwind` operation has not been used or (therefore even) defined in this implementation.
-              ;; if no `lookahead`, no bytes could be unwound even though they are fed but before fired.
-              (set! mgz-start (min lookahead mgz-payload)))
+                ;; commit consumed bytes, except for the last `lookahead` ones,
+                ;; which might be unwound(unpeeked) after you are done dealing with the bitstream.
+                (read-bytes! magazine /dev/bsin 0 read-size)
+                ;; awkwardly, the `unwind` operation has not been used or (therefore even) defined in this implementation.
+                ;; if no `lookahead`, no bytes could be unwound even though they are fed but before fired.
+                (set! mgz-start (min lookahead mgz-payload))))
 
             (let* ([mgz-end (if (= truncated 0) mgz-capacity (min (+ mgz-start stock) mgz-capacity))]
                    [?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start mgz-end)])
@@ -108,10 +117,16 @@
                                                  (-> [#:windup? Boolean] [#:save? Boolean] Index)
                                                  (-> BitStream-Output-Shell Void)))
   (lambda [/dev/bsout [tank/size 0] [calibre-in-byte 4] #:name [name /dev/bsout] #:restore? [restore? #false]]
-    (define tank-capacity : Index (if (and (index? tank/size) (> tank/size calibre-in-byte)) tank/size 4096))
-    (define tank : Bytes (if (and (bytes? tank/size) (= (bytes-length tank/size) tank-capacity)) tank/size (make-bytes tank-capacity)))
-    (define tank-payload : Index 0)
+    (define tank-capacity : Index
+      (cond [(not (and (index? tank/size) (> tank/size 0))) 4096]
+            [(> tank/size calibre-in-byte) tank/size]
+            [else (+ calibre-in-byte 1)]))
     
+    (define tank : Bytes
+      (cond [(and (bytes? tank/size) (>= (bytes-length tank/size) tank-capacity)) tank/size]
+            [else (make-bytes tank-capacity)]))
+
+    (define tank-payload : Index 0)
     (define payload : Natural 0) ; bit buffer
     (define pwidth : Index 0)    ; bits in bit buffer
     (define calibre : Index (* calibre-in-byte 8))

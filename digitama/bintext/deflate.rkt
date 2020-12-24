@@ -37,7 +37,6 @@
               [else 0]))
 
       (when (> written-size 0)
-        (displayln written-size)
         (set! huffman-size (+ huffman-size written-size))
         (set! huffman-payload 0)))
     
@@ -105,7 +104,7 @@
                       [(#b00) (huffman-begin-stored-block! BFINAL?) 'stored]
                       [(#b01) (huffman-begin-static-block! BFINAL?) 'static]
                       [(#b10) (huffman-begin-dynamic-block! BFINAL?) 'dynamic]
-                      [else 'reserved])
+                      [else (throw-check-error /dev/blkin ename "unknown deflated block type")])
                     BFINAL?))
           (values 'EOB #true)))
 
@@ -160,8 +159,7 @@
                    [(stored)  (read-stored-block! zipout start end)]
                    [(static)  (read-static-block! zipout start end)]
                    [(dynamic) (read-dynamic-block! zipout start end)]
-                   [(EOB)     (values start)]
-                   [else      (throw-check-error /dev/blkin ename "unknown deflated block type")]))
+                   [else #;EOB (values start)]))
                
                (cond [(>= start++ end) (set!-values (BTYPE BFINAL) (values type last?)) end]
                      [else (set! BTYPE (and last? 'EOB)) (read-block start++)])]
