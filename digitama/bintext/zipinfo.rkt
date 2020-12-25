@@ -56,8 +56,8 @@
     (index->deflation-option (bitwise-bit-field flag 1 3) 'normal)))
 
 (define zip-deflation-flag : (->* (ZIP-Deflation-Option Boolean) (Boolean) Index)
-  (lambda [option hasdata? [encrypted? #false]]
-    (bitwise-ior (if hasdata?  #b1000 #b0000)
+  (lambda [option has-data-descriptor? [encrypted? #false]]
+    (bitwise-ior (if has-data-descriptor?  #b1000 #b0000)
                  (deflation-option->index option)
                  (if encrypted? #b1 #b0))))
 

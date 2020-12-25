@@ -17,7 +17,7 @@
    [name : Path-String]
    [ascii? : Boolean]
    [methods : (Listof Symbol)]
-   [options : (Listof Symbol)]
+   [options : (Listof Any)]
    [utc-time : (Option Integer)]
    [permission : Nonnegative-Fixnum]
    [comment : (Option String)])
@@ -26,9 +26,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-file-entry : (->* ((U Bytes String Path))
-                                       (#:alt-name (Option String) #:ascii? Boolean #:methods (Listof Symbol) #:options (Listof Symbol) #:comment (Option String))
+                                       ((Option String) #:ascii? Boolean #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                        Archive-Entry)
-  (lambda [src #:alt-name [name #false] #:ascii? [ascii? #true] #:methods [methods null] #:options [options null] #:comment [comment #false]]
+  (lambda [src [name #false] #:ascii? [ascii? #true] #:methods [methods null] #:options [options null] #:comment [comment #false]]
     (define path : Path
       (simple-form-path
        (cond [(path? src) src]
@@ -40,7 +40,7 @@
                    comment)))
 
 (define make-archive-ascii-entry : (->* ((U Bytes String))
-                                        ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Symbol)
+                                        ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Any)
                                                               #:utc-time (Option Integer) #:permission Nonnegative-Fixnum #:comment (Option String))
                                         Archive-Entry)
   (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
@@ -51,7 +51,7 @@
                    comment)))
 
 (define make-archive-binary-entry : (->* ((U Bytes String))
-                                         ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Symbol)
+                                         ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Any)
                                                                #:utc-time (Option Integer) #:permission Nonnegative-Fixnum #:comment (Option String))
                                          Archive-Entry)
   (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]

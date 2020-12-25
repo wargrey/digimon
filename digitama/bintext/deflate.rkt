@@ -3,9 +3,13 @@
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
+;;; collection//file/gzip.rkt
 ;;; collection//file/gunzip.rkt
 
 (provide (all-defined-out))
+
+(require "huffman.rkt")
+(require "zipconfig.rkt")
 
 (require "../ioexn.rkt")
 (require "../evt.rkt")
@@ -17,11 +21,10 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-deflated-block : (->* (Output-Port Index) (Boolean #:name Any) Output-Port)
-  (lambda [/dev/zipout blocksize0 [close-orig? #false] #:name [name '/dev/dfbout]]
-    (define blocksize : Index (min blocksize0 #xFFFF))
+(define open-output-deflated-block : (->* (Output-Port Index ZIP-Deflation-Config) (Boolean #:name Any) Output-Port)
+  (lambda [/dev/zipout window-size preference [close-orig? #false] #:name [name '/dev/dfbout]]
     (define bitank : Bytes (make-bytes 4096))
-    (define huffman-block : Bytes (make-bytes blocksize))
+    (define huffman-block : Bytes (make-bytes window-size))
     (define huffman-payload : Index 0)
 
     ;;; WARNING:
@@ -29,12 +32,15 @@
     ; whereas `file-position` reports it from 0... 
     (define huffman-size : Positive-Integer 1)
 
+    (define pack-level : Byte (zip-deflation-config-level preference))
+
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (block-flush [BFINAL : (U One Zero)] [payload : Index] [add-empty-block? : Boolean]) : Void
       (define written-size : Index
-        (cond [(> payload 0) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)]
-              [(and add-empty-block?) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 0 #:with bitank)]
-              [else 0]))
+        (cond [(= payload 0) (or (and add-empty-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
+              [(>= pack-level 4) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; slow
+              [(>= pack-level 1) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; fast
+              [else (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)]))
 
       (when (> written-size 0)
         (set! huffman-size (+ huffman-size written-size))
@@ -56,16 +62,16 @@
           
           (let deflate ([src-size : Natural src-size]
                         [start : Natural start]
-                        [available : Index (unsafe-idx- blocksize huffman-payload)])
+                        [available : Index (unsafe-idx- window-size huffman-payload)])
             (if (< src-size available)
                 (begin
                   (bytes-copy! huffman-block huffman-payload bs start end)
                   (set! huffman-payload (unsafe-idx+ huffman-payload src-size)))
                 (let ([end (+ start available)])
                   (bytes-copy! huffman-block huffman-payload bs start end)
-                  (block-flush #b0 blocksize #false)
+                  (block-flush #b0 window-size #false)
                   (when (> src-size available)
-                    (deflate (unsafe-idx- src-size available) end blocksize))))))
+                    (deflate (unsafe-idx- src-size available) end window-size))))))
 
       ; Conventionally, non-block writing implies flush
       (unless (not non-block/buffered?)
@@ -183,6 +189,14 @@
     /dev/blkin))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define huffman-write-empty-block! : (-> Output-Port (U One Zero) [#:with (U Bytes Integer)] Index)
+  (lambda [/dev/zipout BFINAL #:with [tank 0]]
+    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
+    (PUSH-BITS BFINAL 1 #b1)
+    (PUSH-BITS #b01 2 #b11)
+    (PUSH-BITS EOB 9 #x1FF)
+    (SEND-BITS #:windup? (= BFINAL #b1) #:save? #true)))
+
 (define huffman-write-stored-block! : (-> Output-Port Bytes (U One Zero) Index Index [#:with (U Bytes Integer)] Index)
   (lambda [/dev/zipout bsrc BFINAL start end #:with [tank 0]]
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))

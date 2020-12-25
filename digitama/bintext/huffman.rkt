@@ -3,9 +3,10 @@
 (provide (all-defined-out))
 
 ;;; https://www.hanshq.net/zip.html
-;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
+;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
 ;;; illumos://gate/usr/src/grub/grub-0.97/stage2/gunzip.c
+;;; illumos://gate/usr/src/contrib/zlib/deflate.c
 
 (require (for-syntax racket/base))
 
@@ -40,6 +41,7 @@
 
 (define upbits : Byte 16)           ; maximum bit length of any code (16 for explode)
 (define upcodewords : Index 288)    ; maximum number of codes in any set
+(define EOB : Index #x100)          ; end of (huffman) block
 
 (define bit-order : (Vectorof Byte) ; Order of the bit length code lengths
   (vector 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
@@ -83,6 +85,26 @@
   #:type-name Huffman-Lookup-Table
   #:transparent
   #:mutable)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-huffman-symbols : (->* (Bytes) (Natural Natural) Bytes)
+  (lambda [src [start 0] [end (bytes-length src)]]
+    (define counts : (Vectorof Natural) (make-vector #xFF 0))
+    (define symbols : Bytes (make-bytes (- end start)))
+
+    (for ([b (in-bytes src start end)])
+      (vector-set! counts b (add1 (vector-ref counts b))))
+
+    (for ([idx (in-range 1 256)])
+      (vector-set! counts idx
+                   (+ (vector-ref counts idx)
+                      (vector-ref counts (sub1 idx)))))
+
+    (for ([b (in-bytes src start end)])
+      (bytes-set! symbols b (add1 (vector-ref counts b)))
+      (vector-set! counts b (add1 (vector-ref counts b))))
+
+    symbols))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-huffman-lookup-table : (-> (Immutable-Vectorof Byte) Index Index (Vectorof Index) (Vectorof Byte)

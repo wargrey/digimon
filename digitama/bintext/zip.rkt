@@ -5,8 +5,10 @@
 (require racket/string)
 
 (require "zipinfo.rkt")
+(require "zipconfig.rkt")
 (require "deflate.rkt")
 (require "archive.rkt")
+(require "huffman.rkt")
 
 (require "../ioexn.rkt")
 
@@ -29,8 +31,8 @@
 (define pkzip-default-suffixes : (Listof Symbol) (list 'zip 'Z 'zoo 'arc 'lzh 'arj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable?]
+(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean (Option Byte) (Option ZIP-Directory))
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?level]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
@@ -46,11 +48,21 @@
                           [(regexp-match? px:suffix entry-name) 'stored]
                           [else 'deflated]))]))
 
+    (define preference : ZIP-Deflation-Config
+      (or (and (byte? ?level) (< ?level 10)
+               (zip-compression-preference ?level method))
+          (let ([defops (filter zip-deflation-config? (archive-entry-options entry))])
+            (and (pair? defops) (car defops)))
+          (zip-compression-preference 6 method)))
+
     (define flag : Index
       (case method
         [(deflated)
-         (let ([dops (filter zip-deflation-option? (archive-entry-options entry))])
-           (zip-deflation-flag (if (pair? dops) (car dops) 'normal) (not seekable?)))]
+         (zip-deflation-flag (case (zip-deflation-config-level preference)
+                               [(1) 'fast]
+                               [(9) 'maximum]
+                               [else 'normal])
+                             (not seekable?))]
         [else 0]))
 
     (define position : Natural (file-position /dev/zipout))
@@ -64,12 +76,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method)])
+             (let ([desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method preference)])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method (+ position self-size))])
+                    [desc (zip-write-file-entry-content /dev/zipout entry-source entry-name method preference (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -78,7 +90,7 @@
                                 /dev/zipout)
                (file-position /dev/zipout (+ position self-size (zip-data-descriptor-csize desc)))
                desc)]))
-    
+
     (make-zip-directory #:create-system pkzip-host-system #:create-version pkzip-digimon-version
                         #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
                         #:filename (zip-entry-filename self-local) #:relative-offset (assert position index?)
@@ -88,10 +100,10 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
-(define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method) ((Option Natural)) ZIP-Data-Descriptor)
+(define zip-write-file-entry-content : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Deflation-Config) ((Option Natural)) ZIP-Data-Descriptor)
   (let* ([pool-size : Index 4096]
          [pool : Bytes (make-bytes pool-size)])
-    (lambda [/dev/stdout source name method [seek #false]]
+    (lambda [/dev/stdout source entry-name method preference [seek #false]]
       (when (exact-integer? seek)
         (file-position /dev/stdout seek))
 
@@ -101,7 +113,7 @@
 
       (define /dev/zipout : Output-Port
         (case method
-          [(deflated) (open-output-deflated-block /dev/stdout 1 #:name name)]
+          [(deflated) (open-output-deflated-block /dev/stdout window-size preference #:name entry-name)]
           [else /dev/stdout]))
 
       (define-values (crc32 rsize)
@@ -111,14 +123,14 @@
                 (write-bytes /dev/zipin /dev/zipout))
               (flush-output /dev/zipout)
               (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
-            (let store : (Values Index Natural) ([rsize : Natural 0]
-                                                 [crc32 : Index 0])
-              (define read : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-              (cond [(eof-object? read) (flush-output /dev/zipout) (values crc32 rsize)]
-                    [else (let ([size++ (+ rsize read)]
-                                [crc++ (checksum-crc32* pool crc32 0 read)])
-                            (write-bytes pool /dev/zipout 0 read)
-                            (store size++ crc++))]))))
+            (let store : (Values Index Natural) ([crc32 : Index 0]
+                                                 [rsize : Natural 0])
+              (define read-size : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+              (cond [(eof-object? read-size) (flush-output /dev/zipout) (values crc32 rsize)]
+                    [else (let ([size++ (+ rsize read-size)]
+                                [crc++ (checksum-crc32* pool crc32 0 read-size)])
+                            (write-bytes pool /dev/zipout 0 read-size)
+                            (store crc++ size++))]))))
 
       (define csize : Natural
         (cond [(eq? /dev/zipout /dev/stdout) rsize]
