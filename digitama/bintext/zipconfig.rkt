@@ -1,8 +1,20 @@
 #lang typed/racket/base
 
-;;; collection//file/gunzip.rkt
+;;; illumos://gate/usr/src/contrib/zlib/zlib.h
+;;; illumos://gate/usr/src/contrib/zlib/deflate.c
 
 (provide (all-defined-out))
+
+(require "../../enumeration.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-enumeration* zip-deflation-strategy #:+> ZIP-Deflation-Strategy
+  deflation-strategy->index index->deflation-strategy
+  [0 default
+     filtered            ; more huffman less string match, better for small values randomly distributed
+     huffman-only        ; no string match
+     run-length-encoding ; limit the match distance to one, better for PNG
+     fixed-block-only])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct zip-deflation-config

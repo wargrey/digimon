@@ -35,13 +35,13 @@
 ; The inflate algorithm uses a sliding 32K byte window on the uncompressed stream to find repeated byte strings.
 ; This is implemented here as a circular buffer.  The index is updated simply by incrementing and then `and`ing with 0x7fff (32K-1).
 
-(define window-size : Index #x8000) ; must be at least 32K and a power of 2  
-(define literal-bits : Byte 9)      ; bits in base literal/length lookup table
-(define distance-bits : Byte 6)     ; bits in base distance lookup table
+(define window-bits : Positive-Byte 15)      ; bits of the window size that at least 32K  
+(define literal-bits : Positive-Byte 9)      ; bits in base literal/length lookup table
+(define distance-bits : Positive-Byte 6)     ; bits in base distance lookup table
 
-(define upbits : Byte 16)           ; maximum bit length of any code (16 for explode)
-(define upcodewords : Index 288)    ; maximum number of codes in any set
-(define EOB : Index #x100)          ; end of (huffman) block
+(define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
+(define upcodewords : Positive-Index 288)    ; maximum number of codes in any set
+(define EOB : Index #x100)                   ; end of (huffman) block
 
 (define bit-order : (Vectorof Byte) ; Order of the bit length code lengths
   (vector 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))

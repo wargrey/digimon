@@ -3,8 +3,7 @@
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
-;;; collection//file/gzip.rkt
-;;; collection//file/gunzip.rkt
+;;; illumos://gate/usr/src/contrib/zlib/deflate.c
 
 (provide (all-defined-out))
 
@@ -21,13 +20,22 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-deflated-block : (->* (Output-Port Index ZIP-Deflation-Config) (Boolean #:name Any) Output-Port)
-  (lambda [/dev/zipout window-size preference [close-orig? #false] #:name [name '/dev/dfbout]]
-    (define bitank : Bytes (make-bytes 4096))
-    (define huffman-block : Bytes (make-bytes window-size))
+(define open-output-deflated-block : (->* (Output-Port ZIP-Deflation-Config ZIP-Deflation-Strategy)
+                                          (Boolean #:name Any #:blocksize Positive-Index #:window-bits Positive-Byte #:safe-flush-on-close? Boolean)
+                                          Output-Port)
+  (lambda [#:name [name '/dev/dfbout] #:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:safe-flush-on-close? [safe-close? #true]
+           /dev/zipout preference strategy [close-orig? #false]]
+    ;;; NOTE
+    ; The `block splitting` is a tough optimization problem.
+    ; For the sake of simplicity, a huffman block is born whenever the buffer is full or a `flush` is requested.
+    ; Of all three types of block, only the stored one has a maximum size, which is `#xFFFF`, and
+    ;   this size is recommanded to choose by client API.
+    (define huffman-blocksize : Positive-Index (min blocksize #xFFFF))
+    (define huffman-block : Bytes (make-bytes huffman-blocksize))
     (define huffman-payload : Index 0)
+    (define bitank : Bytes (make-bytes blocksize)) ; for the LSB bitstream
 
-    ;;; WARNING:
+    ;;; WARNING
     ; the port counts its position starting from 1,
     ; whereas `file-position` reports it from 0... 
     (define huffman-size : Positive-Integer 1)
@@ -35,9 +43,9 @@
     (define pack-level : Byte (zip-deflation-config-level preference))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (block-flush [BFINAL : (U One Zero)] [payload : Index] [add-empty-block? : Boolean]) : Void
-      (define written-size : Index
-        (cond [(= payload 0) (or (and add-empty-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
+    (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
+      (define written-size : Natural
+        (cond [(= payload 0) (or (and add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
               [(>= pack-level 4) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; slow
               [(>= pack-level 1) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; fast
               [else (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)]))
@@ -51,36 +59,41 @@
       
       (if (<= src-size 0)
           ;;; NOTE
-          ; By design, a terminate block would be inserted when flushing the port,
+          ; By design, a terminate block would be inserted when flushing the port manually,
           ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is #false;
           
           ; But when performing a non-block writing with an empty bytes,
           ; say, via `write-bytes-avail*`, it would reach here too, and
           ; the `non-block/buffered?` is #true. So that, doing flush as
           ; usual but do not insert the block as the final one.
-          (block-flush (if (not non-block/buffered?) #b1 #b0) huffman-payload #true)
+          (block-flush (not non-block/buffered?) huffman-payload #true)
           
           (let deflate ([src-size : Natural src-size]
                         [start : Natural start]
-                        [available : Index (unsafe-idx- window-size huffman-payload)])
+                        [available : Index (unsafe-idx- huffman-blocksize huffman-payload)])
             (if (< src-size available)
                 (begin
                   (bytes-copy! huffman-block huffman-payload bs start end)
                   (set! huffman-payload (unsafe-idx+ huffman-payload src-size)))
                 (let ([end (+ start available)])
                   (bytes-copy! huffman-block huffman-payload bs start end)
-                  (block-flush #b0 window-size #false)
+                  (block-flush #false huffman-blocksize #false)
                   (when (> src-size available)
-                    (deflate (unsafe-idx- src-size available) end window-size))))))
+                    (deflate (unsafe-idx- src-size available) end huffman-blocksize))))))
 
       ; Conventionally, non-block writing implies flush
       (unless (not non-block/buffered?)
-        (block-flush #b0 huffman-payload #false))
+        (block-flush #false huffman-payload #false))
       
       (- end start))
 
     (define (block-close) : Void
-      (block-flush #b1 huffman-payload #false)
+      (unless (not safe-close?)
+        ;;; NOTE
+        ; When `safe-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
+        ; say by a custodian, and client API will manually terminate the block chain in some ways.
+        ; Or blocks will be written at wrong position.
+        (block-flush #true huffman-payload #true))
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
@@ -189,20 +202,19 @@
     /dev/blkin))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define huffman-write-empty-block! : (-> Output-Port (U One Zero) [#:with (U Bytes Integer)] Index)
+(define huffman-write-empty-block! : (-> Output-Port Boolean [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout BFINAL #:with [tank 0]]
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
-    (PUSH-BITS BFINAL 1 #b1)
-    (PUSH-BITS #b01 2 #b11)
+    (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111) ; empty static block
     (PUSH-BITS EOB 9 #x1FF)
-    (SEND-BITS #:windup? (= BFINAL #b1) #:save? #true)))
+    (SEND-BITS #:windup? BFINAL #:save? #true)))
 
-(define huffman-write-stored-block! : (-> Output-Port Bytes (U One Zero) Index Index [#:with (U Bytes Integer)] Index)
+(define huffman-write-stored-block! : (-> Output-Port Bytes Boolean Index Index [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout bsrc BFINAL start end #:with [tank 0]]
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
     (define size : Index (unsafe-idx- end start))
 
-    (PUSH-BITS BFINAL 3 #b111)
+    (PUSH-BITS (if BFINAL #b001 #b000) 3 #b111)
     ($SHELL 'align)
     (PUSH-BITS size 16 #xFFFF)
     (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
@@ -210,4 +222,4 @@
     (for ([b (in-bytes bsrc start end)])
       (PUSH-BITS b))
     
-    (SEND-BITS #:windup? (= BFINAL #b1) #:save? #true)))
+    (SEND-BITS #:windup? BFINAL #:save? #true)))

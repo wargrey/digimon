@@ -31,9 +31,10 @@
                                                 (->* (BitStream-Input-Shell) ((U Input-Port (-> Input-Port))) (U Natural EOF Void))))
   (lambda [/dev/defin [mgz/size 0] [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
     (define mgz-capacity : Index
-      (cond [(not (and (index? mgz/size) (> mgz/size 0))) 4096]
-            [(> mgz/size lookahead) mgz/size]
-            [else (+ lookahead 1)]))
+      (let ([c0 (if (bytes? mgz/size) (bytes-length mgz/size) mgz/size)])
+        (cond [(not (and (index? c0) (> c0 0))) 4096]
+              [(> c0 lookahead) c0]
+              [else (+ lookahead 1)])))
     
     (define magazine : Bytes
       (cond [(and (bytes? mgz/size) (>= (bytes-length mgz/size) mgz-capacity)) mgz/size]
@@ -114,14 +115,14 @@
                                          (Values (case-> [Integer Byte Index -> Void]
                                                          [Integer Byte -> Void]
                                                          [Byte -> Void])
-                                                 (-> [#:windup? Boolean] [#:save? Boolean] Index)
+                                                 (-> [#:windup? Boolean] [#:save? Boolean] Natural)
                                                  (-> BitStream-Output-Shell Void)))
   (lambda [/dev/bsout [tank/size 0] [calibre-in-byte 4] #:name [name /dev/bsout] #:restore? [restore? #false]]
     (define tank-capacity : Index
-      (cond [(not (and (index? tank/size) (> tank/size 0))) 4096]
-            [(> tank/size calibre-in-byte) tank/size]
-            [else (+ calibre-in-byte 1)]))
-    
+      (let ([c0 (if (bytes? tank/size) (bytes-length tank/size) tank/size)])
+        (cond [(not (and (index? c0) (> c0 0))) 4096]
+              [else (max c0 calibre-in-byte)])))
+      
     (define tank : Bytes
       (cond [(and (bytes? tank/size) (>= (bytes-length tank/size) tank-capacity)) tank/size]
             [else (make-bytes tank-capacity)]))
@@ -129,6 +130,7 @@
     (define tank-payload : Index 0)
     (define payload : Natural 0) ; bit buffer
     (define pwidth : Index 0)    ; bits in bit buffer
+    (define pre-sent : Natural 0)
     (define calibre : Index (* calibre-in-byte 8))
     
     (define inject-maxidx : Index
@@ -146,28 +148,28 @@
                       (unsafe-idx+ pwidth nbits)
                       tank-payload)]))
     
-    (define send-bits : (-> [#:windup? Boolean] [#:save? Boolean] Index)
+    (define send-bits : (-> [#:windup? Boolean] [#:save? Boolean] Natural)
       (lambda [#:windup? [windup? #false] #:save? [save? #false]]
-        (define count : Index
-         (let flush ([count : Index 0])
-           (inject-bits payload pwidth tank-payload)
-           (cond [(<= tank-payload 0) count]
+        (define count : Natural
+          (cond [(<= tank-payload 0) pre-sent]
                  [else (let ([delta (write-bytes tank /dev/bsout 0 tank-payload)])
                          (set! tank-payload 0)
-                         (flush (unsafe-idx+ count delta)))])))
+                         (+ pre-sent delta))]))
 
+        (when (> pre-sent 0)
+          (set! pre-sent 0))
 
         (begin0
           (cond [(not windup?) count]
-                [else (let windup : Index ([pwidth-- : Index pwidth]
-                                           [payload-- : Natural payload]
-                                           [count++ : Index count])
+                [else (let windup : Natural ([pwidth-- : Index pwidth]
+                                             [payload-- : Natural payload]
+                                             [count++ : Natural count])
                         (cond [(>= pwidth-- 8)
                                (write-byte (bitwise-and payload-- #xFF) /dev/bsout)
-                               (windup (unsafe-idx- pwidth-- 8) (arithmetic-shift payload-- -8) (unsafe-idx+ count++ 1))]
+                               (windup (unsafe-idx- pwidth-- 8) (arithmetic-shift payload-- -8) (add1 count++))]
                               [(> pwidth-- 0)
                                (write-byte payload-- /dev/bsout)
-                               (windup 0 0 (unsafe-idx+ count++ 1))]
+                               (windup 0 0 (add1 count++))]
                               [else (set!-values (payload pwidth) (values 0 0)) count++]))])
 
           (unless (not save?)
@@ -179,23 +181,24 @@
       #:ingredients [tank tank-payload payload pwidth]
       #:operation [push-bits send-bits])
 
-    ;;; NOTE
-    ; Even if the tank is full, `inject-bits` won't write them into the port.
-    ; The actual writing can only be performed by `send-bits`
-    ; since clients might need the exact count of written bytes.
     (define (inject-bits [payload++ : Natural] [pwidth++ : Index] [idx : Index]) : Void
-      (if (and (>= pwidth++ calibre) (< idx inject-maxidx))
-          (case calibre-in-byte
-            [(#x8) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFFFFFFFFFF) 8 #false #false tank idx)
-                   (inject-bits (arithmetic-shift payload++ -64) (unsafe-idx- pwidth++ 64) (unsafe-idx+ idx 8))]
-            [(#x4) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFF) 4 #false #false tank idx)
-                   (inject-bits (arithmetic-shift payload++ -32) (unsafe-idx- pwidth++ 32) (unsafe-idx+ idx 4))]
-            [(#x2) (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
-                   (unsafe-bytes-set! tank (+ idx 1) (bitwise-and (arithmetic-shift payload++ -8) #xFF))
-                   (inject-bits (arithmetic-shift payload++ -16) (unsafe-idx- pwidth++ 16) (unsafe-idx+ idx 2))]
-            [else (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
-                  (inject-bits (arithmetic-shift payload++ -8) (unsafe-idx- pwidth++ 8) (unsafe-idx+ idx 1))])
-          (set!-values (payload pwidth tank-payload) (values payload++ pwidth++ idx))))
+      (cond [(< pwidth++ calibre)
+             (set!-values (payload pwidth tank-payload) (values payload++ pwidth++ idx))]
+            [(<= idx inject-maxidx)
+             (case calibre-in-byte
+               [(#x8) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFFFFFFFFFF) 8 #false #false tank idx)
+                      (inject-bits (arithmetic-shift payload++ -64) (unsafe-idx- pwidth++ 64) (unsafe-idx+ idx 8))]
+               [(#x4) (integer->integer-bytes (bitwise-and payload++ #xFFFFFFFF) 4 #false #false tank idx)
+                      (inject-bits (arithmetic-shift payload++ -32) (unsafe-idx- pwidth++ 32) (unsafe-idx+ idx 4))]
+               [(#x2) (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
+                      (unsafe-bytes-set! tank (+ idx 1) (bitwise-and (arithmetic-shift payload++ -8) #xFF))
+                      (inject-bits (arithmetic-shift payload++ -16) (unsafe-idx- pwidth++ 16) (unsafe-idx+ idx 2))]
+               [else (unsafe-bytes-set! tank idx (bitwise-and payload++ #xFF))
+                     (inject-bits (arithmetic-shift payload++ -8) (unsafe-idx- pwidth++ 8) (unsafe-idx+ idx 1))])]
+            [else ; TODO: what if `write-bytes` fails...
+             (set! pre-sent (+ pre-sent (write-bytes tank /dev/bsout 0 tank-payload)))
+             (set! tank-payload 0)
+             (inject-bits payload++ pwidth++ 0)]))
 
     (unless (not restore?)
       (bs-shell 'restore))
