@@ -218,8 +218,6 @@
     ($SHELL 'align)
     (PUSH-BITS size 16 #xFFFF)
     (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
-    
-    (for ([b (in-bytes bsrc start end)])
-      (PUSH-BITS b))
+    (PUSH-BITS bsrc start end #true)
     
     (SEND-BITS #:windup? BFINAL #:save? #true)))

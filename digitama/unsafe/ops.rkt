@@ -1,9 +1,9 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide unsafe-bytes-ref unsafe-bytes-set! unsafe-vector*-ref unsafe-vector*-set!)
-(provide unsafe-fxand unsafe-fxior)
-(provide unsafe-fxremainder)
+(provide unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!)
+(provide unsafe-vector*-ref unsafe-vector*-set!)
+(provide unsafe-fxand unsafe-fxior unsafe-fxremainder)
 (provide (rename-out [unsafe-fx+ unsafe-idx+]
                      [unsafe-fx- unsafe-idx-]
                      [unsafe-fxxor unsafe-idxxor]
