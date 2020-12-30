@@ -59,6 +59,11 @@
         (cond [(pair? strategies) (car strategies)]
               [else 'default])))
 
+    (define memory-level : Positive-Byte
+      (let ([levels (filter (λ [[o : Any]] (and (byte? o) (< 0 o) (<= o 8))) (archive-entry-options entry))])
+        (cond [(pair? levels) (car levels)]
+              [else 8])))
+
     (define flag : Index
       (case method
         [(deflated)
@@ -80,12 +85,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy)])
+             (let ([desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy memory-level)])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy (+ position self-size))])
+                    [desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy memory-level (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -104,11 +109,11 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
-(define zip-write-entry-body : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Deflation-Config ZIP-Deflation-Strategy)
+(define zip-write-entry-body : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Deflation-Config ZIP-Deflation-Strategy Positive-Byte)
                                     ((Option Natural)) ZIP-Data-Descriptor)
   (let* ([pool-size : Index 4096]
          [pool : Bytes (make-bytes pool-size)])
-    (lambda [/dev/stdout source entry-name method preference strategy [seek #false]]
+    (lambda [/dev/stdout source entry-name method preference strategy memory-level [seek #false]]
       (when (exact-integer? seek)
         (file-position /dev/stdout seek))
 
@@ -119,7 +124,7 @@
       (define /dev/zipout : Output-Port
         (case method
           ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
-          [(deflated) (open-output-deflated-block /dev/stdout preference strategy #:name entry-name #:safe-flush-on-close? #false)]
+          [(deflated) (open-output-deflated-block /dev/stdout preference strategy #:memory-level memory-level #:name entry-name #:safe-flush-on-close? #false)]
           [else /dev/stdout #| the original one that shouldn't be closed here |#]))
 
       (define-values (crc32 rsize)

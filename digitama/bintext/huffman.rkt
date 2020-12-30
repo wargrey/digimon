@@ -40,38 +40,38 @@
 (define distance-bits : Positive-Byte 6)     ; bits in base distance lookup table
 
 (define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
-(define upcodewords : Positive-Index 288)    ; maximum number of codes in any set
+(define upcodewords : Positive-Index 288)    ; maximum number of codes in any set, bytes + backreferences + EOB
 (define EOB : Index #x100)                   ; end of (huffman) block
 
-(define bit-order : (Vectorof Byte) ; Order of the bit length code lengths
-  (vector 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
+(define bit-order : (Immutable-Vectorof Byte) ; Order of the bit length code lengths
+  (vector-immutable 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
 
 ;; NOTE:
 ; The length code 284 can represent 227-258, but length code 285 really is 258.
 ; The last length deserves its own, short code since it gets used a lot in very redundant files.
 ; The length 258 is special since 258 = 255 + 3 (the min match length).
-(define huffman-literal-copy-bits : (Vectorof Index) ; for codes in range [257, 285]
-  (vector 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31
-          35 43 51 59 67 83 99 115 131 163 195 227 258 0 0))
+(define huffman-literal-copy-bits : (Immutable-Vectorof Index) ; for codes in range [257, 285]
+  (vector-immutable 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31
+                    35 43 51 59 67 83 99 115 131 163 195 227 258 0 0))
 
-(define huffman-literal-extra-bits : (Vectorof Byte)
-  (vector 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2
-          3 3 3 3 4 4 4 4 5 5 5 5 0 99 99)) ; /* 99 ==> invalid */
+(define huffman-literal-extra-bits : (Immutable-Vectorof Byte)
+  (vector-immutable 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2
+                    3 3 3 3 4 4 4 4 5 5 5 5 0 99 99)) ; /* 99 => invalid */
 
-(define huffman-distance-copy-offsets : (Vectorof Index) ; for codes in range [0, 29]
-  (vector 1 2 3 4 5 7 9 13 17 25 33 49 65 97 129 193
-          257 385 513 769 1025 1537 2049 3073 4097 6145
-          8193 12289 16385 24577))
+(define huffman-distance-copy-offsets : (Immutable-Vectorof Index) ; for codes in range [0, 29]
+  (vector-immutable 1 2 3 4 5 7 9 13 17 25 33 49 65 97 129 193
+                    257 385 513 769 1025 1537 2049 3073 4097 6145
+                    8193 12289 16385 24577))
 
-(define huffman-distance-extra-bits : (Vectorof Byte)
-  (vector 0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6
-          7 7 8 8 9 9 10 10 11 11
-          12 12 13 13))
+(define huffman-distance-extra-bits : (Immutable-Vectorof Byte)
+  (vector-immutable 0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6
+                    7 7 8 8 9 9 10 10 11 11
+                    12 12 13 13))
 
-(define mask_bits : (Vectorof Index)
-  (vector #x0000
-          #x0001 #x0003 #x0007 #x000f #x001f #x003f #x007f #x00ff
-          #x01ff #x03ff #x07ff #x0fff #x1fff #x3fff #x7fff #xffff))
+(define mask_bits : (Immutable-Vectorof Index)
+  (vector-immutable #x0000
+                    #x0001 #x0003 #x0007 #x000f #x001f #x003f #x007f #x00ff
+                    #x01ff #x03ff #x07ff #x0fff #x1fff #x3fff #x7fff #xffff))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define hufman-fixed-literal-lengths : (Immutable-Vectorof Byte) (huffman-fixed-literal-codeword-bit-lengths))

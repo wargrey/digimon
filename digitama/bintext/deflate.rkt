@@ -7,6 +7,7 @@
 
 (provide (all-defined-out))
 
+(require "lz77.rkt")
 (require "huffman.rkt")
 (require "zipconfig.rkt")
 
@@ -21,9 +22,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Deflation-Config ZIP-Deflation-Strategy)
-                                          (Boolean #:name Any #:blocksize Positive-Index #:window-bits Positive-Byte #:safe-flush-on-close? Boolean)
+                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte
+                                                   #:name Any #:safe-flush-on-close? Boolean)
                                           Output-Port)
-  (lambda [#:name [name '/dev/dfbout] #:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:safe-flush-on-close? [safe-close? #true]
+  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+           #:name [name '/dev/dfbout] #:safe-flush-on-close? [safe-close? #true]
            /dev/zipout preference strategy [close-orig? #false]]
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
@@ -41,6 +44,7 @@
     (define huffman-size : Positive-Integer 1)
 
     (define pack-level : Byte (zip-deflation-config-level preference))
+    (define memory-level : Positive-Byte (min memlevel 8))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
