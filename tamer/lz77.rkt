@@ -1,13 +1,18 @@
 #lang typed/racket/base
 
 (require "../digitama/bintext/lz77.rkt")
+(require "../digitama/unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define display-codeword : (LZ77-Select-Codeword Void)
+(define magazine : (Vectorof (U Byte (Pairof Index Index) EOF)) (make-vector (expt 2 15) eof))
+
+(define display-codeword : LZ77-Select-Codeword
   (case-lambda
-    [(bs idx codeword _)
+    [(bs src-idx codeword dest-idx)
+     (vector-set! magazine dest-idx codeword)
      (display (integer->char codeword))]
-    [(bs idx pointer size _)
+    [(bs src-idx pointer size dest-idx)
+     (vector-set! magazine dest-idx (cons pointer size))
      (display (cons pointer size))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -28,5 +33,7 @@ we had nothing before us,
 we were all going direct to Heaven,
 we were all going direct the other way")
   
-  (lz77-compress text display-codeword (void))
-  (lz77-compress #"Fa-la-la-la-la" display-codeword (void)))
+  (lz77-deflate text display-codeword #:min-match 4)
+  (newline)
+  (lz77-deflate #"Fa-la-la-la-la" display-codeword #:min-match 4)
+  (newline))
