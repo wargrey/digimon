@@ -4,6 +4,7 @@
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
 ;;; illumos://gate/usr/src/contrib/zlib/deflate.c
+;;; https://www.euccas.me/zlib
 
 (provide (all-defined-out))
 
@@ -22,10 +23,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Deflation-Config ZIP-Deflation-Strategy)
-                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte
+                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte #:fastest? Boolean
                                                    #:name Any #:safe-flush-on-close? Boolean)
                                           Output-Port)
-  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8] #:fastest? [fastest? #false]
            #:name [name '/dev/dfbout] #:safe-flush-on-close? [safe-close? #true]
            /dev/zipout preference strategy [close-orig? #false]]
     ;;; NOTE

@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (require "../digitama/bintext/lz77.rkt")
+(require "../digitama/bintext/zipconfig.rkt")
 (require "../digitama/unsafe/ops.rkt")
 
 (require "../number.rkt")
@@ -22,16 +23,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (define lz77-test : (->* (Bytes) (Positive-Byte Positive-Byte) Boolean)
-    (lambda [txt [match0 3] [matchn (add1 match0)]]
+  (define lz77-test : (->* (Bytes) (Byte Byte) Boolean)
+    (lambda [txt [level0 3] [leveln (add1 level0)]]
       (displayln txt)
 
-      (define summaries : (Listof (List Boolean String Positive-Byte))
-        (for/list ([min-match (in-range match0 matchn)])
-          (printf "==> [min-match: ~a]~n" min-match)
+      (define summaries : (Listof (List Boolean String Byte))
+        (for/list ([level (in-range level0 leveln)])
+          (with-asserts ([level byte?])
+            (define preference : ZIP-Deflation-Config (zip-compression-preference level)) 
+            (printf "==> [level: ~a]~n" preference)
           
-          (with-asserts ([min-match positive-byte?])
-            (define count : Index (lz77-deflate txt display-codeword #:min-match min-match))
+            (define count : Index (lz77-deflate txt display-codeword preference))
             (define-values (?txt total) (lz77-inflate (in-vector magazine 0 count)))
             
             (newline)
@@ -41,7 +43,7 @@
                 (displayln '==>)
                 (displayln ?txt))
               
-              (list ok? (~% (- 1.0 (/ count (bytes-length txt)))) min-match)))))
+              (list ok? (~% (- 1.0 (/ count (bytes-length txt)))) level)))))
 
       (printf "=============~n")
       (for/fold ([ok? : Boolean #true])
@@ -65,5 +67,5 @@ we had nothing before us,
 we were all going direct to Heaven,
 we were all going direct the other way")
   
-  (lz77-test text 1 16)
-  (lz77-test #"Fa-la-la-la-la" 1 16))
+  (lz77-test text 0 10)
+  (lz77-test #"Fa-la-la-la-la" 0 10))

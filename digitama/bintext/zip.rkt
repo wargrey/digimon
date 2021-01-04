@@ -59,6 +59,8 @@
         (cond [(pair? strategies) (car strategies)]
               [else 'default])))
 
+    (define fastest? : Boolean (and (memq 'fastest (archive-entry-options entry)) #true))
+
     (define memory-level : Positive-Byte
       (let ([levels (filter (λ [[o : Any]] (and (byte? o) (< 0 o) (<= o 8))) (archive-entry-options entry))])
         (cond [(pair? levels) (car levels)]
