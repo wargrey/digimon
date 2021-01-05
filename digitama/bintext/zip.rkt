@@ -16,6 +16,8 @@
 (require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type PKZIP-Strategy (U Byte Symbol False))
+
 (define pkzip-compression-methods : (Listof ZIP-Compression-Method) (list 'stored 'deflated))
 (define pkzip-digimon-version : Byte 62)
 (define pkzip-extract-system : ZIP-System 'FAT)
@@ -30,8 +32,8 @@
 (define pkzip-default-suffixes : (Listof Symbol) (list 'zip 'Z 'zoo 'arc 'lzh 'arj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean (Option Byte) (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?level]
+(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean PKZIP-Strategy (Option ZIP-Directory))
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
@@ -47,19 +49,17 @@
                           [(regexp-match? px:suffix entry-name) 'stored]
                           [else 'deflated]))]))
 
-    (define preference : ZIP-Deflation-Config
-      (or (and (byte? ?level) (< ?level 10)
-               (zip-compression-preference ?level method))
-          (let ([defops (filter zip-deflation-config? (archive-entry-options entry))])
-            (and (pair? defops) (car defops)))
-          (zip-compression-preference 6 method)))
+    (define strategy : ZIP-Strategy
+      (or (and ?strategy
+               (or (and (zip-compression-level? ?strategy)
+                        (zip-default-preference ?strategy)))
+               (or (and (symbol? ?strategy)
+                        (zip-name->maybe-strategy ?strategy))))
+          (for/or : (Option ZIP-Strategy) ([opt (in-list (archive-entry-options entry))])
+            (and (symbol? opt) (zip-name->maybe-strategy opt)))
+          (zip-name->maybe-strategy 'default)))
 
-    (define strategy : ZIP-Deflation-Strategy
-      (let ([strategies (filter zip-deflation-strategy? (archive-entry-options entry))])
-        (cond [(pair? strategies) (car strategies)]
-              [else 'default])))
-
-    (define fastest? : Boolean (and (memq 'fastest (archive-entry-options entry)) #true))
+    (define fixed-only? : Boolean (and (memq 'fixed (archive-entry-options entry)) #true))
 
     (define memory-level : Positive-Byte
       (let ([levels (filter (λ [[o : Any]] (and (byte? o) (< 0 o) (<= o 8))) (archive-entry-options entry))])
@@ -68,12 +68,7 @@
 
     (define flag : Index
       (case method
-        [(deflated)
-         (zip-deflation-flag (case (zip-deflation-config-level preference)
-                               [(1) 'fast]
-                               [(9) 'maximum]
-                               [else 'normal])
-                             (not seekable?))]
+        [(deflated) (zip-deflation-flag (zip-strategy-flag strategy) (not seekable?))]
         [else 0]))
 
     (define position : Natural (file-position /dev/zipout))
@@ -87,12 +82,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy memory-level)])
+             (let ([desc (zip-write-entry-body /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?))])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-entry-body /dev/zipout entry-source entry-name method preference strategy memory-level (+ position self-size))])
+                    [desc (zip-write-entry-body /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?) (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -111,11 +106,12 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
-(define zip-write-entry-body : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Deflation-Config ZIP-Deflation-Strategy Positive-Byte)
-                                    ((Option Natural)) ZIP-Data-Descriptor)
+(define zip-write-entry-body : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean)
+                                    ((Option Natural))
+                                    ZIP-Data-Descriptor)
   (let* ([pool-size : Index 4096]
          [pool : Bytes (make-bytes pool-size)])
-    (lambda [/dev/stdout source entry-name method preference strategy memory-level [seek #false]]
+    (lambda [/dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
       (when (exact-integer? seek)
         (file-position /dev/stdout seek))
 
@@ -126,7 +122,10 @@
       (define /dev/zipout : Output-Port
         (case method
           ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
-          [(deflated) (open-output-deflated-block /dev/stdout preference strategy #:memory-level memory-level #:name entry-name #:safe-flush-on-close? #false)]
+          [(deflated)
+           (open-output-deflated-block #:dynamic-block? allow-dynamic-block? #:memory-level memory-level
+                                       #:name entry-name #:safe-flush-on-close? #false
+                                       /dev/stdout strategy)]
           [else /dev/stdout #| the original one that shouldn't be closed here |#]))
 
       (define-values (crc32 rsize)

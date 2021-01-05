@@ -1,11 +1,6 @@
 #lang typed/racket/base
 
 (require "../digitama/bintext/lz77.rkt")
-(require "../digitama/bintext/zipconfig.rkt")
-(require "../digitama/unsafe/ops.rkt")
-
-(require "../number.rkt")
-(require "../format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define magazine : (Vectorof (U Byte (Pairof Index Index))) (make-vector (expt 2 15) 0))
@@ -23,27 +18,34 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (define lz77-test : (->* (Bytes) (Byte Byte) Boolean)
-    (lambda [txt [level0 3] [leveln (add1 level0)]]
+  (require racket/list)
+  
+  (require "../number.rkt")
+  (require "../format.rkt")
+  
+  (require "../digitama/bintext/zipconfig.rkt")
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (define lz77-test : (-> Bytes (U ZIP-Strategy (Listof ZIP-Strategy)) Boolean)
+    (lambda [txt strategies]
       (displayln txt)
 
-      (define summaries : (Listof (List Boolean String Byte))
-        (for/list ([level (in-range level0 leveln)])
-          (with-asserts ([level byte?])
-            (define preference : ZIP-Deflation-Config (zip-compression-preference level)) 
-            (printf "==> [level: ~a]~n" preference)
+      (define summaries : (Listof (List Boolean String Integer))
+        (for/list ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))]
+                   [idx (in-naturals 1)])
+          (printf "==> [~a][strategy: ~a]~n" idx strategy)
           
-            (define count : Index (lz77-deflate txt display-codeword preference))
-            (define-values (?txt total) (lz77-inflate (in-vector magazine 0 count)))
+          (define count : Index (lz77-deflate txt display-codeword strategy))
+          (define-values (?txt total) (lz77-inflate (in-vector magazine 0 count)))
             
-            (newline)
+          (newline)
+          
+          (let ([ok? (bytes=? txt ?txt)])
+            (when (not ok?)
+              (displayln '==>)
+              (displayln ?txt))
             
-            (let ([ok? (bytes=? txt ?txt)])
-              (when (not ok?)
-                (displayln '==>)
-                (displayln ?txt))
-              
-              (list ok? (~% (- 1.0 (/ count (bytes-length txt)))) level)))))
+            (list ok? (~% (- 1.0 (/ count (bytes-length txt)))) idx))))
 
       (printf "=============~n")
       (for/fold ([ok? : Boolean #true])
@@ -51,6 +53,7 @@
         (displayln summary)
         (and ok? (car summary)))))
   
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (define text : Bytes
     #"It was the best of times,
 it was the worst of times,
@@ -66,6 +69,11 @@ we had everything before us,
 we had nothing before us,
 we were all going direct to Heaven,
 we were all going direct the other way")
+
+  (define fastest-strategy : ZIP-Strategy (zip-fastest-preference))
+  (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 0 10)))
+  (define rle-strategies : (Listof ZIP-Strategy) (map zip-run-preference (range 1 5)))
   
-  (lz77-test text 0 10)
-  (lz77-test #"Fa-la-la-la-la" 0 10))
+  (lz77-test text default-strategies)
+  (lz77-test text fastest-strategy)
+  (lz77-test #"Fa-la-la-la-la" rle-strategies))

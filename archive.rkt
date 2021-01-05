@@ -3,7 +3,8 @@
 (provide (all-defined-out))
 (provide Archive-Entry archive-entry?)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
-(provide ZIP-Deflation-Config zip-deflation-config? zip-compression-preference)
+(provide ZIP-Strategy zip-strategy? zip-default-preference)
+(provide zip-fastest-preference zip-huffman-only-preference zip-run-preference)
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
 
@@ -121,8 +122,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-create : (->* ((U Path-String Output-Port) (Listof Archive-Entry))
-                          (String #:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:level (Option Byte)) Void)
-  (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:level [level #false]
+                          (String #:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:strategy PKZIP-Strategy)
+                          Void)
+  (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:strategy [strategy #false]
            out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)])
       (define /dev/zipout : Output-Port (if (output-port? out.zip) out.zip (open-output-file out.zip)))
@@ -132,7 +134,7 @@
       (dynamic-wind void
                     (λ [] (zip-write-directories /dev/zipout comment
                                                  (for/list ([e (in-list entries)])
-                                                   (zip-write-entry /dev/zipout e root zip-root px:suffix seekable? level))))
+                                                   (zip-write-entry /dev/zipout e root zip-root px:suffix seekable? strategy))))
                     (λ [] (custodian-shutdown-all (current-custodian))))
       (void))))
 

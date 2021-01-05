@@ -4,7 +4,6 @@
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
 ;;; illumos://gate/usr/src/contrib/zlib/deflate.c
-;;; https://www.euccas.me/zlib
 
 (provide (all-defined-out))
 
@@ -22,12 +21,12 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-deflated-block : (->* (Output-Port ZIP-Deflation-Config ZIP-Deflation-Strategy)
-                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte #:fastest? Boolean
-                                                   #:name Any #:safe-flush-on-close? Boolean)
+(define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
+                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte
+                                                   #:dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
-  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8] #:fastest? [fastest? #false]
-           #:name [name '/dev/dfbout] #:safe-flush-on-close? [safe-close? #true]
+  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+           #:dynamic-block? [dynamic? #true] #:safe-flush-on-close? [safe-close? #true] #:name [name '/dev/dfbout]
            /dev/zipout preference strategy [close-orig? #false]]
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
@@ -44,8 +43,9 @@
     ; whereas `file-position` reports it from 0... 
     (define huffman-size : Positive-Integer 1)
 
-    (define pack-level : Byte (zip-deflation-config-level preference))
+    (define pack-level : Byte 6)
     (define memory-level : Positive-Byte (min memlevel 8))
+    (define intel-min-match : Positive-Byte (if (< pack-level 6) 4 3))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void

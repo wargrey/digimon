@@ -5,16 +5,23 @@
 
 (provide (all-defined-out))
 
-(require "../../enumeration.rkt")
+(require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-enumeration* zip-deflation-strategy #:+> ZIP-Deflation-Strategy
-  deflation-strategy->index index->deflation-strategy
-  [0 default
-     filtered            ; more huffman less string match, better for small values randomly distributed
-     huffman-only        ; no string match
-     run-length-encoding ; limit the match distance to one, better for PNG
-     fixed-block-only])
+(struct zip-strategy
+  ([name : Symbol]
+   [flag : ZIP-Deflation-Option]) ; useless but to satisfy the ZIP File format 
+  #:type-name ZIP-Strategy)
+
+(define zip-name->maybe-strategy : (case-> ['default -> ZIP-Strategy]
+                                           [Symbol -> (Option ZIP-Strategy)])
+  (lambda [name]
+    (case name
+      [(default)                   (zip-default-preference 6)]
+      [(rle RLE)                   (zip-run-preference 1)]
+      [(fastest FASTEST)           (zip-fastest-preference)]
+      [(huffman-only HUFFMAN-ONLY) (zip-huffman-only-preference)]
+      [else #false])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct zip-deflation-config
@@ -26,21 +33,61 @@
   #:type-name ZIP-Deflation-Config
   #:transparent)
 
-(define man-zip-#0-9 : (Vectorof ZIP-Deflation-Config)
-  (vector (zip-deflation-config 0  0   0   0    0)   ;; store only
+(struct zip-default-strategy zip-strategy
+  ([config : ZIP-Deflation-Config])
+  #:type-name ZIP-Default-Strategy
+  #:transparent)
 
-          (zip-deflation-config 1  4   4   8    4)   ;; maximum speed, no lazy matches
-          (zip-deflation-config 2  4   5  16    8)
-          (zip-deflation-config 3  4   6  32   32)
+(struct zip-run-strategy zip-strategy
+  ([length : Positive-Byte])
+  #:type-name ZIP-Run-Strategy
+  #:transparent)
 
-          (zip-deflation-config 4  4   4  16   16)   ;; lazy matches
-          (zip-deflation-config 5  8  16  32   32)
-          (zip-deflation-config 6  8  16 128  128)   ;; default
-          (zip-deflation-config 7  8  32 128  256)
-          (zip-deflation-config 8 32 128 258 1024)
-          (zip-deflation-config 9 32 258 258 4096))) ;; maximum compression
+(define man-zip-#0-9 : (Vectorof ZIP-Default-Strategy)
+  (vector (zip-default-strategy 'default 'normal  (zip-deflation-config 0  0   0   0    0))   ;; store only
+
+          (zip-default-strategy 'default 'fast    (zip-deflation-config 1  4   4   8    4))   ;; maximum speed, no lazy matches
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 2  4   5  16    8))
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 3  4   6  32   32))
+
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 4  4   4  16   16))   ;; lazy matches
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 5  8  16  32   32))
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 6  8  16 128  128))   ;; default
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 7  8  32 128  256))
+          (zip-default-strategy 'default 'normal  (zip-deflation-config 8 32 128 258 1024))
+          (zip-default-strategy 'default 'maximum (zip-deflation-config 9 32 258 258 4096)))) ;; maximum compression
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-compression-preference : (->* (Byte) (Symbol) ZIP-Deflation-Config)
-  (lambda [level [method 'deflated]]
-    (vector-ref man-zip-#0-9 (if (< level 10) level 6))))
+(define zip-default-preference : (-> Byte ZIP-Default-Strategy)
+  (lambda [level]
+    (vector-ref man-zip-#0-9 (if (< level (vector-length man-zip-#0-9)) level 6))))
+
+(define zip-fastest-preference : (-> ZIP-Strategy)
+  (lambda []
+    (zip-special-preference 'fastest)))
+
+(define zip-huffman-only-preference : (-> ZIP-Strategy)
+  (lambda []
+    (zip-special-preference 'huffman-only)))
+
+(define zip-run-preference : (-> Positive-Byte ZIP-Run-Strategy)
+  (let ([strategies : (HashTable Positive-Byte ZIP-Run-Strategy) (make-hasheq)])
+    (lambda [length]
+      (hash-ref! strategies length
+                 (λ [] (zip-run-strategy 'rle 'fast length))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-special-preference : (-> Symbol ZIP-Strategy)
+  (let ([strategies : (HashTable Symbol ZIP-Strategy) (make-hasheq)])
+    (lambda [name]
+      (hash-ref! strategies name
+                 (λ [] (zip-strategy name
+                                     (case name
+                                       [(huffman-only) 'superfast]
+                                       [(fastest) 'fast]
+                                       [else 'normal])))))))
+
+(define zip-compression-level? : (-> Any Boolean : #:+ Byte)
+  (lambda [v]
+    (and (byte? v)
+         (< v (vector-length man-zip-#0-9)))))
