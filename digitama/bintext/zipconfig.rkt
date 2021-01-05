@@ -29,7 +29,7 @@
    [good-length : Index] ;; reduce lazy search above this match length
    [max-lazy : Index]    ;; do not perform lazy search above this match length
    [nice-length : Index] ;; quit search above this match length
-   [max-chain : Index])  ;; quit search if already travelled the hash chain so many times
+   [max-chain : Index])  ;; quit search if already travelled the hash chain such times
   #:type-name ZIP-Deflation-Config
   #:transparent)
 

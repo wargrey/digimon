@@ -7,11 +7,11 @@
 
 (define display-codeword : LZ77-Select-Codeword
   (case-lambda
-    [(bs src-idx codeword dest-idx)
+    [(codeword dest-idx)
      (vector-set! magazine dest-idx codeword)
      (display (integer->char codeword))
      (flush-output (current-output-port))]
-    [(bs src-idx pointer size dest-idx)
+    [(pointer size dest-idx)
      (vector-set! magazine dest-idx (cons pointer size))
      (display (cons pointer size))
      (flush-output (current-output-port))]))
@@ -20,7 +20,6 @@
 (module+ main
   (require racket/list)
   
-  (require "../number.rkt")
   (require "../format.rkt")
   
   (require "../digitama/bintext/zipconfig.rkt")
