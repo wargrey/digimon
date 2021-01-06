@@ -1,6 +1,6 @@
 #lang typed/racket/gui
 
-(provide main)
+(provide (all-defined-out))
 
 (require racket/path)
 (require racket/symbol)
@@ -104,7 +104,7 @@
     
     (when (pair? entries)
       (cond [(= (length (car entries)) 1) (for ([e entries]) (displayln (car e)))]
-            [else (let ([widths (zip-info-column-widths entries)])
+            [else (let ([widths (text-column-widths entries)])
                     (for ([e (in-list entries)])
                       (for ([col (in-list e)]
                             [wid (in-list widths)]
@@ -154,13 +154,6 @@
         (string-append (number->string (date-year the-date)) (~0time (date-month the-date)) (~0time (date-day the-date))
                        "." (~0time (date-hour the-date)) (~0time (date-minute the-date)) (~0time (date-second the-date))))))
 
-(define zip-info-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Natural))
-  (lambda [entries]
-    (for/fold ([widths : (Listof Natural) (map string-length (car entries))])
-              ([columns : (Listof String) (in-list (cdr entries))])
-      (for/list ([col (in-list columns)]
-                 [width (in-list widths)])
-        (max width (string-length col))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(main (current-command-line-arguments))
+(module+ main
+  (main (current-command-line-arguments)))

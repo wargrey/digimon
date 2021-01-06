@@ -1,78 +1,136 @@
 #lang typed/racket/base
 
+(require racket/list)
+(require racket/file)
+(require racket/path)
+
+(require digimon/cmdopt)
+(require digimon/dtrace)
+(require digimon/format)
+(require digimon/debug)
+(require digimon/echo)
+
 (require "../digitama/bintext/lz77.rkt")
+(require "../digitama/bintext/zipconfig.rkt")
+(require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define magazine : (Vectorof (U Byte (Pairof Index Index))) (make-vector (expt 2 15) 0))
+(define-cmdlet-option lz77-flags #: Lz77-Flags
+  #:program 'lz77
+  #:args [file.zip]
 
-(define display-codeword : LZ77-Select-Codeword
-  (case-lambda
-    [(codeword dest-idx)
-     (vector-set! magazine dest-idx codeword)
-     (display (integer->char codeword))
-     (flush-output (current-output-port))]
-    [(pointer size dest-idx)
-     (vector-set! magazine dest-idx (cons pointer size))
-     (display (cons pointer size))
-     (flush-output (current-output-port))]))
+  #:once-each
+  [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte "hash Bits"]
+   [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "minimum match"]
+   [(#\v)   #:=> lz77-verbose                          "run with verbose messages"]])
+
+(define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(module+ main
-  (require racket/list)
-  
-  (require "../format.rkt")
-  
-  (require "../digitama/bintext/zipconfig.rkt")
+(define lz77-run : (-> Bytes (U ZIP-Strategy (Listof ZIP-Strategy)) Positive-Byte (Option Positive-Byte) Void)
+  (lambda [txt strategies bits min-match]
+    (define rsize : Index (bytes-length txt))
+    (define magazine : (Vectorof (U Byte (Pairof Index Index))) (make-vector rsize 0))
 
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define lz77-test : (-> Bytes (U ZIP-Strategy (Listof ZIP-Strategy)) Boolean)
-    (lambda [txt strategies]
-      (displayln txt)
+    (define record-codeword : LZ77-Select-Codeword
+      (case-lambda
+        [(codeword dest-idx)
+         (vector-set! magazine dest-idx codeword)]
+        [(pointer size dest-idx)
+         (vector-set! magazine dest-idx (cons pointer size))]))
 
-      (define summaries : (Listof (List Boolean String Integer))
-        (for/list ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))]
-                   [idx (in-naturals 1)])
-          (printf "==> [~a][strategy: ~a]~n" idx strategy)
+    (define display-codeword : LZ77-Select-Codeword
+      (case-lambda
+        [(codeword dest-idx)
+         (record-codeword codeword dest-idx)
+         (display (integer->char codeword))
+         (flush-output (current-output-port))]
+        [(pointer size dest-idx)
+         (record-codeword pointer size dest-idx)
+         (display (cons pointer size))
+         (flush-output (current-output-port))]))
+
+    (define summaries : (Listof (Listof String))
+      (for/list ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))])
+        (define desc : String (strategy->description strategy))
+        
+        (when (lz77-verbose) (printf "==> [strategy: ~a]~n" desc))
+
+        (collect-garbage 'major)
+        (collect-garbage 'major)
+        (collect-garbage 'major)
+
+        (define-values (results cpu real gc)
+          (time-apply (λ [] (let ([csize (lz77-deflate txt (if (lz77-verbose) display-codeword record-codeword) strategy)])
+                              (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
+                              (list csize ?txt)))
+                      null))
+
+        (when (lz77-verbose) (newline))
+
+        (define csize : Index (caar results))
+        (define ?txt : Bytes (cadar results))
+        
+        (let ([ok? (bytes=? txt ?txt)])
+          (when (and (not ok?) (lz77-verbose))
+            (displayln '==>)
+            (displayln ?txt))
           
-          (define count : Index (lz77-deflate txt display-codeword strategy))
-          (define-values (?txt total) (lz77-inflate (in-vector magazine 0 count)))
-            
-          (newline)
+          (list (if (not ok?) "F" "T")
+                desc (zip-size rsize) (zip-cfactor csize rsize 2)
+                (~gctime cpu) (~gctime real) (~gctime gc)))))
+
+    (when (lz77-verbose) (printf "=============~n"))
+
+    (when (pair? summaries)
+      (let ([widths (text-column-widths summaries)])
+        (for ([summary (in-list summaries)])
+          (define color : Term-Color (if (string-ci=? (car summary) "T") 'green 'red))
           
-          (let ([ok? (bytes=? txt ?txt)])
-            (when (not ok?)
-              (displayln '==>)
-              (displayln ?txt))
+          (for ([col (in-list summary)]
+                [wid (in-list widths)]
+                [idx (in-naturals)])
+            (when (> idx 0) (display #\space))
             
-            (list ok? (~% (- 1.0 (/ count (bytes-length txt)))) idx))))
+            (let ([numerical? (memq (string-ref col (sub1 (string-length col))) (list #\% #\B))])
+              (echof #:fgcolor color (~a col #:min-width wid #:align (if numerical? 'right 'left)))))
 
-      (printf "=============~n")
-      (for/fold ([ok? : Boolean #true])
-                ([summary (in-list summaries)])
-        (displayln summary)
-        (and ok? (car summary)))))
-  
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define text : Bytes
-    #"It was the best of times,
-it was the worst of times,
-it was the age of wisdom,
-it was the age of foolishness,
-it was the epoch of belief,
-it was the epoch of incredulity,
-it was the season of Light,
-it was the season of Darkness,
-it was the spring of hope,
-it was the winter of despair,
-we had everything before us,
-we had nothing before us,
-we were all going direct to Heaven,
-we were all going direct the other way")
+          (newline))))))
 
-  (define fastest-strategy : ZIP-Strategy (zip-fastest-preference))
-  (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 0 10)))
-  (define rle-strategies : (Listof ZIP-Strategy) (map zip-run-preference (range 1 5)))
-  
-  (lz77-test text default-strategies)
-  (lz77-test text fastest-strategy)
-  (lz77-test #"Fa-la-la-la-la" rle-strategies))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define main : (-> (U (Listof String) (Vectorof String)) Nothing)
+  (lambda [argument-list]
+    (define-values (options λargv) (parse-lz77-flags argument-list #:help-output-port (current-output-port)))
+    (define src.txt (λargv))
+
+    (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 0 10)))
+    (define fastest-strategies : (Listof ZIP-Strategy) (list (zip-fastest-preference)))
+    (define rle-strategies : (Listof ZIP-Strategy) (map zip-run-preference (range 1 5)))
+    
+    (parameterize ([current-logger /dev/dtrace])
+      (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
+                                 (printf "~a [hash Bits: ~a] [minimum match: ~a]~n"
+                                         (if (file-exists? src.txt) (simple-form-path src.txt) src.txt)
+                                         (lz77-flags-B options) (lz77-flags-m options))
+                                 
+                                 (lz77-run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
+                                           (append default-strategies fastest-strategies rle-strategies)
+                                           (or (lz77-flags-B options) lz77-default-hash-bits)
+                                           (lz77-flags-m options))
+                                 
+                                 (dtrace-datum-notice eof)
+                                 (thread-wait tracer))))))))
+
+(define make-zip-log-trace : (-> (-> Void))
+  (lambda []
+    (make-dtrace-loop (if (lz77-verbose) 'trace 'info))))
+
+(define strategy->description : (-> ZIP-Strategy String)
+  (lambda [s]
+    (define name : Symbol (zip-strategy-name s))
+    
+    (cond [(zip-default-strategy? s) (format "~a:~a" name (zip-deflation-config-level (zip-default-strategy-config s)))]
+          [(zip-run-strategy? s) (format "~a:~a" name (zip-run-strategy-length s))]
+          [else (symbol->string name)])))
+
+(main (current-command-line-arguments))

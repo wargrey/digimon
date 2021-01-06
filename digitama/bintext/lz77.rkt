@@ -51,6 +51,17 @@
        (let ([pointers (unsafe-vector*-ref heads hash)])
          (lz77-update-hash heads hash pointers idx)))]))
 
+(define-syntax (lz77-insert-string stx)
+  (syntax-case stx []
+    [(_ heads hash0 window start end shift mask)
+     (syntax/loc stx
+       (let insert ([idx : Index start]
+                    [hash : Index hash0])
+         (cond [(>= idx end) hash]
+               [else (let-values ([(h++ pointers) (lz77-accumulative-hash heads hash (unsafe-bytes-ref window idx) shift mask)])
+                       (lz77-update-hash heads h++ pointers idx)
+                       (insert (unsafe-idx+ idx 1) h++))])))]))
+
 (define-syntax (define-lz77-deflate stx)
   (syntax-case stx [:]
     [(_ (lz77-deflate window codeword-select end min-match max-match)
@@ -92,19 +103,25 @@
             (unsafe-idx+ d-idx 1)]
            [(dest d-idx distance span)
             (cond [(< d-idx distance) d-idx]
-                  [else (let* ([d-end (unsafe-idx+ d-idx span)]
-                               [s-idx (unsafe-idx- d-idx distance)]
-                               [s-end (unsafe-idx+ s-idx span)])
-                          (cond [(<= s-end d-idx) (unsafe-bytes-copy! dest d-idx dest s-idx s-end)]
-                                [else (let copy-overlap ([d-pos : Index d-idx]
-                                                         [delta : Index (unsafe-idx- d-idx s-idx)])
-                                        (define pos++ : Index (unsafe-idx+ d-pos delta))
-                                        (if (< pos++ d-end)
-                                            (let ([2*delta (unsafe-idx+ delta delta)])
-                                              (unsafe-bytes-copy! dest d-pos dest s-idx d-pos)
-                                              (copy-overlap pos++ 2*delta))
-                                            (let ([s-end (unsafe-idx+ s-idx (unsafe-idx- d-end d-pos))])
-                                              (unsafe-bytes-copy! dest d-pos dest s-idx s-end))))])
+                  [else (let ([d-end (unsafe-idx+ d-idx span)])
+                          (if (= distance 1)
+                              (let ([codeword (unsafe-bytes-ref dest (unsafe-idx- d-idx 1))])
+                                (let copy-runlength:1 ([d-pos : Index d-idx])
+                                  (when (< d-pos d-end)
+                                    (unsafe-bytes-set! dest d-pos codeword)
+                                    (copy-runlength:1 (unsafe-idx+ d-pos 1)))))
+                              (let* ([s-idx (unsafe-idx- d-idx distance)]
+                                     [s-end (unsafe-idx+ s-idx span)])
+                                (cond [(<= s-end d-idx) (unsafe-bytes-copy! dest d-idx dest s-idx s-end)]
+                                      [else (let copy-overlap ([d-pos : Index d-idx]
+                                                               [delta : Index (unsafe-idx- d-idx s-idx)])
+                                              (define pos++ : Index (unsafe-idx+ d-pos delta))
+                                              (if (< pos++ d-end)
+                                                  (let ([2*delta (unsafe-idx+ delta delta)])
+                                                    (unsafe-bytes-copy! dest d-pos dest s-idx d-pos)
+                                                    (copy-overlap pos++ 2*delta))
+                                                  (let ([s-end (unsafe-idx+ s-idx (unsafe-idx- d-end d-pos))])
+                                                    (unsafe-bytes-copy! dest d-pos dest s-idx s-end))))])))
                           d-end)])])))]))
        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -156,6 +173,7 @@
   #:λ start
   (let ([good-span (zip-deflation-config-good-length preference)]
         [nice-span (zip-deflation-config-nice-length preference)]
+        [insert-size (zip-deflation-config-max-lazy preference)]
         [chain-size (zip-deflation-config-max-chain preference)])
     (let deflate ([hash : Index hash0]
                   [m-idx : Index start]
@@ -177,7 +195,12 @@
                   (deflate hash++ m-idx++ d-idx++))
                 (let ([distance (unsafe-idx- m-idx pointer)])
                   (codeword-select distance span d-idx)
-                  (deflate hash++ (unsafe-idx+ m-idx span) d-idx++))))
+                  (if (> span insert-size)
+                      (deflate hash++ (unsafe-idx+ m-idx span) d-idx++)
+                      (let ([ins-start (unsafe-idx+ m-idx 1)]
+                            [ins-end (unsafe-idx+ m-idx span)])
+                        (deflate (lz77-insert-string heads hash++ window ins-start ins-end hash-shift hash-mask)
+                          ins-end d-idx++))))))
           d-idx))))
 
 (define-lz77-deflate (lz77-deflate/lazy window codeword-select end min-match max-match)
@@ -188,13 +211,13 @@
   (let ([good-span (zip-deflation-config-good-length preference)]
         [nice-span (zip-deflation-config-nice-length preference)]
         [lazy-span (zip-deflation-config-max-lazy preference)]
-        [chain-size (zip-deflation-config-max-chain preference)])
+        [chain-size (zip-deflation-config-max-chain preference)]
+        [invalid-span : Negative-Fixnum -1]) ; so that previous and current span will never coincide equalling zero
     (let deflate ([hash : Index hash0]
                   [m-idx : Index start]
                   [d-idx : Index start]
-                  [p-span : Index 0]
+                  [p-span : (U Index Negative-Fixnum) invalid-span]
                   [p-distance : Index 0]
-                  [p-code : Byte 0]
                   [p-hash : Index 0])
       (cond [(< m-idx end)
              (let ([self-code (unsafe-bytes-ref window m-idx)]
@@ -206,40 +229,39 @@
                        [(exact-integer? ?pointer) (values ?pointer (lz77-backref-span window ?pointer m-idx boundary))]
                        [else (lz77-longest-backref-span window ?pointer m-idx boundary good-span nice-span chain-size)]))
                
-               (cond [(< self-span min-match)
-                      (if (> p-span 0)
-                          (let ([p-idx (unsafe-idx- m-idx 1)])
-                            (codeword-select p-distance p-span d-idx)
-                            (lz77-update-hash heads p-hash p-idx)
-                            (deflate p-hash (unsafe-idx+ p-idx p-span) (unsafe-idx+ d-idx 1) 0 0 self-code hash))
-                          (begin
-                            (codeword-select self-code d-idx)
-                            (lz77-update-hash heads hash++ ?pointer m-idx)
-                            (deflate hash++ (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1) 0 0 self-code hash)))]
-                     [(>= p-span self-span)
-                      (let ([p-idx (unsafe-idx- m-idx 1)])
+               (cond [(>= p-span self-span)
+                      (let* ([p-idx (unsafe-idx- m-idx 1)]
+                             [p-idx++ (unsafe-idx+ p-idx p-span)])
                         (codeword-select p-distance p-span d-idx)
-                        (lz77-update-hash heads p-hash p-idx)
-                        (deflate p-hash (unsafe-idx+ p-idx p-span) (unsafe-idx+ d-idx 1) 0 0 self-code hash))]
+                        (lz77-insert-string heads p-hash window p-idx p-idx++ hash-shift hash-mask)
+                        (deflate p-hash p-idx++ (unsafe-idx+ d-idx 1) invalid-span 0 hash))]
+                     [(< self-span min-match)
+                      (codeword-select self-code d-idx)
+                      (lz77-update-hash heads hash++ ?pointer m-idx)
+                      (deflate hash++ (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1) invalid-span 0 hash)]
                      [(> self-span lazy-span)
-                      (if (> p-span 0)
-                          (let ([p-idx (unsafe-idx- m-idx 1)])
-                            (codeword-select p-distance p-span d-idx)
-                            (lz77-update-hash heads p-hash p-idx)
-                            (deflate p-hash (unsafe-idx+ p-idx p-span) (unsafe-idx+ d-idx 1) 0 0 self-code hash))
-                          (begin
-                            (codeword-select (unsafe-idx- m-idx pointer) self-span d-idx)
-                            (lz77-update-hash heads hash++ ?pointer m-idx)
-                            (deflate hash++ (unsafe-idx+ m-idx self-span) (unsafe-idx+ d-idx 1) 0 0 self-code hash)))]
+                      (define self-idx
+                        (cond [(> p-span 0)
+                               (let ([p-idx (unsafe-idx- m-idx 1)])
+                                 (codeword-select (unsafe-bytes-ref window p-idx) d-idx)
+                                 (lz77-update-hash heads p-hash p-idx)
+                                 (unsafe-idx+ d-idx 1))]
+                              [else d-idx]))
+                      (let ([m-idx++ (unsafe-idx+ m-idx self-span)])
+                        (codeword-select (unsafe-idx- m-idx pointer) self-span self-idx)
+                        (lz77-insert-string heads hash++ window m-idx m-idx++ hash-shift hash-mask)
+                        (deflate hash++ m-idx++ (unsafe-idx+ self-idx 1) invalid-span 0 hash))]
                      [(> p-span 0)
-                      (codeword-select p-code d-idx)
-                      (lz77-update-hash heads p-hash (unsafe-idx- m-idx 1))
-                      (deflate hash++ (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1) self-span (unsafe-idx- m-idx pointer) self-code hash)]
-                     [else (deflate hash++ (unsafe-idx+ m-idx 1) d-idx self-span (unsafe-idx- m-idx pointer) self-code hash)]))]
+                      (let ([p-idx (unsafe-idx- m-idx 1)])
+                        (codeword-select (unsafe-bytes-ref window p-idx) d-idx)
+                        (lz77-update-hash heads p-hash p-idx)
+                        (deflate hash++ (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1) self-span (unsafe-idx- m-idx pointer) hash))]
+                     [else (deflate hash++ (unsafe-idx+ m-idx 1) d-idx self-span (unsafe-idx- m-idx pointer) hash)]))]
           
             [(> p-span 0)
              (codeword-select p-distance p-span d-idx)
              (unsafe-idx+ d-idx 1)]
+            
             [else d-idx]))))
 
 (define-lz77-inflate lz77-inflate-into #:with [bytes-set! bytes-copy!])

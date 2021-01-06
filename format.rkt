@@ -4,7 +4,6 @@
 (provide (all-from-out racket/format))
 (provide (all-from-out racket/pretty))
 
-(require "digitama/sugar.rkt")
 (require "digitama/plural.rkt")
 
 (require "enumeration.rkt")
@@ -135,3 +134,12 @@
 (define number->symb0b : (-> Integer Symbol)
   (lambda [mpbin]
     (string->symbol (string-append "0b" (number->string mpbin 2)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define text-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Natural))
+  (lambda [entries]
+    (for/fold ([widths : (Listof Natural) (map string-length (car entries))])
+              ([columns : (Listof String) (in-list (cdr entries))])
+      (for/list ([col (in-list columns)]
+                 [width (in-list widths)])
+        (max width (string-length col))))))
