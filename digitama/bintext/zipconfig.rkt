@@ -28,7 +28,7 @@
   ([level : Byte]
    [good-length : Index] ;; reduce lazy search above this match length
    [lazy-limit : Index]  ;; do not perform lazy search above this match length
-   [nice-length : Index] ;; quit search above this match length
+   [nice-length : Index] ;; quit search above this match length, don't to be confused with `max-match`
    [chain-size : Index]) ;; quit search if already travelled the hash chain such times
   #:type-name ZIP-Deflation-Config
   #:transparent)
@@ -69,7 +69,16 @@
   (lambda [level]
     (vector-ref man-zip-#0-9 (if (< level (vector-length man-zip-#0-9)) level 6))))
 
-; corresponds the fastest strategy (in the `zlib`), which name is misleading.
+; corresponds to the medium strategy of intel's `zlib-new`
+(define zip-backward-preference : (->* (Byte) (Positive-Byte) ZIP-Backward-Strategy)
+  (lambda [level [factor 16]]
+    (define preference : ZIP-Default-Strategy (zip-default-preference level))
+    (zip-backward-strategy 'backward
+                           (zip-strategy-flag preference)
+                           (zip-default-strategy-config preference)
+                           factor)))
+
+; corresponds to the fastest strategy (in the `zlib`), which name is misleading.
 (define zip-plain-preference : (-> ZIP-Strategy)
   (lambda []
     (zip-special-preference 'plain)))
@@ -79,10 +88,8 @@
     (zip-special-preference 'huffman-only)))
 
 (define zip-run-preference : (-> Positive-Byte ZIP-Run-Strategy)
-  (let ([strategies : (HashTable Positive-Byte ZIP-Run-Strategy) (make-hasheq)])
-    (lambda [length]
-      (hash-ref! strategies length
-                 (λ [] (zip-run-strategy 'rle 'fast length))))))
+  (lambda [length]
+    (zip-run-strategy 'rle 'fast length)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-special-preference : (-> Symbol ZIP-Strategy)
