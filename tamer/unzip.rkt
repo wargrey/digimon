@@ -53,4 +53,5 @@
     (make-dtrace-loop (if (zip-verbose) 'trace 'info))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(main (current-command-line-arguments))
+(module+ main
+  (main (current-command-line-arguments)))

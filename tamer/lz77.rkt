@@ -12,6 +12,7 @@
 
 (require "../digitama/bintext/lz77.rkt")
 (require "../digitama/bintext/zipconfig.rkt")
+(require "../digitama/unsafe/ops.rkt")
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -22,7 +23,7 @@
   #:once-each
   [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte "hash Bits"]
    [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "minimum match"]
-   [(#\v)   #:=> lz77-verbose                          "run with verbose messages"]])
+   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]])
 
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 
@@ -77,7 +78,7 @@
             (displayln ?txt))
           
           (list (if (not ok?) "F" "T")
-                desc (zip-size rsize) (zip-cfactor csize rsize 2)
+                desc (zip-size csize) (zip-cfactor csize rsize 2)
                 (~gctime cpu) (~gctime real) (~gctime gc)))))
 
     (when (lz77-verbose) (printf "=============~n"))
@@ -103,18 +104,18 @@
     (define-values (options λargv) (parse-lz77-flags argument-list #:help-output-port (current-output-port)))
     (define src.txt (λargv))
 
-    (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 0 10)))
-    (define fastest-strategies : (Listof ZIP-Strategy) (list (zip-fastest-preference)))
+    (define special-strategies : (Listof ZIP-Strategy) (map zip-special-preference '(huffman-only plain)))
+    (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 1 10)))
     (define rle-strategies : (Listof ZIP-Strategy) (map zip-run-preference (range 1 5)))
     
     (parameterize ([current-logger /dev/dtrace])
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (printf "~a [hash Bits: ~a] [minimum match: ~a]~n"
+                                 (printf "~a {hash Bits: ~a} {minimum match: ~a}~n"
                                          (if (file-exists? src.txt) (simple-form-path src.txt) src.txt)
                                          (lz77-flags-B options) (lz77-flags-m options))
                                  
                                  (lz77-run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
-                                           (append default-strategies fastest-strategies rle-strategies)
+                                           (append special-strategies default-strategies rle-strategies)
                                            (or (lz77-flags-B options) lz77-default-hash-bits)
                                            (lz77-flags-m options))
                                  
@@ -133,4 +134,5 @@
           [(zip-run-strategy? s) (format "~a:~a" name (zip-run-strategy-length s))]
           [else (symbol->string name)])))
 
-(main (current-command-line-arguments))
+(module+ main
+  (main (current-command-line-arguments)))

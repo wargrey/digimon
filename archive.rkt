@@ -4,7 +4,7 @@
 (provide Archive-Entry archive-entry?)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Strategy zip-strategy? zip-default-preference)
-(provide zip-fastest-preference zip-huffman-only-preference zip-run-preference)
+(provide zip-huffman-only-preference zip-plain-preference zip-run-preference)
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
 
