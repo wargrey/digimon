@@ -17,10 +17,10 @@
                                            [Symbol -> (Option ZIP-Strategy)])
   (lambda [name]
     (case name
-      [(default)                     (zip-default-preference 6)]
-      [(rle RLE)                     (zip-run-preference 1)]
-      [(plain fastest PLAIN FASTEST) (zip-plain-preference)]
-      [(huffman-only HUFFMAN-ONLY)   (zip-huffman-only-preference)]
+      [(default)                                     (zip-default-preference 6)]
+      [(rle RLE)                                     (zip-run-preference 1)]
+      [(plain fastest PLAIN FASTEST)                 (zip-plain-preference)]
+      [(identity huffman-only IDENTITY HUFFMAN-ONLY) (zip-identity-preference)]
       [else #false])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -40,7 +40,7 @@
 
 (struct zip-backward-strategy zip-strategy
   ([config : ZIP-Deflation-Config]
-   [insert-factor : Positive-Byte]) ;; the factor of `max-lazy` for `max-insert-length`
+   [insert-factor : Positive-Byte])
   #:type-name ZIP-Backward-Strategy
   #:transparent)
 
@@ -69,6 +69,11 @@
   (lambda [level]
     (vector-ref man-zip-#0-9 (if (< level (vector-length man-zip-#0-9)) level 6))))
 
+; corresponds to the fastest strategy (of `zlib`), which name is misleading.
+(define zip-plain-preference : (-> ZIP-Strategy)
+  (lambda []
+    (zip-special-preference 'plain)))
+
 ; corresponds to the medium strategy of intel's `zlib-new`
 (define zip-backward-preference : (->* (Byte) (Positive-Byte) ZIP-Backward-Strategy)
   (lambda [level [factor 16]]
@@ -78,14 +83,9 @@
                            (zip-default-strategy-config preference)
                            factor)))
 
-; corresponds to the fastest strategy (in the `zlib`), which name is misleading.
-(define zip-plain-preference : (-> ZIP-Strategy)
+(define zip-identity-preference : (-> ZIP-Strategy)
   (lambda []
-    (zip-special-preference 'plain)))
-
-(define zip-huffman-only-preference : (-> ZIP-Strategy)
-  (lambda []
-    (zip-special-preference 'huffman-only)))
+    (zip-special-preference 'identity)))
 
 (define zip-run-preference : (-> Positive-Byte ZIP-Run-Strategy)
   (lambda [length]

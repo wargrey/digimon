@@ -22,18 +22,22 @@
 
   #:once-each
   [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte "hash Bits"]
-   [(#\f)   #:=> cmdopt-string->index farthest #: Index         "farthest"]
+   [(#\F)   #:=> cmdopt-string->index farthest #: Index         "farthest"]
+   [(#\f)   #:=> cmdopt-string->index farthest #: Index         "filtered threshold"]
    [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "minimum match"]
    [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]])
 
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define lz77-run : (-> Bytes (U ZIP-Strategy (Listof ZIP-Strategy)) Positive-Byte (Option Positive-Byte) Index Void)
-  (lambda [txt strategies bits min-match farthest]
+(define lz77-run : (-> Bytes (U ZIP-Strategy (Listof ZIP-Strategy)) Positive-Byte (Option Positive-Byte) Index Index Void)
+  (lambda [txt strategies bits min-match farthest filtered]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof (U Byte (Pairof Index Index))) (make-vector rsize 0))
 
+    (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+            bits (or min-match 'auto) farthest filtered)
+    
     (define record-codeword : LZ77-Select-Codeword
       (case-lambda
         [(codeword dest-idx)
@@ -56,7 +60,7 @@
       (for/list ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))])
         (define desc : String (strategy->description strategy))
         
-        (when (lz77-verbose) (printf "==> [strategy: ~a]~n" desc))
+        (when (lz77-verbose) (printf ">>> [strategy: ~a]~n" desc))
 
         (collect-garbage 'major)
         (collect-garbage 'major)
@@ -76,8 +80,7 @@
         
         (let ([ok? (bytes=? txt ?txt)])
           (when (and (not ok?) (lz77-verbose))
-            (displayln '==>)
-            (displayln ?txt))
+            (echof "==>~n~a~n" ?txt #:fgcolor 'red))
           
           (list (if (not ok?) "F" "T")
                 desc (zip-size csize) (zip-cfactor csize rsize 2)
@@ -106,22 +109,21 @@
     (define-values (options λargv) (parse-lz77-flags argument-list #:help-output-port (current-output-port)))
     (define src.txt (λargv))
 
-    (define special-strategies : (Listof ZIP-Strategy) (map zip-special-preference '(huffman-only plain)))
+    (define special-strategies : (Listof ZIP-Strategy) (map zip-special-preference '(identity plain)))
     (define default-strategies : (Listof ZIP-Strategy) (map zip-default-preference (range 1 10)))
     (define backward-strategies : (Listof ZIP-Strategy) (map zip-backward-preference (range 1 10)))
     (define rle-strategies : (Listof ZIP-Strategy) (map zip-run-preference (range 1 5)))
     
     (parameterize ([current-logger /dev/dtrace])
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (printf "~a {hash Bits: ~a} {minimum match: ~a} {farthest: ~a}~n"
-                                         (if (file-exists? src.txt) (simple-form-path src.txt) src.txt)
-                                         (lz77-flags-B options) (lz77-flags-m options) (lz77-flags-f options))
+                                 (displayln (if (file-exists? src.txt) (simple-form-path src.txt) src.txt))
                                  
                                  (lz77-run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
                                            (append special-strategies default-strategies backward-strategies rle-strategies)
                                            (or (lz77-flags-B options) lz77-default-hash-bits)
                                            (lz77-flags-m options)
-                                           (or (lz77-flags-B options) lz77-default-farthest))
+                                           (or (lz77-flags-F options) lz77-default-farthest)
+                                           (or (lz77-flags-f options) 0))
                                  
                                  (dtrace-datum-notice eof)
                                  (thread-wait tracer))))))))
