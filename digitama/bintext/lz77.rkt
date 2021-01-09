@@ -301,6 +301,7 @@
             
             [(> p-span 0)
              (codeword-select p-distance p-span d-idx)
+             ; NOTE: it should be the `p-idx` that added by the `p-span`, but `m-idx` isn't harmful here since we've already at the end
              (values (unsafe-idx+ m-idx p-span) (unsafe-idx+ d-idx 1))]
             
             [else (values m-idx d-idx)]))))
@@ -399,7 +400,9 @@
             
             [(> p-span 0)
              (codeword-select p-distance p-span d-idx)
-             (values (unsafe-idx+ m-idx p-span) (unsafe-idx+ d-idx 1))]
+
+             ; NOTE: unlike the lazy one, no need to re-add the `p-span` here, as each round starts a new fresh matching process
+             (values m-idx (unsafe-idx+ d-idx 1))]
             
             [else (values m-idx d-idx)]))))
 
