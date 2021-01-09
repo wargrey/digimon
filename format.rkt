@@ -136,10 +136,12 @@
     (string->symbol (string-append "0b" (number->string mpbin 2)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define text-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Natural))
+(define text-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Index))
   (lambda [entries]
-    (for/fold ([widths : (Listof Natural) (map string-length (car entries))])
+    (for/fold ([widths : (Listof Index) (map string-length (car entries))])
               ([columns : (Listof String) (in-list (cdr entries))])
       (for/list ([col (in-list columns)]
                  [width (in-list widths)])
-        (max width (string-length col))))))
+        (let ([self-width (string-length col)])
+          (cond [(>= width self-width) width]
+                [else self-width]))))))

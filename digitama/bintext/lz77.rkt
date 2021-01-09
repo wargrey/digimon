@@ -154,19 +154,6 @@
     (cond [(zip-run-strategy? strategy) ; better for PNGs
            (lz77-deflate/rle #:min-match (or ?min-match lz77-default-min-match) #:max-match max-match
                              window codeword-select strategy start end)]
-          [(zip-default-strategy? strategy)
-           (let* ([preference (zip-default-strategy-config strategy)]
-                  [level (zip-deflation-config-level preference)]
-                  [min-match (or ?min-match lz77-default-min-match)])
-             (cond [(> level 3)
-                    (lz77-deflate/slow #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
-                                       #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
-                                       window codeword-select preference start end)]
-                   [(> level 0)
-                    (lz77-deflate/fast #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
-                                       #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
-                                       window codeword-select preference start end)]
-                   [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
           [(zip-backward-strategy? strategy) ; corresponds to the medium strategy of intel's `zlib-new`
            (let* ([preference (zip-backward-strategy-config strategy)]
                   [level (zip-deflation-config-level preference)]
@@ -175,6 +162,24 @@
                     (lz77-deflate/backward #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                            #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
                                            window codeword-select preference (zip-backward-strategy-insert-factor strategy) start end)]
+                   [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
+          [(zip-normal-strategy? strategy)
+           (let* ([preference (zip-normal-strategy-config strategy)]
+                  [level (zip-deflation-config-level preference)]
+                  [min-match (or ?min-match lz77-default-min-match)])
+             (cond [(> level 0)
+                    (lz77-deflate/normal #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
+                                         #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
+                                         window codeword-select preference start end)]
+                   [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
+          [(zip-lazy-strategy? strategy)
+           (let* ([preference (zip-lazy-strategy-config strategy)]
+                  [level (zip-deflation-config-level preference)]
+                  [min-match (or ?min-match lz77-default-min-match)])
+             (cond [(> level 0)
+                    (lz77-deflate/lazy #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
+                                       #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
+                                       window codeword-select preference start end)]
                    [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
           [else ; special strategies
            (case (zip-strategy-name strategy)
@@ -201,7 +206,8 @@
                       (unsafe-lz77-inflate-into dest total (car cw) (cdr cw))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-lz77-deflate/hash (lz77-deflate/fast window codeword-select end min-match max-match farthest filtered)
+; corresponds to `zlib`'s fast strategy, no lazy match or filter
+(define-lz77-deflate/hash (lz77-deflate/normal window codeword-select end min-match max-match farthest filtered)
   #:args [(preference : ZIP-Deflation-Config)]
   #:with [hash0 hash-size hash-shift hash-mask nil]
   #:chain [heads prevs]
@@ -209,6 +215,8 @@
   (let ([good-span (zip-deflation-config-good-length preference)]
         [nice-span (zip-deflation-config-nice-length preference)]
         [chain-size (zip-deflation-config-chain-size preference)]
+
+        ; this is the "different meaning" mentioned by `zlib`
         [insert-limit (zip-deflation-config-lazy-limit preference)])
     (let deflate : (Values Index Index) ([hash : Index hash0]
                                          [m-idx : Index 0]
@@ -233,7 +241,8 @@
           
           (values m-idx d-idx)))))
 
-(define-lz77-deflate/hash (lz77-deflate/slow window codeword-select end min-match max-match farthest filtered)
+; corresponds to `zlib`'s slow strategy, choose the better one between matches at current position and the next position 
+(define-lz77-deflate/hash (lz77-deflate/lazy window codeword-select end min-match max-match farthest filtered)
   #:args [[preference : ZIP-Deflation-Config]]
   #:with [hash0 hash-size hash-shift hash-mask nil]
   #:chain [heads prevs]
@@ -242,8 +251,12 @@
         [nice-span (zip-deflation-config-nice-length preference)]
         [lazy-span (zip-deflation-config-lazy-limit preference)]
         [chain-size (zip-deflation-config-chain-size preference)]
-        [minimum/filtered-match (max min-match filtered)] ; corresponds to the filtered strategy of `zlib`, to throw away random distributed small data
-        [invalid-span : Negative-Fixnum -1]) ; so that the previous and current spans will never coincide equalling zero
+        
+        ; corresponds to the `zlib`'s filtered strategy, throw away small random distributed data
+        [minimum/filtered-match (max min-match filtered)]
+
+        ; so that the previous and current spans will never coincide equalling zero
+        [invalid-span : Negative-Fixnum -1])
     (let deflate : (Values Index Index) ([hash : Index hash0]
                                          [m-idx : Index 0]
                                          [d-idx : Index 0]
@@ -296,7 +309,7 @@
 (define-lz77-inflate unsafe-lz77-inflate-into #:with [unsafe-bytes-set! unsafe-bytes-copy!])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; corresponds to the fastest strategy (of `zlib`), which name is misleading.
+; corresponds to `zlib`'s fastest strategy, no lazy, chain, filter or preferences
 (define-lz77-deflate/hash (lz77-deflate/plain window codeword-select end min-match max-match farthest filtered)
   #:args []
   #:with [hash0 hash-size hash-shift hash-mask nil]
@@ -324,7 +337,7 @@
         
         (values m-idx d-idx))))
 
-; corresponds to the medium strategy of intel's `zlib-new`
+; corresponds to the medium strategy of intel's `zlib-new`, match backward from the second one then adjust both
 (define-lz77-deflate/hash (lz77-deflate/backward window codeword-select end min-match max-match farthest filtered)
   #:args [[preference : ZIP-Deflation-Config] [factor : Positive-Byte]]
   #:with [hash0 hash-size hash-shift hash-mask nil]
@@ -368,7 +381,7 @@
                                (lz77-deflate/identity window codeword-select
                                                       (unsafe-idx- m-idx p-span) (unsafe-idx- m-idx back-span)
                                                       d-idx)]
-                              [else #| the previous match has been merged |# d-idx]))
+                              [else #| the previous match has been merged, see `lz77-backward-span` |# d-idx]))
                       
                       (if (> self-span insert-limit)
                           (deflate hash++ (unsafe-idx+ m-idx self-span) self-idx self-span++ distance)
@@ -390,7 +403,7 @@
             
             [else (values m-idx d-idx)]))))
 
-; corresponds to the run length encoding strategy (of `zlib`)
+; corresponds to `zlib`'s run length encoding strategy, good for PNGs
 (define lz77-deflate/rle : (->* (Bytes LZ77-Select-Codeword ZIP-Run-Strategy) (Index Index #:min-match Positive-Byte #:max-match Index) Index)
   (lambda [#:min-match [min-match lz77-default-min-match] #:max-match [max-match lz77-default-max-match]
            window codeword-select preference [start 0] [end (bytes-length window)]]
@@ -414,6 +427,7 @@
                                       (begin (codeword-select distance span d-idx)
                                              (deflate (unsafe-idx+ m-idx span) (unsafe-idx+ d-idx 1)))))]))]))))
 
+; corresponds to `zlib`'s huffman-only strategy, also served as the fallback and helper
 (define lz77-deflate/identity : (->* (Bytes LZ77-Select-Codeword) (Index Index Index) Index)
   (lambda [window codeword-select [start 0] [end (bytes-length window)] [d-idx0 0]]
     (let deflate ([m-idx : Index start]
@@ -450,8 +464,8 @@
   (lambda [window pointer-idx match-idx prev-span limit]
     ;;; NOTE
     ; It's okay if the prev match is a subset of the current one
-    ; since the prev one may be broke by the strategy, or even the bad hashing algorithm.
-    ; nevertheless, it's reasonable to stop before searching too far.
+    ; since the prev one may be broken by a strategy, or even a bad hashing algorithm
+    ; nevertheless, it's reasonable to stop before disturbing codewords that already submitted
     
     (define stop-idx : Nonnegative-Fixnum (max 0 (unsafe-fx- pointer-idx (min prev-span limit))))
     (define match-idx-1 : Index (unsafe-idx- match-idx 1))

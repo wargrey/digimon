@@ -16,7 +16,7 @@
 (require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type PKZIP-Strategy (U Byte Symbol False))
+(define-type PKZIP-Strategy (U Index Symbol ZIP-Strategy False))
 
 (define pkzip-compression-methods : (Listof ZIP-Compression-Method) (list 'stored 'deflated))
 (define pkzip-digimon-version : Byte 62)
@@ -32,8 +32,8 @@
 (define pkzip-default-suffixes : (Listof Symbol) (list 'zip 'Z 'zoo 'arc 'lzh 'arj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean PKZIP-Strategy (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy]
+(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean PKZIP-Strategy Byte (Option ZIP-Directory))
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
@@ -50,21 +50,15 @@
                           [else 'deflated]))]))
 
     (define strategy : ZIP-Strategy
-      (or (and ?strategy
-               (or (and (zip-compression-level? ?strategy)
-                        (zip-default-preference ?strategy)))
-               (or (and (symbol? ?strategy)
-                        (zip-name->maybe-strategy ?strategy))))
-          (for/or : (Option ZIP-Strategy) ([opt (in-list (archive-entry-options entry))])
-            (and (symbol? opt) (zip-name->maybe-strategy opt)))
-          (zip-name->maybe-strategy 'default)))
+      (or (for/or : (Option ZIP-Strategy) ([opt (in-list (cons ?strategy (archive-entry-options entry)))])
+            (cond [(zip-strategy? opt) opt]
+                  [(index? opt) (zip-level->maybe-strategy opt)]
+                  [(symbol? opt) (zip-name->maybe-strategy opt)]
+                  [else #false]))
+          (zip-default-preference)))
 
     (define fixed-only? : Boolean (and (memq 'fixed (archive-entry-options entry)) #true))
-
-    (define memory-level : Positive-Byte
-      (let ([levels (filter (λ [[o : Any]] (and (byte? o) (< 0 o) (<= o 8))) (archive-entry-options entry))])
-        (cond [(pair? levels) (car levels)]
-              [else 8])))
+    (define memory-level : Positive-Byte (if (or (= memlevel 0) (> memlevel 8)) 8 memlevel))
 
     (define flag : Index
       (case method

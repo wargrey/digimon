@@ -6,10 +6,10 @@
 (define pk.zip : Path (build-path (find-system-path 'temp-dir) "pk.zip"))
 (define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
 
-(define config#0 : (Listof ZIP-Strategy) (list (zip-default-preference 0)))
-(define config#1 : (Listof ZIP-Strategy) (list (zip-default-preference 1)))
-(define config#6 : (Listof ZIP-Strategy) (list (zip-default-preference 6)))
-(define config#9 : (Listof ZIP-Strategy) (list (zip-default-preference 9)))
+(define config#0 : (Listof Any) (list 0))
+(define config#1 : (Listof Any) (list 1))
+(define config#6 : (Listof Any) (list 6))
+(define config#9 : (Listof Any) (list 9))
 
 (define entries : (Listof Archive-Entry)
   (list (make-archive-file-entry (collection-file-path "." "digimon") "folder/digimon" #:methods '(stored))

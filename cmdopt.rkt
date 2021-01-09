@@ -138,3 +138,7 @@
 (define cmdopt-string->path : (-> Symbol String Path)
   (lambda [option file]
     (simple-form-path file)))
+
+(define cmdopt-string->symbol : (-> Symbol String Symbol)
+  (lambda [option name]
+    (string->symbol name)))

@@ -13,14 +13,27 @@
    [flag : ZIP-Deflation-Option]) ; useless but to satisfy the ZIP File format 
   #:type-name ZIP-Strategy)
 
-(define zip-name->maybe-strategy : (case-> ['default -> ZIP-Strategy]
-                                           [Symbol -> (Option ZIP-Strategy)])
+; the compression levels are defined by `zlib`, and re-configured by `zlib-new`
+; however in this implementation, they are not reliable
+; TODO: find the proper strategies so that fastest for #1 and ratio-highest for #9
+(define zip-level->maybe-strategy : (-> Index (Option ZIP-Strategy))
+  (lambda [level]
+    (case level
+      [(1 2 3) (zip-normal-preference level)]
+      [(4 5 6) (zip-backward-preference level)]
+      [(7 8 9) (zip-lazy-preference level)]
+      [(0)     (zip-identity-preference)]
+      [else #false])))
+
+(define zip-name->maybe-strategy : (-> Symbol (Option ZIP-Strategy))
   (lambda [name]
     (case name
-      [(default)                                     (zip-default-preference 6)]
-      [(rle RLE)                                     (zip-run-preference 1)]
-      [(plain fastest PLAIN FASTEST)                 (zip-plain-preference)]
-      [(identity huffman-only IDENTITY HUFFMAN-ONLY) (zip-identity-preference)]
+      [(normal fast)           (zip-normal-preference 1)]
+      [(lazy slow)             (zip-lazy-preference 6)]
+      [(default backward)      (zip-default-preference)]
+      [(rle run)               (zip-run-preference 1)]
+      [(plain fastest)         (zip-plain-preference)]
+      [(identity huffman-only) (zip-identity-preference)]
       [else #false])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -33,9 +46,14 @@
   #:type-name ZIP-Deflation-Config
   #:transparent)
 
-(struct zip-default-strategy zip-strategy
+(struct zip-normal-strategy zip-strategy
   ([config : ZIP-Deflation-Config])
-  #:type-name ZIP-Default-Strategy
+  #:type-name ZIP-Normal-Strategy
+  #:transparent)
+
+(struct zip-lazy-strategy zip-strategy
+  ([config : ZIP-Deflation-Config])
+  #:type-name ZIP-Lazy-Strategy
   #:transparent)
 
 (struct zip-backward-strategy zip-strategy
@@ -49,39 +67,44 @@
   #:type-name ZIP-Run-Strategy
   #:transparent)
 
-(define man-zip-#0-9 : (Vectorof ZIP-Default-Strategy)
-  (vector (zip-default-strategy 'default 'normal  (zip-deflation-config 0  0   0   0    0))   ;; store only
+(define man-zip-#0-9 : (Vectorof (Pairof ZIP-Deflation-Option ZIP-Deflation-Config))
+  (vector (cons 'normal  (zip-deflation-config 0  0   0   0    0))   ;; store only
 
-          (zip-default-strategy 'default 'fast    (zip-deflation-config 1  4   4   8    4))   ;; maximum speed, no lazy matches
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 2  4   5  16    8))
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 3  4   6  32   32))
+          (cons 'fast    (zip-deflation-config 1  4   4   8    4))   ;; maximum speed
+          (cons 'normal  (zip-deflation-config 2  4   5  16    8))
+          (cons 'normal  (zip-deflation-config 3  4   6  32   32))
 
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 4  4   4  16   16))   ;; lazy matches
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 5  8  16  32   32))
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 6  8  16 128  128))   ;; default
+          (cons 'normal  (zip-deflation-config 4  4   4  16   16))
+          (cons 'normal  (zip-deflation-config 5  8  16  32   32))
+          (cons 'normal  (zip-deflation-config 6  8  16 128  128))   ;; default
           
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 7  8  32 128  256))
-          (zip-default-strategy 'default 'normal  (zip-deflation-config 8 32 128 258 1024))
-          (zip-default-strategy 'default 'maximum (zip-deflation-config 9 32 258 258 4096)))) ;; maximum compression
+          (cons 'normal  (zip-deflation-config 7  8  32 128  256))
+          (cons 'normal  (zip-deflation-config 8 32 128 258 1024))
+          (cons 'maximum (zip-deflation-config 9 32 258 258 4096)))) ;; maximum compression
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-default-preference : (-> Byte ZIP-Default-Strategy)
-  (lambda [level]
-    (vector-ref man-zip-#0-9 (if (< level (vector-length man-zip-#0-9)) level 6))))
-
-; corresponds to the fastest strategy (of `zlib`), which name is misleading.
+; corresponds to the fastest strategy (of `zlib`)
 (define zip-plain-preference : (-> ZIP-Strategy)
   (lambda []
     (zip-special-preference 'plain)))
 
+; corresponds to the fast strategy (of `zlib`)
+(define zip-normal-preference : (-> Index ZIP-Normal-Strategy)
+  (lambda [level]
+    (let ([preference (zip-default-configuration level)])
+      (zip-normal-strategy 'normal (car preference) (cdr preference)))))
+
+; corresponds to the slow strategy (of `zlib`)
+(define zip-lazy-preference : (-> Index ZIP-Lazy-Strategy)
+  (lambda [level]
+    (let ([preference (zip-default-configuration level)])
+      (zip-lazy-strategy 'lazy (car preference) (cdr preference)))))
+
 ; corresponds to the medium strategy of intel's `zlib-new`
-(define zip-backward-preference : (->* (Byte) (Positive-Byte) ZIP-Backward-Strategy)
+(define zip-backward-preference : (->* (Index) (Positive-Byte) ZIP-Backward-Strategy)
   (lambda [level [factor 16]]
-    (define preference : ZIP-Default-Strategy (zip-default-preference level))
-    (zip-backward-strategy 'backward
-                           (zip-strategy-flag preference)
-                           (zip-default-strategy-config preference)
-                           factor)))
+    (let ([preference (zip-default-configuration level)])
+      (zip-backward-strategy 'backward (car preference) (cdr preference) factor))))
 
 (define zip-identity-preference : (-> ZIP-Strategy)
   (lambda []
@@ -92,6 +115,10 @@
     (zip-run-strategy 'rle 'fast length)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-default-preference : (-> ZIP-Backward-Strategy)
+  (lambda []
+    (zip-backward-preference 6)))
+
 (define zip-special-preference : (-> Symbol ZIP-Strategy)
   (let ([strategies : (HashTable Symbol ZIP-Strategy) (make-hasheq)])
     (lambda [name]
@@ -100,6 +127,10 @@
                                      (case name
                                        [(plain) 'fast]
                                        [else 'normal])))))))
+
+(define zip-default-configuration : (-> Index (Pairof ZIP-Deflation-Option ZIP-Deflation-Config))
+  (lambda [level]
+    (vector-ref man-zip-#0-9 (if (< level (vector-length man-zip-#0-9)) level 6))))
 
 (define zip-compression-level? : (-> Any Boolean : #:+ Byte)
   (lambda [v]
