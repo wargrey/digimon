@@ -14,9 +14,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LZ77-Select-Codeword
-  (case-> [Byte Index -> Void]
+  (case-> [Index Index -> Void]
           [Index Index Index -> Void]))
 
+(define lz77-default-safe-hash-bits : Positive-Byte 24)
 (define lz77-default-hash-bits : Positive-Byte 15)
 (define lz77-default-min-match : Positive-Byte 3)
 (define lz77-default-max-match : Index 258)
@@ -74,7 +75,7 @@
         #:λ reasonable-end hash-span body ...)
      (syntax/loc stx
        (define lz77-deflate : (->* (Bytes LZ77-Select-Codeword Type ...)
-                                   (#:hash-bits Positive-Byte #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
+                                   (#:hash-bits Positive-Index #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
                                     #:min-match Positive-Byte #:max-match Index #:farthest Index #:filtered Index
                                     Index Index)
                                    Index)
@@ -86,7 +87,7 @@
            (define offset : Index (unsafe-idx+ start min-match-1))
 
            (cond [(>= offset end) (lz77-deflate/identity window codeword-select start end)]
-                 [else (let* ([safe-bits (min hash-bits 24)]
+                 [else (let* ([safe-bits (min hash-bits lz77-default-safe-hash-bits)]
                               [hash-size (unsafe-idxlshift 1 safe-bits)]
                               [hash-shift (quotient (+ safe-bits min-match-1) min-match)]
                               [hash-mask (unsafe-idx- hash-size 1)]
@@ -112,7 +113,7 @@
   (syntax-case stx []
     [(_ lz77-inflate-into #:with [unsafe-bytes-set! unsafe-bytes-copy!])
      (syntax/loc stx
-       (define lz77-inflate-into : (case-> [Bytes Index Byte -> Index]
+       (define lz77-inflate-into : (case-> [Bytes Index Index -> Index]
                                            [Bytes Index Index Index -> Index])
          (case-lambda
            [(dest d-idx codeword)
@@ -145,7 +146,7 @@
 (define lz77-deflate : (->* (Bytes LZ77-Select-Codeword ZIP-Strategy)
                             (#:hash-bits Positive-Byte #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
                              #:min-match (Option Positive-Byte) #:max-match Index #:farthest Index #:filtered Index
-                             Index Index )
+                             Index Index)
                             Index)
   (lambda [#:hash-bits [hash-bits lz77-default-hash-bits] #:hash-heads [hs #false] #:hash-chain [ps #false]
            #:min-match [?min-match #false] #:max-match [max-match lz77-default-max-match]
@@ -155,8 +156,8 @@
            (lz77-deflate/rle #:min-match (or ?min-match lz77-default-min-match) #:max-match max-match
                              window codeword-select strategy start end)]
           [(zip-backward-strategy? strategy) ; corresponds to the medium strategy of intel's `zlib-new`
-           (let* ([preference (zip-backward-strategy-config strategy)]
-                  [level (zip-deflation-config-level preference)]
+           (let* ([level (zip-strategy-level strategy)]
+                  [preference (zip-backward-strategy-config strategy)]
                   [min-match (or ?min-match (if (< level 6) 4 lz77-default-min-match))])
              (cond [(> level 0)
                     (lz77-deflate/backward #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
@@ -164,8 +165,8 @@
                                            window codeword-select preference (zip-backward-strategy-insert-factor strategy) start end)]
                    [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
           [(zip-normal-strategy? strategy)
-           (let* ([preference (zip-normal-strategy-config strategy)]
-                  [level (zip-deflation-config-level preference)]
+           (let* ([level (zip-strategy-level strategy)]
+                  [preference (zip-normal-strategy-config strategy)]
                   [min-match (or ?min-match lz77-default-min-match)])
              (cond [(> level 0)
                     (lz77-deflate/normal #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
@@ -173,8 +174,8 @@
                                          window codeword-select preference start end)]
                    [else #| dead code for `zip-create` |# (lz77-deflate/identity window codeword-select start end)]))]
           [(zip-lazy-strategy? strategy)
-           (let* ([preference (zip-lazy-strategy-config strategy)]
-                  [level (zip-deflation-config-level preference)]
+           (let* ([level (zip-strategy-level strategy)]
+                  [preference (zip-lazy-strategy-config strategy)]
                   [min-match (or ?min-match lz77-default-min-match)])
              (cond [(> level 0)
                     (lz77-deflate/lazy #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
@@ -189,21 +190,21 @@
                                   window codeword-select start end)]
              [else #| identity, huffman-only, and the fallback |# (lz77-deflate/identity window codeword-select start end)])])))
 
-(define lz77-inflate : (All (seed) (->* ((Sequenceof (U Byte (Pairof Index Index)))) ((Option Bytes) Index) (Values Bytes Index)))
+(define lz77-inflate : (All (seed) (->* ((Sequenceof (U Index (Pairof Index Index)))) ((Option Bytes) Index) (Values Bytes Index)))
   (lambda [in-codewords [dest #false] [d-start 0]]
     (if (not dest)
         (let-values ([(sdrowedoc total)
-                      (for/fold ([codewords : (Listof (U Byte (Pairof Index Index))) null] [total : Natural 0])
+                      (for/fold ([codewords : (Listof (U Index (Pairof Index Index))) null] [total : Natural 0])
                                 ([cw in-codewords])
                         (values (cons cw codewords)
-                                (+ total (if (byte? cw) 1 (cdr cw)))))])
+                                (+ total (if (pair? cw) (cdr cw) 1))))])
           (lz77-inflate (in-list (reverse sdrowedoc)) (make-bytes total) 0))
         (values dest
                 (for/fold ([total : Index d-start])
                           ([cw in-codewords])
-                  (if (byte? cw)
-                      (unsafe-lz77-inflate-into dest total cw)
-                      (unsafe-lz77-inflate-into dest total (car cw) (cdr cw))))))))
+                  (if (pair? cw)
+                      (unsafe-lz77-inflate-into dest total (car cw) (cdr cw))
+                      (unsafe-lz77-inflate-into dest total cw)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; corresponds to `zlib`'s fast strategy, no lazy match or filter

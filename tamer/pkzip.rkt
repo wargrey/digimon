@@ -19,7 +19,8 @@
 
         (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
         (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig.rkt" #:methods '(deflated) #:options config#0)
-        (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman.rkt" #:methods '(deflated))))
+        (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman.rkt" #:methods '(deflated) #:options config#1)
+        (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77.rkt" #:methods '(deflated) #:options config#9)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

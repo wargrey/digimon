@@ -32,8 +32,10 @@
 (define pkzip-default-suffixes : (Listof Symbol) (list 'zip 'Z 'zoo 'arc 'lzh 'arj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp Boolean PKZIP-Strategy Byte (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel]
+(define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp
+                              Boolean PKZIP-Strategy Positive-Byte
+                              (Option ZIP-Directory))
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memory-level]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
@@ -58,7 +60,6 @@
           (zip-default-preference)))
 
     (define fixed-only? : Boolean (and (memq 'fixed (archive-entry-options entry)) #true))
-    (define memory-level : Positive-Byte (if (or (= memlevel 0) (> memlevel 8)) 8 memlevel))
 
     (define flag : Index
       (case method

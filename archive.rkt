@@ -123,7 +123,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-create : (->* ((U Path-String Output-Port) (Listof Archive-Entry))
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)
-                           #:strategy PKZIP-Strategy #:memory-level Byte
+                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte
                            String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]

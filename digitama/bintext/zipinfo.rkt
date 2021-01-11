@@ -58,7 +58,7 @@
 (define zip-deflation-flag : (->* (ZIP-Deflation-Option Boolean) (Boolean) Index)
   (lambda [option has-data-descriptor? [encrypted? #false]]
     (bitwise-ior (if has-data-descriptor?  #b1000 #b0000)
-                 (deflation-option->index option)
+                 (unsafe-idxlshift (deflation-option->index option) 1)
                  (if encrypted? #b1 #b0))))
 
 (define zip-permission-attribute : (->* (Nonnegative-Fixnum) (Boolean) Index)

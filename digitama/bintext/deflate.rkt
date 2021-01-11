@@ -25,39 +25,55 @@
                                           (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte
                                                    #:dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
-  (lambda [#:blocksize [blocksize #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
-           #:dynamic-block? [dynamic? #true] #:safe-flush-on-close? [safe-close? #true] #:name [name '/dev/dfbout]
-           /dev/zipout preference strategy [close-orig? #false]]
+  (lambda [#:blocksize [blocksize0 #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+           #:dynamic-block? [dynamic? #true] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
+           /dev/zipout strategy [close-orig? #false]]
+    (define need-huffman? : Boolean (> (zip-strategy-level strategy) 0))
+    
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
     ; For the sake of simplicity, a huffman block is born whenever the buffer is full or a `flush` is requested.
     ; Of all three types of block, only the stored one has a maximum size, which is `#xFFFF`, and
-    ;   this size is recommanded to choose by client API.
-    (define huffman-blocksize : Positive-Index (min blocksize #xFFFF))
-    (define huffman-block : Bytes (make-bytes huffman-blocksize))
-    (define huffman-payload : Index 0)
-    (define bitank : Bytes (make-bytes blocksize)) ; for the LSB bitstream
+    ;   this size is recommanded to choose by client APIs.
+    (define deflated-blocksize : Positive-Index (min blocksize0 #xFFFF))
+    (define deflated-block : Bytes (make-bytes deflated-blocksize))
+    (define deflated-payload : Index 0)
+    (define bitank : Bytes (make-bytes blocksize0)) ; for the LSB bitstream
 
+    ; for LZ77
+    (define memory-level : Positive-Byte (min memlevel 9))
+    (define hash-bits : Positive-Index (+ memory-level 7))
+    (define hash-heads : (Vectorof Index) (make-vector (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits))))
+    (define hash-prevs : (Vectorof Index) (make-vector blocksize0))
+    (define code-freqs : (Vectorof Index) (make-vector upcodewords 0))
+    (define freq-sum : Index 0)
+
+    (define huffman-codeword : LZ77-Select-Codeword
+      (case-lambda
+        [(codeword d-idx)
+         (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
+         (set! freq-sum (unsafe-idx+ freq-sum 1))]
+        [(distance span d-idx)
+         (let ([codeword distance])
+           (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
+           (set! freq-sum (unsafe-idx+ freq-sum 1)))]))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;; WARNING
     ; the port counts its position starting from 1,
     ; whereas `file-position` reports it from 0... 
-    (define huffman-size : Positive-Integer 1)
-
-    (define pack-level : Byte 6)
-    (define memory-level : Positive-Byte (min memlevel 8))
-    (define intel-min-match : Positive-Byte (if (< pack-level 6) 4 3))
+    (define deflated-size : Positive-Integer 1)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
       (define written-size : Natural
-        (cond [(= payload 0) (or (and add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
-              [(>= pack-level 4) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; slow
-              [(>= pack-level 1) (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)] ; fast
-              [else (huffman-write-stored-block! /dev/zipout huffman-block BFINAL 0 payload #:with bitank)]))
+        (cond [(= payload 0) (or (and BFINAL add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
+              [(not need-huffman?) (huffman-write-stored-block! /dev/zipout deflated-block BFINAL 0 payload #:with bitank)]
+              [else (huffman-write-stored-block! /dev/zipout deflated-block BFINAL 0 payload #:with bitank)]))
 
       (when (> written-size 0)
-        (set! huffman-size (+ huffman-size written-size))
-        (set! huffman-payload 0)))
+        (set! deflated-size (+ deflated-size written-size))
+        (set! deflated-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
@@ -65,40 +81,40 @@
       (if (<= src-size 0)
           ;;; NOTE
           ; By design, a terminate block would be inserted when flushing the port manually,
-          ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is #false;
+          ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is `#false`;
           
           ; But when performing a non-block writing with an empty bytes,
           ; say, via `write-bytes-avail*`, it would reach here too, and
-          ; the `non-block/buffered?` is #true. So that, doing flush as
+          ; the `non-block/buffered?` is `#true`. So that, doing flush as
           ; usual but do not insert the block as the final one.
-          (block-flush (not non-block/buffered?) huffman-payload #true)
+          (block-flush (not non-block/buffered?) deflated-payload #true)
           
           (let deflate ([src-size : Natural src-size]
                         [start : Natural start]
-                        [available : Index (unsafe-idx- huffman-blocksize huffman-payload)])
+                        [available : Index (unsafe-idx- deflated-blocksize deflated-payload)])
             (if (< src-size available)
                 (begin
-                  (bytes-copy! huffman-block huffman-payload bs start end)
-                  (set! huffman-payload (unsafe-idx+ huffman-payload src-size)))
+                  (bytes-copy! deflated-block deflated-payload bs start end)
+                  (set! deflated-payload (unsafe-idx+ deflated-payload src-size)))
                 (let ([end (+ start available)])
-                  (bytes-copy! huffman-block huffman-payload bs start end)
-                  (block-flush #false huffman-blocksize #false)
+                  (bytes-copy! deflated-block deflated-payload bs start end)
+                  (block-flush #false deflated-blocksize #false)
                   (when (> src-size available)
-                    (deflate (unsafe-idx- src-size available) end huffman-blocksize))))))
+                    (deflate (unsafe-idx- src-size available) end deflated-blocksize))))))
 
       ; Conventionally, non-block writing implies flush
       (unless (not non-block/buffered?)
-        (block-flush #false huffman-payload #false))
+        (block-flush #false deflated-payload #false))
       
       (- end start))
 
     (define (block-close) : Void
-      (unless (not safe-close?)
+      (unless (not safe-flush-on-close?)
         ;;; NOTE
-        ; When `safe-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
+        ; When `safe-flush-on-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
         ; say by a custodian, and client API will manually terminate the block chain in some ways.
-        ; Or blocks will be written at wrong position.
-        (block-flush #true huffman-payload #true))
+        ; Or flushing will probably make blocks being written to wrong positions.
+        (block-flush #true deflated-payload #true))
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
@@ -106,7 +122,7 @@
     (make-output-port name always-evt block-write block-close
                       #false port-always-write-evt #false
                       #false void
-                      (λ [] huffman-size)
+                      (λ [] deflated-size)
                       #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

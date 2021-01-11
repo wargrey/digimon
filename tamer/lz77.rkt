@@ -46,7 +46,7 @@
 (define lz77-run : (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void)
   (lambda [txt strategies bits min-match farthest filtered]
     (define rsize : Index (bytes-length txt))
-    (define magazine : (Vectorof (U Byte (Pairof Index Index))) (make-vector rsize 0))
+    (define magazine : (Vectorof (U Index (Pairof Index Index))) (make-vector rsize 0))
 
     (printf "[size: ~a] [hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
             (~size (bytes-length txt)) bits (or min-match 'auto) farthest filtered)
@@ -166,10 +166,10 @@
   (lambda [s]
     (define name : Symbol (zip-strategy-name s))
     
-    (cond [(zip-normal-strategy? s) (format "~a:~a" name (zip-deflation-config-level (zip-normal-strategy-config s)))]
-          [(zip-backward-strategy? s) (format "~a:~a" name (zip-deflation-config-level (zip-backward-strategy-config s)))]
-          [(zip-lazy-strategy? s) (format "~a:~a" name (zip-deflation-config-level (zip-lazy-strategy-config s)))]
-          [(zip-run-strategy? s) (format "~a:~a" name (zip-run-strategy-length s))]
+    (cond [(zip-normal-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
+          [(zip-backward-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
+          [(zip-lazy-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
+          [(zip-run-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
           [else (symbol->string name)])))
 
 (module+ main
