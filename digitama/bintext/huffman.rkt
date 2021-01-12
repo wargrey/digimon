@@ -1,14 +1,17 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
-
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
 ;;; illumos://gate/usr/src/grub/grub-0.97/stage2/gunzip.c
 ;;; illumos://gate/usr/src/contrib/zlib/deflate.c
 
+(provide (all-defined-out))
+
 (require (for-syntax racket/base))
+(require (for-syntax racket/list))
+
+(require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (huffman-fixed-literal-codeword-bit-lengths stx)
@@ -29,6 +32,33 @@
      (with-syntax ([(lengths ...) (for/list ([idx (in-range 32)]) 5)])
        (syntax/loc stx
          (vector-immutable lengths ...)))]))
+
+(define-syntax (define-huffman-fixed-distance-table stx)
+  (syntax-case stx []
+    [(_  huffman-distance-extra-bits huffman-distance-copy-offsets #:with distance->huffman-dist
+         [#:tables [huffman-dist base-distance extra-bits] ...])
+     (with-syntax ([([hi-distance ...] [lo-distance ...])
+                    (let ([bases (reverse (syntax->datum #'(base-distance ...)))]
+                          [huffmans (reverse (syntax->datum #'(huffman-dist ...)))])
+                      (for/fold ([hi.lo (list (make-list 256 0) (make-list 256 0))])
+                                ([dist-1 (in-range 32768)])
+                        (let search ([bs bases]
+                                     [hs huffmans])
+                          (cond [(< (add1 dist-1) (car bs)) (search (cdr bs) (cdr hs))]
+                                [(< dist-1 256) (list (car hi.lo) (list-set (cadr hi.lo) dist-1 (car hs)))]
+                                [else (list (list-set (car hi.lo) (arithmetic-shift dist-1 -7) (car hs)) (cadr hi.lo))]))))])
+       (syntax/loc stx
+         (begin (define huffman-distance-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits ...))
+                (define huffman-distance-copy-offsets : (Immutable-Vectorof Index) (vector-immutable base-distance ...))
+
+                (define hi-distances : (Immutable-Vectorof Byte) (vector-immutable hi-distance ...))
+                (define lo-distances : (Immutable-Vectorof Byte) (vector-immutable lo-distance ...))
+                
+                (define distance->huffman-dist : (-> Index Byte)
+                  (lambda [distance]
+                    (if (<= distance 256)
+                        (unsafe-vector*-ref lo-distances (unsafe-idx- distance 1))
+                        (unsafe-vector*-ref hi-distances (unsafe-idxrshift (unsafe-idx- distance 1) 7))))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -58,15 +88,41 @@
   (vector-immutable 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2
                     3 3 3 3 4 4 4 4 5 5 5 5 0 99 99)) ; /* 99 => invalid */
 
-(define huffman-distance-copy-offsets : (Immutable-Vectorof Index) ; for codes in range [0, 29]
-  (vector-immutable 1 2 3 4 5 7 9 13 17 25 33 49 65 97 129 193
-                    257 385 513 769 1025 1537 2049 3073 4097 6145
-                    8193 12289 16385 24577))
-
-(define huffman-distance-extra-bits : (Immutable-Vectorof Byte)
-  (vector-immutable 0 0 0 0 1 1 2 2 3 3 4 4 5 5 6 6
-                    7 7 8 8 9 9 10 10 11 11
-                    12 12 13 13))
+(define-huffman-fixed-distance-table
+  huffman-distance-extra-bits
+  huffman-distance-copy-offsets
+  #:with distance->huffman-dist
+  [#:tables
+   [0  1      0]
+   [1  2      0]
+   [2  3      0]
+   [3  4      0]
+   [4  5      1]
+   [5  7      1]
+   [6  9      2]
+   [7  13     2]
+   [8  17     3]
+   [9  25     3]
+   [10 33     4]
+   [11 49     4]
+   [12 65     5]
+   [13 97     5]
+   [14 129    6]
+   [15 193    6]
+   [16 257    7]
+   [17 385    7]
+   [18 513    8]
+   [19 769    8]
+   [20 1025   9]
+   [21 1537   9]
+   [22 2049  10]
+   [23 3073  10]
+   [24 4097  11]
+   [25 6145  11]
+   [26 8193  12]
+   [27 12289 12]
+   [28 16385 13]
+   [29 24577 13]])
 
 (define mask_bits : (Immutable-Vectorof Index)
   (vector-immutable #x0000

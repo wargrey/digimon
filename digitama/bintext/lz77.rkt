@@ -93,10 +93,12 @@
                               [hash-mask (unsafe-idx- hash-size 1)]
                               [nil end])
                          (define-values (heads prevs)
-                           (values (or (and hs (and (>= (vector-length hs) hash-size) (vector-fill! hs nil) hs))
+                           (values (or (and hs (and (>= (vector-length hs) hash-size)
+                                                    (vector-fill! hs nil) hs))
                                        ((inst make-vector Index) hash-size nil))
-                                   (or (and ps (and (>= (vector-length ps) nil) (vector-fill! ps nil) ps))
-                                       ((inst make-vector Index) nil nil))))
+                                   (or (and ps (and (>= (vector-length ps) end)
+                                                    (vector-fill! ps nil) ps))
+                                       ((inst make-vector Index) end nil))))
                          
                          (let init-hash+deflate ([hash0 : Index 0]
                                                  [idx : Index start])
@@ -107,7 +109,7 @@
                                (let ([reasonable-end (unsafe-idx- end min-match-1)]
                                      [hash-span min-match-1])
                                  (define-values (m-idx d-idx) (begin body ...))
-                                 (lz77-deflate/identity window codeword-select m-idx nil d-idx)))))]))))]))
+                                 (lz77-deflate/identity window codeword-select m-idx end d-idx)))))]))))]))
 
 (define-syntax (define-lz77-inflate stx)
   (syntax-case stx []
@@ -324,7 +326,7 @@
         (let ([d-idx++ (unsafe-idx+ d-idx 1)]
               [boundary (min (unsafe-idx+ m-idx max-match) end)])
           (define-values (hash++ pointer) (lz77-accumulative-hash heads hash window m-idx hash-span hash-shift hash-mask))
-          (define span : Index (if (< pointer nil) (lz77-backref-span window pointer m-idx boundary) 0))
+          (define span : Index (if (= pointer nil) 0 (lz77-backref-span window pointer m-idx boundary)))
           
           ; keep the distance always closest to satisfy the huffman encoding
           (unsafe-vector*-set! heads hash++ m-idx)

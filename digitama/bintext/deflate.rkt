@@ -22,31 +22,45 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:blocksize Positive-Index #:window-bits Positive-Byte #:memory-level Positive-Byte
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte
                                                    #:dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
-  (lambda [#:blocksize [blocksize0 #xFFFF] #:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+  (lambda [#:window-bits [winbits window-bits] #:memory-level [memlevel 8]
            #:dynamic-block? [dynamic? #true] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define need-huffman? : Boolean (> (zip-strategy-level strategy) 0))
+    (define memory-level : Positive-Byte (min memlevel 9))
     
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
-    ; For the sake of simplicity, a huffman block is born whenever the buffer is full or a `flush` is requested.
-    ; Of all three types of block, only the stored one has a maximum size, which is `#xFFFF`, and
-    ;   this size is recommanded to choose by client APIs.
-    (define deflated-blocksize : Positive-Index (min blocksize0 #xFFFF))
-    (define deflated-block : Bytes (make-bytes deflated-blocksize))
-    (define deflated-payload : Index 0)
-    (define bitank : Bytes (make-bytes blocksize0)) ; for the LSB bitstream
+    ; For the sake of simplicity, we set three kinds of block
+    ; which are all controlled by `memory-level` and applied to all strategies
+    ;   raw block:  receives the written bytes from clients;
+    ;   lz77 block: receives the codewords transformed from the `raw block`;
+    ;   bits block: receives the final codes encoded from the `lz77 block`,
+    ;                 residing in the LSB bitstream.
 
+    (define raw-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 5)))
+    (define lz77-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 6)))
+    (define bits-blocksize : Positive-Index raw-blocksize)
+    
+    (define raw-block : Bytes (make-bytes raw-blocksize))
+    (define lz77-block : (Vectorof (U Index (Pairof Index Index))) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
+    (define bitank : Bytes (make-bytes bits-blocksize))
+
+    (define raw-payload : Index 0)
+    (define lz77-payload : Index 0)
+    
     ; for LZ77
-    (define memory-level : Positive-Byte (min memlevel 9))
     (define hash-bits : Positive-Index (+ memory-level 7))
-    (define hash-heads : (Vectorof Index) (make-vector (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits))))
-    (define hash-prevs : (Vectorof Index) (make-vector blocksize0))
-    (define code-freqs : (Vectorof Index) (make-vector upcodewords 0))
+    (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
+    (define window-size : Index (unsafe-idxlshift 1 winbits))
     (define freq-sum : Index 0)
+
+    (define-values (hash-heads hash-prevs code-freqs)
+      (if (not need-huffman?)
+          (values lz77-dictionary-placeholder lz77-dictionary-placeholder lz77-dictionary-placeholder)
+          (values ((inst make-vector Index) hash-size) ((inst make-vector Index) raw-blocksize) ((inst make-vector Index) upcodewords 0))))
 
     (define huffman-codeword : LZ77-Select-Codeword
       (case-lambda
@@ -68,12 +82,12 @@
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
       (define written-size : Natural
         (cond [(= payload 0) (or (and BFINAL add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
-              [(not need-huffman?) (huffman-write-stored-block! /dev/zipout deflated-block BFINAL 0 payload #:with bitank)]
-              [else (huffman-write-stored-block! /dev/zipout deflated-block BFINAL 0 payload #:with bitank)]))
+              [(not need-huffman?) (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]
+              [else (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]))
 
       (when (> written-size 0)
         (set! deflated-size (+ deflated-size written-size))
-        (set! deflated-payload 0)))
+        (set! raw-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
@@ -87,24 +101,24 @@
           ; say, via `write-bytes-avail*`, it would reach here too, and
           ; the `non-block/buffered?` is `#true`. So that, doing flush as
           ; usual but do not insert the block as the final one.
-          (block-flush (not non-block/buffered?) deflated-payload #true)
+          (block-flush (not non-block/buffered?) raw-payload #true)
           
           (let deflate ([src-size : Natural src-size]
                         [start : Natural start]
-                        [available : Index (unsafe-idx- deflated-blocksize deflated-payload)])
+                        [available : Index (unsafe-idx- raw-blocksize raw-payload)])
             (if (< src-size available)
                 (begin
-                  (bytes-copy! deflated-block deflated-payload bs start end)
-                  (set! deflated-payload (unsafe-idx+ deflated-payload src-size)))
+                  (bytes-copy! raw-block raw-payload bs start end)
+                  (set! raw-payload (unsafe-idx+ raw-payload src-size)))
                 (let ([end (+ start available)])
-                  (bytes-copy! deflated-block deflated-payload bs start end)
-                  (block-flush #false deflated-blocksize #false)
+                  (bytes-copy! raw-block raw-payload bs start end)
+                  (block-flush #false raw-blocksize #false)
                   (when (> src-size available)
-                    (deflate (unsafe-idx- src-size available) end deflated-blocksize))))))
+                    (deflate (unsafe-idx- src-size available) end raw-blocksize))))))
 
       ; Conventionally, non-block writing implies flush
       (unless (not non-block/buffered?)
-        (block-flush #false deflated-payload #false))
+        (block-flush #false raw-payload #false))
       
       (- end start))
 
@@ -114,7 +128,7 @@
         ; When `safe-flush-on-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
         ; say by a custodian, and client API will manually terminate the block chain in some ways.
         ; Or flushing will probably make blocks being written to wrong positions.
-        (block-flush #true deflated-payload #true))
+        (block-flush #true raw-payload #true))
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
@@ -242,3 +256,7 @@
     (PUSH-BITS bsrc start end #true)
     
     (SEND-BITS #:windup? BFINAL #:save? #true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define lz77-block-placeholder : (Mutable-Vectorof (U Index (Pairof Index Index))) (make-vector 0))
+(define lz77-dictionary-placeholder : (Mutable-Vectorof Index) (make-vector 0))

@@ -18,7 +18,8 @@
                                    [Zero Negative-Fixnum -> Index]
                                    [Natural Natural -> Index])]
  [(unsafe-fxxor unsafe-idxxor) (-> Integer Natural Index)]
- [(unsafe-fxlshift unsafe-idxlshift) (-> Natural Fixnum Index)]
+ [(unsafe-fxlshift unsafe-idxlshift) (case-> [Positive-Integer Fixnum -> Positive-Index]
+                                             [Natural Fixnum -> Index])]
  [(unsafe-fxrshift unsafe-idxrshift) (-> Natural Byte Index)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
