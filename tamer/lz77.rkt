@@ -46,7 +46,7 @@
 (define lz77-run : (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void)
   (lambda [txt strategies bits min-match farthest filtered]
     (define rsize : Index (bytes-length txt))
-    (define magazine : (Vectorof (U Index (Pairof Index Index))) (make-vector rsize 0))
+    (define magazine : (Vectorof LZ77-Codeword) (make-vector rsize 0))
 
     (printf "[size: ~a] [hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
             (~size (bytes-length txt)) bits (or min-match 'auto) farthest filtered)
@@ -55,8 +55,8 @@
       (case-lambda
         [(codeword dest-idx)
          (vector-set! magazine dest-idx codeword)]
-        [(pointer size dest-idx)
-         (vector-set! magazine dest-idx (cons pointer size))]))
+        [(distance size dest-idx)
+         (vector-set! magazine dest-idx (lz77-backref-pair distance size))]))
 
     (define display-codeword : LZ77-Select-Codeword
       (case-lambda
@@ -71,28 +71,26 @@
 
     (define widths : (Listof Index)
       (text-column-widths (list (list "T" "strategy-name" "00.000KB" "100.00%"
-                                      "00.000" "00.000" "00.000"))))
+                                      "00.000" "00.000" "00.000" "00.000KB"))))
 
     (for ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))])
       (define desc : String (strategy->description strategy))
         
       (when (lz77-verbose) (printf ">>> [strategy: ~a]~n" desc))
-      
-      (collect-garbage 'major)
-      (collect-garbage 'major)
-      (collect-garbage 'major)
-      
-      (define-values (results cpu real gc)
-        (time-apply (λ [] (let ([csize (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
-                                                     txt (if (lz77-verbose) display-codeword record-codeword) strategy)])
-                            (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
-                            (list csize ?txt)))
+
+      (collect-garbage*)
+
+      (define memory0 : Natural (current-memory-use 'cumulative))
+      (define-values (&csize cpu real gc)
+        (time-apply (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
+                                        txt (if (lz77-verbose) display-codeword record-codeword) strategy))
                     null))
       
       (when (lz77-verbose) (newline))
       
-      (define csize : Index (caar results))
-      (define ?txt : Bytes (cadar results))
+      (define csize : Index (car &csize))
+      (define memory : Integer (- (current-memory-use 'cumulative) memory0))
+      (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
       
       (let ([ok? (bytes=? txt ?txt)])
         (when (and (not ok?) (lz77-verbose))
@@ -101,7 +99,7 @@
         (define summary : (Listof String)
           (list (if (not ok?) "F" "T")
                 desc (zip-size csize) (zip-cfactor csize rsize 2)
-                (~gctime cpu) (~gctime real) (~gctime gc)))
+                (~gctime cpu) (~gctime real) (~gctime gc) (~size memory)))
 
         (define color : Term-Color (if (not ok?) 'red 'green))
           

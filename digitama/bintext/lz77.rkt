@@ -13,6 +13,8 @@
 (require (for-syntax racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type LZ77-Codeword (U Index (Pairof Index Index)))
+
 (define-type LZ77-Select-Codeword
   (case-> [Index Index -> Void]
           [Index Index Index -> Void]))
@@ -22,6 +24,7 @@
 (define lz77-default-min-match : Positive-Byte 3)
 (define lz77-default-max-match : Index 258)
 (define lz77-default-farthest : Index 4096)
+(define lz77-default-backref-span-bits : Positive-Byte 10)
 (define lz77-default-filtered : Index 5) ; just for recall, client APIs must explicitly trigger the filtered strategy
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -47,13 +50,16 @@
     [(_ heads prevs hash ?pointer idx nil)
      (syntax/loc stx
        (let ()
-         (unsafe-vector*-set! heads hash idx)
+         (lz77-update-hash heads hash idx)
          (unless (= ?pointer nil)
            (unsafe-vector*-set! prevs idx ?pointer))))]
     [(_ heads prevs hash idx nil)
      (syntax/loc stx
        (let ([?pointer (unsafe-vector*-ref heads hash)])
-         (lz77-update-hash heads prevs hash ?pointer idx nil)))]))
+         (lz77-update-hash heads prevs hash ?pointer idx nil)))]
+    [(_ heads hash idx)
+     (syntax/loc stx
+       (unsafe-vector*-set! heads hash idx))]))
 
 (define-syntax (lz77-insert-string stx)
   (syntax-case stx []
@@ -192,21 +198,29 @@
                                   window codeword-select start end)]
              [else #| identity, huffman-only, and the fallback |# (lz77-deflate/identity window codeword-select start end)])])))
 
-(define lz77-inflate : (All (seed) (->* ((Sequenceof (U Index (Pairof Index Index)))) ((Option Bytes) Index) (Values Bytes Index)))
-  (lambda [in-codewords [dest #false] [d-start 0]]
+(define lz77-inflate : (->* ((Sequenceof LZ77-Codeword)) ((Option Bytes) Index #:span-bits Positive-Byte) (Values Bytes Index))
+  (lambda [in-codewords [dest #false] [d-start 0] #:span-bits [span-bits lz77-default-backref-span-bits]]
+    (define span-mask : Index (unsafe-idx- (unsafe-idxlshift #b1 span-bits) 1))
+    
     (if (not dest)
         (let-values ([(sdrowedoc total)
                       (for/fold ([codewords : (Listof (U Index (Pairof Index Index))) null] [total : Natural 0])
                                 ([cw in-codewords])
                         (values (cons cw codewords)
-                                (+ total (if (pair? cw) (cdr cw) 1))))])
-          (lz77-inflate (in-list (reverse sdrowedoc)) (make-bytes total) 0))
+                                (+ total (cond [(byte? cw) 1]
+                                               [(pair? cw) (cdr cw)]
+                                               [else (bitwise-and cw span-mask)]))))])
+          (lz77-inflate (in-list (reverse sdrowedoc)) (make-bytes total) d-start #:span-bits span-bits))
         (values dest
                 (for/fold ([total : Index d-start])
                           ([cw in-codewords])
-                  (if (pair? cw)
-                      (unsafe-lz77-inflate-into dest total (car cw) (cdr cw))
-                      (unsafe-lz77-inflate-into dest total cw)))))))
+                  (cond [(byte? cw) (unsafe-lz77-inflate-into dest total cw)]
+                        [(pair? cw) (unsafe-lz77-inflate-into dest total (car cw) (cdr cw))]
+                        [else (unsafe-lz77-inflate-into dest total (unsafe-idxrshift cw span-bits) (bitwise-and cw span-mask))]))))))
+
+(define lz77-backref-pair : (->* (Index Index) (Positive-Byte) Index)
+  (lambda [distance span [span-bits lz77-default-backref-span-bits]]
+    (bitwise-xor (unsafe-idxlshift distance lz77-default-backref-span-bits) span)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; corresponds to `zlib`'s fast strategy, no lazy match or filter
@@ -329,7 +343,7 @@
           (define span : Index (if (= pointer nil) 0 (lz77-backref-span window pointer m-idx boundary)))
           
           ; keep the distance always closest to satisfy the huffman encoding
-          (unsafe-vector*-set! heads hash++ m-idx)
+          (lz77-update-hash heads hash++ m-idx)
           
           (if (< span min-match)
               (let ([m-idx++ (unsafe-idx+ m-idx 1)])

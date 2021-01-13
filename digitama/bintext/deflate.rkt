@@ -45,7 +45,7 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
     
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof (U Index (Pairof Index Index))) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
+    (define lz77-block : (Vectorof LZ77-Codeword) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
     (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
@@ -55,7 +55,6 @@
     (define hash-bits : Positive-Index (+ memory-level 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size : Index (unsafe-idxlshift 1 winbits))
-    (define freq-sum : Index 0)
 
     (define-values (hash-heads hash-prevs code-freqs)
       (if (not need-huffman?)
@@ -66,11 +65,13 @@
       (case-lambda
         [(codeword d-idx)
          (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
-         (set! freq-sum (unsafe-idx+ freq-sum 1))]
+         (unsafe-vector*-set! lz77-block lz77-payload codeword)
+         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
         [(distance span d-idx)
-         (let ([codeword distance])
+         (let ([codeword (backref-span->huffman-codeword span)])
            (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
-           (set! freq-sum (unsafe-idx+ freq-sum 1)))]))
+           (unsafe-vector*-set! lz77-block lz77-payload (lz77-backref-pair distance span))
+           (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;; WARNING

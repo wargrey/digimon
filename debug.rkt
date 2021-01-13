@@ -31,3 +31,9 @@
     (define-values (retval cpu real gc) (time-apply do-task null))
     (echof #:fgcolor 208 "cpu time: ~a real time: ~a gc time: ~a~n" (~gctime cpu) (~gctime real) (~gctime gc))
     (car retval)))
+
+(define collect-garbage* : (-> Void)
+  (lambda []
+    (collect-garbage 'major)
+    (collect-garbage 'major)
+    (collect-garbage 'major)))

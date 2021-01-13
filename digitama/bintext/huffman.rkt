@@ -33,6 +33,30 @@
        (syntax/loc stx
          (vector-immutable lengths ...)))]))
 
+(define-syntax (define-huffman-fixed-span-literal-table stx)
+  (syntax-case stx []
+    [(_  huffman-span-literal-extra-bits huffman-span-literal-copy-offsets #:with span->codeword
+         [#:tables [literal base-span extra-bits] ...])
+     (with-syntax ([(codeword ...)
+                    (let* ([bases (reverse (syntax->datum #'(base-span ...)))]
+                           [literals (reverse (syntax->datum #'(literal ...)))]
+                           [max-span+1 (add1 (car bases))])
+                      (for/fold ([codewords (make-list max-span+1 0)])
+                                ([span (in-range 3 max-span+1)])
+                        (let search ([bs bases]
+                                     [hs literals])
+                          (cond [(< span (car bs)) (search (cdr bs) (cdr hs))]
+                                [else (list-set codewords span (car hs))]))))])
+       (syntax/loc stx
+         (begin (define huffman-span-literal-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits ...))
+                (define huffman-span-literal-copy-offsets : (Immutable-Vectorof Index) (vector-immutable base-span ...))
+
+                (define codewords : (Immutable-Vectorof Index) (vector-immutable codeword ...))
+                
+                (define span->codeword : (-> Index Index)
+                  (lambda [span]
+                    (unsafe-vector*-ref codewords span))))))]))
+
 (define-syntax (define-huffman-fixed-distance-table stx)
   (syntax-case stx []
     [(_  huffman-distance-extra-bits huffman-distance-copy-offsets #:with distance->huffman-dist
@@ -71,27 +95,54 @@
 
 (define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
 (define upcodewords : Positive-Index 288)    ; maximum number of codes in any set, bytes + backreferences + EOB
-(define EOB : Index #x100)                   ; end of (huffman) block
+(define EOB : Index #;256 #x100)             ; end of (huffman) block
 
 (define bit-order : (Immutable-Vectorof Byte) ; Order of the bit length code lengths
   (vector-immutable 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
 
-;; NOTE:
-; The length code 284 can represent 227-258, but length code 285 really is 258.
-; The last length deserves its own, short code since it gets used a lot in very redundant files.
-; The length 258 is special since 258 = 255 + 3 (the min match length).
-(define huffman-literal-copy-bits : (Immutable-Vectorof Index) ; for codes in range [257, 285]
-  (vector-immutable 3 4 5 6 7 8 9 10 11 13 15 17 19 23 27 31
-                    35 43 51 59 67 83 99 115 131 163 195 227 258 0 0))
+(define-huffman-fixed-span-literal-table
+  huffman-literal-extra-bits
+  huffman-literal-copy-bits
+  #:with backref-span->huffman-codeword
+  [#:tables
+   [257 3   0]
+   [258 4   0]
+   [259 5   0]
+   [260 6   0]
+   [261 7   0]
+   [262 8   0]
+   [263 9   0]
+   [264 10  0]
+   [265 11  1]
+   [266 13  1]
+   [267 15  1]
+   [268 17  1]
+   [269 19  2]
+   [270 23  2]
+   [271 27  2]
+   [272 31  2]
+   [273 35  3]
+   [274 43  3]
+   [275 51  3]
+   [276 59  3]
+   [277 67  4]
+   [278 83  4]
+   [279 99  4]
+   [280 115 4]
+   [281 131 5]
+   [282 163 5]
+   [283 195 5]
+   [284 227 5]
 
-(define huffman-literal-extra-bits : (Immutable-Vectorof Byte)
-  (vector-immutable 0 0 0 0 0 0 0 0 1 1 1 1 2 2 2 2
-                    3 3 3 3 4 4 4 4 5 5 5 5 0 99 99)) ; /* 99 => invalid */
+   ;; NOTE:
+   ; The 258 can be represented by 284, but it still deserves its own for shorter code
+   ; since it gets used a lot in very redundant files, any contents longer will be truncated.
+   [285 258 0]])
 
 (define-huffman-fixed-distance-table
   huffman-distance-extra-bits
   huffman-distance-copy-offsets
-  #:with distance->huffman-dist
+  #:with backref-distance->huffman-dist
   [#:tables
    [0  1      0]
    [1  2      0]
