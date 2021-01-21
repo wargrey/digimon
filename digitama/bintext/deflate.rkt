@@ -36,7 +36,7 @@
     ; For the sake of simplicity, we set three kinds of block
     ; which are all controlled by `memory-level` and applied to all strategies
     ;   raw block:  receives the written bytes from clients;
-    ;   lz77 block: receives the codewords transformed from the `raw block`;
+    ;   lz77 block: receives the lz77 symbols transformed from the `raw block`;
     ;   bits block: receives the final codes encoded from the `lz77 block`,
     ;                 residing in the LSB bitstream.
 
@@ -45,7 +45,7 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
     
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof LZ77-Codeword) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
+    (define lz77-block : (Vectorof LZ77-Symbol) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
     (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
@@ -61,15 +61,15 @@
           (values lz77-dictionary-placeholder lz77-dictionary-placeholder lz77-dictionary-placeholder)
           (values ((inst make-vector Index) hash-size) ((inst make-vector Index) raw-blocksize) ((inst make-vector Index) upcodewords 0))))
 
-    (define huffman-codeword : LZ77-Select-Codeword
+    (define huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(codeword d-idx)
-         (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
-         (unsafe-vector*-set! lz77-block lz77-payload codeword)
+        [(sym d-idx)
+         (unsafe-vector*-set! code-freqs sym (unsafe-idx+ (unsafe-vector*-ref code-freqs sym) 1))
+         (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
         [(distance span d-idx)
-         (let ([codeword (backref-span->huffman-codeword span)])
-           (unsafe-vector*-set! code-freqs codeword (unsafe-idx+ (unsafe-vector*-ref code-freqs codeword) 1))
+         (let ([sym (backref-span->huffman-symbol span)])
+           (unsafe-vector*-set! code-freqs sym (unsafe-idx+ (unsafe-vector*-ref code-freqs sym) 1))
            (unsafe-vector*-set! lz77-block lz77-payload (lz77-backref-pair distance span))
            (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]))
 

@@ -103,7 +103,7 @@
 (define-huffman-fixed-span-literal-table
   huffman-literal-extra-bits
   huffman-literal-copy-bits
-  #:with backref-span->huffman-codeword
+  #:with backref-span->huffman-symbol
   [#:tables
    [257 3   0]
    [258 4   0]

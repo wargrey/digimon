@@ -46,26 +46,26 @@
 (define lz77-run : (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void)
   (lambda [txt strategies bits min-match farthest filtered]
     (define rsize : Index (bytes-length txt))
-    (define magazine : (Vectorof LZ77-Codeword) (make-vector rsize 0))
+    (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
     (printf "[size: ~a] [hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
             (~size (bytes-length txt)) bits (or min-match 'auto) farthest filtered)
     
-    (define record-codeword : LZ77-Select-Codeword
+    (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(codeword dest-idx)
-         (vector-set! magazine dest-idx codeword)]
+        [(sym dest-idx)
+         (vector-set! magazine dest-idx sym)]
         [(distance size dest-idx)
          (vector-set! magazine dest-idx (lz77-backref-pair distance size))]))
 
-    (define display-codeword : LZ77-Select-Codeword
+    (define display-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(codeword dest-idx)
-         (record-codeword codeword dest-idx)
-         (display (integer->char codeword))
+        [(sym dest-idx)
+         (record-symbol sym dest-idx)
+         (display (integer->char sym))
          (flush-output (current-output-port))]
         [(pointer size dest-idx)
-         (record-codeword pointer size dest-idx)
+         (record-symbol pointer size dest-idx)
          (display (cons pointer size))
          (flush-output (current-output-port))]))
 
@@ -83,7 +83,7 @@
       (define memory0 : Natural (current-memory-use 'cumulative))
       (define-values (&csize cpu real gc)
         (time-apply (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
-                                        txt (if (lz77-verbose) display-codeword record-codeword) strategy))
+                                        txt (if (lz77-verbose) display-symbol record-symbol) strategy))
                     null))
       
       (when (lz77-verbose) (newline))
