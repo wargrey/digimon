@@ -45,7 +45,7 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
     
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof LZ77-Symbol) (if (not need-huffman?) lz77-block-placeholder (make-vector lz77-blocksize 0)))
+    (define lz77-block : (Vectorof LZ77-Symbol) (smart-make-vector lz77-blocksize need-huffman? lz77-block-placeholder 0))
     (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
@@ -55,21 +55,28 @@
     (define hash-bits : Positive-Index (+ memory-level 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size : Index (unsafe-idxlshift 1 winbits))
+    (define symbol-freq-offset : Index (unsafe-idx+ #| By definition, heap starts with 1 |# 1 upcodes))
 
-    (define-values (hash-heads hash-prevs code-freqs)
-      (if (not need-huffman?)
-          (values lz77-dictionary-placeholder lz77-dictionary-placeholder lz77-dictionary-placeholder)
-          (values ((inst make-vector Index) hash-size) ((inst make-vector Index) raw-blocksize) ((inst make-vector Index) upcodewords 0))))
+    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size need-huffman? lz77-dictionary-placeholder 0))
+    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize need-huffman? lz77-dictionary-placeholder 0))
+
+    (define canonical-heap : (Vectorof Index)
+      (smart-make-vector
+       ; the first half stores the heap pointers, and the second half stores the frequencies
+       (unsafe-idx+ symbol-freq-offset upcodes)
+       need-huffman? lz77-dictionary-placeholder 0))
 
     (define huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
         [(sym d-idx)
-         (unsafe-vector*-set! code-freqs sym (unsafe-idx+ (unsafe-vector*-ref code-freqs sym) 1))
-         (unsafe-vector*-set! lz77-block lz77-payload sym)
-         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
+         (let ([freq-idx (unsafe-idx+ sym symbol-freq-offset)])
+           (unsafe-vector*-set! canonical-heap freq-idx (unsafe-idx+ (unsafe-vector*-ref canonical-heap freq-idx) 1))
+           (unsafe-vector*-set! lz77-block lz77-payload sym)
+           (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]
         [(distance span d-idx)
-         (let ([sym (backref-span->huffman-symbol span)])
-           (unsafe-vector*-set! code-freqs sym (unsafe-idx+ (unsafe-vector*-ref code-freqs sym) 1))
+         (let* ([sym (backref-span->huffman-symbol span)]
+                [freq-idx (unsafe-idx+ sym symbol-freq-offset)])
+           (unsafe-vector*-set! canonical-heap freq-idx (unsafe-idx+ (unsafe-vector*-ref canonical-heap freq-idx) 1))
            (unsafe-vector*-set! lz77-block lz77-payload (lz77-backref-pair distance span))
            (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]))
 
@@ -259,5 +266,10 @@
     (SEND-BITS #:windup? BFINAL #:save? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define lz77-block-placeholder : (Mutable-Vectorof (U Index (Pairof Index Index))) (make-vector 0))
+(define lz77-block-placeholder : (Mutable-Vectorof LZ77-Symbol) (make-vector 0))
 (define lz77-dictionary-placeholder : (Mutable-Vectorof Index) (make-vector 0))
+
+(define smart-make-vector : (All (t) (-> Index Boolean (Mutable-Vectorof t) t (Mutable-Vectorof t)))
+  (lambda [size need-huffman? placeholder defval]
+    (cond [(not need-huffman?) placeholder]
+          [else (make-vector size defval)])))

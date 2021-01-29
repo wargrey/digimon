@@ -94,7 +94,7 @@
 (define distance-bits : Positive-Byte 6)     ; bits in base distance lookup table
 
 (define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
-(define upcodewords : Positive-Index 288)    ; maximum number of codes in any set, bytes + backreferences + EOB
+(define upcodes : Positive-Index 288)        ; maximum number of codes in any set, bytes + backreferences + EOB
 (define EOB : Index #;256 #x100)             ; end of (huffman) block
 
 (define bit-order : (Immutable-Vectorof Byte) ; Order of the bit length code lengths
