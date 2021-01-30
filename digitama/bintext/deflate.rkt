@@ -20,6 +20,8 @@
 
 (require "../unsafe/ops.rkt")
 
+(require (for-syntax racket/base))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte
@@ -55,31 +57,33 @@
     (define hash-bits : Positive-Index (+ memory-level 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size : Index (unsafe-idxlshift 1 winbits))
-    (define symbol-freq-offset : Index (unsafe-idx+ #| By definition, heap starts with 1 |# 1 upcodes))
 
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size need-huffman? lz77-dictionary-placeholder 0))
     (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize need-huffman? lz77-dictionary-placeholder 0))
 
+    (define frequencies : (Vectorof Index) (smart-make-vector upcodes need-huffman? lz77-dictionary-placeholder 0))
+    (define codeword-lengths : (Vectorof Index) (smart-make-vector upcodes need-huffman? lz77-dictionary-placeholder 0))
+    
     (define canonical-heap : (Vectorof Index)
       (smart-make-vector
-       ; the first half stores the heap pointers, and the second half stores the frequencies
-       (unsafe-idx+ symbol-freq-offset upcodes)
+       ; the first half stores the heap pointers,
+       ; and the second half stores the frequencies.
+       ; heap[0] is unused
+       (unsafe-idx+ 1 (unsafe-idx+ upcodes upcodes))
        need-huffman? lz77-dictionary-placeholder 0))
 
-    (define huffman-symbol : LZ77-Submit-Symbol
+    (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
         [(sym d-idx)
-         (let ([freq-idx (unsafe-idx+ sym symbol-freq-offset)])
-           (unsafe-vector*-set! canonical-heap freq-idx (unsafe-idx+ (unsafe-vector*-ref canonical-heap freq-idx) 1))
-           (unsafe-vector*-set! lz77-block lz77-payload sym)
-           (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]
+         (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
+         (unsafe-vector*-set! lz77-block lz77-payload sym)
+         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
         [(distance span d-idx)
-         (let* ([sym (backref-span->huffman-symbol span)]
-                [freq-idx (unsafe-idx+ sym symbol-freq-offset)])
-           (unsafe-vector*-set! canonical-heap freq-idx (unsafe-idx+ (unsafe-vector*-ref canonical-heap freq-idx) 1))
+         (let* ([sym (backref-span->huffman-symbol span)])
+           (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
            (unsafe-vector*-set! lz77-block lz77-payload (lz77-backref-pair distance span))
            (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]))
-
+    
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;; WARNING
     ; the port counts its position starting from 1,

@@ -11,9 +11,10 @@
 (require digimon/debug)
 (require digimon/echo)
 
-(require "../digitama/bintext/lz77.rkt")
-(require "../digitama/bintext/zipconfig.rkt")
-(require "../digitama/unsafe/ops.rkt")
+(require digimon/digitama/bintext/lz77)
+(require digimon/digitama/bintext/zipconfig)
+(require digimon/digitama/unsafe/ops)
+
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

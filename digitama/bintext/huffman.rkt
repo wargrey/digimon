@@ -134,7 +134,7 @@
    [283 195 5]
    [284 227 5]
 
-   ;; NOTE:
+   ;; NOTE
    ; The 258 can be represented by 284, but it still deserves its own for shorter code
    ; since it gets used a lot in very redundant files, any contents longer will be truncated.
    [285 258 0]])
@@ -212,6 +212,25 @@
       (vector-set! counts b (add1 (vector-ref counts b))))
 
     symbols))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; The first half of the vector stores the heap pointers,
+;;; and the second half of the vector stores the frequencies.
+
+;;; Also note that, by definition,
+;;; The heap index starts from 1,
+;;; but the actual symbol starts at 0.
+
+(define huffman-heap-reset/recur : (->* ((Mutable-Vectorof Index) (Mutable-Vectorof Index)) (Positive-Fixnum) Void)
+  (lambda [freqs heap [idx 1]]
+    (when (<= idx upcodes) ; should be `(add1 upcodes)`, but the last code has been actually not used.
+      (displayln (cons (sub1 idx) (vector-ref heap (unsafe-idx+ idx upcodes))))
+      (unsafe-vector*-set! heap idx (unsafe-idx+ idx upcodes))
+      (huffman-heap-reset/recur freqs heap (+ idx 1)))))
+
+(define huffman-heapify : (-> (Mutable-Vectorof Index) (Mutable-Vectorof Index) Void)
+  (lambda [freqs heap]
+    (huffman-heap-reset/recur freqs heap)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-huffman-lookup-table : (-> (Immutable-Vectorof Byte) Index Index (Vectorof Index) (Vectorof Byte)
