@@ -30,7 +30,7 @@
     (define freq-offset : Index (unsafe-idx+ 1 upcodes))
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define cw-lengths : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define canonical-heap : (Mutable-Vectorof Index) (make-vector (+ 1 upcodes upcodes) 0))
+    (define canonical-heap : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -44,13 +44,13 @@
         
     (collect-garbage*)
 
-    (time-apply* (λ [] (huffman-heapify frequencies canonical-heap)) #true)
+    (time-apply* (λ [] (huffman-refresh-minheap! frequencies canonical-heap 0 upcodes)) #true)
 
     (define heap-okay? : Boolean
       (for/and : Boolean ([i (in-range 1 (quotient freq-offset 2))])
         (define self-freq : Index (vector-ref canonical-heap (vector-ref canonical-heap i)))
-        (and (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (* i 2))))
-             (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (+ (* i 2) 1)))))))
+        (and (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (+ (* i 2) 1))))
+             (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (+ (* i 2) 2)))))))
 
     (if (not heap-okay?)
         (echof #:fgcolor 'red "not a heap~n")

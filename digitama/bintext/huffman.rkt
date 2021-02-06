@@ -1,5 +1,6 @@
 #lang typed/racket/base
 
+;;; TAOCP Vol. 3 P145
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
@@ -216,21 +217,85 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; The first half of the vector stores the heap pointers,
 ;;; and the second half of the vector stores the frequencies.
+;;; WARNING: the heap starts from 0
 
-;;; Also note that, by definition,
-;;; The heap index starts from 1,
-;;; but the actual symbol starts at 0.
+(define-syntax (huffman-minheap-key stx)
+  (syntax-case stx []
+    [(_ fs code)
+     (syntax/loc stx
+       (unsafe-vector*-ref fs code))]))
 
-(define huffman-heap-reset/recur : (->* ((Mutable-Vectorof Index) (Mutable-Vectorof Index)) (Positive-Fixnum) Void)
-  (lambda [freqs heap [idx 1]]
-    (when (<= idx upcodes) ; should be `(add1 upcodes)`, but the last code has been actually not used.
-      (displayln (cons (sub1 idx) (vector-ref heap (unsafe-idx+ idx upcodes))))
-      (unsafe-vector*-set! heap idx (unsafe-idx+ idx upcodes))
-      (huffman-heap-reset/recur freqs heap (+ idx 1)))))
+(define huffman-refresh-minheap! : (-> (Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index Index)
+  (lambda [freqs heap link-idx0 freq-idx0]
+    (define fcount : Index (vector-length freqs))
+    (define n : Index
+      (let heap-copy! ([i : Nonnegative-Fixnum 0]
+                       [n : Index 0])
+        (if (>= i fcount) n
+            (let ([freq (vector-ref freqs i)]
+                  [i++ (add1 i)])
+              (if (= freq 0)
+                  (heap-copy! i++ n)
+                  (let ([f-idx (unsafe-idx+ freq-idx0 n)])
+                    (vector-set! heap f-idx freq)
+                    (vector-set! heap (+ link-idx0 n) f-idx)
+                    (heap-copy! i++ (unsafe-idx+ n 1))))))))
 
-(define huffman-heapify : (-> (Mutable-Vectorof Index) (Mutable-Vectorof Index) Void)
-  (lambda [freqs heap]
-    (huffman-heap-reset/recur freqs heap)))
+    (huffman-minheapify! heap n)
+    n))
+
+; the name "siftup" is a little confusing,
+;   it moves up the smallest code which is originally located at the bottom, but
+;   the process of sifting is actually known as the top-down approach, and
+;   might be given name by someone (say, wikipedia) with "siftDown", in which case
+;   the "down" should be replaced by "downwards".  
+(define huffman-minheap-siftup! : (-> (Mutable-Vectorof Index) Nonnegative-Fixnum Index Index Index Void)
+  (lambda [fs sift-idx root root-key bottom-idx]
+    (define l-idx : Nonnegative-Fixnum (+ (unsafe-idx+ sift-idx sift-idx) 1))
+    
+    (define-values (target target-key target-idx)
+      (cond [(< l-idx bottom-idx) ; the right child is found, and select the smaller one
+             (let* ([left (unsafe-vector*-ref fs l-idx)]
+                    [l-key (huffman-minheap-key fs left)]
+                    [r-idx (unsafe-idx+ l-idx 1)]
+                    [right (unsafe-vector*-ref fs r-idx)]
+                    [r-key (huffman-minheap-key fs right)])
+               (if (< l-key r-key)
+                   (values left l-key l-idx)
+                   (values right r-key r-idx)))]
+            [(= l-idx bottom-idx)
+             (let* ([left (unsafe-vector*-ref fs l-idx)]
+                    [l-key (huffman-minheap-key fs left)])
+               (values left l-key l-idx))]
+            [else #| in case the heap is not ruined |#
+             (values root root-key 0 #| <= this `target-idx` is useless |#)]))
+    
+    (if (<= root-key target-key) ; `=` is necessary for the lazy swapping
+        (begin
+          ; the sifting code is home, and also don't forget to finish the lazy swapping.
+          (unsafe-vector*-set! fs sift-idx root))
+        (begin
+          ; The sifting code is not the smallest one,
+          ;   but we find which one should be moved to the position for it.
+          ;   then retry with the smaller child.
+          ; Yes, the swapping is delayed, too.
+          (unsafe-vector*-set! fs sift-idx target)   
+          (huffman-minheap-siftup! fs target-idx root root-key bottom-idx)))))
+
+;;; the first phase, creation
+; To repeatedly increase the size of the heap by 1
+; by extending from the parent of last code to the first one, in each step:
+;   do sift downwards so that the smallest code is at the root.
+; After this phase, all other codes will be eventually in heap order.  
+(define huffman-minheapify! : (-> (Mutable-Vectorof Index) Index Void)
+  (lambda [fs n]
+    (define bottom-idx : Index (unsafe-idx- n 1))
+    
+    (let heapify ([heapify-idx : Fixnum (- (quotient n 2) 1)])
+      (when (>= heapify-idx 0)
+        (let* ([root (unsafe-vector*-ref fs heapify-idx)])
+          (huffman-minheap-siftup! fs heapify-idx root (huffman-minheap-key fs root) bottom-idx)
+          (heapify (- heapify-idx 1)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-huffman-lookup-table : (-> (Immutable-Vectorof Byte) Index Index (Vectorof Index) (Vectorof Byte)
