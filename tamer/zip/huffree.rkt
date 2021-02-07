@@ -23,11 +23,10 @@
 (define tree-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tree-run : (-> Bytes Void)
+(define tree-run : (-> Bytes Void) ; WARNING: the heap is 0-based
   (lambda [txt]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
-    (define freq-offset : Index (unsafe-idx+ 1 upcodes))
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define cw-lengths : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define canonical-heap : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
@@ -44,19 +43,26 @@
         
     (collect-garbage*)
 
-    (time-apply* (λ [] (huffman-refresh-minheap! frequencies canonical-heap 0 upcodes)) #true)
-
-    (define heap-okay? : Boolean
-      (for/and : Boolean ([i (in-range 1 (quotient freq-offset 2))])
-        (define self-freq : Index (vector-ref canonical-heap (vector-ref canonical-heap i)))
-        (and (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (+ (* i 2) 1))))
-             (<= self-freq (vector-ref canonical-heap (vector-ref canonical-heap (+ (* i 2) 2)))))))
+    (define n : Index (time-apply* (λ [] (huffman-refresh-minheap! frequencies canonical-heap)) #true))
+    
+    (define heap-okay? : (U Boolean Natural)
+      (let sub-okay? : (U Boolean Natural) ([i 0])
+        (or (>= i n)
+            (let* ([self-freq (vector-ref canonical-heap (vector-ref canonical-heap i))]
+                   [left-freq (sub-okay? (+ (* i 2) 1))]
+                   [right-freq (sub-okay? (+ (* i 2) 2))])
+              (and left-freq right-freq
+                   (or (boolean? left-freq) (<= self-freq left-freq))
+                   (or (boolean? right-freq) (<= self-freq right-freq))
+                   self-freq)))))
 
     (if (not heap-okay?)
         (echof #:fgcolor 'red "not a heap~n")
         (echof #:fgcolor 'green "heap ready~n"))
+
+    (collect-garbage*)
     
-    (void)))
+    (time-apply* (λ [] (huffman-minheap-treefy! canonical-heap n)) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
