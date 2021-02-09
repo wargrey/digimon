@@ -4,6 +4,7 @@
 
 (require digimon/cmdopt)
 (require digimon/dtrace)
+(require digimon/format)
 (require digimon/debug)
 (require digimon/echo)
 
@@ -28,7 +29,9 @@
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define canonical-heap : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
+    (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
+    (define codewords : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define codes : (Mutable-Vectorof Index) (make-vector upcodes 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -44,15 +47,15 @@
 
     (define n : Index
       (time-apply*
-       (λ [] (let ([n (huffman-refresh-minheap! frequencies canonical-heap)])
-               (huffman-minheapify! canonical-heap n)
+       (λ [] (let ([n (huffman-refresh-minheap! frequencies huffman-tree)])
+               (huffman-minheapify! huffman-tree n)
                n))
        #true))
     
     (define heap-okay? : (U Boolean Natural)
       (let sub-okay? : (U Boolean Natural) ([i 0])
         (or (>= i n)
-            (let* ([self-freq (vector-ref canonical-heap (vector-ref canonical-heap i))]
+            (let* ([self-freq (vector-ref huffman-tree (vector-ref huffman-tree i))]
                    [left-freq (sub-okay? (+ (* i 2) 1))]
                    [right-freq (sub-okay? (+ (* i 2) 2))])
               (and left-freq right-freq
@@ -65,16 +68,31 @@
         (echof #:fgcolor 'green "heap ready~n"))
 
     (collect-garbage*)
+
+    (define maxlength : Byte
+      (time-apply*
+       (λ [] (begin (huffman-minheap-treefy! huffman-tree n)
+                    (huffman-minheap-count-lengths! huffman-tree n)))
+       #true))
+    
+    (for ([symbol (in-range upcodes)]
+          [bitsize (in-vector huffman-tree upcodes)]
+          #:when (> bitsize 0))
+      (displayln (cons symbol bitsize)))
+
+    (printf "max length: ~a~n" maxlength)
+
+    (collect-garbage*)
     
     (time-apply*
-     (λ [] (begin (huffman-minheap-treefy! canonical-heap n)
-                  (huffman-minheap-count-lengths! canonical-heap n)))
+     (λ [] (huffman-lengths-canonicalize! codewords huffman-tree maxlength codes upcodes))
      #true)
-    
-    (for ([codeword (in-range upcodes)]
-          [len (in-vector canonical-heap upcodes)]
-          #:when (> len 0))
-      (displayln (cons codeword len)))))
+
+    (for ([symbol (in-range upcodes)]
+          [codeword (in-vector codewords)]
+          [bitsize (in-vector huffman-tree upcodes)]
+          #:when (> bitsize 0))
+      (displayln (cons symbol (~binstring codeword bitsize))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)

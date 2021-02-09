@@ -73,9 +73,9 @@
           [(boolean? val) (~hexstring (if val 1 0))]
           [else (~hexstring (string->bytes/utf-8 (~a val)))])))
 
-(define ~binstring : (-> Any String)
-  (lambda [val]
-    (cond [(integer? val) (~r val #:base 2)]
+(define ~binstring : (->* (Any) ((Option Index)) String)
+  (lambda [val [width #false]]
+    (cond [(integer? val) (if (not width) (~r val #:base 2) (~r val #:base 2 #:min-width width #:pad-string "0"))]
           [(bytes? val) (bytes->bin-string val #:separator " ")]
           [(boolean? val) (~binstring (if val 1 0))]
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
