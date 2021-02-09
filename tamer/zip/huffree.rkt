@@ -28,7 +28,6 @@
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define cw-lengths : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define canonical-heap : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
@@ -39,11 +38,16 @@
          (let* ([sym (backref-span->huffman-symbol span)])
            (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1)))]))
 
-    (lz77-deflate txt submit-huffman-symbol (assert (zip-name->maybe-strategy 'default)))
+    (lz77-deflate txt submit-huffman-symbol (assert (zip-name->maybe-strategy 'identity)))
         
     (collect-garbage*)
 
-    (define n : Index (time-apply* (λ [] (huffman-refresh-minheap! frequencies canonical-heap)) #true))
+    (define n : Index
+      (time-apply*
+       (λ [] (let ([n (huffman-refresh-minheap! frequencies canonical-heap)])
+               (huffman-minheapify! canonical-heap n)
+               n))
+       #true))
     
     (define heap-okay? : (U Boolean Natural)
       (let sub-okay? : (U Boolean Natural) ([i 0])
@@ -62,7 +66,15 @@
 
     (collect-garbage*)
     
-    (time-apply* (λ [] (huffman-minheap-treefy! canonical-heap n)) #true)))
+    (time-apply*
+     (λ [] (begin (huffman-minheap-treefy! canonical-heap n)
+                  (huffman-minheap-count-lengths! canonical-heap n)))
+     #true)
+    
+    (for ([codeword (in-range upcodes)]
+          [len (in-vector canonical-heap upcodes)]
+          #:when (> len 0))
+      (displayln (cons codeword len)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)

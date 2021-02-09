@@ -216,34 +216,123 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE
-; The first half of the heap (represented as a vector) stores the pointers,
-;   and the second half of the heap stores the frequencies to be linked by pointers.
 ; WARNING: the heap starts from 0, which is different from the "common" implementations.
 
 (define-syntax (huffman-minheap-key stx)
   (syntax-case stx []
-    [(_ fs pointer)
+    [(_ heap pointer)
      (syntax/loc stx
-       (unsafe-vector*-ref fs pointer))]))
+       (unsafe-vector*-ref heap pointer))]))
 
+(define-syntax (huffman-minheap-parent stx)
+  (syntax-case stx []
+    [(_ idx)
+     (syntax/loc stx
+       (quotient (unsafe-idx- idx 1) 2))]))
+
+;;; Initialization
+; To restore the heap storage (represented as a vector) so that
+;   the first half accommodates the heap pointers, and
+;   the second half accommodates the frequencies to be linked by heap pointers.
 (define huffman-refresh-minheap! : (-> (Mutable-Vectorof Index) (Mutable-Vectorof Index) Index)
   (lambda [freqs heap]
     (define fcount : Index (vector-length freqs))
-    (define n : Index
-      (let heap-copy! ([i : Nonnegative-Fixnum 0]
-                       [n : Index 0])
-        (if (>= i fcount) n
-            (let ([freq (vector-ref freqs i)]
-                  [i++ (add1 i)])
-              (if (= freq 0)
-                  (heap-copy! i++ n)
-                  (let ([f-idx (unsafe-idx+ upcodes n)])
-                    (vector-set! heap f-idx freq)
-                    (vector-set! heap n f-idx)
-                    (heap-copy! i++ (unsafe-idx+ n 1))))))))
+    (define fend : Index (unsafe-idx+ upcodes fcount))
 
-    (huffman-minheapify! heap n)
-    n))
+    (vector-copy! heap upcodes freqs 0 fcount)
+
+    (let heap-link! ([f-idx : Nonnegative-Fixnum upcodes]
+                     [n : Index 0])
+      (if (>= f-idx fend) n
+          (let ([freq (vector-ref heap f-idx)]
+                [i++ (add1 f-idx)])
+            (cond [(= freq 0) (heap-link! i++ n)]
+                  [else (let ([n++ (unsafe-idx+ n 1)])
+                          (vector-set! heap n f-idx)
+                          (heap-link! i++ n++))]))))))
+
+;;; the 1st phase, creation (`heapify` is more accurate since it occurs in place)
+; To repeatedly increase the size of the heap by 1
+; by extending from the parent of last pointer to the first one, in each step:
+;   do sift downwards so that the least frequent pointer is at the root.
+; After this phase, all other pointers will be eventually in heap order.  
+(define huffman-minheapify! : (-> (Mutable-Vectorof Index) Index Void)
+  (lambda [heap n]
+    (define bottom-idx : Index (unsafe-idx- n 1))
+    
+    (let heapify ([heapify-idx : Fixnum (huffman-minheap-parent bottom-idx)])
+      (when (>= heapify-idx 0)
+        (let* ([root-pointer (unsafe-vector*-ref heap heapify-idx)])
+          (huffman-minheap-siftup! heap heapify-idx root-pointer (huffman-minheap-key heap root-pointer) bottom-idx)
+          (heapify (- heapify-idx 1)))))))
+
+;;; the 2nd phase: shrinking
+; To repeatedly decrease the size of the heap by 1
+; by combining the two least frequent pointers (m1 and m2) until only one left, in each step
+;   the combined pointer will become a new pointer in the heap and serve as the logical parent
+;   of the two in the constructing huffman tree, and the heap order should be maintained both
+;   before and after the combination since the heap might be ruined by steps.
+; The idea is the same as that applied in the `heapsort`, with a much more complicated process.
+; After this phase, the first value of the heap is the unique heap pointer to the first internal
+;   tree pointer, and the rest values are tree pointers to their corresponding parent pointers.
+(define huffman-minheap-treefy! : (-> (Mutable-Vectorof Index) Index Void)
+  (lambda [heap n]
+    (let treefy ([bottom-idx : Index (unsafe-idx- n 1)])
+      (when (> bottom-idx 0)
+        (define b-idx-- : Index (unsafe-idx- bottom-idx 1))
+        
+        ;; Extract the least frequent pointer as in `heapsort`,
+        ;    but the bottom position of the heap is reserved for the combined frequency
+        ;    rather than certain sorting record. 
+        (define m1 : Index (unsafe-vector*-ref heap 0))
+        (let ([root-pointer (unsafe-vector*-ref heap bottom-idx)])
+          ;; NOTE that the original pointer at the bottom position should be moved into the root position,
+          ;    but for the sake of performance, this move is delayed since the root might not be its home.
+          (huffman-minheap-siftup! heap 0 root-pointer (huffman-minheap-key heap root-pointer) b-idx--))
+
+        ;; Extract the 2nd least frequent pointer again and combine it and the previous one 
+        (let* ([m2 (unsafe-vector*-ref heap 0)]
+               [combined-freq (unsafe-idx+ (unsafe-vector*-ref heap m1) (unsafe-vector*-ref heap m2))])
+          ; the the reversed position accommodates the new frequency
+          (unsafe-vector*-set! heap bottom-idx combined-freq)
+
+          ; original two frequencies are no longer used, linking them to their logical parent of the tree
+          (unsafe-vector*-set! heap m1 bottom-idx)
+          (unsafe-vector*-set! heap m2 bottom-idx)
+
+          (let ([root-pointer bottom-idx])
+            ; the root position accommodates the new least frequent pointer (which may or may not be the candidate)
+            ; after re-sifting, in which case the invoking of `unsafe-vector*-set!` is reasonably to be delayed as above. 
+            (huffman-minheap-siftup! heap 0 root-pointer combined-freq b-idx--)))
+
+        (treefy b-idx--)))))
+
+;;; the 3rd phase: counting
+; To count the lengths of each codewords and return the max one in case it is too long.
+; The process of the 2nd phase ensures that children are always accommodated after their parents,
+;   so that we don't need to really do counting manually for each codeword.
+(define huffman-minheap-count-lengths! : (-> (Mutable-Vectorof Index) Index Nonnegative-Fixnum)
+  (lambda [heap n]
+    (define end : Index (vector-length heap))
+       
+    (cond [(>= n 2)
+           (vector-set! heap 1 0) ; root is 0
+           (let count ([idx : Nonnegative-Fixnum 2]
+                       [longest : Nonnegative-Fixnum 0])
+             (cond [(>= idx end) longest]
+                   [else (let ([parent-idx (if (or (>= idx upcodes) (< idx n)) (vector-ref heap idx) 0)])
+                           (count (+ idx 1)
+                                  (cond [(= parent-idx 0) longest]
+                                        [else (let ([length (unsafe-idx+ (vector-ref heap parent-idx) 1)])
+                                                (vector-set! heap idx length)
+                                                (max longest length))])))]))]
+          [else #| heap is too small to hold any subtrees |#
+           (let set-1s ([idx : Nonnegative-Fixnum upcodes]
+                        [has-one? : Boolean #false])
+             (cond [(>= idx end) (if (not has-one?) 0 1)]
+                   [else (let ([freq (vector-ref heap idx)])
+                           (vector-set! heap idx (if (> freq 0) 1 0))
+                           (set-1s (+ idx 1) (or has-one? (> freq 0))))]))])))
 
 ; the name "siftup" is a little confusing,
 ;   it moves up the least frequent pointer which is originally located at the bottom, but
@@ -281,56 +370,6 @@
           ; Yes, the move is delayed, too.
           (unsafe-vector*-set! heap sift-idx target)   
           (huffman-minheap-siftup! heap target-idx root-pointer root-key bottom-idx)))))
-
-;;; the first phase, creation (`heapify` is more accurate since it occurs in place)
-; To repeatedly increase the size of the heap by 1
-; by extending from the parent of last pointer to the first one, in each step:
-;   do sift downwards so that the least frequent pointer is at the root.
-; After this phase, all other pointers will be eventually in heap order.  
-(define huffman-minheapify! : (-> (Mutable-Vectorof Index) Index Void)
-  (lambda [heap n]
-    (define bottom-idx : Index (unsafe-idx- n 1))
-    
-    (let heapify ([heapify-idx : Fixnum (- (quotient n 2) 1)])
-      (when (>= heapify-idx 0)
-        (let* ([root-pointer (unsafe-vector*-ref heap heapify-idx)])
-          (huffman-minheap-siftup! heap heapify-idx root-pointer (huffman-minheap-key heap root-pointer) bottom-idx)
-          (heapify (- heapify-idx 1)))))))
-
-;;; the second phase: shrinking
-; To repeatedly decrease the size of the heap by 1
-; by combining the two least frequent pointers (m1 and m2) until only one left, in each step
-;   the combined pointer will become a new pointer in the heap and serve as the logical parent
-;   of the two in the constructing huffman tree, and the heap order should be maintained both
-;   before and after the combination since the heap might be ruined by the steps.
-; The idea is the same as that applied in the `heapsort`, with a much more complicated process.
-(define huffman-minheap-treefy! : (-> (Mutable-Vectorof Index) Index Void)
-  (lambda [heap n]
-    (let treefy ([bottom-idx : Index (unsafe-idx- n 1)])
-      (when (>= bottom-idx 1)
-        (define b-idx-- : Index (unsafe-idx- bottom-idx 1))
-        
-        ;; Extract the least frequent pointer as in `heapsort`,
-        ;    but the bottom position of the heap is reversed for the combined frequency.
-        (define m1 : Index (unsafe-vector*-ref heap 0))
-        (let ([root-pointer (unsafe-vector*-ref heap bottom-idx)])
-          ;; NOTE that the original pointer at the bottom position should be moved into the root position,
-          ;    but for the sake of performance, this move is delayed since the root might not be its home.
-          (huffman-minheap-siftup! heap 0 root-pointer (huffman-minheap-key heap root-pointer) b-idx--))
-
-        ;; Extract the 2nd least frequent pointer again and combine it and the previous one 
-        (let ([m2 (unsafe-vector*-ref heap 0)])
-          ; the the reversed position accommodates the new frequency
-          (unsafe-vector*-set! heap bottom-idx (unsafe-idx+ (unsafe-vector*-ref heap m1) (unsafe-vector*-ref heap m2)))
-          (unsafe-vector*-set! heap m1 bottom-idx)
-          (unsafe-vector*-set! heap m2 bottom-idx)
-
-          (let ([root-pointer bottom-idx])
-            ; the root position accommodates the new least frequent pointer, which may or may not be the candidate,
-            ; after re-sifting, in which case the invoking of `unsafe-vector*-set!` is reasonably to be delayed as above. 
-            (huffman-minheap-siftup! heap 0 root-pointer (huffman-minheap-key heap root-pointer) b-idx--)))
-
-        (treefy b-idx--)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-huffman-lookup-table : (-> (Immutable-Vectorof Byte) Index Index (Vectorof Index) (Vectorof Byte)
