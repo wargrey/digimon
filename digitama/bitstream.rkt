@@ -95,3 +95,15 @@
                     [(drop) (reset #false)]
                     [(save) (save-vector)]
                     [(restore) (restore-vector)])))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define mask-bits : (Immutable-Vectorof Index)
+  (vector-immutable #x0000
+                    #x0001 #x0003 #x0007 #x000f #x001f #x003f #x007f #x00ff
+                    #x01ff #x03ff #x07ff #x0fff #x1fff #x3fff #x7fff #xffff))
+
+(define bits-mask : (-> Index Index)
+  (lambda [nbits]
+    (if (< nbits 17)
+        (unsafe-vector*-ref mask-bits nbits)
+        (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))))

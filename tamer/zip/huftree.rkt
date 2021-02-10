@@ -1,11 +1,11 @@
 #lang typed/racket/base
 
 (require racket/file)
-(require racket/promise)
 
 (require digimon/cmdopt)
 (require digimon/dtrace)
 (require digimon/format)
+(require digimon/bitstream)
 (require digimon/debug)
 (require digimon/echo)
 
@@ -107,7 +107,9 @@
           [bitsize (in-vector lengths offset)]
           [symbol (in-naturals)]
           #:when (> bitsize 0))
-      (displayln (cons symbol (~binstring codeword bitsize))))))
+      (displayln (list symbol
+                       (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
+                       (~binstring codeword bitsize))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)

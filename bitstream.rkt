@@ -4,6 +4,7 @@
 
 (require "digitama/bitstream.rkt")
 (require "digitama/unsafe/ops.rkt")
+(require "digitama/bintext/table/bits.rkt")
 
 ;;; https://fgiesen.wordpress.com/2018/02/19/reading-bits-in-far-too-many-ways-part-1
 ;;; https://fgiesen.wordpress.com/2018/02/19/reading-bits-in-far-too-many-ways-part-2
@@ -61,7 +62,7 @@
       (case-lambda
         [(nbits fast-mask skip) (bitwise-and (unsafe-idxrshift payload skip) fast-mask)]
         [(nbits fast-mask) (bitwise-and payload fast-mask)]
-        [(nbits) (bitwise-and payload (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]))
+        [(nbits) (bitwise-and payload (bits-mask nbits))]))
 
     (define fire-bits : (-> Byte Void)
       (lambda [nbits]
@@ -141,7 +142,7 @@
                                 [Integer Byte Index -> Void]
                                 [Integer Byte -> Void])
       (case-lambda
-        [(n nbits) (push-bits n nbits (unsafe-idx- (unsafe-idxlshift 1 nbits) 1))]
+        [(n nbits) (push-bits n nbits (bits-mask nbits))]
         [(n nbits fast-mask)
          (inject-bits (+ payload (arithmetic-shift (unsafe-fxand n fast-mask) pwidth))
                       (unsafe-idx+ pwidth nbits)
@@ -221,3 +222,16 @@
       (bs-shell 'restore))
 
     (values push-bits send-bits bs-shell)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bits-reverse-uint8 : (-> Byte Byte)
+  (lambda [b]
+    (unsafe-vector*-ref bits-reversed-bytes b)))
+
+(define bits-reverse-uint16 : (-> Index Index Index)
+  (lambda [s nbits]
+    (define lo : Byte (bitwise-and s #xFF))
+    (define hi : Byte (bitwise-and (arithmetic-shift s -8) #xFF))
+    (define r16 : Index (bitwise-ior (unsafe-idxlshift (bits-reverse-uint8 lo) 8) (bits-reverse-uint8 hi)))
+
+    (unsafe-idxrshift r16 (assert (- 16 nbits) byte?))))

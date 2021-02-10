@@ -152,7 +152,7 @@
        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-deflate : (->* (Bytes LZ77-Submit-Symbol ZIP-Strategy)
-                            (#:hash-bits Positive-Byte #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
+                            (#:hash-bits Positive-Index #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
                              #:min-match (Option Positive-Byte) #:max-match Index #:farthest Index #:filtered Index
                              Index Index)
                             Index)

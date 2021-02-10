@@ -6,18 +6,21 @@
 (define pk.zip : Path (build-path (find-system-path 'temp-dir) "pk.zip"))
 (define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
 
-(define config#0 : (Listof Any) (list 0))
-(define config#1 : (Listof Any) (list 1))
-(define config#6 : (Listof Any) (list 6))
-(define config#9 : (Listof Any) (list 9))
+(define config#0 : (Listof Any)  (list 0))
+(define config#1 : (Listof Any)  (list 1))
+(define config#6 : (Listof Any)  (list 6))
+(define config#9 : (Listof Any)  (list 9))
+(define config#id : (Listof Any) (list 'huffman-only))
 
 (define entries : (Listof Archive-Entry)
   (list (make-archive-file-entry (collection-file-path "." "digimon") "folder/digimon" #:methods '(stored))
-        (make-archive-file-entry (collection-file-path "pkzip.rkt" "digimon" "tamer") "stored/pkzip.rkt" #:methods '(stored))
+        (make-archive-file-entry (collection-file-path "pkzip.rkt" "digimon" "tamer" "zip") "stored/pkzip.rkt" #:methods '(stored))
         (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
         (make-archive-binary-entry #"the stored data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored))
 
         (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
+        (make-archive-binary-entry #"these data haven't been compressed by LZ77" "deflated/identity.λsh" #:methods '(deflated) #:options config#id)
+        
         (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig.rkt" #:methods '(deflated) #:options config#0)
         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman.rkt" #:methods '(deflated) #:options config#1)
         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77.rkt" #:methods '(deflated) #:options config#9)))
