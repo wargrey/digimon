@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
-;;; TAOCP Vol. 3 P145
-;;; Managing Gigabytes: Compressing and Indexing Documents and Images S2.3
+;;; TAOCP Vol. 3, P145
+;;; Managing Gigabytes: Compressing and Indexing Documents and Images, S2.3
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
@@ -12,6 +12,9 @@
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/list))
+(require (for-syntax racket/syntax))
+
+(require racket/promise)
 
 (require "../unsafe/ops.rkt")
 
@@ -19,45 +22,49 @@
 (define-syntax (huffman-fixed-literal-codeword-bit-lengths stx)
   (syntax-case stx []
     [(_ ) ; NOTE: indices in [286, 287] are unused
-     (with-syntax ([(lengths ...)
-                    (for/list ([idx (in-range 288)])
-                      (cond [(<= idx 143) 8] ; [#b00110000,  #b10111111]
-                            [(<= idx 255) 9] ; [#b110010000, #b111111111]
-                            [(<= idx 279) 7] ; [#b0000000,   #b0010111]
-                            [else 8]))])     ; [#b11000000,  #b11000111], the value is actually useless
+     (with-syntax* ([(lengths ...)
+                     (for/list ([idx (in-range 288)])
+                       (cond [(<= idx 143) 8] ; [#b00110000,  #b10111111]
+                             [(<= idx 255) 9] ; [#b110010000, #b111111111]
+                             [(<= idx 279) 7] ; [#b0000000,   #b0010111]
+                             [else 8]))]      ; [#b11000000,  #b11000111], the value is actually useless
+                    [maxlength (apply max (syntax->datum #'(lengths ...)))])
        (syntax/loc stx
-         (vector-immutable lengths ...)))]))
+         (values ((inst vector-immutable Byte) lengths ...)
+                 maxlength)))]))
 
 (define-syntax (huffman-fixed-distance-codeword-bit-lengths stx)
   (syntax-case stx []
     [(_ ) ; NOTE: indices in [30, 31] are unused
-     (with-syntax ([(lengths ...) (for/list ([idx (in-range 32)]) 5)])
+     (with-syntax* ([(lengths ...) (for/list ([idx (in-range 32)]) 5)]
+                    [maxlength (apply max (syntax->datum #'(lengths ...)))])
        (syntax/loc stx
-         (vector-immutable lengths ...)))]))
+         (values ((inst vector-immutable Byte) lengths ...)
+                 maxlength)))]))
 
 (define-syntax (define-huffman-fixed-span-literal-table stx)
   (syntax-case stx []
-    [(_  huffman-span-literal-extra-bits huffman-span-literal-copy-offsets #:with span->codeword
+    [(_  huffman-span-literal-extra-bits huffman-span-literal-copy-offsets #:with span->symbol
          [#:tables [literal base-span extra-bits] ...])
-     (with-syntax ([(codeword ...)
+     (with-syntax ([(sym ...)
                     (let* ([bases (reverse (syntax->datum #'(base-span ...)))]
                            [literals (reverse (syntax->datum #'(literal ...)))]
                            [max-span+1 (add1 (car bases))])
-                      (for/fold ([codewords (make-list max-span+1 0)])
+                      (for/fold ([syms (make-list max-span+1 0)])
                                 ([span (in-range 3 max-span+1)])
                         (let search ([bs bases]
                                      [hs literals])
                           (cond [(< span (car bs)) (search (cdr bs) (cdr hs))]
-                                [else (list-set codewords span (car hs))]))))])
+                                [else (list-set syms span (car hs))]))))])
        (syntax/loc stx
          (begin (define huffman-span-literal-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits ...))
                 (define huffman-span-literal-copy-offsets : (Immutable-Vectorof Index) (vector-immutable base-span ...))
 
-                (define codewords : (Immutable-Vectorof Index) (vector-immutable codeword ...))
+                (define symbols : (Immutable-Vectorof Index) (vector-immutable sym ...))
                 
-                (define span->codeword : (-> Index Index)
+                (define span->symbol : (-> Index Index)
                   (lambda [span]
-                    (unsafe-vector*-ref codewords span))))))]))
+                    (unsafe-vector*-ref symbols span))))))]))
 
 (define-syntax (define-huffman-fixed-distance-table stx)
   (syntax-case stx []
@@ -144,7 +151,7 @@
 (define-huffman-fixed-distance-table
   huffman-distance-extra-bits
   huffman-distance-copy-offsets
-  #:with backref-distance->huffman-dist
+  #:with backref-distance->huffman-distance
   [#:tables
    [0  1      0]
    [1  2      0]
@@ -183,8 +190,59 @@
                     #x01ff #x03ff #x07ff #x0fff #x1fff #x3fff #x7fff #xffff))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define hufman-fixed-literal-lengths : (Immutable-Vectorof Byte) (huffman-fixed-literal-codeword-bit-lengths))
-(define hufman-fixed-distance-lengths : (Immutable-Vectorof Byte) (huffman-fixed-distance-codeword-bit-lengths))
+;;; FIXED HUFFMAN CODEWORDS
+(define-values (huffman-fixed-literal-lengths huffman-fixed-literal-maxlength) (huffman-fixed-literal-codeword-bit-lengths))
+(define-values (huffman-fixed-distance-lengths huffman-fixed-distance-maxlength) (huffman-fixed-distance-codeword-bit-lengths))
+
+(define huffman-fixed-literal-codewords : (Promise (Vectorof Index))
+  (delay (let ([codewords ((inst make-vector Index) upcodes)])
+           (huffman-codewords-canonicalize! codewords huffman-fixed-literal-lengths huffman-fixed-literal-maxlength)
+           codewords)))
+
+(define huffman-fixed-distance-codewords : (Promise (Vectorof Index))
+  (delay (let ([codewords ((inst make-vector Index) (vector-length huffman-fixed-distance-lengths))])
+           (huffman-codewords-canonicalize! codewords huffman-fixed-distance-lengths huffman-fixed-distance-maxlength)
+           codewords)))
+
+(define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
+  (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength) 0)] [start 0] [end (vector-length lengths)]]
+    (define length-count-idx : Index maxlength)
+
+    (vector-fill! codewords 0)
+    (vector-fill! nextcodes 0)
+    
+    (let count-each-length ([idx : Nonnegative-Fixnum start])
+      (when (< idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths idx))
+
+        (when (> self-length 0)
+          (let ([cidx (unsafe-idx+ length-count-idx self-length)])
+            (unsafe-vector*-set! nextcodes cidx (unsafe-idx+ (unsafe-vector*-ref nextcodes cidx) 1))))
+
+        (count-each-length (+ idx 1))))
+
+    (let initialize-nextcode ([bitsize : Index 0])
+      (when (< bitsize maxlength)
+        (define bitsize++ : Index (+ bitsize 1))
+
+        ; firstcode[l + 1] = (firstcode[l] + count[l]) << 1
+        (unsafe-vector*-set! nextcodes bitsize++
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref nextcodes bitsize)
+                                                  (unsafe-vector*-ref nextcodes (+ length-count-idx bitsize)))
+                                               1))
+        (initialize-nextcode bitsize++)))
+
+    (let assign-codeword ([idx : Nonnegative-Fixnum start])
+      (when (< idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths idx))
+
+        (when (> self-length 0)
+          ; codeword[i] = nextcode[l]++;
+          (let ([self-code (unsafe-vector*-ref nextcodes self-length)])
+            (unsafe-vector*-set! codewords (unsafe-idx- idx start) self-code)
+            (unsafe-vector*-set! nextcodes self-length (unsafe-idx+ self-code 1))))
+
+        (assign-codeword (+ idx 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct huffman-lookup-table
@@ -194,26 +252,6 @@
   #:type-name Huffman-Lookup-Table
   #:transparent
   #:mutable)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-huffman-symbols : (->* (Bytes) (Natural Natural) Bytes)
-  (lambda [src [start 0] [end (bytes-length src)]]
-    (define counts : (Vectorof Natural) (make-vector #xFF 0))
-    (define symbols : Bytes (make-bytes (- end start)))
-
-    (for ([b (in-bytes src start end)])
-      (vector-set! counts b (add1 (vector-ref counts b))))
-
-    (for ([idx (in-range 1 256)])
-      (vector-set! counts idx
-                   (+ (vector-ref counts idx)
-                      (vector-ref counts (sub1 idx)))))
-
-    (for ([b (in-bytes src start end)])
-      (bytes-set! symbols b (add1 (vector-ref counts b)))
-      (vector-set! counts b (add1 (vector-ref counts b))))
-
-    symbols))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE
@@ -274,9 +312,9 @@
 ;   of the two in the constructing huffman tree, and the heap order should be maintained both
 ;   before and after the combination since the heap might be ruined by steps.
 ; The idea is the same as that applied in the `heapsort`, with a much more complicated process.
-; After this phase, the first value of the heap is the unique heap pointer to the first internal
-;   tree pointer, and the rest values are tree pointers to their corresponding parent pointers.
-;   specifically, all internal trees are accommodated in the first half partion of the heap.
+; After this phase, the first value of the heap is the unique heap pointer to the root of the
+;   tree, and the rest values are tree pointers to their corresponding parent. Specifically,
+;   all internal trees are accommodated in the first half partion of the heap.
 (define huffman-minheap-treefy! : (-> (Mutable-Vectorof Index) Index Void)
   (lambda [heap n]
     (cond [(>= n 2)
@@ -334,48 +372,6 @@
                           [else (let ([length (unsafe-idx+ (vector-ref heap parent-idx) 1)])
                                   (vector-set! heap idx length)
                                   (update-depths idx++ (max maxlength length)))]))]))))
-
-;;; Phase 4: Canonicalization
-; To generate canonical codewords from their lengths
-(define huffman-lengths-canonicalize! : (->* ((Mutable-Vectorof Index) (Mutable-Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
-  (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength) 0)] [start 0] [end (vector-length lengths)]]
-    (define length-count-idx : Index maxlength)
-
-    (vector-fill! codewords 0)
-    (vector-fill! nextcodes 0)
-    
-    (let count-each-length ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
-
-        (when (> self-length 0)
-          (let ([cidx (unsafe-idx+ length-count-idx self-length)])
-            (unsafe-vector*-set! nextcodes cidx (unsafe-idx+ (unsafe-vector*-ref nextcodes cidx) 1))))
-
-        (count-each-length (+ idx 1))))
-
-    (let initialize-nextcode ([bitsize : Index 0])
-      (when (< bitsize maxlength)
-        (define size++ : Index (+ bitsize 1))
-        
-        ; firstcode[l + 1] = (firstcode[l] + count[l]) << 1
-        (unsafe-vector*-set! nextcodes size++
-                             (unsafe-idxlshift (+ (unsafe-vector*-ref nextcodes bitsize)
-                                                  (unsafe-vector*-ref nextcodes (+ length-count-idx bitsize)))
-                                               1))
-        (initialize-nextcode size++)))
-
-    (let assign-codeword ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
-
-        (when (> self-length 0)
-          ; codeword[i] = nextcode[l]++;
-          (let ([self-code (unsafe-vector*-ref nextcodes self-length)])
-            (unsafe-vector*-set! codewords (unsafe-idx- idx start) self-code)
-            (unsafe-vector*-set! nextcodes self-length (unsafe-idx+ self-code 1))))
-
-        (assign-codeword (+ idx 1))))))
 
 ; the name "siftup" is a little confusing,
 ;   it moves up the least frequent pointer which is originally located at the bottom, but

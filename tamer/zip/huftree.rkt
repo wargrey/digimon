@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (require racket/file)
+(require racket/promise)
 
 (require digimon/cmdopt)
 (require digimon/dtrace)
@@ -15,8 +16,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option tree-flags #: Tree-Flags
-  #:program 'huffree
-  #:args [file.zip]
+  #:program 'huftree
+  #:args [filename]
 
   #:once-each
   [[(#\v) #:=> tree-verbose "run with verbose messages"]])
@@ -31,7 +32,7 @@
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
     (define codewords : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define codes : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define temp-codes : (Mutable-Vectorof Index) (make-vector upcodes 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -85,12 +86,26 @@
     (collect-garbage*)
     
     (time-apply*
-     (λ [] (huffman-lengths-canonicalize! codewords huffman-tree maxlength codes upcodes))
+     (λ [] (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
      #true)
 
-    (for ([symbol (in-range upcodes)]
-          [codeword (in-vector codewords)]
-          [bitsize (in-vector huffman-tree upcodes)]
+    (display-codeword codewords huffman-tree upcodes)))
+
+(define fixed-run : (-> Void)
+  (lambda []
+    (collect-garbage*)
+    (display-codeword (time-apply* (λ [] (force huffman-fixed-literal-codewords)) #true)
+                      huffman-fixed-literal-lengths)
+
+    (collect-garbage*)
+    (display-codeword (time-apply* (λ [] (force huffman-fixed-distance-codewords)) #true)
+                      huffman-fixed-distance-lengths)))
+
+(define display-codeword : (->* ((Vectorof Index) (Vectorof Index)) (Index) Void)
+  (lambda [codewords lengths [offset 0]]
+    (for ([codeword (in-vector codewords)]
+          [bitsize (in-vector lengths offset)]
+          [symbol (in-naturals)]
           #:when (> bitsize 0))
       (displayln (cons symbol (~binstring codeword bitsize))))))
 
@@ -102,7 +117,9 @@
     
     (parameterize ([current-logger /dev/dtrace])
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (tree-run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt)))
+                                 (define txt (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt)))
+
+                                 (if (bytes=? txt #"") (fixed-run) (tree-run txt))
                                  
                                  (dtrace-datum-notice eof)
                                  (thread-wait tracer))))))))

@@ -28,7 +28,7 @@
 
 (define-cmdlet-option lz77-flags #: Lz77-Flags
   #:program 'lz77
-  #:args [file.zip]
+  #:args [filename]
 
   #:once-each
   [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte "use ~1 as the default hash bits"]
