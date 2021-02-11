@@ -144,7 +144,7 @@
       (case-lambda
         [(n nbits) (push-bits n nbits (bits-mask nbits))]
         [(n nbits fast-mask)
-         (inject-bits (+ payload (arithmetic-shift (unsafe-fxand n fast-mask) pwidth))
+         (inject-bits (bitwise-ior payload (arithmetic-shift (unsafe-fxand n fast-mask) pwidth))
                       (unsafe-idx+ pwidth nbits)
                       tank-payload)]
         [(bs start end align?)

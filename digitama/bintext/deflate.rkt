@@ -25,10 +25,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte
-                                                   #:dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
+                                                   #:allow-dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
   (lambda [#:window-bits [winbits window-bits] #:memory-level [memlevel 8]
-           #:dynamic-block? [dynamic? #true] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
+           #:allow-dynamic-block? [allow-dynamic? #true] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define need-huffman? : Boolean (> (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
@@ -38,7 +38,8 @@
     ; For the sake of simplicity, we set three kinds of block
     ; which are all controlled by `memory-level` and applied to all strategies
     ;   raw block:  receives the written bytes from clients;
-    ;   lz77 block: receives the lz77 symbols transformed from the `raw block`;
+    ;   lz77 block: receives the lz77 symbols transformed from the `raw block`,
+    ;                 slots of `lz77-dists` are always paired with the corresponding slots of the lz77 block;
     ;   bits block: receives the final codes encoded from the `lz77 block`,
     ;                 residing in the LSB bitstream.
 
@@ -47,7 +48,8 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
     
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof LZ77-Symbol) (smart-make-vector lz77-blocksize need-huffman? lz77-block-placeholder 0))
+    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize need-huffman? lz77-dictionary-placeholder 0))
+    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize need-huffman? lz77-dictionary-placeholder 0))
     (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
@@ -60,32 +62,31 @@
 
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size need-huffman? lz77-dictionary-placeholder 0))
     (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize need-huffman? lz77-dictionary-placeholder 0))
-    (define distances : (Vectorof Index) (smart-make-vector lz77-blocksize need-huffman? lz77-dictionary-placeholder 0))
-
-    ;; for huffman tree
-    (define frequencies : (Vectorof Index) (smart-make-vector upcodes (or need-huffman? dynamic?) lz77-dictionary-placeholder 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx)
-         (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
+        [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
         [(distance span d-idx)
-         (let* ([sym (backref-span->huffman-symbol span)])
-           (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
-           (unsafe-vector*-set! lz77-block lz77-payload sym)
-           (unsafe-vector*-set! distances lz77-payload (backref-distance->huffman-distance span))
-           (set! lz77-payload (unsafe-idx+ lz77-payload 1)))]))
+         (unsafe-vector*-set! lz77-block lz77-payload span)
+         (unsafe-vector*-set! lz77-dists lz77-payload distance)
+         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]))
+
+    ;; for (dynamic) huffman tree
+    (define literal-frequencies : (Vectorof Index) (smart-make-vector upcodes (or need-huffman? allow-dynamic?) lz77-dictionary-placeholder 0))
+    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistances (or need-huffman? allow-dynamic?) lz77-dictionary-placeholder 0))
 
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx)
-         (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
+        [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
+         (unsafe-vector*-set! literal-frequencies sym (unsafe-idx+ (unsafe-vector*-ref literal-frequencies sym) 1))
          (submit-huffman-symbol sym d-idx)]
         [(distance span d-idx)
-         (let* ([sym (backref-span->huffman-symbol span)])
-           (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))
+         (let ([hspan (backref-span->huffman-symbol span)]
+               [hdist (backref-distance->huffman-distance span)])
+           (unsafe-vector*-set! literal-frequencies hspan (unsafe-idx+ (unsafe-vector*-ref literal-frequencies hspan) 1))
+           (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
            (submit-huffman-symbol distance span d-idx))]))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -95,14 +96,17 @@
     (define deflated-size : Positive-Integer 1)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define (huffman-block-flush [BFINAL : Boolean] [payload : Index]) : Natural
+      (define submit-symbol (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency))
+
+      (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs raw-block submit-symbol strategy 0 payload)
+      (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 lz77-payload #:with bitank))
+    
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
       (define written-size : Natural
         (cond [(= payload 0) (or (and BFINAL add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
               [(not need-huffman?) (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]
-              [else (let ([submit-symbol (if (not dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)])
-                      (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
-                                    raw-block submit-symbol strategy 0 payload)
-                      (huffman-write-static-block! /dev/zipout lz77-block distances BFINAL 0 lz77-payload #:with bitank))]))
+              [else (huffman-block-flush BFINAL payload)]))
 
       (when (> written-size 0)
         (set! deflated-size (+ deflated-size written-size))
@@ -278,7 +282,7 @@
     
     (SEND-BITS #:windup? BFINAL #:save? #true)))
 
-(define huffman-write-static-block! : (-> Output-Port (Vectorof LZ77-Symbol) (Vectorof Index) Boolean Index Index [#:with (U Bytes Integer)] Natural)
+(define huffman-write-static-block! : (-> Output-Port (Vectorof Index) (Vectorof Index) Boolean Index Index [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout l77src dists BFINAL start end #:with [tank 0]]
     (define literals : (Vectorof Index) (force huffman-fixed-literal-codewords))
     (define distances : (Vectorof Index) (force huffman-fixed-distance-codewords))
@@ -288,11 +292,20 @@
 
     (let write-codeword ([idx : Nonnegative-Fixnum start])
       (when (< idx end)
-        (define sym : LZ77-Symbol (unsafe-vector*-ref l77src idx))
+        (define misc : Index (unsafe-vector*-ref l77src idx))
+        (define dist : Index (unsafe-vector*-ref dists idx))
+        
+        (cond [(= dist 0) (PUSH-BITS (unsafe-vector*-ref literals misc) (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
+              [else (let ([hspan (backref-span->huffman-symbol misc)]
+                          [hdist (backref-distance->huffman-distance dist)])
+                      (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
+                             [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
+                        (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
+                        (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
 
-        (cond [(byte? sym) (PUSH-BITS (unsafe-vector*-ref literals sym) (unsafe-vector*-ref huffman-fixed-literal-lengths sym))]
-              [else (let ([dist (unsafe-vector*-ref dists idx)])
-                      (void))])
+                      (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
+                        (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
+                        (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
         
         (write-codeword (+ idx 1))))
 

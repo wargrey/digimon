@@ -5,6 +5,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define pk.zip : Path (build-path (find-system-path 'temp-dir) "pk.zip"))
 (define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
+(define tamer:// : Path (collection-file-path "zip" "digimon" "tamer"))
 
 (define config#0 : (Listof Any)  (list 0))
 (define config#1 : (Listof Any)  (list 1))
@@ -19,11 +20,12 @@
         (make-archive-binary-entry #"the stored data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored))
 
         (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
-        (make-archive-binary-entry #"these data haven't been compressed by LZ77" "deflated/identity.λsh" #:methods '(deflated) #:options config#id)
+        (make-archive-binary-entry #"these data haven't been compressed by LZ77" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
+        (make-archive-file-entry (build-path tamer:// "pkzip.rkt") "deflated/fixed/default.λsh" #:methods '(deflated) #:options (list 6 'fixed))
         
-        (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig.rkt" #:methods '(deflated) #:options config#0)
-        (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman.rkt" #:methods '(deflated) #:options config#1)
-        (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77.rkt" #:methods '(deflated) #:options config#9)))
+        (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/config#0.rkt" #:methods '(deflated) #:options config#0)
+        (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/config#1.rkt" #:methods '(deflated) #:options config#1)
+        (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/config#9.rkt" #:methods '(deflated) #:options config#9)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
@@ -36,7 +38,7 @@
 
   (printf "Archive: ~a~n" pk.zip)
 
-  (call-with-dtrace
+  #;(call-with-dtrace
       (λ []
         (zip-extract pk.zip)
         (newline))

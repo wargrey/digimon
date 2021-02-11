@@ -118,7 +118,7 @@
         (case method
           ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
           [(deflated)
-           (open-output-deflated-block #:dynamic-block? allow-dynamic-block? #:memory-level memory-level
+           (open-output-deflated-block #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level
                                        #:name entry-name #:safe-flush-on-close? #false
                                        /dev/stdout strategy)]
           [else /dev/stdout #| the original one that shouldn't be closed here |#]))
