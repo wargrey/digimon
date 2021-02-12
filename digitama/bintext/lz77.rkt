@@ -421,7 +421,7 @@
   (lambda [#:min-match [min-match lz77-default-min-match] #:max-match [max-match lz77-default-max-match]
            window symbol-submit preference [start 0] [end (bytes-length window)]]
     (define distance : Positive-Index (zip-run-strategy-length preference))
-    (define offset : Index (unsafe-idx+ start (max distance min-match)))
+    (define offset : Index (unsafe-idx+ start distance))
     
     (let run-length ([idx : Index start])
       (cond [(>= idx end) (unsafe-idx- end start)]
