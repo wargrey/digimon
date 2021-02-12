@@ -133,7 +133,7 @@
                          [(normal fast) (map zip-normal-preference levels)]
                          [(default backward) (map zip-backward-preference levels)]
                          [(lazy slow) (map zip-lazy-preference levels)]
-                         [(rle run) (map zip-run-preference (filter positive-byte? levels))]
+                         [(rle run) (map zip-run-preference (filter positive-index? levels))]
                          [else (list (zip-special-preference (car s)))])))))
 
     (define fallback-strategies : (Listof ZIP-Strategy)
@@ -168,7 +168,7 @@
     (cond [(zip-normal-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
           [(zip-backward-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
           [(zip-lazy-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
-          [(zip-run-strategy? s) (format "~a:~a" name (zip-strategy-level s))]
+          [(zip-run-strategy? s) (format "~a:~a" name (zip-run-strategy-length s))]
           [else (symbol->string name)])))
 
 (module+ main

@@ -24,6 +24,7 @@
 (define-type (Archive-Entry-Readerof* a b) (-> Input-Port String Boolean Natural a b))
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof* a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof* Void Void))
+(define-type Archive-Entries (Rec aes (Listof (U Archive-Entry aes))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-no-compression-suffixes : (Parameterof (Listof Symbol)) (make-parameter null))
@@ -121,10 +122,9 @@
           (values (+ csize (zip-entry-csize e)) (+ rsize (zip-entry-rsize e)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-create : (->* ((U Path-String Output-Port) (Listof Archive-Entry))
+(define zip-create : (->* ((U Path-String Output-Port) Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)
-                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte
-                           String)
+                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8]
@@ -134,14 +134,18 @@
       (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
       (define seekable? : Boolean (port-random-access? /dev/zipout))
 
+      (define (write-entries [entries : (Rec aes (Listof (U Archive-Entry aes)))]) : (Rec zds (Listof (U ZIP-Directory False zds)))
+        (for/fold ([cdirs : (Rec zds (Listof (U ZIP-Directory False zds))) null])
+                  ([entry : (Rec aes (U Archive-Entry (Listof aes))) (in-list entries)])
+          (cons (cond [(list? entry) (write-entries entry)]
+                      [else (zip-write-entry /dev/zipout entry
+                                             root zip-root px:suffix seekable?
+                                             strategy memlevel)])
+                cdirs)))
+
       (dynamic-wind void
-                    (λ [] (zip-write-directories /dev/zipout comment
-                                                 (for/list ([e (in-list entries)])
-                                                   (zip-write-entry /dev/zipout e
-                                                                    root zip-root px:suffix seekable?
-                                                                    strategy memlevel))))
-                    (λ [] (custodian-shutdown-all (current-custodian))))
-      (void))))
+                    (λ [] (zip-write-directories /dev/zipout comment (write-entries entries)))
+                    (λ [] (custodian-shutdown-all (current-custodian)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))

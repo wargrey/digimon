@@ -77,7 +77,7 @@
                                 [else (list (list-set (car hi.lo) (arithmetic-shift dist-1 -7) (car hs)) (cadr hi.lo))]))))])
        (syntax/loc stx
          (begin (define huffman-distance-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits ...))
-                (define huffman-distance-bases : (Immutable-Vectorof Index) (vector-immutable base-distance ...))
+                (define huffman-distance-bases : (Immutable-Vectorof Positive-Index) (vector-immutable base-distance ...))
 
                 (define hi-distances : (Immutable-Vectorof Byte) (vector-immutable hi-distance ...))
                 (define lo-distances : (Immutable-Vectorof Byte) (vector-immutable lo-distance ...))
@@ -129,8 +129,8 @@
    [284     227  5]
 
    ;; NOTE
-   ; The 258 can be represented by 284, but it still deserves its own for shorter code
-   ; since it gets used a lot in very redundant files, any contents longer will be truncated.
+   ; The 258 can be represented by 284, but it still deserves its own literal for shorter code
+   ; since it gets used a lot in very redundant files, in which case any contents longer will be truncated.
    [285     258  0]])
 
 (define-huffman-fixed-backref-distance-table

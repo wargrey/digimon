@@ -271,7 +271,7 @@
 
 (define huffman-write-stored-block! : (-> Output-Port Bytes Boolean Index Index [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout bsrc BFINAL start end #:with [tank 0]]
-    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
+    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank 1 #:restore? #true))
     (define size : Index (unsafe-idx- end start))
 
     (PUSH-BITS (if BFINAL #b001 #b000) 3 #b111)
@@ -281,6 +281,8 @@
     (PUSH-BITS bsrc start end #true)
     
     (SEND-BITS #:windup? BFINAL #:save? #true)))
+
+(require digimon/format)
 
 (define huffman-write-static-block! : (-> Output-Port (Vectorof Index) (Vectorof Index) Boolean Index Index [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout l77src dists BFINAL start end #:with [tank 0]]
@@ -295,18 +297,24 @@
         (define misc : Index (unsafe-vector*-ref l77src idx))
         (define dist : Index (unsafe-vector*-ref dists idx))
         
-        (cond [(= dist 0) (PUSH-BITS (unsafe-vector*-ref literals misc) (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
-              [else (let ([hspan (backref-span->huffman-symbol misc)]
-                          [hdist (backref-distance->huffman-distance dist)])
-                      (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
-                             [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
-                        (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
-                        (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
+        (if (= dist 0)
 
-                      (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
-                        (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
-                        (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
-        
+            ; pure literals
+            (PUSH-BITS (unsafe-vector*-ref literals misc)
+                       (unsafe-vector*-ref huffman-fixed-literal-lengths misc))
+
+            ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
+            (let ([hspan (backref-span->huffman-symbol misc)]
+                  [hdist (backref-distance->huffman-distance dist)])
+              (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
+                     [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
+                (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
+                (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
+              
+              (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
+                (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
+                (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra)))))
+
         (write-codeword (+ idx 1))))
 
     (PUSH-BITS EOB 9 #x1FF)

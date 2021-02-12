@@ -420,7 +420,7 @@
 (define lz77-deflate/rle : (->* (Bytes LZ77-Submit-Symbol ZIP-Run-Strategy) (Index Index #:min-match Positive-Byte #:max-match Index) Index)
   (lambda [#:min-match [min-match lz77-default-min-match] #:max-match [max-match lz77-default-max-match]
            window symbol-submit preference [start 0] [end (bytes-length window)]]
-    (define distance : Positive-Byte (zip-run-strategy-length preference))
+    (define distance : Positive-Index (zip-run-strategy-length preference))
     (define offset : Index (unsafe-idx+ start (max distance min-match)))
     
     (let run-length ([idx : Index start])

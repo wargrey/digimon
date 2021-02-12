@@ -73,9 +73,9 @@
           [(boolean? val) (~hexstring (if val 1 0))]
           [else (~hexstring (string->bytes/utf-8 (~a val)))])))
 
-(define ~binstring : (->* (Any) ((Option Index)) String)
-  (lambda [val [width #false]]
-    (cond [(integer? val) (if (not width) (~r val #:base 2) (~r val #:base 2 #:min-width width #:pad-string "0"))]
+(define ~binstring : (->* (Any) (Integer) String)
+  (lambda [val [width 0]]
+    (cond [(integer? val) (if (<= width 0) (~r val #:base 2) (~r val #:base 2 #:min-width width #:pad-string "0"))]
           [(bytes? val) (bytes->bin-string val #:separator " ")]
           [(boolean? val) (~binstring (if val 1 0))]
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
@@ -101,9 +101,9 @@
     
     (if (> b #xF) hex (string-append "0" hex))))
 
-(define byte->bin-string : (-> Byte String)
-  (lambda [b]
-    (~r b #:base 2 #:min-width 8 #:pad-string "0")))
+(define byte->bin-string : (->* (Byte) (Integer) String)
+  (lambda [b [width 8]]
+    (~r b #:base 2 #:min-width (if (<= width 0) 8 width) #:pad-string "0")))
 
 (define bytes->hex-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
   (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]

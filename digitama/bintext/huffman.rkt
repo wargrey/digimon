@@ -124,6 +124,10 @@
     (define fcount : Index (vector-length freqs))
     (define fend : Index (unsafe-idx+ upcodes fcount))
 
+    ;;; WARNING
+    ; Don't squeeze out 0-frequent symbols
+    ;   since they are mapped to indices so that
+    ;   we don't have to maintain them separately.
     (vector-copy! heap upcodes freqs 0 fcount)
 
     (let heap-link! ([f-idx : Nonnegative-Fixnum upcodes]

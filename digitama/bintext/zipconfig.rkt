@@ -66,7 +66,7 @@
   #:transparent)
 
 (struct zip-run-strategy zip-strategy
-  ([length : Positive-Byte])
+  ([length : Positive-Index])
   #:type-name ZIP-Run-Strategy
   #:transparent)
 
@@ -113,7 +113,7 @@
   (lambda []
     (zip-special-preference 'identity)))
 
-(define zip-run-preference : (-> Positive-Byte ZIP-Run-Strategy)
+(define zip-run-preference : (-> Positive-Index ZIP-Run-Strategy)
   (lambda [length]
     (zip-run-strategy 'rle 'fast 1 length)))
 

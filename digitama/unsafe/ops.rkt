@@ -20,7 +20,8 @@
  [(unsafe-fxxor unsafe-idxxor) (-> Integer Natural Index)]
  [(unsafe-fxlshift unsafe-idxlshift) (case-> [Positive-Integer Fixnum -> Positive-Index]
                                              [Natural Fixnum -> Index])]
- [(unsafe-fxrshift unsafe-idxrshift) (-> Natural Byte Index)])
+ [(unsafe-fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
+                                             [Natural Byte -> Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.

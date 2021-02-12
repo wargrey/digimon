@@ -23,11 +23,11 @@
   #:once-each
   [[(#\A)                    "list all entries, including those not in the central directory"]
 
-   [(#\h)                    "list the header line"]
-   [(#\t)                    "list the trailer line"]
+   [(#\h)                    "display the header line"]
+   [(#\t)                    "display the trailer line"]
    [(#\z)                    "display file comment"]
 
-   [(#\T)                    "print the file dates and times in a sortable decimal format"]
+   [(#\T)                    "print the file dates and times in the sortable decimal format"]
    [(#\v)   #:=> zip-verbose "run with verbose messages"]]
 
   #:once-any
@@ -112,7 +112,7 @@
                         (when (> idx 0) (display #\space))
 
                         (let ([numerical? (memq (string-ref col (sub1 (string-length col))) (list #\% #\B))])
-                          (display (~a col #:min-width wid #:align (if numerical? 'right 'left)))))
+                          (display (~a col #:min-width (+ wid 1) #:align (if numerical? 'right 'left)))))
 
                       (let ([?comment (assoc (last e) (cdr zip-comments))])
                         (when (and ?comment (> (string-length (cdr ?comment)) 0))

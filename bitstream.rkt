@@ -224,14 +224,29 @@
     (values push-bits send-bits bs-shell)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define bits-reverse-uint8 : (-> Byte Byte)
-  (lambda [b]
-    (unsafe-vector*-ref bits-reversed-bytes b)))
+(define bits-reverse-uint8 : (case-> [Byte -> Byte]
+                                     [Byte Index -> Byte])
+  (case-lambda
+    [(b) (unsafe-vector*-ref bits-reversed-bytes b)]
+    [(b nbits)
+     (let ([r8 (bits-reverse-uint8 b)]
+           [diff (- 8 nbits)])
+       (cond [(<= diff 0) r8]
+             [(< diff 8) (unsafe-idxrshift r8 diff)]
+             [else r8]))]))
 
-(define bits-reverse-uint16 : (-> Index Index Index)
-  (lambda [s nbits]
-    (define lo : Byte (bitwise-and s #xFF))
-    (define hi : Byte (bitwise-and (arithmetic-shift s -8) #xFF))
-    (define r16 : Index (bitwise-ior (unsafe-idxlshift (bits-reverse-uint8 lo) 8) (bits-reverse-uint8 hi)))
-
-    (unsafe-idxrshift r16 (assert (- 16 nbits) byte?))))
+(define bits-reverse-uint16 : (case-> [Index -> Index]
+                                      [Index Index -> Index])
+  (case-lambda
+    [(s)
+     (let ([lo (bitwise-and s #xFF)]
+           [hi (bitwise-and (arithmetic-shift s -8) #xFF)])
+       (bitwise-ior (unsafe-idxlshift (bits-reverse-uint8 lo) 8)
+                    (bits-reverse-uint8 hi)))]
+    [(s nbits)
+     (cond [(and (byte? s) (<= nbits 8)) (bits-reverse-uint8 s nbits)]
+           [else (let ([r16 (bits-reverse-uint16 s)]
+                       [diff (- 16 nbits)])
+                   (cond [(<= diff 0) r16]
+                         [(< diff 16) (unsafe-idxrshift r16 diff)]
+                         [else r16]))])]))

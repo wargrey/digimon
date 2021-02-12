@@ -147,19 +147,29 @@
                                 #:csize (assert csize index?)
                                 #:rsize (assert rsize index?)))))
 
-(define zip-write-directories : (-> Output-Port (Option String) (Listof (Option ZIP-Directory)) Natural)
+(define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Void)
   (lambda [/dev/zipout comment cdirs]
     (define offset : Natural (file-position /dev/zipout))
-    (define count : Index (length cdirs))
-    (define cdirsize : Natural
-      (for/fold ([size : Natural 0])
-                ([cdir (in-list cdirs)] #:when cdir)
-        (+ size (write-zip-directory cdir /dev/zipout))))
+    
+    (define-values (cdirsize count)
+      (let write-directories : (Values Natural Natural)
+        ([cdirs : (Rec zds (Listof (U ZIP-Directory False zds))) (reverse cdirs)]
+         [size0 : Natural 0]
+         [count0 : Natural 0])
+        (for/fold ([size : Natural size0] [count : Natural count0])
+                  ([cdir (in-list cdirs)] #:when cdir)
+          (cond [(list? cdir) (write-directories (reverse cdir) size count)]
+                [else (values (+ size (write-zip-directory cdir /dev/zipout)) (+ count 1))]))))
+
     (define eocdr : zip-end-of-central-directory
-      (make-zip-end-of-central-directory #:cdir-offset (assert offset index?) #:cdir-size (assert cdirsize index?)
-                                         #:entry-count count #:entry-total count
-                                         #:comment (or comment "")))
-    (+ cdirsize (write-zip-end-of-central-directory eocdr /dev/zipout))))
+      (with-asserts ([offset index?]
+                     [cdirsize index?]
+                     [count index?])
+        (make-zip-end-of-central-directory #:cdir-offset offset #:cdir-size cdirsize
+                                           #:entry-count count #:entry-total count
+                                           #:comment (or comment ""))))
+
+    (void (write-zip-end-of-central-directory eocdr /dev/zipout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-folder-entry? : (-> ZIP-Directory Boolean)
