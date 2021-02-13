@@ -23,10 +23,12 @@
          (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored))
 
          (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
-         (make-archive-binary-entry #"these data haven't been compressed by LZ77" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
          (make-archive-binary-entry #"Fa-la-la-la-la" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed)))
+
    
-   (for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
+   #;(make-archive-binary-entry #"these data haven't been compressed by LZ77" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
+   
+   #;(for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
                                        [extra (in-vector huffman-backref-extra-bits)]
                                        [idx (in-naturals)])
      (make-archive-binary-entry #:methods '(deflated) #:options (list 'run 'fixed)

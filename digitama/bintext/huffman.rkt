@@ -161,10 +161,10 @@
 ;   the combined pointer will become a new pointer in the heap and serve as the logical parent
 ;   of the two in the constructing huffman tree, and the heap order should be maintained both
 ;   before and after the combination since the heap might be ruined by steps.
-; The idea is the same as that applied in the `heapsort`, with a much more complicated process.
+; The idea is the same as that applied in the `heapsort`, with a more complicated process.
 ; After this phase, the first value of the heap is the unique heap pointer to the root of the
 ;   tree, and the rest values are tree pointers to their corresponding parent. Specifically,
-;   all internal trees are accommodated in the first half partion of the heap.
+;   all internal trees are accommodated in the first half portion of the heap.
 (define huffman-minheap-treefy! : (-> (Mutable-Vectorof Index) Index Void)
   (lambda [heap n]
     (cond [(>= n 2)

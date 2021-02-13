@@ -67,11 +67,15 @@
       (case-lambda
         [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
-         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]
+         (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (when (= lz77-payload lz77-blocksize)
+           (void (huffman-block-flush #false 0)))]
         [(distance span d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
-         (set! lz77-payload (unsafe-idx+ lz77-payload 1))]))
+         (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (when (= lz77-payload lz77-blocksize)
+           (void (huffman-block-flush #false 0)))]))
 
     ;; for (dynamic) huffman tree
     (define literal-frequencies : (Vectorof Index) (smart-make-vector upcodes (or need-huffman? allow-dynamic?) lz77-dictionary-placeholder 0))
@@ -90,55 +94,75 @@
            (submit-huffman-symbol distance span d-idx))]))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;;; WARNING
-    ; the port counts its position starting from 1,
-    ; whereas `file-position` reports it from 0... 
+    ;; WARNING: the port counts its position from 1, whereas `file-position` reports it from 0... 
     (define deflated-size : Positive-Integer 1)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-block-flush [BFINAL : Boolean] [payload : Index]) : Natural
-      (define submit-symbol (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency))
+    (define (huffman-block-flush [BFINAL : Boolean] [raw-payload : Index]) : Void
+      ;; WARNING
+      ; This procedure is recursive, as `lz77-deflate` itself will invoke it as soon as the lz77 block is full,
+      ;   in which case `raw-payload` is zero, and `BFINAL` is always false even if all raw bytes are deflated.
+      ; Otherwise, it can only be invoked by `block-flush` and `raw-payload` is positive.
 
-      (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs raw-block submit-symbol strategy 0 payload)
-      (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 lz77-payload #:with bitank))
+      (when (and (> raw-payload 0) #;(< lz77-payload lz77-blocksize) #| redundant check for `lz77-payload` |#)
+        (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
+                      (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
+                      strategy 0 raw-payload))
+
+      (if (= lz77-payload 0)
+
+          ; In normal case, `raw-payload` and `lz77-payload` cannot be zero coincidentally.
+          ; If so, all raw bytes are deflated and just fulling up the lz77 block, in which case
+          ;   the block will be flushed by the callback procedure for `lz77-deflate` before reaching here.
+          ; Thus, don't forget to append another empty final block since the callback has no information about it.
+          (unless (not BFINAL)
+            (void (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)))
+      
+          (let ([size++ (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 lz77-payload #:with bitank)])
+            ; TODO: sliding the lz77 window
+            (set! deflated-size (+ deflated-size size++))
+            (set! lz77-payload 0))))
     
     (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
-      (define written-size : Natural
-        (cond [(= payload 0) (or (and BFINAL add-empty-final-block? (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)) 0)]
-              [(not need-huffman?) (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]
-              [else (huffman-block-flush BFINAL payload)]))
+      (cond [(and (> payload 0) need-huffman?)
+             (huffman-block-flush BFINAL payload)]
+            [(> payload 0)
+             (let ([size++ (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)])
+               (set! deflated-size (+ deflated-size size++)))]
+            [(and BFINAL add-empty-final-block?)
+             (let ([size++ (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)])
+               (set! deflated-size (+ deflated-size size++)))])
 
-      (when (> written-size 0)
-        (set! deflated-size (+ deflated-size written-size))
-        (set! raw-payload 0)
-        (set! lz77-payload 0)))
+      (when (> raw-payload 0)
+        (set! raw-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
       
-      (if (<= src-size 0)
-          ;;; NOTE
-          ; By design, a terminate block would be inserted when flushing the port manually,
-          ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is `#false`;
-          
-          ; But when performing a non-block writing with an empty bytes,
-          ; say, via `write-bytes-avail*`, it would reach here too, and
-          ; the `non-block/buffered?` is `#true`. So that, doing flush as
-          ; usual but do not insert the block as the final one.
-          (block-flush (not non-block/buffered?) raw-payload #true)
-          
-          (let deflate ([src-size : Natural src-size]
-                        [start : Natural start]
-                        [available : Index (unsafe-idx- raw-blocksize raw-payload)])
-            (if (< src-size available)
-                (begin
-                  (bytes-copy! raw-block raw-payload bs start end)
-                  (set! raw-payload (unsafe-idx+ raw-payload src-size)))
-                (let ([end (+ start available)])
-                  (bytes-copy! raw-block raw-payload bs start end)
-                  (block-flush #false raw-blocksize #false)
-                  (when (> src-size available)
-                    (deflate (unsafe-idx- src-size available) end raw-blocksize))))))
+      (cond [(<= src-size 0)
+             ;;; NOTE
+             ; By design, a terminate block would be inserted when flushing the port manually,
+             ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is `#false`;
+             
+             ; But when performing a non-block writing with an empty bytes,
+             ; say, via `write-bytes-avail*`, it would reach here too, and
+             ; the `non-block/buffered?` is `#true`. So that, doing flush as
+             ; usual but do not insert the block as the final one.
+             (block-flush (not non-block/buffered?) raw-payload #true)]
+
+            [else ; repeatedly fill the raw block and flush it if full.
+             (let deflate ([src-size : Natural src-size]
+                           [start : Natural start]
+                           [available : Index (unsafe-idx- raw-blocksize raw-payload)])
+               (if (< src-size available)
+                   (begin
+                     (bytes-copy! raw-block raw-payload bs start end)
+                     (set! raw-payload (unsafe-idx+ raw-payload src-size)))
+                   (let ([end (+ start available)])
+                     (bytes-copy! raw-block raw-payload bs start end)
+                     (block-flush #false raw-blocksize #false)
+                     (when (> src-size available)
+                       (deflate (unsafe-idx- src-size available) end raw-blocksize)))))])
 
       ; Conventionally, non-block writing implies flush
       (unless (not non-block/buffered?)
@@ -282,8 +306,6 @@
     
     (SEND-BITS #:windup? BFINAL #:save? #true)))
 
-(require digimon/format)
-
 (define huffman-write-static-block! : (-> Output-Port (Vectorof Index) (Vectorof Index) Boolean Index Index [#:with (U Bytes Integer)] Natural)
   (lambda [/dev/zipout l77src dists BFINAL start end #:with [tank 0]]
     (define literals : (Vectorof Index) (force huffman-fixed-literal-codewords))
@@ -297,23 +319,21 @@
         (define misc : Index (unsafe-vector*-ref l77src idx))
         (define dist : Index (unsafe-vector*-ref dists idx))
         
-        (if (= dist 0)
+        (cond [(= dist 0) ; pure literals
+               (PUSH-BITS (unsafe-vector*-ref literals misc)
+                          (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
 
-            ; pure literals
-            (PUSH-BITS (unsafe-vector*-ref literals misc)
-                       (unsafe-vector*-ref huffman-fixed-literal-lengths misc))
-
-            ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
-            (let ([hspan (backref-span->huffman-symbol misc)]
-                  [hdist (backref-distance->huffman-distance dist)])
-              (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
-                     [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
-                (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
-                (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
-              
-              (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
-                (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
-                (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra)))))
+              [else ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
+               (let ([hspan (backref-span->huffman-symbol misc)]
+                     [hdist (backref-distance->huffman-distance dist)])
+                 (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
+                        [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
+                   (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
+                   (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
+                 
+                 (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
+                   (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
+                   (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
 
         (write-codeword (+ idx 1))))
 
