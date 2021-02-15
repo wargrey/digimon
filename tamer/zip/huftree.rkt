@@ -53,7 +53,7 @@
                n))
        #true))
     
-    (define heap-okay? : (U Boolean Natural)
+    (define heap? : (U Boolean Natural)
       (let sub-okay? : (U Boolean Natural) ([i 0])
         (or (>= i n)
             (let* ([self-freq (vector-ref huffman-tree (vector-ref huffman-tree i))]
@@ -64,9 +64,13 @@
                    (or (boolean? right-freq) (<= self-freq right-freq))
                    self-freq)))))
 
-    (if (not heap-okay?)
-        (echof #:fgcolor 'red "not a heap~n")
-        (echof #:fgcolor 'green "heap ready~n"))
+    (for ([idx (in-range n)])
+      (define ptr (vector-ref huffman-tree idx))
+      (define bitsize (vector-ref huffman-tree ptr))
+      (define symbol (- ptr upcodes))
+
+      (echof #:fgcolor (if (not heap?) 'red 'green) "(~a . ~a)~n"
+             (codesymbol->visual-value symbol) bitsize))
 
     (collect-garbage*)
 
@@ -75,11 +79,6 @@
        (λ [] (begin (huffman-minheap-treefy! huffman-tree n)
                     (huffman-minheap-count-lengths! huffman-tree n)))
        #true))
-    
-    (for ([symbol (in-range upcodes)]
-          [bitsize (in-vector huffman-tree upcodes)]
-          #:when (> bitsize 0))
-      (displayln (cons symbol bitsize)))
 
     (printf "max length: ~a~n" maxlength)
 
@@ -107,9 +106,14 @@
           [bitsize (in-vector lengths offset)]
           [symbol (in-naturals)]
           #:when (> bitsize 0))
-      (displayln (list symbol
+      (displayln (list (codesymbol->visual-value symbol)
                        (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
                        (~binstring codeword bitsize))))))
+
+(define codesymbol->visual-value : (-> Integer Any)
+  (lambda [sym]
+    (let ([ch (integer->char sym)])
+      (if (char-graphic? ch) ch sym))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)

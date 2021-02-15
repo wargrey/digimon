@@ -187,7 +187,7 @@
                  ; the reserved position accommodates the new frequency
                  (unsafe-vector*-set! heap bottom-idx combined-freq)
                  
-                 ; original two frequencies are no longer used, link them to their logical parent in the tree
+                 ; original two frequencies are no longer used, link them to their logical parent
                  (unsafe-vector*-set! heap m1 bottom-idx)
                  (unsafe-vector*-set! heap m2 bottom-idx)
                  

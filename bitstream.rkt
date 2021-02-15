@@ -130,7 +130,7 @@
 
     (define tank-payload : Index 0)
     (define payload : Natural 0) ; bit buffer
-    (define pwidth : Index 0)    ; bits in bit buffer
+    (define pwidth : Index 0)  ; bits in bit buffer
     (define pre-sent : Natural 0)
     (define calibre : Index (* calibre-in-byte 8))
     
@@ -148,7 +148,7 @@
                       (unsafe-idx+ pwidth nbits)
                       tank-payload)]
         [(bs start end align?)
-         (let ([r (remainder pwidth 8)])
+         (let ([r (remainder (ann pwidth Nonnegative-Fixnum) 8)])
            (cond [(and (> r 0) (not align?)) (for ([b (in-bytes bs start end)]) (push-bits b 8 #xFF))]
                  [else (let align ([start++ : Nonnegative-Fixnum start]
                                    [r : Byte r])
@@ -168,7 +168,7 @@
 
         (begin0
           (cond [(not windup?) count]
-                [else (let windup : Natural ([pwidth-- : Index pwidth]
+                [else (let windup : Natural ([pwidth-- : Natural pwidth]
                                              [payload-- : Natural payload]
                                              [count++ : Natural count])
                         (cond [(>= pwidth-- 8)

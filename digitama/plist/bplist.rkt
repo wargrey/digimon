@@ -188,7 +188,7 @@
       (bplist-newline /dev/stdout)
       
       (let print-offset-table ([pos : Nonnegative-Fixnum offset-table-index]
-                               [col : Byte 1])
+                               [col : Index 1])
         (cond [(< pos trailer-index)
                (let ([space (if (= col 0) #\newline #\space)])
                  (bplist-print-integer-octets /dev/bplin /dev/stdout pos sizeof-offset space string-upcase)

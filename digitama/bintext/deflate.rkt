@@ -28,9 +28,9 @@
                                                    #:allow-dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
   (lambda [#:window-bits [winbits window-bits] #:memory-level [memlevel 8]
-           #:allow-dynamic-block? [allow-dynamic? #true] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
+           #:allow-dynamic-block? [allow-dynamic? #false] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
-    (define need-huffman? : Boolean (> (zip-strategy-level strategy) 0))
+    (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
     
     ;;; NOTE
@@ -48,8 +48,8 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
     
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize need-huffman? lz77-dictionary-placeholder 0))
-    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize need-huffman? lz77-dictionary-placeholder 0))
+    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
+    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
     (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
@@ -60,8 +60,8 @@
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size : Index (unsafe-idxlshift 1 winbits))
 
-    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size need-huffman? lz77-dictionary-placeholder 0))
-    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize need-huffman? lz77-dictionary-placeholder 0))
+    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression? lz77-dictionary-placeholder 0))
+    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize no-compression? lz77-dictionary-placeholder 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -69,17 +69,17 @@
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
          (when (= lz77-payload lz77-blocksize)
-           (void (huffman-block-flush #false 0)))]
+           (void (lz77-block-flush #false lz77-payload)))]
         [(distance span d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
          (when (= lz77-payload lz77-blocksize)
-           (void (huffman-block-flush #false 0)))]))
+           (void (lz77-block-flush #false lz77-payload)))]))
 
     ;; for (dynamic) huffman tree
-    (define literal-frequencies : (Vectorof Index) (smart-make-vector upcodes (or need-huffman? allow-dynamic?) lz77-dictionary-placeholder 0))
-    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistances (or need-huffman? allow-dynamic?) lz77-dictionary-placeholder 0))
+    (define literal-frequencies : (Vectorof Index) (smart-make-vector upcodes (or no-compression? (not allow-dynamic?)) lz77-dictionary-placeholder 0))
+    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistances (or no-compression? (not allow-dynamic?)) lz77-dictionary-placeholder 0))
 
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
@@ -98,41 +98,38 @@
     (define deflated-size : Positive-Integer 1)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-block-flush [BFINAL : Boolean] [raw-payload : Index]) : Void
-      ;; WARNING
-      ; This procedure is recursive, as `lz77-deflate` itself will invoke it as soon as the lz77 block is full,
-      ;   in which case `raw-payload` is zero, and `BFINAL` is always false even if all raw bytes are deflated.
-      ; Otherwise, it can only be invoked by `block-flush` and `raw-payload` is positive.
-
-      (when (and (> raw-payload 0) #;(< lz77-payload lz77-blocksize) #| redundant check for `lz77-payload` |#)
-        (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
-                      (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
-                      strategy 0 raw-payload))
-
-      (if (= lz77-payload 0)
-
-          ; In normal case, `raw-payload` and `lz77-payload` cannot be zero coincidentally.
-          ; If so, all raw bytes are deflated and just fulling up the lz77 block, in which case
-          ;   the block will be flushed by the callback procedure for `lz77-deflate` before reaching here.
-          ; Thus, don't forget to append another empty final block since the callback has no information about it.
-          (unless (not BFINAL)
-            (void (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)))
-      
-          (let ([size++ (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 lz77-payload #:with bitank)])
-            ; TODO: sliding the lz77 window
-            (set! deflated-size (+ deflated-size size++))
-            (set! lz77-payload 0))))
+    (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
+      (let ([size++ (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 payload #:with bitank)])
+        (vector-fill! lz77-dists 0)
+        (set! deflated-size (+ deflated-size size++))
+        (set! lz77-payload 0)))
     
-    (define (block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean]) : Void
-      (cond [(and (> payload 0) need-huffman?)
-             (huffman-block-flush BFINAL payload)]
-            [(> payload 0)
-             (let ([size++ (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)])
-               (set! deflated-size (+ deflated-size size++)))]
-            [(and BFINAL add-empty-final-block?)
-             (let ([size++ (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)])
-               (set! deflated-size (+ deflated-size size++)))])
+    (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean] [flush-lz77? : Boolean]) : Void
+      (define written-size : Natural
+        (cond [(not no-compression?)
+               (when (> payload 0)
+                 ;; NOTE
+                 ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
+                 ;   but it will never write the block with a FINAL flag depsite the value of `BFINAL`.
+                 ; Instead, another empty final block will be appended if there happens to be no more
+                 ;   content after flushing last full lz77 block. 
 
+                 ;; TODO: sliding the window
+                 (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
+                               (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
+                               strategy 0 payload))
+
+               (cond [(not (or BFINAL flush-lz77?)) 0]
+                     [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload) 0]
+                     [(and BFINAL) (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)]
+                     [else 0])]
+              [(> payload 0) (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]
+              [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)]
+              [else 0]))
+
+      (when (exact-positive-integer? written-size)
+        (set! deflated-size (+ deflated-size written-size)))
+      
       (when (> raw-payload 0)
         (set! raw-payload 0)))
     
@@ -148,7 +145,7 @@
              ; say, via `write-bytes-avail*`, it would reach here too, and
              ; the `non-block/buffered?` is `#true`. So that, doing flush as
              ; usual but do not insert the block as the final one.
-             (block-flush (not non-block/buffered?) raw-payload #true)]
+             (raw-block-flush (not non-block/buffered?) raw-payload #true #true)]
 
             [else ; repeatedly fill the raw block and flush it if full.
              (let deflate ([src-size : Natural src-size]
@@ -160,13 +157,13 @@
                      (set! raw-payload (unsafe-idx+ raw-payload src-size)))
                    (let ([end (+ start available)])
                      (bytes-copy! raw-block raw-payload bs start end)
-                     (block-flush #false raw-blocksize #false)
+                     (raw-block-flush #false raw-blocksize #false #false)
                      (when (> src-size available)
                        (deflate (unsafe-idx- src-size available) end raw-blocksize)))))])
 
-      ; Conventionally, non-block writing implies flush
+      ; Conventionally, non-block writing implies flushing
       (unless (not non-block/buffered?)
-        (block-flush #false raw-payload #false))
+        (raw-block-flush #false raw-payload #false #true))
       
       (- end start))
 
@@ -176,7 +173,7 @@
         ; When `safe-flush-on-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
         ; say by a custodian, and client API will manually terminate the block chain in some ways.
         ; Or flushing will probably make blocks being written to wrong positions.
-        (block-flush #true raw-payload #true))
+        (raw-block-flush #true raw-payload #true #true))
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
@@ -345,6 +342,6 @@
 (define lz77-dictionary-placeholder : (Mutable-Vectorof Index) (make-vector 0))
 
 (define smart-make-vector : (All (t) (-> Index Boolean (Mutable-Vectorof t) t (Mutable-Vectorof t)))
-  (lambda [size need-huffman? placeholder defval]
-    (cond [(not need-huffman?) placeholder]
-          [else (make-vector size defval)])))
+  (lambda [size unused? placeholder defval]
+    (cond [(not unused?) (make-vector size defval)]
+          [else placeholder])))
