@@ -2,6 +2,7 @@
 
 ;;; TAOCP Vol. 3, P145
 ;;; Managing Gigabytes: Compressing and Indexing Documents and Images, S2.3
+;;; On the implementation of minimum redundancy prefix codes
 ;;; https://www.hanshq.net/zip.html
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
@@ -22,10 +23,6 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-; The inflate algorithm uses a sliding 32K byte window on the uncompressed stream to find repeated byte strings.
-; This is implemented here as a circular buffer.  The index is updated simply by incrementing and then `and`ing with 0x7fff (32K-1).
-
 (define window-bits : Positive-Byte 15)      ; bits of the window size that at least 32K  
 (define literal-bits : Positive-Byte 9)      ; bits in base literal/length lookup table
 (define distance-bits : Positive-Byte 6)     ; bits in base distance lookup table
@@ -38,7 +35,16 @@
   (vector-immutable 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; FIXED HUFFMAN CODEWORDS
+;;; FIXED HUFFMAN SYMBOLS AND CODEWORDS
+; NOTE, just in case you are confused by arguments' names
+;   in terms of compression,
+;     "symbol"s are codes for decoded text;
+;     "codeword"s are codes for encoded text.
+;   from the perspective of client applications,
+;     "symbol"s have to be arranged in order, so that
+;     algorithms don't have to know concrete symbols,
+;     but their "indices".
+
 (define huffman-fixed-literal-codewords : (Promise (Vectorof Index))
   (delay (let ([codewords ((inst make-vector Index) upcodes)])
            (huffman-codewords-canonicalize! codewords huffman-fixed-literal-lengths huffman-fixed-literal-maxlength)
@@ -49,36 +55,42 @@
            (huffman-codewords-canonicalize! codewords huffman-fixed-distance-lengths huffman-fixed-distance-maxlength)
            codewords)))
 
+; Canonicalize huffman codewords of lengths stored in `lengths` from `start` to `end`,
+;   with `nextcodes` which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
   (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength) 0)] [start 0] [end (vector-length lengths)]]
-    (define length-count-idx : Index maxlength)
+    (define count-idx0 : Index maxlength) ; length counts are temporary, and accommodated in the 2nd half of the `nextcodes`
 
     (vector-fill! codewords 0)
     (vector-fill! nextcodes 0)
-    
+
     (let count-each-length ([idx : Nonnegative-Fixnum start])
       (when (< idx end)
         (define self-length : Index (unsafe-vector*-ref lengths idx))
 
         (when (> self-length 0)
           ; count[lengths[idx]]++;
-          (let ([cidx (unsafe-idx+ length-count-idx self-length)])
+          (let ([cidx (unsafe-idx+ count-idx0 self-length)])
             (unsafe-vector*-set! nextcodes cidx (unsafe-idx+ (unsafe-vector*-ref nextcodes cidx) 1))))
 
         (count-each-length (+ idx 1))))
 
-    (let initialize-nextcode ([bitsize : Index 0])
+    ; headcodes are just initial nextcodes, and they are temporary codes for encoder.
+    (let initialize-nextcodes ([bitsize : Index 0])
       (when (< bitsize maxlength)
         (define bitsize++ : Index (+ bitsize 1))
 
-        ; firstcode[l + 1] = (firstcode[l] + count[l]) << 1
+        ; headcode[l + 1] = (headcode[l] + count[l]) << 1
         (unsafe-vector*-set! nextcodes bitsize++
                              (unsafe-idxlshift (+ (unsafe-vector*-ref nextcodes bitsize)
-                                                  (unsafe-vector*-ref nextcodes (+ length-count-idx bitsize)))
+                                                  (unsafe-vector*-ref nextcodes (+ count-idx0 bitsize)))
                                                1))
-        (initialize-nextcode bitsize++)))
+        (initialize-nextcodes bitsize++)))
 
-    (let assign-codeword ([idx : Nonnegative-Fixnum start])
+    ;;; NOTE
+    ; The codewords are actually not huffman codes at all, nevertheless, they work equivalently,
+    ;   as the huffman codes is a subset of certain minimum redundancy codes.
+    (let resolve-codewords ([idx : Nonnegative-Fixnum start])
       (when (< idx end)
         (define self-length : Index (unsafe-vector*-ref lengths idx))
 
@@ -88,20 +100,82 @@
             (unsafe-vector*-set! codewords (unsafe-idx- idx start) (bits-reverse-uint16 self-code self-length))
             (unsafe-vector*-set! nextcodes self-length (unsafe-idx+ self-code 1))))
 
-        (assign-codeword (+ idx 1))))))
+        (resolve-codewords (+ idx 1))))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct huffman-lookup-table
-  ([extra : Byte]
-   [base : Byte]
-   [secondary : (U Byte Huffman-Lookup-Table)])
-  #:type-name Huffman-Lookup-Table
-  #:transparent
-  #:mutable)
+; Construct the lookup table of canonical codewords for decoder
+; Argument conventions are the same as of `huffman-codewords-canonicalize!`
+(define huffman-lookup-table-canonicalize! : (->* ((Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Vectorof Index) Byte)
+                                                  (Positive-Byte (Mutable-Vectorof Index) Index Index)
+                                                  Void)
+  (lambda [symbols offsets sentinels lengths maxlength [fast-bits 8] [indices ((inst make-vector Index) (* maxlength 3) 0)] [start 0] [end (vector-length lengths)]]
+    (define count-idx0 : Index maxlength) ; length counts are temporary, and accommodated in the 2nd section of the `headcodes`
+    (define head-idx0 : Index (unsafe-idx* maxlength 2)) ; head codes are temporary, and accommodated in the 3rd section of the `headcodes`
+    (define sentinel-shift : Byte (assert (- maxlength 1) byte?))
+    
+    (vector-fill! symbols 0)
+    (vector-fill! indices 0)
+
+    ; same as in `huffman-codewords-canonicalize!`
+    (let count-each-length ([idx : Nonnegative-Fixnum start])
+      (when (< idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths idx))
+
+        (when (> self-length 0)
+          ; count[lengths[idx]]++;
+          (let ([cidx (unsafe-idx+ count-idx0 self-length)])
+            (unsafe-vector*-set! indices cidx (unsafe-idx+ (unsafe-vector*-ref indices cidx) 1))))
+
+        (count-each-length (+ idx 1))))
+
+    ;; WARNING
+    ; Both `offsets` and `sentinels` here are 0-base vectors, and the `bitsize` starts from 0,
+    ;   other "common" implementations might based on 1-base vectors, so please care the indice of them. 
+    (let resolve-coordinates ([bitsize : Index 0])
+      (when (< bitsize maxlength)
+        (define bitsize++ : Index (+ bitsize 1))
+
+        ; headcode[l + 1] = (headcode[l] + count[l]) << 1
+        (unsafe-vector*-set! indices (+ head-idx0 bitsize++)
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref indices (+ head-idx0 bitsize))
+                                                  (unsafe-vector*-ref indices (+ count-idx0 bitsize)))
+                                               1))
+
+        ; sentinel[l + base] = (headcode[l + 1] + count[l + 1]) << (maxlength - 1)
+        (unsafe-vector*-set! sentinels bitsize
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref indices bitsize++)
+                                                  (unsafe-vector*-ref indices (+ count-idx0 bitsize++)))
+                                               sentinel-shift))
+
+        ; symbol-idx[l + 1] = symbol-idx[l] + count[l]
+        (unsafe-vector*-set! indices bitsize++
+                             (unsafe-idx+ (unsafe-vector*-ref indices bitsize)
+                                          (unsafe-vector*-ref indices (+ count-idx0 bitsize))))
+        
+        ; offset[l + base] = symbol-idx[l + 1] - headcode[l + 1] 
+        (unsafe-vector*-set! offsets bitsize
+                             (unsafe-idx- (unsafe-vector*-ref indices bitsize++)
+                                          (unsafe-vector*-ref indices (+ head-idx0 bitsize++))))
+        
+        (resolve-coordinates bitsize++)))
+
+    (let resolve-symbols ([idx : Nonnegative-Fixnum start])
+      (when (< idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths idx))
+
+        (when (> self-length 0)
+          ; symbol[i] = symbol-idx[l]++
+          (let ([self-index (unsafe-vector*-ref indices self-length)])
+            (unsafe-vector*-set! symbols (unsafe-idx- idx start) self-index)
+            (unsafe-vector*-set! indices self-length (unsafe-idx+ self-index 1)))
+
+          (when (<= self-length fast-bits)
+            (void)))
+
+        (resolve-symbols (+ idx 1))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE
-; WARNING: the heap starts from 0, which is different from the "common" implementations.
+; WARNING: the heap starts from 0, which is different from "common" implementations.
 
 (define-syntax (huffman-minheap-key stx)
   (syntax-case stx []
@@ -259,9 +333,3 @@
           ; Yes, the move is delayed, too.
           (unsafe-vector*-set! heap sift-idx target)   
           (huffman-minheap-siftup! heap target-idx root-pointer root-key bottom-idx)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-huffman-lookup-table : (-> (Immutable-Vectorof Byte) Index Index (Vectorof Index) (Vectorof Byte)
-                                        (Values (Option Huffman-Lookup-Table) Index Boolean))
-  (lambda [bits total simple-count bases extras]
-    (values #false 0 #true)))

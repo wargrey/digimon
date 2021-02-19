@@ -83,11 +83,11 @@
     (printf "max length: ~a~n" maxlength)
 
     (collect-garbage*)
-    
+      
     (time-apply*
      (λ [] (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
      #true)
-
+    
     (display-codeword codewords huffman-tree upcodes)))
 
 (define fixed-run : (-> Void)
