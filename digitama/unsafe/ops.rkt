@@ -6,6 +6,7 @@
 (provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder)
 (provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift)
 (provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift)
+(provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
 (require racket/unsafe/ops)
 (require typed/racket/unsafe)

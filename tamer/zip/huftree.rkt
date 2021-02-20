@@ -88,7 +88,16 @@
      (λ [] (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
      #true)
     
-    (display-codeword codewords huffman-tree upcodes)))
+    (display-codeword codewords huffman-tree upcodes)
+
+    (let ([lookup (huffman-make-lookup-table (min 8 maxlength) maxlength)])
+      (collect-garbage*)
+      
+      (time-apply*
+       (λ [] (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength temp-codes upcodes))
+       #true)
+      
+      (display-lookup-table lookup))))
 
 (define fixed-run : (-> Void)
   (lambda []
@@ -98,7 +107,13 @@
 
     (collect-garbage*)
     (display-codeword (time-apply* (λ [] (force huffman-fixed-distance-codewords)) #true)
-                      huffman-fixed-distance-lengths)))
+                      huffman-fixed-distance-lengths)
+
+    (collect-garbage*)
+    (display-lookup-table (time-apply* (λ [] (force huffman-fixed-literal-lookup-table)) #true))
+    
+    (collect-garbage*)
+    (display-lookup-table (time-apply* (λ [] (force huffman-fixed-distance-lookup-table)) #true))))
 
 (define display-codeword : (->* ((Vectorof Index) (Vectorof Index)) (Index) Void)
   (lambda [codewords lengths [offset 0]]
@@ -109,6 +124,21 @@
       (displayln (list (codesymbol->visual-value symbol)
                        (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
                        (~binstring codeword bitsize))))))
+
+(define display-lookup-table : (-> Huffman-Lookup-Table Void)
+  (lambda [tbl]
+    (define sheet-bwidth (huffman-lookup-table-sheet-bwidth tbl))
+    
+    (for ([cheatcheet (in-vector (huffman-lookup-table-cheatsheets tbl))]
+          [codeword (in-naturals)]
+          #:when (> cheatcheet 0))
+      (define symbol (bitwise-and cheatcheet (huffman-lookup-table-symbol-mask tbl)))
+      (define bitsize (arithmetic-shift cheatcheet (- (huffman-lookup-table-symbol-bwidth tbl))))
+      (define padmask (sub1 (arithmetic-shift 1 bitsize)))
+      
+      (displayln (list (codesymbol->visual-value symbol)
+                       (cons (~binstring codeword sheet-bwidth)
+                             (~binstring (bitwise-and codeword padmask) bitsize)))))))
 
 (define codesymbol->visual-value : (-> Integer Any)
   (lambda [sym]
