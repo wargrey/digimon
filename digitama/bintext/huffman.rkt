@@ -51,24 +51,27 @@
 
 (struct huffman-lookup-table
   ([cheatsheet : (Mutable-Vectorof Index)] ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
-   [offsets : (Mutable-Vectorof Index)]
+   [head-offsets : (Mutable-Vectorof Index)]
    [sentinels : (Mutable-Vectorof Index)]
    [symbols : (Mutable-Vectorof Index)]
-   [sheet-bwidth : Byte]
+   [cheat-bwidth : Byte]
+   [cheat-mask : Index]
    [symbol-bwidth : Byte]
    [symbol-mask : Index])
   #:type-name Huffman-Lookup-Table)
 
-(define huffman-make-lookup-table : (->* () (Byte Byte Index) Huffman-Lookup-Table)
-  (lambda [[fast-lookup-bits 8] [maxlength upbits] [max-indices upcodes]]
+(define huffman-make-lookup-table : (-> [#:fast-lookup-bits Byte] [#:max-bitwidth Byte] [#:symbol-capacity Index] Huffman-Lookup-Table)
+  (lambda [#:fast-lookup-bits [cheat-bwidth 8] #:max-bitwidth [maxlength upbits] #:symbol-capacity [max-indices upcodes]]
     (define symbol-bwidth : Byte (assert (exact-ceiling (log max-indices 2)) byte?))
-    (define symbol-mask : Index (unsafe-idx- (arithmetic-shift 1 symbol-bwidth) 1))
+    (define symbol-mask : Index (- (unsafe-idxlshift 1 symbol-bwidth) 1))
+    (define cheat-size : Positive-Index (unsafe-idxlshift 1 cheat-bwidth))
     
-    (huffman-lookup-table ((inst make-vector Index) (unsafe-idxlshift 1 fast-lookup-bits))
+    (huffman-lookup-table ((inst make-vector Index) cheat-size 0)
                           ((inst make-vector Index) maxlength)
                           ((inst make-vector Index) maxlength)
                           ((inst make-vector Index) max-indices)
-                          fast-lookup-bits symbol-bwidth symbol-mask)))
+                          cheat-bwidth (- cheat-size 1)
+                          symbol-bwidth symbol-mask)))
 
 (define huffman-fixed-literal-codewords : (Promise (Vectorof Index))
   (delay (let ([codewords ((inst make-vector Index) upcodes)])
@@ -81,17 +84,17 @@
            codewords)))
 
 (define huffman-fixed-literal-lookup-table : (Promise Huffman-Lookup-Table)
-  (delay (let ([table (huffman-make-lookup-table)])
+  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits 8)])
            (huffman-lookup-table-canonicalize! table huffman-fixed-literal-lengths huffman-fixed-literal-maxlength)
            table)))
 
 (define huffman-fixed-distance-lookup-table : (Promise Huffman-Lookup-Table)
-  (delay (let ([table (huffman-make-lookup-table)])
+  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits huffman-fixed-distance-maxlength)])
            (huffman-lookup-table-canonicalize! table huffman-fixed-distance-lengths huffman-fixed-distance-maxlength)
            table)))
 
-; Canonicalize huffman codewords of lengths stored in `lengths` from `start` to `end`,
-;   with `nextcodes` which accommodates temporary data, just in case clients don't want it to be allocated every time.
+;; Canonicalize huffman codewords of lengths stored in `lengths` from `start` to `end`,
+;    with `nextcodes` which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
   (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength) 0)] [start 0] [end (vector-length lengths)]]
     (define count-idx0 : Index maxlength) ; length counts are temporary, and accommodated in the 2nd half of the `nextcodes`
@@ -137,18 +140,18 @@
 
         (resolve-codewords (+ idx 1))))))
 
-; Construct the lookup table of canonical codewords for decoder
-; Argument conventions are the same as of `huffman-codewords-canonicalize!`
+;; Canonicalize the lookup table of lengths stored in `lengths` from `start` to `end` for decoding huffman codewords,
+;    with `indices` which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-lookup-table-canonicalize! : (->* (Huffman-Lookup-Table (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
   (lambda [table lengths maxlength [indices ((inst make-vector Index) (* maxlength 3) 0)] [start 0] [end (vector-length lengths)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
     (define symbols : (Mutable-Vectorof Index) (huffman-lookup-table-symbols table))
-    (define offsets : (Mutable-Vectorof Index) (huffman-lookup-table-offsets table))
+    (define headoffs : (Mutable-Vectorof Index) (huffman-lookup-table-head-offsets table))
     (define sentinels : (Mutable-Vectorof Index) (huffman-lookup-table-sentinels table))
-    (define sheet-bwidth : Byte (huffman-lookup-table-sheet-bwidth table))
+    (define cheat-bwidth : Byte (huffman-lookup-table-cheat-bwidth table))
     (define symbol-bwidth : Byte (huffman-lookup-table-symbol-bwidth table))
     
-    (define count-idx0 : Index maxlength) ; length counts are temporary, and accommodated in the 2nd section of the `indices`
+    (define count-idx0 : Index maxlength)                ; length counts are temporary, and accommodated in the 2nd section of the `indices`
     (define head-idx0 : Index (unsafe-idx* maxlength 2)) ; head codes are temporary, and accommodated in the 3rd section of the `indices`
     (define sentinel-shift : Byte (assert (- maxlength 1) byte?))
     
@@ -169,8 +172,8 @@
         (count-each-length (+ idx 1))))
 
     ;; WARNING
-    ; Both `offsets` and `sentinels` here are 0-base vectors, and the `bitsize` starts from 0,
-    ;   other "common" implementations might based on 1-base vectors, so please care the indice of them. 
+    ; Both `head-offsets` and `sentinels` here are 0-base vectors, and the `bitsize` starts from 0,
+    ;   other "common" implementations might employ 1-base vectors, so please care the indice of them.
     (let resolve-coordinates ([bitsize : Index 0])
       (when (< bitsize maxlength)
         (define bitsize++ : Index (+ bitsize 1))
@@ -192,8 +195,8 @@
                              (unsafe-idx+ (unsafe-vector*-ref indices bitsize)
                                           (unsafe-vector*-ref indices (+ count-idx0 bitsize))))
         
-        ; offset[l + base] = index[l + 1] - headcode[l + 1] 
-        (unsafe-vector*-set! offsets bitsize
+        ; head-offset[l + base] = index[l + 1] - headcode[l + 1]
+        (unsafe-vector*-set! headoffs bitsize
                              (unsafe-idx- (unsafe-vector*-ref indices bitsize++)
                                           (unsafe-vector*-ref indices (+ head-idx0 bitsize++))))
         
@@ -205,7 +208,7 @@
 
         (when (> self-length 0)
           (define symbol-idx : Index (unsafe-idx- idx start))
-          (define pad-length : Fixnum (- sheet-bwidth self-length))
+          (define pad-length : Fixnum (- cheat-bwidth self-length))
 
           ; symbol[i] = symbol-idx[l]++
           (let ([self-index (unsafe-vector*-ref indices self-length)])
@@ -225,19 +228,53 @@
               (when (< padding padmask+1)
                 (unsafe-vector*-set! cheatsheet
 
-                                     ; say, suppose the max bit width is 3, after padding, 1-bit symbol will
-                                     ;   take 4 slots in the cheatsheet, 00x, 01x, 10x, and 11x.
-                                     ; BTW, the name `padmask+1` helps you understand this algorithm.
+                                     ; say, suppose the max bit width is 3, after padding, 1-bit codeword will
+                                     ;   take 4 entries in the cheatsheet, 00x, 01x, 10x, and 11x.
+                                     ; BTW, the name 'padmask+1' helps you understand this algorithm.
                                      (bitwise-ior codeword (unsafe-idxlshift padding self-length))
 
-                                     ; the sheet datum should be `(cons self-length symbol-idx)`,
-                                     ;   but these are all small integers even in a 32bit system, in which case
-                                     ;   compiler will generate more efficient code for them instead of allocating lots of momery for pairs.
-                                     (bitwise-ior (unsafe-idxlshift self-length symbol-bwidth) symbol-idx))
+                                     ; the cheat code should be `(cons self-length symbol-idx)`,
+                                     ;   but these are all small integers (a.k.a fixnums) even in a 32-bit system,
+                                     ;   in which case compiler will generate more efficient code for them instead
+                                     ;   of allocating lots of momery for pairs.
+                                     (bitwise-xor (unsafe-idxlshift self-length #| a.k.a code-length |# symbol-bwidth) symbol-idx))
                 
                 (pad-cheatsheet (+ padding 1))))))
 
         (resolve-symbols (+ idx 1))))))
+
+;; Extract one symbol from current bitstream
+; NOTE that the `Huffman-Lookup-Table` is intentionally designed for clients to reuse memory,
+;   hence the third optional argument in case that the actual payload is smaller than the capacity. 
+(define huffman-symbol-extract : (->* (Huffman-Lookup-Table Index) (Index) (Values Index Index))
+  (lambda [table codeword+more [codeword-bwidth (vector-length (huffman-lookup-table-sentinels table))]]
+    (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
+    (define cheat-idx : Index ; no special transform for LSB
+      (cond [(< codeword+more (vector-length cheatsheet)) codeword+more]
+            [else (bitwise-and codeword+more (huffman-lookup-table-cheat-mask table))]))
+    (define cheat-code : Index (unsafe-vector*-ref cheatsheet cheat-idx))
+
+    (if (> cheat-code 0)
+
+        ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
+        (values (bitwise-and cheat-code (huffman-lookup-table-symbol-mask table))
+                (unsafe-idxrshift cheat-code (huffman-lookup-table-symbol-bwidth table)))
+
+        (let ([msb-code (bits-reverse-uint16 codeword+more codeword-bwidth)]
+              [sentinels (huffman-lookup-table-sentinels table)])
+          ;; NOTE
+          ; In zip implementation, the number of search is usually very small,
+          ;   thus, no need to employ binary search here.
+          ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
+          (let linear-search ([bitsize-1 : Nonnegative-Fixnum (huffman-lookup-table-cheat-bwidth table)])
+            (cond [(>= bitsize-1 codeword-bwidth) #| not found |# (values 0 0)]
+                  [(< msb-code (unsafe-vector*-ref sentinels bitsize-1))
+                   (let* ([code-length (unsafe-idx+ bitsize-1 1)]
+                          [head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) bitsize-1)]
+                          [nbits-code (unsafe-idxrshift msb-code (unsafe-idx- codeword-bwidth code-length))])
+                     (values (unsafe-vector*-ref (huffman-lookup-table-symbols table) (+ head-offset nbits-code))
+                             code-length))]
+                  [else (linear-search (+ bitsize-1 1))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE
@@ -255,7 +292,7 @@
      (syntax/loc stx
        (quotient (unsafe-idx- idx 1) 2))]))
 
-;;; Phase 0: Initialization
+;; Phase 0: Initialization
 ; To restore the heap storage (represented as a vector) so that
 ;   the first half accommodates the heap pointers, and
 ;   the second half accommodates the frequencies to be linked by heap pointers.
@@ -280,7 +317,7 @@
                                   (vector-set! heap n f-idx)
                                   (heap-link! i++ n++))]))]))))
 
-;;; Phase 1: Creation (`heapify` is more accurate since it occurs in place)
+;; Phase 1: Creation (`heapify` is more accurate since it occurs in place)
 ; To repeatedly increase the size of the heap by 1
 ; by extending from the parent of last pointer to the first one, in each step:
 ;   do sift downwards so that the least frequent pointer is at the root.
@@ -295,7 +332,7 @@
           (huffman-minheap-siftup! heap heapify-idx root-pointer (huffman-minheap-key heap root-pointer) bottom-idx)
           (heapify (- heapify-idx 1)))))))
 
-;;; Phase 2: Shrinking
+;; Phase 2: Shrinking
 ; To repeatedly decrease the size of the heap by 1
 ; by combining the two least frequent pointers (m1 and m2) until only one left, in each step
 ;   the combined pointer will become a new pointer in the heap and serve as the logical parent
@@ -341,7 +378,7 @@
            (unsafe-vector*-set! heap (unsafe-vector*-ref heap 0) 1)
            (unsafe-vector*-set! heap 0 1)])))
 
-;;; Phase 3: Counting
+;; Phase 3: Counting
 ; To count the lengths of each codewords and return the max one in case it is too long.
 ; The 2nd phase ensures that children are always accommodated after their parents,
 ;   so that we don't have to thoroughly count lengths manually.

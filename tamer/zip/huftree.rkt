@@ -90,7 +90,7 @@
     
     (display-codeword codewords huffman-tree upcodes)
 
-    (let ([lookup (huffman-make-lookup-table (min 8 maxlength) maxlength)])
+    (let ([lookup (huffman-make-lookup-table #:fast-lookup-bits (min 8 maxlength) #:max-bitwidth maxlength)])
       (collect-garbage*)
       
       (time-apply*
@@ -127,18 +127,29 @@
 
 (define display-lookup-table : (-> Huffman-Lookup-Table Void)
   (lambda [tbl]
-    (define sheet-bwidth (huffman-lookup-table-sheet-bwidth tbl))
-    
-    (for ([cheatcheet (in-vector (huffman-lookup-table-cheatsheets tbl))]
-          [codeword (in-naturals)]
-          #:when (> cheatcheet 0))
-      (define symbol (bitwise-and cheatcheet (huffman-lookup-table-symbol-mask tbl)))
-      (define bitsize (arithmetic-shift cheatcheet (- (huffman-lookup-table-symbol-bwidth tbl))))
-      (define padmask (sub1 (arithmetic-shift 1 bitsize)))
+    (define symbols : (HashTable Any (Listof (Pairof Any Any))) (make-hasheq))
+    (define cheat-bwidth (huffman-lookup-table-cheat-bwidth tbl))
       
-      (displayln (list (codesymbol->visual-value symbol)
-                       (cons (~binstring codeword sheet-bwidth)
-                             (~binstring (bitwise-and codeword padmask) bitsize)))))))
+    (for ([cheatcode (in-vector (huffman-lookup-table-cheatsheet tbl))]
+          [codeword (in-naturals)]
+          #:when (> cheatcode 0))
+      (define symbol (bitwise-and cheatcode (huffman-lookup-table-symbol-mask tbl)))
+      (define bitsize (arithmetic-shift cheatcode (- (huffman-lookup-table-symbol-bwidth tbl))))
+      (define symkey (codesymbol->visual-value symbol))
+      (define symval (cons (~binstring codeword cheat-bwidth)
+                           (~binstring (bitwise-bit-field codeword 0 bitsize) bitsize)))
+
+      (hash-set! symbols symkey
+                 (cons symval
+                       (hash-ref symbols symkey
+                                 (inst list (Pairof Any Any))))))
+
+    (for ([(key value) (in-hash symbols)])
+      (when (pair? value)
+        (displayln (list (~s key) (cdar value)
+                         (for/fold ([pads : (Listof Any) null])
+                                   ([val (in-list value)])
+                           (cons (car val) pads))))))))
 
 (define codesymbol->visual-value : (-> Integer Any)
   (lambda [sym]

@@ -192,7 +192,13 @@
     (define BTYPE : (Option Symbol) #false)
     (define BFINAL : Boolean #false)
     (define stock : Index 0)
+    
+    (define literal-decoder : Huffman-Lookup-Table (force huffman-fixed-literal-lookup-table))
+    (define distance-decoder : Huffman-Lookup-Table (force huffman-fixed-distance-lookup-table))
 
+    (define lz77-blocksize : Index (unsafe-idxlshift 1 window-bits))
+    (define lz77-block : (Mutable-Vectorof Index) ((inst make-vector Index) lz77-blocksize 0))
+    
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
       (if (FEED-BITS 3)
@@ -203,7 +209,7 @@
                       [(#b00) (huffman-begin-stored-block! BFINAL?) 'stored]
                       [(#b01) (huffman-begin-static-block! BFINAL?) 'static]
                       [(#b10) (huffman-begin-dynamic-block! BFINAL?) 'dynamic]
-                      [else (throw-check-error /dev/blkin ename "unknown deflated block type")])
+                      [else (throw-check-error /dev/blkin ename "unknown deflated block type: ~a" (~binstring BTYPE 2))])
                     BFINAL?))
           (values 'EOB #true)))
 
@@ -215,12 +221,14 @@
       (let ([chksum (PEEK-BITS 16 #xFFFF 16)])
         (unless (= (unsafe-uint16-not stock) chksum)
           (throw-check-error /dev/blkin ename "stored[~a]: invalid block length: ~a ~a"
-                             (if (not BFINAL?) #b0 #b1) (~binstring stock) (~binstring chksum))))
+                             (if (not BFINAL?) #b0 #b1) (~binstring stock 16) (~binstring chksum 16))))
 
       (FIRE-BITS 32))
     
     (define (huffman-begin-static-block! [BFINAL? : Boolean]) : Any
-      (void))
+      (unless (or (eq? BTYPE 'static) (not BTYPE))
+        (set! literal-decoder (force huffman-fixed-literal-lookup-table))
+        (set! distance-decoder (force huffman-fixed-distance-lookup-table))))
 
     (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
       (void))
@@ -237,10 +245,7 @@
                       (FIRE-BITS 8)
                       (copy-bytes start++))])))
 
-    (define (read-static-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
-      (read-stored-block! zipout start end))
-
-    (define (read-dynamic-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
+    (define (read-huffman-block! [zipout : Bytes] [start : Index] [end : Index]) : Index
       (read-stored-block! zipout start end))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -256,8 +261,7 @@
                (define start++ : Index
                  (case type
                    [(stored)  (read-stored-block! zipout start end)]
-                   [(static)  (read-static-block! zipout start end)]
-                   [(dynamic) (read-dynamic-block! zipout start end)]
+                   [(static dynamic)  (read-huffman-block! zipout start end)]
                    [else #;EOB (values start)]))
                
                (cond [(>= start++ end) (set!-values (BTYPE BFINAL) (values type last?)) end]

@@ -18,8 +18,6 @@
 (define-type BitStream-Input-Shell (U 'start-over 'align 'final-commit))
 (define-type BitStream-Output-Shell (U 'start-over 'align 'drop 'save 'restore))
 
-(require digimon/format)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-input-lsb-bitstream : (->* ((U Input-Port (-> Input-Port))) ((U Integer Bytes) Byte #:limited Natural #:padding-byte Byte)
                                         (Values (->* (Byte) ((U Input-Port (-> Input-Port))) Boolean)

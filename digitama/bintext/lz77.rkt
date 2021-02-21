@@ -13,6 +13,7 @@
 (require (for-syntax racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; `Index` is prior, but DrRacket might replace all `Index` with `LZ77-Symbol` in tooltips
 (define-type LZ77-Symbol (U Index (Pairof Index Index)))
 
 (define-type LZ77-Submit-Symbol
@@ -233,7 +234,7 @@
         [nice-span (zip-deflation-config-nice-length preference)]
         [chain-size (zip-deflation-config-chain-size preference)]
 
-        ; this is the "different meaning" mentioned by `zlib`
+        ; this is the "different meaning" mentioned in `zlib`
         [insert-limit (zip-deflation-config-lazy-limit preference)])
     (let deflate : (Values Index Index) ([hash : Index hash0]
                                          [m-idx : Index 0]
