@@ -28,10 +28,10 @@
                (make-archive-binary-entry #"Fa-la-la-la-la" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
 
 
-   #;(let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ 4 #| memory-level |# 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
+   (let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ 4 #| memory-level |# 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
      (make-archive-binary-entry block-aligned-bytes "deflated/fixed/block-aligned.λsh" #:methods '(deflated) #:options config#id))
    
-   #;(for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
+   (for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
                                        [extra (in-vector huffman-backref-extra-bits)]
                                        [idx (in-naturals)])
      (make-archive-binary-entry #:methods '(deflated) #:options (list 'run 'fixed)
@@ -41,14 +41,14 @@
                                            (make-bytes size (+ 97 (remainder size 26))))))
                                 (format "deflated/fixed/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
    
-   #;(for/list : (Listof Archive-Entry) ([base (in-vector huffman-distance-bases)]
+   (for/list : (Listof Archive-Entry) ([base (in-vector huffman-distance-bases)]
                                        [extra (in-vector huffman-distance-extra-bits)]
                                        [idx (in-naturals)])
      (let ([bs (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))])
        (make-archive-binary-entry #:methods '(deflated) #:options (list (zip-run-preference base) 'fixed)
                                   bs (format "deflated/fixed/backref/~a:~a.λsh" idx base))))
    
-   #;(list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/config#0.rkt" #:methods '(deflated) #:options config#0)
+   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/config#0.rkt" #:methods '(deflated) #:options config#0)
          (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/config#1.rkt" #:methods '(deflated) #:options config#1)
          (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/config#9.rkt" #:methods '(deflated) #:options config#9))))
 

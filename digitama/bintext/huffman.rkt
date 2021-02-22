@@ -34,9 +34,7 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define window-bits : Positive-Byte 15)      ; bits of the window size that at least 32K  
-(define literal-bits : Positive-Byte 9)      ; bits in base literal/length lookup table
-(define distance-bits : Positive-Byte 6)     ; bits in base distance lookup table
+(define window-bits : Positive-Byte 15)      ; bits of the window size that at least 32K
 
 (define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
 (define upcodes : Positive-Index 288)        ; maximum number of codes in any set, bytes + backreferences + EOB
@@ -141,7 +139,7 @@
         (resolve-codewords (+ idx 1))))))
 
 ;; Canonicalize the lookup table of lengths stored in `lengths` from `start` to `end` for decoding huffman codewords,
-;    with `indices` which accommodates temporary data, just in case clients don't want it to be allocated every time.
+;    with `indices`, which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-lookup-table-canonicalize! : (->* (Huffman-Lookup-Table (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
   (lambda [table lengths maxlength [indices ((inst make-vector Index) (* maxlength 3) 0)] [start 0] [end (vector-length lengths)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
@@ -228,8 +226,8 @@
               (when (< padding padmask+1)
                 (unsafe-vector*-set! cheatsheet
 
-                                     ; say, suppose the max bit width is 3, after padding, 1-bit codeword will
-                                     ;   take 4 entries in the cheatsheet, 00x, 01x, 10x, and 11x.
+                                     ; say, suppose the max bit width is 3, after padding, an 1-bit codeword
+                                     ;   will take 4 entries in the cheatsheet, 00x, 01x, 10x, and 11x.
                                      ; BTW, the name 'padmask+1' helps you understand this algorithm.
                                      (bitwise-ior codeword (unsafe-idxlshift padding self-length))
 
@@ -245,36 +243,35 @@
 
 ;; Extract one symbol from current bitstream
 ; NOTE that the `Huffman-Lookup-Table` is intentionally designed for clients to reuse memory,
-;   hence the third optional argument in case that the actual payload is smaller than the capacity. 
-(define huffman-symbol-extract : (->* (Huffman-Lookup-Table Index) (Index) (Values Index Index))
-  (lambda [table codeword+more [codeword-bwidth (vector-length (huffman-lookup-table-sentinels table))]]
+;   hence the third optional argument, in case the actual payload of the table is smaller than the capacity. 
+(define huffman-symbol-extract : (->* (Huffman-Lookup-Table Index) (Byte) (Values Index Byte))
+  (lambda [table codeword+more [codeword-bwidth upbits]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
     (define cheat-idx : Index ; no special transform for LSB
       (cond [(< codeword+more (vector-length cheatsheet)) codeword+more]
             [else (bitwise-and codeword+more (huffman-lookup-table-cheat-mask table))]))
     (define cheat-code : Index (unsafe-vector*-ref cheatsheet cheat-idx))
 
-    (if (> cheat-code 0)
+    (cond [(> cheat-code 0)
+           ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
+           (values (bitwise-and cheat-code (huffman-lookup-table-symbol-mask table))
+                   (unsafe-brshift cheat-code (huffman-lookup-table-symbol-bwidth table)))]
 
-        ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
-        (values (bitwise-and cheat-code (huffman-lookup-table-symbol-mask table))
-                (unsafe-idxrshift cheat-code (huffman-lookup-table-symbol-bwidth table)))
-
-        (let ([msb-code (bits-reverse-uint16 codeword+more codeword-bwidth)]
-              [sentinels (huffman-lookup-table-sentinels table)])
-          ;; NOTE
-          ; In zip implementation, the number of search is usually very small,
-          ;   thus, no need to employ binary search here.
-          ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
-          (let linear-search ([bitsize-1 : Nonnegative-Fixnum (huffman-lookup-table-cheat-bwidth table)])
-            (cond [(>= bitsize-1 codeword-bwidth) #| not found |# (values 0 0)]
-                  [(< msb-code (unsafe-vector*-ref sentinels bitsize-1))
-                   (let* ([code-length (unsafe-idx+ bitsize-1 1)]
-                          [head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) bitsize-1)]
-                          [nbits-code (unsafe-idxrshift msb-code (unsafe-idx- codeword-bwidth code-length))])
-                     (values (unsafe-vector*-ref (huffman-lookup-table-symbols table) (+ head-offset nbits-code))
-                             code-length))]
-                  [else (linear-search (+ bitsize-1 1))]))))))
+          [else ; manually do canonical decoding with the bits in MSB-first order
+           (let ([msb-code (bits-reverse-uint16 codeword+more codeword-bwidth)]
+                 [sentinels (huffman-lookup-table-sentinels table)])
+             ;; NOTE
+             ; In zip implementation, the number of search is usually very small,
+             ;   thus, binary search is not a neccesity here.
+             ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
+             (let linear-search ([code-length : Nonnegative-Fixnum (+ (huffman-lookup-table-cheat-bwidth table) 1)])
+               (cond [(> code-length codeword-bwidth) #| not found |# (values 0 0)]
+                     [(< msb-code (unsafe-vector*-ref sentinels (- code-length 1)))
+                      (let ([head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) code-length)]
+                            [nbits-code (unsafe-idxrshift msb-code (unsafe-idx- codeword-bwidth code-length))])
+                        (values (unsafe-vector*-ref (huffman-lookup-table-symbols table) (+ head-offset nbits-code))
+                                code-length))]
+                     [else (linear-search (+ code-length 1))])))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE

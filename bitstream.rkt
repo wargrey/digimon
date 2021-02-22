@@ -25,7 +25,8 @@
                                                         [Byte Index Byte -> Index]
                                                         [Byte Byte -> Byte]
                                                         [Byte Index -> Index]
-                                                        [Byte -> Index])
+                                                        [Byte -> Index]
+                                                        [-> Index])
                                                 (-> Byte Void)
                                                 (->* (BitStream-Input-Shell) ((U Input-Port (-> Input-Port))) (U Natural EOF Void))))
   (lambda [/dev/defin [mgz/size 0] [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
@@ -56,11 +57,13 @@
                                 [Byte Byte Byte -> Byte]
                                 [Byte Index -> Index]
                                 [Byte Byte -> Byte]
-                                [Byte -> Index])
+                                [Byte -> Index]
+                                [-> Index])
       (case-lambda
         [(nbits fast-mask skip) (bitwise-and (unsafe-idxrshift payload skip) fast-mask)]
         [(nbits fast-mask) (bitwise-and payload fast-mask)]
-        [(nbits) (bitwise-and payload (bits-mask nbits))]))
+        [(nbits) (bitwise-and payload (bits-mask nbits))]
+        [() payload]))
 
     (define fire-bits : (-> Byte Void)
       (lambda [nbits]
@@ -90,7 +93,7 @@
                 ;; commit consumed bytes, except for the last `lookahead` ones,
                 ;; which might be unwound(unpeeked) after you are done dealing with the bitstream.
                 (read-bytes! magazine /dev/bsin 0 read-size)
-                ;; awkwardly, the `unwind` operation has not been used or (therefore even) defined in this implementation.
+                ;; awkwardly, the `unwind` operation has neiher been used nor (therefore even) defined in this implementation.
                 ;; if no `lookahead`, no bytes could be unwound even though they are fed but before fired.
                 (set! mgz-start (min lookahead mgz-payload))))
 

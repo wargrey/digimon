@@ -5,7 +5,7 @@
 (provide unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!)
 (provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder)
 (provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift)
-(provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift)
+(provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift unsafe-brshift)
 (provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
 (require racket/unsafe/ops)
@@ -23,7 +23,8 @@
                                              [Natural Fixnum -> Index])]
  [(unsafe-fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
                                              [Natural Byte -> Index]
-                                             [Natural Natural -> Index])])
+                                             [Natural Natural -> Index])]
+ [(unsafe-fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.
