@@ -27,7 +27,7 @@
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte
                                                    #:allow-dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-bits] #:memory-level [memlevel 8]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8]
            #:allow-dynamic-block? [allow-dynamic? #false] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
@@ -185,20 +185,32 @@
                       #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-input-deflated-block : (->* (Input-Port Natural) (Boolean #:name String #:error-name Symbol #:commit? Boolean) Input-Port)
-  (lambda [/dev/zipin csize [close-orig? #false] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]]
+(define open-input-deflated-block : (->* (Input-Port Natural)
+                                         (Boolean #:window-bits Positive-Byte
+                                                  #:name String #:error-name Symbol #:commit? Boolean)
+                                         Input-Port)
+  (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]
+           /dev/zipin csize [close-orig? #false]]
     (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #x00 #:limited csize))
 
     (define BTYPE : (Option Symbol) #false)
     (define BFINAL : Boolean #false)
     (define stock : Index 0)
     
-    (define literal-decoder : Huffman-Lookup-Table (force huffman-fixed-literal-lookup-table))
-    (define distance-decoder : Huffman-Lookup-Table (force huffman-fixed-distance-lookup-table))
+    (define literal-table : Huffman-Lookup-Table (force huffman-fixed-literal-lookup-table))
+    (define distance-table : Huffman-Lookup-Table (force huffman-fixed-distance-lookup-table))
 
-    (define window-size : Index (unsafe-idxlshift 1 window-bits))
+    (define window-size : Index (unsafe-idxlshift 1 winbits))
     (define window : Bytes (make-bytes (+ window-size window-size)))
     (define window-idx : Index window-size)
+
+    (define (huffman-slide-window [current-stock : Index]) : Void
+      (displayln (cons (+ window-idx current-stock) (+ window-size window-size)))
+      (when (>= window-idx window-size)
+        (let ([window-idx-- (unsafe-idx- window-idx window-size)])
+          ; sliding always occurs before the window is full, so it's safe to just add the `currnt-stock`
+          (unsafe-bytes-copy! window 0 window window-idx-- (+ window-idx current-stock))
+          (set! window-idx window-idx--))))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
@@ -231,14 +243,14 @@
       (set! stock 0)
       
       (unless (or (eq? BTYPE 'static) (not BTYPE))
-        (set! literal-decoder (force huffman-fixed-literal-lookup-table))
-        (set! distance-decoder (force huffman-fixed-distance-lookup-table))))
+        (set! literal-table (force huffman-fixed-literal-lookup-table))
+        (set! distance-table (force huffman-fixed-distance-lookup-table))))
 
     (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
       (huffman-begin-static-block! BFINAL?))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (read-stored-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean]) : Index
+    (define (read-stored-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean] [type : Symbol]) : Index
       (define stop : Nonnegative-Fixnum (min (+ start stock) end))
       
       (let copy-bytes ([pos : Index start])
@@ -249,26 +261,31 @@
                       (FIRE-BITS 8)
                       (copy-bytes start++))])))
 
-    (define (read-huffman-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean]) : Index
+    (define (read-huffman-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean] [type : Symbol]) : Index
       (define request : Index (unsafe-idx- end start))
       (define supply : Index
         (let lazy-decode ([supply : Index stock])
           (cond [(>= supply request) supply]
-                [else (let ([near-eof? (not (FEED-BITS 32))])
-                        (define-values (litlen-code code-length) (huffman-symbol-extract literal-decoder (PEEK-BITS) huffman-fixed-literal-maxlength))
-
-                        (when (= code-length 0)
-                          (throw-check-error /dev/blkin ename "deflated[~a]: invalid symbol: ~a ~a"
-                                             (if (not BFINAL?) #b0 #b1)
-                                             (~binstring (PEEK-BITS huffman-fixed-literal-maxlength)
-                                                         huffman-fixed-literal-maxlength)))
-                        
-                        (FIRE-BITS code-length)
-                        (cond [(byte? litlen-code)
-                               (unsafe-bytes-set! window (+ window-idx supply) litlen-code)
+                [else (let ([misc (read-huffman-symbol literal-table huffman-fixed-literal-maxlength upcodes BFINAL? type 'literal)])
+                        (cond [(< misc EOB) ; pure literals
+                               (when (= supply window-size) (huffman-slide-window supply))
+                               (unsafe-lz77-inflate-into window (+ window-idx supply) misc)
                                (lazy-decode (unsafe-idx+ supply 1))]
-                              [(= litlen-code EOB) supply]
-                              [else (lazy-decode (unsafe-idx+ supply 1))]))])))
+                              [(= misc EOB) supply]
+                              [else ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
+                               (let* ([s-idx (unsafe-idx- misc backref-span-offset)]
+                                      [s-base (unsafe-vector*-ref huffman-backref-bases s-idx)]
+                                      [s-extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)]
+                                      [span (if (> s-extra 0) (unsafe-idx+ s-base (PEEK-BITS s-extra)) s-base)])
+                                 (when (> s-extra 0) (FIRE-BITS s-extra))
+                                 (let* ([hdist (read-huffman-symbol distance-table huffman-fixed-distance-maxlength updistances BFINAL? type 'distance)]
+                                        [d-base (unsafe-vector*-ref huffman-distance-bases hdist)]
+                                        [d-extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)]
+                                        [distance (if (> d-extra 0) (unsafe-idx+ d-base (PEEK-BITS d-extra)) d-base)])
+                                   (when (> d-extra 0) (FIRE-BITS d-extra))
+                                   (when (> (+ supply span) window-size) (huffman-slide-window supply))
+                                   (unsafe-lz77-inflate-into window (+ window-idx supply) distance span)
+                                   (lazy-decode (unsafe-idx+ supply span))))]))])))
 
       (let ([consumed (min request supply)])
         (when (> consumed 0)
@@ -278,6 +295,24 @@
             (set! window-idx window-idx++)))
         
         (unsafe-idx+ start consumed)))
+
+    (define (read-huffman-symbol [table : Huffman-Lookup-Table] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
+      (FEED-BITS upbits)
+
+      (define-values (symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength))
+
+      (when (= code-length 0)
+        (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a"
+                           btype (if (not BFINAL?) #b0 #b1) ctype
+                           (~binstring (PEEK-BITS maxlength) maxlength)))
+
+      (when (>= symbol-code upcodes)
+        (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a(~a >= ~a)"
+                           btype (if (not BFINAL?) #b0 #b1) ctype
+                           (~binstring symbol-code code-length) symbol-code upcodes))
+
+      (FIRE-BITS code-length)
+      symbol-code)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (deflate-read! [zipout : Bytes]) : Port-Reader-Plain-Datum
@@ -291,8 +326,8 @@
 
                (define start++ : Index
                  (case type
-                   [(stored) (read-stored-block! zipout start end last?)]
-                   [(static dynamic) (read-huffman-block! zipout start end last?)]
+                   [(stored) (read-stored-block! zipout start end last? type)]
+                   [(static dynamic) (read-huffman-block! zipout start end last? type)]
                    [else #;EOB (values start)]))
                
                (cond [(>= start++ end) (set!-values (BTYPE BFINAL) (values type last?)) end]

@@ -1,14 +1,19 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require digimon/archive)
 
 (require digimon/digitama/bintext/lz77)
+(require digimon/digitama/bintext/huffman)
 (require digimon/digitama/bintext/table/huffman)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define pk.zip : Path (build-path (find-system-path 'temp-dir) "pk.zip"))
 (define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
 (define tamer:// : Path (collection-file-path "zip" "digimon" "tamer"))
+
+(define memlevel : Positive-Byte 4)
 
 (define config#0 : (Listof Any)  (list 0))
 (define config#1 : (Listof Any)  (list 1))
@@ -25,11 +30,14 @@
 
          (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
                (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
-               (make-archive-binary-entry #"Fa-la-la-la-la" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
+               (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
 
 
-   (let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ 4 #| memory-level |# 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
+   (let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
      (make-archive-binary-entry block-aligned-bytes "deflated/fixed/block-aligned.λsh" #:methods '(deflated) #:options config#id))
+
+   (let ([sliding-bytes (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (remainder i 26) 97))))])
+     (make-archive-binary-entry sliding-bytes "deflated/fixed/window-sliding.λsh" #:methods '(deflated) #:options config#9))
    
    (for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
                                        [extra (in-vector huffman-backref-extra-bits)]
@@ -54,17 +62,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
+  (require racket/system)
   (require digimon/dtrace)
   
   (call-with-output-file* pk.zip #:exists 'replace
     (λ [[/dev/zipout : Output-Port]]
       (write pk.zip /dev/zipout)
-      (zip-create /dev/zipout entries #:zip-root "pkzip" #:memory-level 4)))
+      (zip-create #:zip-root "pkzip" #:memory-level memlevel
+                  /dev/zipout entries)))
 
-  (printf "Archive: ~a~n" pk.zip)
-
-  (call-with-dtrace
-      (λ []
-        (zip-extract pk.zip)
-        (newline))
-    'trace))
+  (let ([unzip (find-executable-path "unzip")])
+    (unless (not unzip)
+      (exit (system*/exit-code unzip "-t" pk.zip)))))

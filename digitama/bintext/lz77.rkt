@@ -122,8 +122,8 @@
   (syntax-case stx []
     [(_ lz77-inflate-into #:with [unsafe-bytes-set! unsafe-bytes-copy!])
      (syntax/loc stx
-       (define lz77-inflate-into : (case-> [Bytes Index Index -> Index]
-                                           [Bytes Index Index Index -> Index])
+       (define lz77-inflate-into : (case-> [Bytes Natural Index -> Index]
+                                           [Bytes Natural Index Index -> Index])
          (case-lambda
            [(dest d-idx sym)
             (unsafe-bytes-set! dest d-idx sym)
@@ -133,7 +133,7 @@
                   [else (let ([d-end (unsafe-idx+ d-idx span)])
                           (if (= distance 1)
                               (let ([sym (unsafe-bytes-ref dest (unsafe-idx- d-idx 1))])
-                                (let copy-runlength:1 ([d-pos : Index d-idx])
+                                (let copy-runlength:1 ([d-pos : Natural d-idx])
                                   (when (< d-pos d-end)
                                     (unsafe-bytes-set! dest d-pos sym)
                                     (copy-runlength:1 (unsafe-idx+ d-pos 1)))))

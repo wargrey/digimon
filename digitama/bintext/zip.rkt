@@ -33,9 +33,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp
-                              Boolean PKZIP-Strategy Positive-Byte
+                              Boolean PKZIP-Strategy Positive-Byte Bytes
                               (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memory-level]
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memory-level pool]
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
@@ -77,12 +77,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-entry-body /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?))])
+             (let ([desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?))])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-entry-body /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?) (+ position self-size))])
+                    [desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?) (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -101,51 +101,51 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:comment (or (archive-entry-comment entry) ""))))
 
-(define zip-write-entry-body : (->* (Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean)
+(define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean)
                                     ((Option Natural))
                                     ZIP-Data-Descriptor)
-  (let* ([pool-size : Index 4096]
-         [pool : Bytes (make-bytes pool-size)])
-    (lambda [/dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
-      (when (exact-integer? seek)
-        (file-position /dev/stdout seek))
-
-      (define /dev/zipin : (U Input-Port Bytes)
-        (cond [(bytes? source) source]
-              [else (open-input-file source)]))
-
-      (define /dev/zipout : Output-Port
-        (case method
-          ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
-          [(deflated)
-           (open-output-deflated-block #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level
-                                       #:name entry-name #:safe-flush-on-close? #false
-                                       /dev/stdout strategy)]
-          [else /dev/stdout #| the original one that shouldn't be closed here |#]))
-
-      (define-values (crc32 rsize)
-        (if (bytes? /dev/zipin)
-            (let ([rsize : Natural (bytes-length /dev/zipin)])
-              (when (> rsize 0)
-                (write-bytes /dev/zipin /dev/zipout))
-              (flush-output /dev/zipout)
-              (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
-            (let store : (Values Index Natural) ([crc32 : Index 0]
-                                                 [rsize : Natural 0])
-              (define read-size : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-              (cond [(eof-object? read-size) (flush-output /dev/zipout) (values crc32 rsize)]
-                    [else (let ([size++ (+ rsize read-size)]
-                                [crc++ (checksum-crc32* pool crc32 0 read-size)])
-                            (write-bytes pool /dev/zipout 0 read-size)
-                            (store crc++ size++))]))))
-
-      (define csize : Natural
-        (cond [(eq? /dev/zipout /dev/stdout) rsize]
-              [else (file-position /dev/zipout)]))
-
-      (make-zip-data-descriptor #:crc32 (assert crc32 index?)
-                                #:csize (assert csize index?)
-                                #:rsize (assert rsize index?)))))
+  (lambda [pool /dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
+    (define pool-size : Index (bytes-length pool))
+    
+    (when (exact-integer? seek)
+      (file-position /dev/stdout seek))
+    
+    (define /dev/zipin : (U Input-Port Bytes)
+      (cond [(bytes? source) source]
+            [else (open-input-file source)]))
+    
+    (define /dev/zipout : Output-Port
+      (case method
+        ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
+        [(deflated)
+         (open-output-deflated-block #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level
+                                     #:name entry-name #:safe-flush-on-close? #false
+                                     /dev/stdout strategy)]
+        [else /dev/stdout #| the original one that shouldn't be closed here |#]))
+    
+    (define-values (crc32 rsize)
+      (if (bytes? /dev/zipin)
+          (let ([rsize : Natural (bytes-length /dev/zipin)])
+            (when (> rsize 0)
+              (write-bytes /dev/zipin /dev/zipout))
+            (flush-output /dev/zipout)
+            (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
+          (let store : (Values Index Natural) ([crc32 : Index 0]
+                                               [rsize : Natural 0])
+            (define read-size : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+            (cond [(eof-object? read-size) (flush-output /dev/zipout) (values crc32 rsize)]
+                  [else (let ([size++ (+ rsize read-size)]
+                              [crc++ (checksum-crc32* pool crc32 0 read-size)])
+                          (write-bytes pool /dev/zipout 0 read-size)
+                          (store crc++ size++))]))))
+    
+    (define csize : Natural
+      (cond [(eq? /dev/zipout /dev/stdout) rsize]
+            [else (file-position /dev/zipout)]))
+    
+    (make-zip-data-descriptor #:crc32 (assert crc32 index?)
+                              #:csize (assert csize index?)
+                              #:rsize (assert rsize index?))))
 
 (define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Void)
   (lambda [/dev/zipout comment cdirs]

@@ -34,7 +34,8 @@
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define window-bits : Positive-Byte 15)      ; bits of the window size that at least 32K
+(define window-ibits : Positive-Byte 15)     ; bits of the window size that at least 32K for reading zip
+(define window-obits : Positive-Byte 15)     ; bits of the window size that at most 32K for writing zip
 
 (define upbits : Positive-Byte 16)           ; maximum bit length of any code (16 for explode)
 (define upcodes : Positive-Index 288)        ; maximum number of codes in any set, bytes + backreferences + EOB
@@ -48,9 +49,9 @@
 ; WARNING: all vectors are 0-based, in which `head-offsets` and `sentinels` are different from those in "common" implementations.
 
 (struct huffman-lookup-table
-  ([cheatsheet : (Mutable-Vectorof Index)] ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
-   [head-offsets : (Mutable-Vectorof Index)]
-   [sentinels : (Mutable-Vectorof Index)]
+  ([cheatsheet : (Mutable-Vectorof Index)]   ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
+   [head-offsets : (Mutable-Vectorof Index)] ; offsets from the headcode of length
+   [sentinels : (Mutable-Vectorof Index)]    ; max value(MSB, exclusive) of codeword of length
    [symbols : (Mutable-Vectorof Index)]
    [cheat-bwidth : Byte]
    [cheat-mask : Index]
