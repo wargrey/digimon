@@ -21,5 +21,5 @@
 
   (call-with-dtrace
       (λ [] #;(zip-extract pk.zip (make-archive-verification-reader #:dtrace '|unzip -t|))
-        (zip-extract pk.zip (make-archive-filesystem-reader 'desk-dir #:checksum? #true)))
+        (zip-extract pk.zip (make-archive-filesystem-reader 'temp-dir 32 #:checksum? #true)))
     'trace))

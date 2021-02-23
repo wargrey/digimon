@@ -78,7 +78,7 @@
     (when (zipinfo-flags-h opts)
       (printf "Archive: ~a~n" (simple-form-path file.zip))
       (printf "Zip file size: ~a, number of entries: ~a~n"
-              (~size (zip-content-size zip-entries)) (length zip-entries)))
+              (~size (file-size file.zip)) (length zip-entries)))
 
     (define entries : (Listof (Listof String))
       (cond [(zipinfo-flags-2 opts) (map (inst list String) (zip-list zip-entries))]
@@ -88,13 +88,13 @@
                                 (let-values ([(csize rsize) (values (zip-directory-csize ze) (zip-directory-rsize ze))])
                                   (list (zip-version (zip-directory-create-version ze)) (symbol->immutable-string (zip-directory-create-system ze))
                                         (zip-version (zip-directory-extract-version ze)) (symbol->immutable-string (zip-directory-extract-system ze))
-                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size rsize)])
+                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
                                         (symbol->immutable-string (zip-directory-compression ze))
                                         (zip-datetime (zip-directory-mdate ze) (zip-directory-mtime ze) (zipinfo-flags-T opts))
                                         (zip-directory-filename ze)))
                                 (let-values ([(csize rsize) (values (zip-entry-csize ze) (zip-entry-rsize ze))])
                                   (list (zip-version (zip-entry-extract-version ze)) (symbol->immutable-string (zip-entry-extract-system ze))
-                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size rsize)])
+                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
                                         (symbol->immutable-string (zip-entry-compression ze))
                                         (zip-datetime (zip-entry-mdate ze) (zip-entry-mtime ze) (zipinfo-flags-T opts))
                                         (zip-entry-filename ze))))))]))
