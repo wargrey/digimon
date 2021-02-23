@@ -21,6 +21,15 @@
 (define config#9 : (Listof Any)  (list 9))
 (define config#id : (Listof Any) (list 'huffman-only))
 
+(define random-symbol : (-> Index Byte Real Index)
+  (lambda [i smax ratio]
+    (define threshold (real->double-flonum (* smax ratio)))
+    (define letter (random smax))
+    
+    (if (> letter threshold)
+        (assert letter byte?)
+        (remainder i 26))))
+
 (define entries : Archive-Entries
   (list
    (list (list (make-archive-file-entry (collection-file-path "." "digimon") "folder/digimon" #:methods '(stored))
@@ -36,7 +45,7 @@
    (let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
      (make-archive-binary-entry block-aligned-bytes "deflated/fixed/block-aligned.λsh" #:methods '(deflated) #:options config#id))
 
-   (let ([sliding-bytes (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (remainder i 26) 97))))])
+   (let ([sliding-bytes (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))])
      (make-archive-binary-entry sliding-bytes "deflated/fixed/window-sliding.λsh" #:methods '(deflated) #:options config#9))
    
    (for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
@@ -63,14 +72,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
   (require racket/system)
-  (require digimon/dtrace)
   
-  (call-with-output-file* pk.zip #:exists 'replace
-    (λ [[/dev/zipout : Output-Port]]
-      (write pk.zip /dev/zipout)
-      (zip-create #:zip-root "pkzip" #:memory-level memlevel
-                  /dev/zipout entries)))
+  (require digimon/dtrace)
+  (require digimon/debug)
+
+  (collect-garbage*)
+  
+  (time-apply*
+   (λ [] (call-with-output-file* pk.zip #:exists 'replace
+           (λ [[/dev/zipout : Output-Port]]
+             (write pk.zip /dev/zipout)
+             (zip-create #:zip-root "pkzip" #:memory-level memlevel
+                         /dev/zipout entries))))
+   #true)
 
   (let ([unzip (find-executable-path "unzip")])
-    (unless (not unzip)
-      (exit (system*/exit-code unzip "-t" pk.zip)))))
+    (cond [(path? unzip) (exit (system*/exit-code unzip "-t" pk.zip))]
+          [else (call-with-dtrace
+                    (λ [] (zip-extract pk.zip (make-archive-verification-reader #:dtrace '|unzip -t|)))
+                  'trace)])))

@@ -23,7 +23,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tee : (All (a) (-> a [#:printer (-> Any Output-Port Any)] Output-Port * a))
   (lambda [v #:printer [<< pretty-print] . outs]
-    (for ([out (in-list (cons (current-output-port) outs))]) (<< v out))
+    (for ([out (in-list (cons (current-output-port) outs))])
+      (<< v out))
     v))
 
 (define time-apply* : (All (a) (->* ((-> a)) (Boolean) a))

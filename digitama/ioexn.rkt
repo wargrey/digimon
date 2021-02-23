@@ -91,6 +91,10 @@
 
 (define exn-src+args->message : (-> Symbol (Listof Any) String)
   (lambda [src args]
-    (cond [(null? args) (symbol->immutable-string src)]
-          [(string? (car args)) (apply format (string-append "~a: " (car args)) src (cdr args))]
-          [else (format "~a: ~s" src args)])))
+    (if (eq? src '||)
+        (cond [(null? args) ""]
+              [(string? (car args)) (apply format args)]
+              [else (~s args)])
+        (cond [(null? args) (symbol->immutable-string src)]
+              [(string? (car args)) (apply format (string-append "~a: " (car args)) src (cdr args))]
+              [else (format "~a: ~s" src args)]))))

@@ -82,7 +82,7 @@
    [rsize : LUInt32 #:default 0]
    [filename-length : LUInt16]
    [metainfo-length : LUInt16]
-   [filename : (Stringof filename-length)]
+   [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]))
 
 (define-binary-struct zip-directory : ZIP-Directory
@@ -105,7 +105,7 @@
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
    [relative-offset : LUInt32]
-   [filename : (Stringof filename-length)]
+   [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]
    [comment : (Stringof comment-length)]))
 

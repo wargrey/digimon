@@ -50,14 +50,18 @@
 
 (define-for-syntax (stdio-bytes-type datatype <fields>)
   (case (syntax-e (car datatype))
-    [(Bytesof)          (list #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes    #'write-nbytes     #'bytes-length)]
-    [(Stringof)         (list #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring  #'write-nbstring   #'string-utf-8-length)]
+    [(Bytesof)          (list #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes      #'write-nbytes     #'bytes-length)]
+    [(Stringof)         (list #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring    #'write-nbstring   #'string-utf-8-length)]
+    [(Localeof)         (list #'String (stdio-target-field (cadr datatype) <fields>) #'read-nlcstring   #'write-nbstring   #'string-utf-8-length)]
 
-    [(NBytes MNBytes)   (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes  #'write-mn:bytes   #'bytes-length)]
-    [(LNBytes)          (list #'String (stdio-word-size (cadr datatype))             #'read-mn:string #'write-mn:bstring #'string-utf-8-length)]
+    [(NBytes MNBytes)   (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes    #'write-mn:bytes   #'bytes-length)]
+    [(LNBytes)          (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-ln:bytes    #'write-ln:bytes   #'bytes-length)]
 
-    [(NString MNString) (list #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes  #'write-mn:bytes   #'bytes-length)]
-    [(LNString)         (list #'String (stdio-word-size (cadr datatype))             #'read-ln:string #'write-ln:bstring #'string-utf-8-length)]
+    [(NString MNString) (list #'String (stdio-word-size (cadr datatype))             #'read-mn:bstring  #'write-mn:bstring #'string-utf-8-length)]
+    [(LNString)         (list #'String (stdio-word-size (cadr datatype))             #'read-ln:bstring  #'write-ln:bstring #'string-utf-8-length)]
+    
+    [(NLocale MNLocale) (list #'String (stdio-word-size (cadr datatype))             #'read-mn:lcstring #'write-mn:bstring #'string-utf-8-length)]
+    [(LNLocale)         (list #'String (stdio-word-size (cadr datatype))             #'read-ln:lcstring #'write-ln:bstring #'string-utf-8-length)]
 
     [else #false]))
 
@@ -84,8 +88,8 @@
 
   (and (pair? datatype)
        (case (syntax-e (car datatype))
-         [(Bytesof) (list (cadr datatype) <field> #'bytes-length)]
-         [(Stringof) (list (cadr datatype) <field> #'string-utf-8-length)]
+         [(Bytesof)           (list (cadr datatype) <field> #'bytes-length)]
+         [(Stringof Localeof) (list (cadr datatype) <field> #'string-utf-8-length)]
          [else #false])))
 
 (define-for-syntax (stdio-field-metainfo <meta>)
@@ -217,17 +221,25 @@
   (lambda [/dev/stdin size]
     (read-nbytes /dev/stdin (read-msize /dev/stdin size))))
 
-(define read-mn:string : (-> Input-Port Natural String)
+(define read-mn:bstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
     (bytes->string/utf-8 (read-mn:bytes /dev/stdin bsize))))
+
+(define read-mn:lcstring : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (read-nlcstring /dev/stdin (read-msize /dev/stdin bsize))))
 
 (define read-ln:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (read-nbytes /dev/stdin (read-lsize /dev/stdin size))))
 
-(define read-ln:string : (-> Input-Port Natural String)
+(define read-ln:bstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
     (bytes->string/utf-8 (read-ln:bytes /dev/stdin bsize))))
+
+(define read-ln:lcstring : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (read-nlcstring /dev/stdin (read-lsize /dev/stdin bsize))))
 
 (define-read-integer*
   [msb-bytes->octet 1 [read-msint8  #:-> Fixnum]  [read-muint8  #:-> Byte]]
@@ -260,6 +272,8 @@
 (define-peek-integer peek-lsize lsb-bytes->index #:-> Index)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define default-stdin-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
+
 (define read-bytes* : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (define bs : (U Bytes EOF) (read-bytes size /dev/stdin))
@@ -274,7 +288,23 @@
 
 (define read-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
-    (bytes->string/utf-8 (read-nbytes /dev/stdin bsize))))
+    (bytes->string/utf-8 (read-nbytes /dev/stdin bsize)
+                         #false 0 bsize)))
+
+(define read-nlcstring : (-> Input-Port Natural String)
+  (lambda [/dev/stdin bsize]
+    (define raw : Bytes (read-nbytes /dev/stdin bsize))
+    (define lc-all : (U String Symbol) (default-stdin-locale))
+
+    (case lc-all
+      [(utf-8) (bytes->string/utf-8 raw #false 0 bsize)]
+      [(locale) (bytes->string/locale raw #false 0 bsize)]
+      [(latin-1) (bytes->string/latin-1 raw #false 0 bsize)]
+      [else (let ([->utf-8 (bytes-open-converter (if (symbol? lc-all) (symbol->string lc-all) lc-all) "UTF-8")])
+              (cond [(not ->utf-8) (bytes->string/utf-8 raw #false 0 bsize)]
+                    [else (let-values ([(raw/utf-8 n status) (bytes-convert ->utf-8 raw)])
+                            (bytes-close-converter ->utf-8)
+                            (bytes->string/utf-8 raw/utf-8 #false 0 n))]))])))
 
 (define peek-bytes* : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
@@ -289,7 +319,8 @@
 
 (define peek-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin size]
-    (bytes->string/utf-8 (peek-nbytes /dev/stdin size))))
+    (bytes->string/utf-8 (peek-nbytes /dev/stdin size)
+                         #false 0 size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-write-integer* write-fixed-integer #true

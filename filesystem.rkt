@@ -5,6 +5,7 @@
 
 (require racket/path)
 (require racket/file)
+(require racket/list)
 
 (require "port.rkt")
 
@@ -95,3 +96,21 @@
           [else (let ([elements (explode-path path)])
                   (cond [(or (null? elements) (null? (cdr elements))) (build-path 'same)]
                         [else (apply build-path (cdr elements))]))])))
+
+(define explode-path/strict : (-> (U Path-String Path-For-Some-System) Integer (Listof (U 'same 'up Path-For-Some-System)))
+  (lambda [path strip]
+    (define elements : (Listof (U 'same 'up Path-For-Some-System)) (explode-path path))
+    
+    (cond [(<= strip 0) elements]
+          [(<= (length elements) strip) null]
+          [else (drop elements strip)])))
+
+(define explode-path/clean : (-> (U Path-String Path-For-Some-System) [#:strip Integer] (Listof (U 'same 'up Path-For-Some-System)))
+  ; if 'same exists, it is the unique element, and the original path refers to current directory
+  ; if 'up exists, it/they must appear at the beginning, and the original path refers to somewhere other than its subpaths. 
+  (lambda [path #:strip [strict-count 0]]
+    (cond [(> strict-count 0)
+           (let ([es (explode-path/strict path strict-count)])
+             (cond [(pair? es) (explode-path/clean (apply build-path es) #:strip 0)]
+                   [else null]))]
+          [else (explode-path (simplify-path path #false))])))

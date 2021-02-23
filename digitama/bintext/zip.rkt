@@ -132,7 +132,7 @@
             (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
           (let store : (Values Index Natural) ([crc32 : Index 0]
                                                [rsize : Natural 0])
-            (define read-size : (U EOF Positive-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+            (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
             (cond [(eof-object? read-size) (flush-output /dev/zipout) (values crc32 rsize)]
                   [else (let ([size++ (+ rsize read-size)]
                               [crc++ (checksum-crc32* pool crc32 0 read-size)])

@@ -36,7 +36,7 @@
       (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
                                  (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                                    (define hexdump
-                                     (make-archive-hexdump-entry-reader
+                                     (make-archive-hexdump-reader
                                       #:binary? (zip-flags-b options)
                                       #:width (or (zip-flags-w options)
                                                   (if (zip-flags-b options) 16 32))))
