@@ -29,13 +29,24 @@
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof** a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof** Void Void))
 (define-type Archive-Entries (Rec aes (Listof (U Archive-Entry aes))))
-(define-type Archive-Entry-Resolve-Conflict (-> Path String Natural Natural Symbol))
+(define-type Archive-Entry-Resolve-Conflict (-> Path String Natural (U Symbol Path)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-no-compression-suffixes : (Parameterof (Listof Symbol)) (make-parameter null))
 
 (define archive-skip-existing-entry : Archive-Entry-Resolve-Conflict (λ _ 'skip))
-(define archive-replace-existing-entry : Archive-Entry-Resolve-Conflict (λ _ 'truncate/replace))
+(define archive-replace-existing-entry : Archive-Entry-Resolve-Conflict (λ _ 'replace))
+
+(define archive-rename-outdated-entry : Archive-Entry-Resolve-Conflict
+  (λ [target entry entry-timestamp]
+    (define target-timestamp : Nonnegative-Fixnum (file-or-directory-modify-seconds target))
+    
+    (cond [(> entry-timestamp target-timestamp)
+           (let ([newpath (assert (path-add-timestamp* target target-timestamp #true))])
+             (rename-file-or-directory target newpath)
+             'replace)]
+          [(= entry-timestamp target-timestamp) 'replace] ; ensure to perform the extracting 
+          [else (assert (path-add-timestamp* target entry-timestamp #true))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
@@ -390,11 +401,11 @@
             [else result-set]))))
 
 (define make-archive-filesystem-reader : (->* ()
-                                              (#:strip Integer #:conflict Archive-Entry-Resolve-Conflict #:checksum? Boolean
+                                              (#:strip Integer #:on-conflict Archive-Entry-Resolve-Conflict #:checksum? Boolean
                                                #:preserve-timestamps? Boolean #:keep-empty-directory? Boolean #:permissive? Boolean
                                                (U Path-String Symbol (Pairof Symbol (Listof Path-String)) False) Index)
                                               Archive-Entry-Reader)
-  (lambda [#:strip [strip 0] #:conflict [resolve-conflict archive-replace-existing-entry] #:checksum? [checksum? #true]
+  (lambda [#:strip [strip 0] #:on-conflict [resolve-conflict archive-rename-outdated-entry] #:checksum? [checksum? #true]
            #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:keep-empty-directory? [mkdir? #false]
            [root #false] [pool-size 4096]]
     (define pool : Bytes (make-bytes (max 1 pool-size)))
@@ -405,18 +416,23 @@
             [(pair? root) (apply build-path (with-handlers ([exn? (λ _ (current-directory))]) (find-system-path (car root))) (cdr root))]
             [else (current-directory)]))
     
-    (define (redirect-file [/dev/zipin : Input-Port] [entry : String] [target : Path] [timestamp : Natural]) : Any
-      (define op : Symbol
-        (cond [(not (file-exists? target)) 'replace]
-              [else (resolve-conflict target entry timestamp (file-or-directory-modify-seconds target))]))
+    (define (redirect-file [/dev/zipin : Input-Port] [entry : String] [target0 : Path] [timestamp : Natural]) : Any
+      (define solution : (U Symbol Path)
+        (cond [(not (file-exists? target0)) 'replace]
+              [else (resolve-conflict target0 entry timestamp)]))
 
-      (and (not (eq? op 'skip))
+      (define-values (target operation)
+        (if (path? solution)
+            (values solution 'replace)
+            (values target0 solution)))
+
+      (and (not (eq? operation 'skip))
 
            (make-parent-directory* target)
 
            ; archive extractor manages the custodian
            ; TODO: deal with file mode
-           (let ([/dev/zipout (open-output-file target #:exists (case op [(error append) op] [else 'truncate/replace]))])
+           (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
              (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
                    [else (let ([cdir (assert (current-zip-entry))])      
                            (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
@@ -436,7 +452,7 @@
       (when (absolute-path? entry)
         (throw-check-error /dev/zipin '|| "entry is an absolute path: ~a" entry))
 
-      (define subpaths : (Listof (U 'same 'up Path-For-Some-System)) (explode-path/clean entry #:strip strip))
+      (define subpaths : (Listof (U 'same 'up Path-For-Some-System)) (explode-path/cleanse entry #:strip strip))
 
       (when (and (pair? subpaths) (not (eq? subpaths 'same)))
         (when (and (not permissive?) (eq? (car subpaths) 'up))

@@ -7,6 +7,8 @@
 (require racket/file)
 (require racket/list)
 
+(require typed/racket/date)
+
 (require "port.rkt")
 
 (require (for-syntax racket/base))
@@ -97,7 +99,7 @@
                   (cond [(or (null? elements) (null? (cdr elements))) (build-path 'same)]
                         [else (apply build-path (cdr elements))]))])))
 
-(define explode-path/strict : (-> (U Path-String Path-For-Some-System) Integer (Listof (U 'same 'up Path-For-Some-System)))
+(define explode-path/strip : (-> (U Path-String Path-For-Some-System) Integer (Listof (U 'same 'up Path-For-Some-System)))
   (lambda [path strip]
     (define elements : (Listof (U 'same 'up Path-For-Some-System)) (explode-path path))
     
@@ -105,12 +107,64 @@
           [(<= (length elements) strip) null]
           [else (drop elements strip)])))
 
-(define explode-path/clean : (-> (U Path-String Path-For-Some-System) [#:strip Integer] (Listof (U 'same 'up Path-For-Some-System)))
+(define explode-path/cleanse : (-> (U Path-String Path-For-Some-System) [#:strip Integer] (Listof (U 'same 'up Path-For-Some-System)))
   ; if 'same exists, it is the unique element, and the original path refers to current directory
   ; if 'up exists, it/they must appear at the beginning, and the original path refers to somewhere other than its subpaths. 
   (lambda [path #:strip [strict-count 0]]
     (cond [(> strict-count 0)
-           (let ([es (explode-path/strict path strict-count)])
-             (cond [(pair? es) (explode-path/clean (apply build-path es) #:strip 0)]
+           (let ([es (explode-path/strip path strict-count)])
+             (cond [(pair? es) (explode-path/cleanse (apply build-path es) #:strip 0)]
                    [else null]))]
           [else (explode-path (simplify-path path #false))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define path-exists? : (-> Path-String Boolean)
+  (lambda [path]
+    (or (link-exists? path)
+        (file-exists? path)
+        (directory-exists? path))))
+
+(define path-add-sequence : (->* (Path-String) (String #:start Natural #:step Natural) (Option Path))
+  (lambda [path [seqfmt ":~a"] #:start [seq0 2] #:step [step 1]]
+    (define-values (parent basename syntactically-dir?) (split-path (simplify-path path #false)))
+    (define .ext : (Option Bytes) (path-get-extension path))
+
+    (and parent (path? basename)
+         (let try-sequence : (Option Path) ([seq : Natural seq0])
+           (define suffix : String (format seqfmt seq))
+           (define pathname : String
+             (if (or syntactically-dir? (not .ext) (directory-exists? path))
+                 (format "~a~a" basename suffix)
+                 (format "~a~a~a" (path-replace-extension basename #"") suffix .ext)))
+           (define fullname : Path
+             (cond [(path? parent) (build-path parent pathname)]
+                   [else (string->path pathname)]))
+
+           (cond [(not (path-exists? fullname)) fullname]
+                 [(not (= step 0)) (try-sequence (+ seq step))]
+                 [else #false])))))
+
+(define path-add-timestamp : (->* (Path-String) (Integer Boolean #:@ Any) (Option Path))
+  (lambda [path [ts-seconds (current-seconds)] [local-time? #false] #:@ [@ #\@]]
+    (define timestamp : String (date->string (seconds->date ts-seconds local-time?) #true))
+    (define-values (parent basename syntactically-dir?) (split-path (simplify-path path #false)))
+    (define .ext : (Option Bytes) (path-get-extension path))
+
+    (define pathname : (Option String)
+      (and (path? basename)
+           (if (or syntactically-dir? (not .ext) (directory-exists? path))
+               (format "~a~a~a" basename @ timestamp)
+               (format "~a~a~a~a" (path-replace-extension basename #"") @ timestamp .ext))))
+    
+    (and (string? pathname)
+         (cond [(path? parent) (build-path parent pathname)]
+               [(symbol? parent) (string->path pathname)]
+               [else #false #| root directory should not be modified |#]))))
+
+(define path-add-timestamp* : (->* (Path-String) (Integer Boolean #:@ Any) (Option Path))
+  (lambda [path [ts-seconds (current-seconds)] [local-time? #false] #:@ [@ #\@]]
+    (define newpath : (Option Path) (path-add-timestamp path ts-seconds local-time? #:@ @))
+
+    (and newpath
+         (cond [(not (path-exists? newpath)) newpath]
+               [else (path-add-sequence newpath "[~a]")]))))

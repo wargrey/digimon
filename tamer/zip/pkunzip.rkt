@@ -5,9 +5,13 @@
   (require digimon/dtrace)
   (require digimon/archive)
   
+  (require typed/racket/date)
+  
   (require "pkzip.rkt")
 
   (collect-garbage*)
+
+  (date-display-format 'iso-8601)
   
   (time-apply*
    (λ [] (call-with-output-file* pk.zip #:exists 'replace
