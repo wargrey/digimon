@@ -34,7 +34,7 @@
                    (arithmetic-shift (date-minute the-date) 5)
                    (arithmetic-shift (date-hour the-date) 11)))
 
-    (cond [(= future-second 31) (utc-seconds->msdos-datetime (+ utc-seconds 1))]
+    (cond [(= future-second 31) (utc-seconds->msdos-datetime (+ utc-seconds 1) locale?)]
           [else (values (assert msdos-date index?) (assert msdos-time index?))])))
 
 (define time-zone-utc-bias-seconds : (-> Integer)

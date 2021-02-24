@@ -12,7 +12,6 @@
 (require "../ioexn.rkt")
 
 (require "../../port.rkt")
-(require "../../date.rkt")
 (require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -39,7 +38,7 @@
     (define entry-source : (U Bytes Path) (archive-entry-src entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
-    (define-values (mdate mtime) (utc-seconds->msdos-datetime (or (archive-entry-utc-time entry) (current-seconds)) #true))
+    (define-values (mdate mtime) (zip-entry-modify-datetime (or (archive-entry-utc-time entry) (current-seconds))))
 
     (define method : ZIP-Compression-Method
       (cond [(not regular-file?) 'stored]

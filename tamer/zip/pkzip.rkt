@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/file)
+
 (require digimon/archive)
 
 (require digimon/digitama/bintext/lz77)
@@ -9,7 +11,11 @@
 (require digimon/digitama/bintext/table/huffman)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define pk.zip : Path (build-path (find-system-path 'temp-dir) "pk.zip"))
+(define tempdir : Path (find-system-path 'temp-dir))
+
+(define pk.zip : Path (build-path tempdir "pk.zip"))
+(define pktest : Path (build-path tempdir "pktest"))
+
 (define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
 (define tamer:// : Path (collection-file-path "zip" "digimon" "tamer"))
 
@@ -30,44 +36,80 @@
         (assert letter byte?)
         (remainder i 26))))
 
+(define pktest-write : (-> Bytes (U String Symbol) Void)
+  (lambda [raw filename]
+    (define test.λsh (build-path pktest (format "~a" filename)))
+
+    (make-parent-directory* test.λsh)
+    
+    (call-with-output-file* #:exists 'truncate/replace
+      test.λsh
+      (λ [[/dev/zipout : Output-Port]]
+        (void (write-bytes raw /dev/zipout))))))
+
+(define pktest-configure : Archive-Directory-Configure
+  (lambda [path name config]
+    (define ?dist (regexp-match-positions* #px"(?<=:)(\\d+)" name))
+
+    (define options : (Listof Any)
+      (or (and (pair? ?dist) (pair? (cdr ?dist))
+               (let ([pos (cadr ?dist)])
+                 (and (not (list? pos))
+                      (let* ([bname (path->string name)]
+                             [base (string->number (substring bname (car pos) (cdr pos)))])
+                        (list (zip-run-preference (max 1 (assert base index?))))))))
+          (let ([bname (string->symbol (path->string name))])
+            (case bname
+              [(block-aligned.λsh) config#id]
+              [(window-sliding.λsh) config#9]
+              [(backref) (list 'run 'fixed)]
+              [else (cadr config)]))))
+
+    (list (car config) options (caddr config))))
+
+(define gen-pktests : (-> Void)
+  (lambda []
+    (unless (directory-exists? pktest)
+      (pktest-write (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))
+                    'block-aligned.λsh)
+    
+      (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))
+                    'window-sliding.λsh)
+      
+      (for ([base (in-vector huffman-backref-bases)]
+            [extra (in-vector huffman-backref-extra-bits)]
+            [idx (in-naturals)])
+        (pktest-write (apply bytes-append
+                             (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
+                               (let ([size (+ base offset 1)])
+                                 (make-bytes size (+ 97 (remainder size 26))))))
+                      (format "backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
+      
+      (for ([base (in-vector huffman-distance-bases)]
+            [extra (in-vector huffman-distance-extra-bits)]
+            [idx (in-naturals)])
+        (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
+                      (format "backref/dist:~a:~a.λsh" idx base))))))
+
+(gen-pktests)
+  
 (define entries : Archive-Entries
   (list
    #;(list (list (make-archive-file-entry (collection-file-path "." "digimon") "folder/digimon" #:methods '(stored))
-               (make-archive-file-entry (collection-file-path "pkzip.rkt" "digimon" "tamer" "zip") "stored/pkzip.rkt" #:methods '(stored))
-               (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
-               (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
-
-         (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
-               (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
-               (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
-
-
-   #;(let ([block-aligned-bytes (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))])
-     (make-archive-binary-entry block-aligned-bytes "deflated/fixed/block-aligned.λsh" #:methods '(deflated) #:options config#id))
-
-   (let ([sliding-bytes (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))])
-     (make-archive-binary-entry sliding-bytes "deflated/fixed/window-sliding.λsh" #:methods '(deflated) #:options config#9))
+                 (make-archive-file-entry (collection-file-path "pkzip.rkt" "digimon" "tamer" "zip") "stored/pkzip.rkt" #:methods '(stored))
+                 (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
+                 (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
+           
+           (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
+                 (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
+                 (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
    
-   #;(for/list : (Listof Archive-Entry) ([base (in-vector huffman-backref-bases)]
-                                       [extra (in-vector huffman-backref-extra-bits)]
-                                       [idx (in-naturals)])
-     (make-archive-binary-entry #:methods '(deflated) #:options (list 'run 'fixed)
-                                (apply bytes-append
-                                       (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
-                                         (let ([size (+ base offset 1)])
-                                           (make-bytes size (+ 97 (remainder size 26))))))
-                                (format "deflated/fixed/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
    
-   #;(for/list : (Listof Archive-Entry) ([base (in-vector huffman-distance-bases)]
-                                       [extra (in-vector huffman-distance-extra-bits)]
-                                       [idx (in-naturals)])
-     (let ([bs (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))])
-       (make-archive-binary-entry #:methods '(deflated) #:options (list (zip-run-preference base) 'fixed)
-                                  bs (format "deflated/fixed/backref/~a:~a.λsh" idx base))))
+   (make-archive-directory-entries pktest "deflated/fixed" #:configure pktest-configure #:methods '(deflated))
    
    #;(list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/config#0.rkt" #:methods '(deflated) #:options config#0)
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/config#1.rkt" #:methods '(deflated) #:options config#1)
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/config#9.rkt" #:methods '(deflated) #:options config#9))))
+           (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/config#1.rkt" #:methods '(deflated) #:options config#1)
+           (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/config#9.rkt" #:methods '(deflated) #:options config#9))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

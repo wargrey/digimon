@@ -1,7 +1,9 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide Archive-Entry archive-entry?)
+(provide Archive-Entry Archive-Entries archive-entry?)
+(provide Archive-Directory-Configure Archive-Entry-Config make-archive-directory-entries)
+(provide make-archive-chained-configure make-archive-ignore-configure defualt-archive-ignore-configure)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference)
 (provide zip-identity-preference zip-plain-preference zip-backward-preference zip-run-preference)
@@ -20,7 +22,6 @@
 (require "checksum.rkt")
 (require "dtrace.rkt")
 (require "format.rkt")
-(require "date.rkt")
 (require "port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -28,7 +29,6 @@
 (define-type (Archive-Entry-Readerof* a) (Archive-Entry-Readerof** (U Void a) a))
 (define-type (Archive-Entry-Readerof a) (Archive-Entry-Readerof** a a))
 (define-type Archive-Entry-Reader (Archive-Entry-Readerof** Void Void))
-(define-type Archive-Entries (Rec aes (Listof (U Archive-Entry aes))))
 (define-type Archive-Entry-Resolve-Conflict (-> Path String Natural (U Symbol Path)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -42,11 +42,11 @@
     (define target-timestamp : Nonnegative-Fixnum (file-or-directory-modify-seconds target))
     
     (cond [(> entry-timestamp target-timestamp)
-           (let ([newpath (assert (path-add-timestamp* target target-timestamp #true))])
-             (rename-file-or-directory target newpath)
+           (let ([newpath (assert (path-add-timestamp target target-timestamp #true))])
+             (rename-file-or-directory target newpath #true)
              'replace)]
           [(= entry-timestamp target-timestamp) 'replace] ; ensure to perform the extracting 
-          [else (assert (path-add-timestamp* target entry-timestamp #true))])))
+          [else (assert (path-add-timestamp target entry-timestamp #true))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
@@ -303,8 +303,7 @@
                     (λ [] (read-entry (open-input-zip-entry /dev/zipin cdir)
                                       (zip-directory-filename cdir)
                                       (zip-folder-entry? cdir)
-                                      (msdos-datetime->utc-seconds (zip-directory-mdate cdir)
-                                                                   (zip-directory-mtime cdir))
+                                      (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
                                       datum0))
                     (λ [] (custodian-shutdown-all (current-custodian)))))])]))
 
@@ -402,11 +401,11 @@
 
 (define make-archive-filesystem-reader : (->* ()
                                               (#:strip Integer #:on-conflict Archive-Entry-Resolve-Conflict #:checksum? Boolean
-                                               #:preserve-timestamps? Boolean #:keep-empty-directory? Boolean #:permissive? Boolean
+                                               #:preserve-timestamps? Boolean #:always-mkdir? Boolean #:permissive? Boolean
                                                (U Path-String Symbol (Pairof Symbol (Listof Path-String)) False) Index)
                                               Archive-Entry-Reader)
   (lambda [#:strip [strip 0] #:on-conflict [resolve-conflict archive-rename-outdated-entry] #:checksum? [checksum? #true]
-           #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:keep-empty-directory? [mkdir? #false]
+           #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:always-mkdir? [mkdir? #true]
            [root #false] [pool-size 4096]]
     (define pool : Bytes (make-bytes (max 1 pool-size)))
     (define rootdir : Path
@@ -430,8 +429,8 @@
 
            (make-parent-directory* target)
 
-           ; archive extractor manages the custodian
-           ; TODO: deal with file mode
+           ; archive extractor manages the custodian, which controls the file resource.
+           ; TODO: deal with file permission and more
            (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
              (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
                    [else (let ([cdir (assert (current-zip-entry))])      
@@ -440,13 +439,17 @@
                            (let copy/verify-entry ([pos : Natural 0]
                                                    [crc32 : Index 0])
                              (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-                                 
+                             
                              (cond [(exact-positive-integer? read-size)
                                     (write-bytes pool /dev/zipout 0 read-size)
                                     (copy/verify-entry (+ pos read-size) (checksum-crc32* pool crc32 0 read-size))]
                                    [(not (= CRC32 crc32))
-                                    (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
-                                   [else #true])))]))))
+                                    (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))])))])
+
+             (cond [(path? solution)
+                    (file-or-directory-modify-seconds target timestamp)
+                    #false #| don't `touch` existing file |#]
+                   [else #true]))))
     
     (λ [/dev/zipin entry directory? timestamp0 _]
       (when (absolute-path? entry)
@@ -463,5 +466,5 @@
           (when (and (path? target)
                      (cond [(not directory?) (redirect-file /dev/zipin entry target timestamp)]
                            [(and mkdir?) (make-directory* target)]
-                           [else #false]))
+                           [else #false #| we don't know if certain directory already created because of its children |#]))
             (file-or-directory-modify-seconds target timestamp void)))))))

@@ -24,6 +24,5 @@
   (printf "Archive: ~a~n" pk.zip)
 
   (call-with-dtrace
-      (λ [] #;(zip-extract pk.zip (make-archive-verification-reader #:dtrace '|unzip -t|))
-        (zip-extract pk.zip (make-archive-filesystem-reader 'temp-dir 32 #:checksum? #true)))
+      (λ [] (zip-extract pk.zip (make-archive-filesystem-reader 'temp-dir 32 #:checksum? #true)))
     'trace))

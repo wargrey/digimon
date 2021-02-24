@@ -8,6 +8,8 @@
 
 (require "../../stdio.rkt")
 (require "../../port.rkt")
+(require "../../date.rkt")
+(require "../../format.rkt")
 (require "../../enumeration.rkt")
 
 (require "../unsafe/ops.rkt")
@@ -67,6 +69,14 @@
     (define unix : Nonnegative-Fixnum (bitwise-ior (if dir? #o40000 0) permission))
 
     (bitwise-ior dos (unsafe-idxlshift unix 16))))
+
+(define zip-entry-modify-datetime : (-> Integer (Values Index Index))
+  (lambda [utc-s]
+    (utc-seconds->msdos-datetime utc-s #true)))
+
+(define zip-entry-modify-seconds : (-> Index Index Natural)
+  (lambda [mdate mtime]
+    (msdos-datetime->utc-seconds mdate mtime #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct zip-entry : ZIP-Entry

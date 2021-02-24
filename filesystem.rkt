@@ -133,7 +133,7 @@
          (let try-sequence : (Option Path) ([seq : Natural seq0])
            (define suffix : String (format seqfmt seq))
            (define pathname : String
-             (if (or syntactically-dir? (not .ext) (directory-exists? path))
+             (if (or syntactically-dir? (not .ext))
                  (format "~a~a" basename suffix)
                  (format "~a~a~a" (path-replace-extension basename #"") suffix .ext)))
            (define fullname : Path
@@ -152,7 +152,7 @@
 
     (define pathname : (Option String)
       (and (path? basename)
-           (if (or syntactically-dir? (not .ext) (directory-exists? path))
+           (if (or syntactically-dir? (not .ext))
                (format "~a~a~a" basename @ timestamp)
                (format "~a~a~a~a" (path-replace-extension basename #"") @ timestamp .ext))))
     
@@ -168,3 +168,44 @@
     (and newpath
          (cond [(not (path-exists? newpath)) newpath]
                [else (path-add-sequence newpath "[~a]")]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-path-match-predicates : (-> (U Regexp Byte-Regexp String Path (Listof (U Regexp Byte-Regexp String Path)))
+                                         (Values (-> Path-String Boolean) (-> Path-String Boolean)))
+  (lambda [matches]
+    (define-values (px:matches eq:matches)
+      (let partition : (Values (Listof (U Regexp Byte-Regexp)) (Listof Path))
+        ([matches : (Listof (U Regexp Byte-Regexp String Path)) (if (list? matches) matches (list matches))]
+         [sxp : (Listof (U Regexp Byte-Regexp)) null]
+         [xqe : (Listof Path) null])
+        (cond [(null? matches) (values (reverse sxp) (reverse xqe))]
+              [else (let-values ([(self rest) (values (car matches) (cdr matches))])
+                      (cond [(or (regexp? self) (byte-regexp? self)) (partition rest (cons self sxp) xqe)]
+                            [(string? self) (partition rest sxp (cons (string->path self) xqe))]
+                            [else (partition rest sxp (cons self xqe))]))])))
+    
+    (define (px:match? [fullpath : Path-String]) : Boolean
+      (for/or ([px (in-list px:matches)])
+        (regexp-match? px fullpath)))
+    
+    (define (eq:match? [basename : Path-String]) : Boolean
+      (cond [(string? basename) (eq:match? (string->path basename))]
+            [else (for/or ([eq (in-list eq:matches)])
+                    (equal? eq basename))]))
+
+    (values px:match? eq:match?)))
+
+(define make-path-match-predicate : (-> (U Regexp Byte-Regexp String Path (Listof (U Regexp Byte-Regexp String Path)))
+                                        (case-> [Path-String -> Boolean]
+                                                [Path-String Path-String -> Boolean]))
+  (lambda [matches]
+    (define-values (px:match? eq:match?) (make-path-match-predicates matches))
+    
+    (case-lambda
+      [([fullpath : Path-String])
+       (or (px:match? fullpath)
+           (let ([basename (file-name-from-path fullpath)])
+             (and basename (eq:match? basename))))]
+      [([fullpath : Path-String] [basename : Path-String])
+       (or (px:match? fullpath)
+           (eq:match? basename))])))
