@@ -187,7 +187,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-input-deflated-block : (->* (Input-Port Natural)
                                          (Boolean #:window-bits Positive-Byte
-                                                  #:name String #:error-name Symbol #:commit? Boolean)
+                                                  #:name (Option String) #:error-name Symbol #:commit? Boolean)
                                          Input-Port)
   (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]
            /dev/zipin csize [close-orig? #false]]

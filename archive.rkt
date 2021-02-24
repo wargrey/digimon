@@ -312,7 +312,7 @@
                                            (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:metainfo? Boolean)
                                            (Archive-Entry-Readerof* Natural))
   (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:metainfo? [metainfo? #true]]
-    (define pool : Bytes (make-bytes width))
+    (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary?))
     
     (λ [/dev/zipin entry directory? timestamp idx]
       (unless (not addline?)
@@ -336,38 +336,13 @@
             (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
               (displayln info)))))
       
-      (let hexdump ([pos : Natural 0])
-        (define size (read-bytes! pool /dev/zipin))
-
-        (unless (eof-object? size)
-          (display (~r pos #:min-width 8 #:base 16 #:pad-string "0") /dev/zipout)
-          (display #\space /dev/zipout)
-
-          (for ([b (in-bytes pool 0 size)])
-            (if (not binary?)
-                (display (byte->hex-string b) /dev/zipout)
-                (display (byte->bin-string b) /dev/zipout))
-            (display #\space /dev/zipout))
-
-          (when (< size width)
-            (display (~space (* (assert (- width size) byte?)
-                                (if (not binary?) 3 9)))
-                     /dev/zipout))
-          
-          (for ([b (in-bytes pool 0 size)])
-            (define ch (integer->char b))
-            (display (if (char-graphic? ch) ch ".") /dev/zipout))
-          
-          (newline /dev/zipout)
-          (hexdump (+ pos size))))
+      (copy-port /dev/zipin /dev/hexout)
 
       (cond [(void? idx) 1]
             [else (add1 idx)]))))
 
 (define make-archive-verification-reader : (->* () (Index #:dtrace Any) (Archive-Entry-Readerof* (Listof (List String (U True String)))))
   (lambda [[pool-size 4096] #:dtrace [topic #false]]
-    (define pool : Bytes (make-bytes (max 1 pool-size)))
-    
     (λ [/dev/zipin entry directory? timestamp result-set]
       (define cdir (current-zip-entry))
       
@@ -379,12 +354,8 @@
              
              (define result : (U True String)
                (with-handlers ([exn:fail? exn-message])
-                 (let verify ([pos : Natural 0]
-                              [crc32 : Index 0])
-                   (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-
-                   (cond [(exact-positive-integer? read-size) (verify (+ pos read-size) (checksum-crc32* pool crc32 0 read-size))]
-                         [(not (= rSize pos)) (format "Bad size ~a (should be ~a)" pos rSize)]
+                 (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/null (max 1 pool-size))])
+                   (cond [(not (= rSize rsize)) (format "Bad size ~a (should be ~a)" rsize rSize)]
                          [(not (= CRC32 crc32)) (format "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
                          [else #true]))))
 
@@ -407,7 +378,6 @@
   (lambda [#:strip [strip 0] #:on-conflict [resolve-conflict archive-rename-outdated-entry] #:checksum? [checksum? #true]
            #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:always-mkdir? [mkdir? #true]
            [root #false] [pool-size 4096]]
-    (define pool : Bytes (make-bytes (max 1 pool-size)))
     (define rootdir : Path
       (cond [(path? root) root]
             [(string? root) (string->path root)]
@@ -435,16 +405,11 @@
              (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
                    [else (let ([cdir (assert (current-zip-entry))])      
                            (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
-                           
-                           (let copy/verify-entry ([pos : Natural 0]
-                                                   [crc32 : Index 0])
-                             (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-                             
-                             (cond [(exact-positive-integer? read-size)
-                                    (write-bytes pool /dev/zipout 0 read-size)
-                                    (copy/verify-entry (+ pos read-size) (checksum-crc32* pool crc32 0 read-size))]
-                                   [(not (= CRC32 crc32))
-                                    (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))])))])
+                           (define-values (rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout (max 1 pool-size)))
+
+                           (unless (= CRC32 crc32)
+                             (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)"
+                                                (~hexstring crc32) (~hexstring CRC32))))])
 
              (cond [(path? solution)
                     (file-or-directory-modify-seconds target timestamp)

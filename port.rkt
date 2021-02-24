@@ -8,6 +8,7 @@
 (require typed/racket/random)
 
 (require "digitama/evt.rkt")
+(require "format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Port-Special-Datum (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any))
@@ -109,6 +110,78 @@
                      (lambda () (port-count-lines! /dev/srcin))
 
                      /dev/srcin #| initial position |#)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define open-output-hexdump : (->* () (Output-Port Boolean #:width Byte #:cursor-width Byte #:binary? Boolean #:name Any) Output-Port)
+  (lambda [#:width [width 32] #:cursor-width [cwidth 8] #:binary? [binary? #false] #:name [name #false]
+           [/dev/hexout (current-output-port)] [close-origin? #false]]
+    (define magazine : Bytes (make-bytes width 0))
+    (define payload : Natural 0)
+    (define cursor : Natural 0)
+    
+    (define (hexdump [n : Natural]) : Void
+      (display (~r cursor #:min-width cwidth #:base 16 #:pad-string "0") /dev/hexout)
+      (display #\space /dev/hexout)
+      
+      (for ([b (in-bytes magazine 0 n)])
+        (if (not binary?)
+            (display (byte->hex-string b) /dev/hexout)
+            (display (byte->bin-string b) /dev/hexout))
+        (display #\space /dev/hexout))
+      
+      (when (< n width)
+        (display (~space (* (assert (- width n) byte?)
+                            (if (not binary?) 3 9)))
+                 /dev/hexout))
+      
+      (for ([b (in-bytes magazine 0 n)])
+        (define ch (integer->char b))
+        (display (if (char-graphic? ch) ch ".") /dev/hexout))
+      
+      (newline /dev/hexout)
+
+      (set! payload 0)
+      (set! cursor (+ cursor n)))
+    
+    (define (hexdump-flush)
+      (when (> payload 0)
+        (hexdump payload)))
+
+    (define (hexdump-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
+      (define src-size : Integer (- end start))
+      
+      (cond [(<= src-size 0) (hexdump-flush)] ; explicitly calling `flush-port`
+            [else (let dump ([src-size : Natural src-size]
+                             [start : Natural start]
+                             [available : Natural (max (- width payload) 0)])
+                    (if (< src-size available)
+                        (begin
+                          (bytes-copy! magazine payload bs start end)
+                          (set! payload (+ payload src-size)))
+                        (let ([start++ (+ start available)]
+                              [size-- (- src-size available)])
+                          (bytes-copy! magazine payload bs start start++)
+                          (hexdump width)
+                          (when (> size-- 0)
+                            (dump size-- start++ width)))))])
+
+      (unless (not non-block/buffered?)
+        ; do writing without block, say, calling `write-bytes-avail*`,
+        ; usually implies flush, and can return #false if failed.
+        (hexdump-flush))
+      
+      (- end start))
+
+    (define (hexdump-close) : Void
+      (hexdump-flush)
+
+      (unless (not close-origin?)
+        (close-output-port /dev/hexout)))
+    
+    (make-output-port (or name (object-name /dev/hexout))
+                      always-evt hexdump-write hexdump-close
+                      #false port-always-write-evt #false
+                      #false void (λ [] (+ cursor 1)) #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-path : (-> (U Input-Port Output-Port) Path)

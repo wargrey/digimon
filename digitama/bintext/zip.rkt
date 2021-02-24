@@ -104,8 +104,6 @@
                                     ((Option Natural))
                                     ZIP-Data-Descriptor)
   (lambda [pool /dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
-    (define pool-size : Index (bytes-length pool))
-    
     (when (exact-integer? seek)
       (file-position /dev/stdout seek))
     
@@ -122,21 +120,15 @@
                                      /dev/stdout strategy)]
         [else /dev/stdout #| the original one that shouldn't be closed here |#]))
     
-    (define-values (crc32 rsize)
+    (define-values (rsize crc32)
       (if (bytes? /dev/zipin)
           (let ([rsize : Natural (bytes-length /dev/zipin)])
             (when (> rsize 0)
               (write-bytes /dev/zipin /dev/zipout))
             (flush-output /dev/zipout)
-            (values (checksum-crc32 /dev/zipin 0 rsize) rsize))
-          (let store : (Values Index Natural) ([crc32 : Index 0]
-                                               [rsize : Natural 0])
-            (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
-            (cond [(eof-object? read-size) (flush-output /dev/zipout) (values crc32 rsize)]
-                  [else (let ([size++ (+ rsize read-size)]
-                              [crc++ (checksum-crc32* pool crc32 0 read-size)])
-                          (write-bytes pool /dev/zipout 0 read-size)
-                          (store crc++ size++))]))))
+            (values rsize (checksum-crc32 /dev/zipin 0 rsize)))
+
+          (zip-entry-copy /dev/zipin /dev/zipout pool)))
     
     (define csize : Natural
       (cond [(eq? /dev/zipout /dev/stdout) rsize]
@@ -190,6 +182,23 @@
     (case (zip-directory-compression cdir)
       [(deflated) (open-input-deflated-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name #:error-name 'zip:deflated)]
       [else (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-entry-copy : (->* (Input-Port Output-Port) ((U Bytes Index False)) (Values Natural Index))
+  (lambda [/dev/zipin /dev/zipout [pool0 4096]]
+    (define-values (#{pool : Bytes} #{pool-size : Index})
+      (cond [(bytes? pool0) (values pool0 (bytes-length pool0))]
+            [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
+            [else (values (make-bytes 4096 0) 4096)]))
+    
+    (let copy-entry/checksum ([pos : Natural 0]
+                              [crc32 : Index 0])
+      (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+      
+      (cond [(exact-positive-integer? read-size)
+             (write-bytes pool /dev/zipout 0 read-size)
+             (copy-entry/checksum (+ pos read-size) (checksum-crc32* pool crc32 0 read-size))]
+            [else (flush-output /dev/zipout) (values pos crc32)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-path-normalize : (case-> [Path-String -> String]
