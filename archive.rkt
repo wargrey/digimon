@@ -10,8 +10,6 @@
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
 
-(require racket/list)
-
 (require "digitama/bintext/archive.rkt")
 (require "digitama/bintext/zipinfo.rkt")
 (require "digitama/bintext/zipconfig.rkt")
@@ -19,7 +17,6 @@
 (require "digitama/ioexn.rkt")
 
 (require "filesystem.rkt")
-(require "checksum.rkt")
 (require "dtrace.rkt")
 (require "format.rkt")
 (require "port.rkt")
@@ -309,12 +306,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-hexdump-reader : (->* ()
-                                           (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:metainfo? Boolean)
+                                           (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
                                            (Archive-Entry-Readerof* Natural))
-  (lambda [[/dev/zipout (current-output-port)] #:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:metainfo? [metainfo? #true]]
-    (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary?))
-    
+  (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #true] #:metainfo? [metainfo? #true]
+           [/dev/zipout (current-output-port)]]
     (λ [/dev/zipin entry directory? timestamp idx]
+      (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))
+      
       (unless (not addline?)
         (unless (void? idx)
           (newline /dev/zipout)))

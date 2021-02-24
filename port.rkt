@@ -112,36 +112,59 @@
                      /dev/srcin #| initial position |#)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-hexdump : (->* () (Output-Port Boolean #:width Byte #:cursor-width Byte #:binary? Boolean #:name Any) Output-Port)
-  (lambda [#:width [width 32] #:cursor-width [cwidth 8] #:binary? [binary? #false] #:name [name #false]
+(define open-output-hexdump : (->* () (Output-Port Boolean #:width Byte #:cursor-width Byte #:binary? Boolean #:decimal-cursor? Boolean #:name Any) Output-Port)
+  (lambda [#:width [width 32] #:cursor-width [cwidth 8] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:name [name #false]
            [/dev/hexout (current-output-port)] [close-origin? #false]]
     (define magazine : Bytes (make-bytes width 0))
     (define payload : Natural 0)
     (define cursor : Natural 0)
+
+    (define-values (q r) (quotient/remainder width 2))
     
     (define (hexdump [n : Natural]) : Void
-      (display (~r cursor #:min-width cwidth #:base 16 #:pad-string "0") /dev/hexout)
-      (display #\space /dev/hexout)
+      (define diff : Integer (- width n))
+      (define cursor++ : Natural (+ cursor n))
       
-      (for ([b (in-bytes magazine 0 n)])
+      (write-string (~r cursor #:min-width cwidth #:base 16 #:pad-string "0") /dev/hexout)
+      (write-char #\space /dev/hexout)
+      (write-char #\space /dev/hexout)
+      
+      (for ([b (in-bytes magazine 0 n)]
+            [i (in-naturals 1)])
         (if (not binary?)
-            (display (byte->hex-string b) /dev/hexout)
-            (display (byte->bin-string b) /dev/hexout))
-        (display #\space /dev/hexout))
+            (write-string (byte->hex-string b) /dev/hexout)
+            (write-string (byte->bin-string b) /dev/hexout))
+        (write-char #\space /dev/hexout)
+        (when (and (= r 0) (= q i))
+          (write-char #\space /dev/hexout)))
       
-      (when (< n width)
-        (display (~space (* (assert (- width n) byte?)
-                            (if (not binary?) 3 9)))
-                 /dev/hexout))
-      
+      (when (> diff 0)
+        (write-string (~space (+ (* diff (if (not binary?) 3 9))
+                                 (if (and (= r 0) (< n q)) 1 0)))
+                      /dev/hexout))
+
+      (write-char #\space /dev/hexout)
+      (write-char #\| /dev/hexout)
       (for ([b (in-bytes magazine 0 n)])
         (define ch (integer->char b))
-        (display (if (char-graphic? ch) ch ".") /dev/hexout))
+        (cond [(char-graphic? ch) (write-char ch /dev/hexout)]
+              [(char-whitespace? ch) (write-char #\space /dev/hexout)]
+              [else (write-char #\. /dev/hexout)]))
+      (when (> diff 0)
+        (write-string (~space diff) /dev/hexout))
+      (write-char #\| /dev/hexout)
+
+      (unless (not dec-cursor?)
+        (write-char #\space /dev/hexout)
+        (write-char #\space /dev/hexout)
+        (write-string (~r cursor #:min-width cwidth #:base 10 #:pad-string "0") /dev/hexout)
+        (write-char #\- /dev/hexout)
+        (write-string (~r (sub1 cursor++) #:min-width cwidth #:base 10 #:pad-string "0") /dev/hexout))
       
       (newline /dev/hexout)
 
       (set! payload 0)
-      (set! cursor (+ cursor n)))
+      (set! cursor cursor++))
     
     (define (hexdump-flush)
       (when (> payload 0)
