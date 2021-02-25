@@ -15,8 +15,8 @@
 ;;; 2. The MSB-first bitstream corresponds the big-endian integer
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type BitStream-Input-Shell (U 'start-over 'align 'final-commit))
-(define-type BitStream-Output-Shell (U 'start-over 'align 'drop 'save 'restore))
+(define-type BitStream-Input-Shell (U 'start-over 'align 'aggregate 'final-commit))
+(define-type BitStream-Output-Shell (U 'start-over 'align 'aggregate 'drop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-input-lsb-bitstream : (->* ((U Input-Port (-> Input-Port))) ((U Integer Bytes) Byte #:limited Natural #:padding-byte Byte)
@@ -113,13 +113,13 @@
 
     (values feed-bits peek-bits fire-bits bs-shell)))
 
-(define open-output-lsb-bitstream : (->* (Output-Port) ((U Integer Bytes) Byte #:name Any #:restore? Boolean)
+(define open-output-lsb-bitstream : (->* (Output-Port) ((U Integer Bytes) Byte)
                                          (Values (case-> [Bytes Index Index Boolean -> Void]
                                                          [Integer Byte Index -> Void]
                                                          [Integer Byte -> Void])
-                                                 (-> [#:windup? Boolean] [#:save? Boolean] Natural)
-                                                 (-> BitStream-Output-Shell Void)))
-  (lambda [/dev/bsout [tank/size 0] [calibre-in-byte 4] #:name [name /dev/bsout] #:restore? [restore? #false]]
+                                                 (-> [#:windup? Boolean] Natural)
+                                                 (-> BitStream-Output-Shell Natural)))
+  (lambda [/dev/bsout [tank/size 0] [calibre-in-byte 4]]
     (define tank-capacity : Index
       (let ([c0 (if (bytes? tank/size) (bytes-length tank/size) tank/size)])
         (cond [(not (and (index? c0) (> c0 0))) 4096]
@@ -131,7 +131,8 @@
 
     (define tank-payload : Index 0)
     (define payload : Natural 0) ; bit buffer
-    (define pwidth : Index 0)  ; bits in bit buffer
+    (define pwidth : Index 0)    ; bits in bit buffer
+    (define aggregate : Natural 0)
     (define pre-sent : Natural 0)
     (define calibre : Index (* calibre-in-byte 8))
     
@@ -157,7 +158,7 @@
                                [(= pwidth 0) (inject-bytes bs start++ end tank-payload)]
                                [(< start++ end) (push-bits (unsafe-bytes-ref bs start++) 8 #xFF) (align (add1 start++) r)]))]))]))
 
-    (define send-bits : (-> [#:windup? Boolean] [#:save? Boolean] Natural)
+    (define send-bits : (-> [#:windup? Boolean] Natural)
       (lambda [#:windup? [windup? #false] #:save? [save? #false]]
         (define count : Natural
           (cond [(<= tank-payload 0) pre-sent]
@@ -167,7 +168,7 @@
         (when (> pre-sent 0)
           (set! pre-sent 0))
 
-        (begin0
+        (define sent : Natural
           (cond [(not windup?) count]
                 [else (let windup : Natural ([pwidth-- : Natural pwidth]
                                              [payload-- : Natural payload]
@@ -178,15 +179,15 @@
                               [(> pwidth-- 0)
                                (write-byte payload-- /dev/bsout)
                                (windup 0 0 (add1 count++))]
-                              [else (set!-values (payload pwidth) (values 0 0)) count++]))])
+                              [else (set!-values (payload pwidth) (values 0 0)) count++]))]))
 
-          (unless (not save?)
-            (bs-shell 'save)))))
+        (set! aggregate (+ aggregate sent))
+        sent))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define-bitstream-shell bs-shell (#:-> BitStream-Output-Shell Void)
-      #:with /dev/bsout name
-      #:ingredients [tank tank-payload payload pwidth]
+    (define-bitstream-shell bs-shell (#:-> BitStream-Output-Shell Natural)
+      #:with /dev/bsout
+      #:ingredients [tank tank-payload payload pwidth aggregate]
       #:operation [push-bits send-bits])
 
     (define (flush-bits [payload : Index]) : Index
@@ -218,9 +219,6 @@
                     (unsafe-bytes-copy! tank idx bs start start++)
                     (set! pre-sent (+ pre-sent (flush-bits tank-capacity)))
                     (inject-bytes bs start++ end 0))]))
-
-    (unless (not restore?)
-      (bs-shell 'restore))
 
     (values push-bits send-bits bs-shell)))
 

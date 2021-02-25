@@ -121,7 +121,7 @@
 
     (define-values (q r) (quotient/remainder width 2))
     
-    (define (hexdump [n : Natural]) : Void
+    (define (hexdump [n : Natural]) : Natural
       (define diff : Integer (- width n))
       (define cursor++ : Natural (+ cursor n))
       
@@ -162,18 +162,17 @@
         (write-string (~r (sub1 cursor++) #:min-width cwidth #:base 10 #:pad-string "0") /dev/hexout))
       
       (newline /dev/hexout)
-
-      (set! payload 0)
-      (set! cursor cursor++))
+      cursor++)
     
-    (define (hexdump-flush)
-      (when (> payload 0)
-        (hexdump payload)))
+    (define (hexdump-flush [n : Natural])
+      (when (> n 0)
+        (set! cursor (hexdump n))
+        (set! payload 0)))
 
     (define (hexdump-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
       
-      (cond [(<= src-size 0) (hexdump-flush)] ; explicitly calling `flush-port`
+      (cond [(<= src-size 0) (hexdump-flush payload)] ; explicitly calling `flush-port`
             [else (let dump ([src-size : Natural src-size]
                              [start : Natural start]
                              [available : Natural (max (- width payload) 0)])
@@ -184,19 +183,19 @@
                         (let ([start++ (+ start available)]
                               [size-- (- src-size available)])
                           (bytes-copy! magazine payload bs start start++)
-                          (hexdump width)
+                          (hexdump-flush width)
                           (when (> size-- 0)
                             (dump size-- start++ width)))))])
 
       (unless (not non-block/buffered?)
         ; do writing without block, say, calling `write-bytes-avail*`,
         ; usually implies flush, and can return #false if failed.
-        (hexdump-flush))
+        (hexdump-flush payload))
       
       (- end start))
 
     (define (hexdump-close) : Void
-      (hexdump-flush)
+      (hexdump-flush payload)
 
       (unless (not close-origin?)
         (close-output-port /dev/hexout)))

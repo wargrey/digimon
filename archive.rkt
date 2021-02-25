@@ -46,6 +46,138 @@
           [else (assert (path-add-timestamp target entry-timestamp #true))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-archive-hexdump-reader : (->* ()
+                                           (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
+                                           (Archive-Entry-Readerof* Natural))
+  (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #true] #:metainfo? [metainfo? #true]
+           [/dev/zipout (current-output-port)]]
+    (λ [/dev/zipin entry directory? timestamp idx]
+      (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))
+      
+      (unless (not addline?)
+        (unless (void? idx)
+          (newline /dev/zipout)))
+      
+      (let ([cdir (current-zip-entry)])
+        (display (object-name /dev/zipin) /dev/zipout)
+
+        (cond [(or directory? (not cdir)) (newline /dev/zipout)]
+              [else (let*-values ([(csize rsize) (zip-content-size* (list cdir))]
+                                  [(cfactor) (- 1 (if (= rsize 0) 1 (/ csize rsize)))])
+                      (fprintf /dev/zipout " [~a]~n" (~% cfactor #:precision `(= 2))))])
+        
+        (when (zip-directory? cdir)
+          (let ([comment (zip-directory-comment cdir)])
+            (unless (string=? comment "")
+              (displayln comment /dev/zipout)))
+
+          (unless (not metainfo?)
+            (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
+              (displayln info)))))
+      
+      (copy-port /dev/zipin /dev/hexout)
+
+      (cond [(void? idx) 1]
+            [else (add1 idx)]))))
+
+(define make-archive-verification-reader : (->* () (Index #:dtrace Any) (Archive-Entry-Readerof* (Listof (List String (U True String)))))
+  (lambda [[pool-size 4096] #:dtrace [topic #false]]
+    (λ [/dev/zipin entry directory? timestamp result-set]
+      (define cdir (current-zip-entry))
+      
+      (cond [(and cdir (not directory?))
+             (define-values (CRC32 rSize)
+               (if (zip-directory? cdir)
+                   (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))
+                   (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
+             
+             (define result : (U True String)
+               (with-handlers ([exn:fail? exn-message])
+                 (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/null (max 1 pool-size))])
+                   (cond [(not (= rSize rsize)) (format "Bad size ~a (should be ~a)" rsize rSize)]
+                         [(not (= CRC32 crc32)) (format "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
+                         [else #true]))))
+
+             (let ([entry-result (list entry result)])
+               (when (symbol? topic)
+                 (if (string? result)
+                     (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
+                     (dtrace-info "~a: OK" entry #:topic topic #:urgent entry-result)))
+               
+               (cond [(void? result-set) (list entry-result)]
+                     [else (cons entry-result result-set)]))]
+            [(void? result-set) null]
+            [else result-set]))))
+
+(define make-archive-filesystem-reader : (->* ()
+                                              (#:strip Integer #:on-conflict Archive-Entry-Resolve-Conflict #:checksum? Boolean
+                                               #:preserve-timestamps? Boolean #:always-mkdir? Boolean #:permissive? Boolean
+                                               (U Path-String Symbol (Pairof Symbol (Listof Path-String)) False) Index)
+                                              Archive-Entry-Reader)
+  (lambda [#:strip [strip 0] #:on-conflict [resolve-conflict archive-rename-outdated-entry] #:checksum? [checksum? #true]
+           #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:always-mkdir? [mkdir? #true]
+           [root #false] [pool-size 4096]]
+    (define rootdir : Path
+      (cond [(path? root) root]
+            [(string? root) (string->path root)]
+            [(symbol? root) (with-handlers ([exn? (λ _ (current-directory))]) (find-system-path root))]
+            [(pair? root) (apply build-path (with-handlers ([exn? (λ _ (current-directory))]) (find-system-path (car root))) (cdr root))]
+            [else (current-directory)]))
+    
+    (define (redirect-file [/dev/zipin : Input-Port] [entry : String] [target0 : Path] [timestamp : Natural]) : Any
+      (define solution : (U Symbol Path)
+        (cond [(not (file-exists? target0)) 'replace]
+              [else (resolve-conflict target0 entry timestamp)]))
+
+      (define-values (target operation)
+        (if (path? solution)
+            (values solution 'replace)
+            (values target0 solution)))
+
+      (and (not (eq? operation 'skip))
+
+           (make-parent-directory* target)
+
+           ; archive extractor manages the custodian, which controls the file resource.
+           ; TODO: deal with file permission and more
+           (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
+             (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
+                   [else (let ([cdir (assert (current-zip-entry))])      
+                           (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
+                           (define-values (rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout (max 1 pool-size)))
+
+                           (define-values (r c p) (port-next-location /dev/zipin))
+                           (displayln (list r c p (file-position /dev/zipin)))
+                           
+                           (unless (= CRC32 crc32)
+                             (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)"
+                                                (~hexstring crc32) (~hexstring CRC32))))])
+
+
+             (cond [(path? solution)
+                    (file-or-directory-modify-seconds target timestamp)
+                    #false #| don't `touch` existing file |#]
+                   [else #true]))))
+    
+    (λ [/dev/zipin entry directory? timestamp0 _]
+      (when (absolute-path? entry)
+        (throw-check-error /dev/zipin '|| "entry is an absolute path: ~a" entry))
+
+      (define subpaths : (Listof (U 'same 'up Path-For-Some-System)) (explode-path/cleanse entry #:strip strip))
+
+      (when (and (pair? subpaths) (not (eq? subpaths 'same)))
+        (when (and (not permissive?) (eq? (car subpaths) 'up))
+          (throw-check-error /dev/zipin '|| "up-directory indicator is disallowed: ~a" entry))
+
+        (let ([timestamp (if (not preserve-timestamps?) timestamp0 0)]
+              [target (apply build-path rootdir subpaths)])
+          (when (and (path? target)
+                     (cond [(not directory?) (redirect-file /dev/zipin entry target timestamp)]
+                           [(and mkdir?) (make-directory* target)]
+                           [else #false #| we don't know if certain directory already created because of its children |#]))
+            (file-or-directory-modify-seconds target timestamp void)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
   (lambda [/dev/zipin src]
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
@@ -303,131 +435,3 @@
                                       (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
                                       datum0))
                     (λ [] (custodian-shutdown-all (current-custodian)))))])]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-hexdump-reader : (->* ()
-                                           (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
-                                           (Archive-Entry-Readerof* Natural))
-  (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #true] #:metainfo? [metainfo? #true]
-           [/dev/zipout (current-output-port)]]
-    (λ [/dev/zipin entry directory? timestamp idx]
-      (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))
-      
-      (unless (not addline?)
-        (unless (void? idx)
-          (newline /dev/zipout)))
-      
-      (let ([cdir (current-zip-entry)])
-        (display (object-name /dev/zipin) /dev/zipout)
-
-        (cond [(or directory? (not cdir)) (newline /dev/zipout)]
-              [else (let*-values ([(csize rsize) (zip-content-size* (list cdir))]
-                                  [(cfactor) (- 1 (if (= rsize 0) 1 (/ csize rsize)))])
-                      (fprintf /dev/zipout " [~a]~n" (~% cfactor #:precision `(= 2))))])
-        
-        (when (zip-directory? cdir)
-          (let ([comment (zip-directory-comment cdir)])
-            (unless (string=? comment "")
-              (displayln comment /dev/zipout)))
-
-          (unless (not metainfo?)
-            (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
-              (displayln info)))))
-      
-      (copy-port /dev/zipin /dev/hexout)
-
-      (cond [(void? idx) 1]
-            [else (add1 idx)]))))
-
-(define make-archive-verification-reader : (->* () (Index #:dtrace Any) (Archive-Entry-Readerof* (Listof (List String (U True String)))))
-  (lambda [[pool-size 4096] #:dtrace [topic #false]]
-    (λ [/dev/zipin entry directory? timestamp result-set]
-      (define cdir (current-zip-entry))
-      
-      (cond [(and cdir (not directory?))
-             (define-values (CRC32 rSize)
-               (if (zip-directory? cdir)
-                   (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))
-                   (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
-             
-             (define result : (U True String)
-               (with-handlers ([exn:fail? exn-message])
-                 (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/null (max 1 pool-size))])
-                   (cond [(not (= rSize rsize)) (format "Bad size ~a (should be ~a)" rsize rSize)]
-                         [(not (= CRC32 crc32)) (format "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
-                         [else #true]))))
-
-             (let ([entry-result (list entry result)])
-               (when (symbol? topic)
-                 (if (string? result)
-                     (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
-                     (dtrace-info "~a: OK" entry #:topic topic #:urgent entry-result)))
-               
-               (cond [(void? result-set) (list entry-result)]
-                     [else (cons entry-result result-set)]))]
-            [(void? result-set) null]
-            [else result-set]))))
-
-(define make-archive-filesystem-reader : (->* ()
-                                              (#:strip Integer #:on-conflict Archive-Entry-Resolve-Conflict #:checksum? Boolean
-                                               #:preserve-timestamps? Boolean #:always-mkdir? Boolean #:permissive? Boolean
-                                               (U Path-String Symbol (Pairof Symbol (Listof Path-String)) False) Index)
-                                              Archive-Entry-Reader)
-  (lambda [#:strip [strip 0] #:on-conflict [resolve-conflict archive-rename-outdated-entry] #:checksum? [checksum? #true]
-           #:permissive? [permissive? #false] #:preserve-timestamps? [preserve-timestamps? #false] #:always-mkdir? [mkdir? #true]
-           [root #false] [pool-size 4096]]
-    (define rootdir : Path
-      (cond [(path? root) root]
-            [(string? root) (string->path root)]
-            [(symbol? root) (with-handlers ([exn? (λ _ (current-directory))]) (find-system-path root))]
-            [(pair? root) (apply build-path (with-handlers ([exn? (λ _ (current-directory))]) (find-system-path (car root))) (cdr root))]
-            [else (current-directory)]))
-    
-    (define (redirect-file [/dev/zipin : Input-Port] [entry : String] [target0 : Path] [timestamp : Natural]) : Any
-      (define solution : (U Symbol Path)
-        (cond [(not (file-exists? target0)) 'replace]
-              [else (resolve-conflict target0 entry timestamp)]))
-
-      (define-values (target operation)
-        (if (path? solution)
-            (values solution 'replace)
-            (values target0 solution)))
-
-      (and (not (eq? operation 'skip))
-
-           (make-parent-directory* target)
-
-           ; archive extractor manages the custodian, which controls the file resource.
-           ; TODO: deal with file permission and more
-           (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
-             (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
-                   [else (let ([cdir (assert (current-zip-entry))])      
-                           (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
-                           (define-values (rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout (max 1 pool-size)))
-
-                           (unless (= CRC32 crc32)
-                             (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)"
-                                                (~hexstring crc32) (~hexstring CRC32))))])
-
-             (cond [(path? solution)
-                    (file-or-directory-modify-seconds target timestamp)
-                    #false #| don't `touch` existing file |#]
-                   [else #true]))))
-    
-    (λ [/dev/zipin entry directory? timestamp0 _]
-      (when (absolute-path? entry)
-        (throw-check-error /dev/zipin '|| "entry is an absolute path: ~a" entry))
-
-      (define subpaths : (Listof (U 'same 'up Path-For-Some-System)) (explode-path/cleanse entry #:strip strip))
-
-      (when (and (pair? subpaths) (not (eq? subpaths 'same)))
-        (when (and (not permissive?) (eq? (car subpaths) 'up))
-          (throw-check-error /dev/zipin '|| "up-directory indicator is disallowed: ~a" entry))
-
-        (let ([timestamp (if (not preserve-timestamps?) timestamp0 0)]
-              [target (apply build-path rootdir subpaths)])
-          (when (and (path? target)
-                     (cond [(not directory?) (redirect-file /dev/zipin entry target timestamp)]
-                           [(and mkdir?) (make-directory* target)]
-                           [else #false #| we don't know if certain directory already created because of its children |#]))
-            (file-or-directory-modify-seconds target timestamp void)))))))

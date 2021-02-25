@@ -7,15 +7,6 @@
 (require (for-syntax racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct bits-output-vector
-  ([payload : Natural]
-   [pwidth : Index]
-   [tank : (Option Bytes)])
-  #:type-name Bits-Output-Vector)
-
-(define bits-cabinets : (HashTable Any Bits-Output-Vector) (make-hasheq #| Yes, it's an `eq?`-based hash table |#))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-bitstream-shell stx)
   (syntax-case stx []
     [(_ id (#:-> InShell Status)
@@ -57,44 +48,27 @@
                     [(align) (align-bits /dev/bsin)]
                     [(final-commit) (final-commit-bits /dev/bsin)])))))]
     [(_ id (#:-> OutShell Status)
-        #:with /dev/bsout name
-        #:ingredients [tank tank-payload payload pwidth]
+        #:with /dev/bsout
+        #:ingredients [tank tank-payload payload pwidth total-sent]
         #:operation [push-bits send-bits])
      (syntax/loc stx
-       (begin (define (reset [clean? : Boolean]) : Void
-                (set!-values (payload pwidth) (values 0 0))
-
-                (unless (not clean?)
-                  (hash-remove! bits-cabinets name)))
+       (begin (define (reset) : Void
+                (set!-values (payload pwidth) (values 0 0)))
               
               (define (align-bits) : Void
                 (push-bits 0 (unsafe-idx- 8 (unsafe-fxremainder pwidth 8)) #b0))
 
-              (define (save-vector) : Void
-                (hash-set! bits-cabinets name
-                           (bits-output-vector payload pwidth
-                                               (and (> tank-payload 0)
-                                                    (subbytes tank 0 tank-payload)))))
-              
-              (define (restore-vector) : Void
-                (define ?v : (Option Bits-Output-Vector) (hash-ref bits-cabinets name (λ [] #false)))
-
-                (when (bits-output-vector? ?v)
-                  (set!-values (payload pwidth) (values (bits-output-vector-payload ?v) (bits-output-vector-pwidth ?v)))
-                  (let ([?bs (bits-output-vector-tank ?v)])
-                    (when (and ?bs)
-                      (let ([tpsize (bytes-length ?bs)])
-                        (bytes-copy! tank 0 ?bs 0 tpsize)
-                        (set! tank-payload tpsize))))))
-
               (define id : (-> OutShell Status)
                 (lambda [cmd]
                   (case cmd
-                    [(start-over) (reset #true)]
+                    [(start-over) (reset)]
                     [(align) (align-bits)]
-                    [(drop) (reset #false)]
-                    [(save) (save-vector)]
-                    [(restore) (restore-vector)])))))]))
+                    [(drop) (reset)])
+
+                  ;;; NOTE
+                  ; this intentionally works for 'aggregate, and is meaningless for other operations;
+                  ; maybe in the future, other operations that return a natural result would be defined.
+                  total-sent))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mask-bits : (Immutable-Vectorof Index)

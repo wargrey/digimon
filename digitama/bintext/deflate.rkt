@@ -46,11 +46,11 @@
     (define raw-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 5)))
     (define lz77-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 6)))
     (define bits-blocksize : Positive-Index raw-blocksize)
-    
+
+    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
     (define raw-block : Bytes (make-bytes raw-blocksize))
     (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
     (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
-    (define bitank : Bytes (make-bytes bits-blocksize))
 
     (define raw-payload : Index 0)
     (define lz77-payload : Index 0)
@@ -93,15 +93,62 @@
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
            (submit-huffman-symbol distance span d-idx))]))
     
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; WARNING: the port counts its position from 1, whereas `file-position` reports it from 0... 
-    (define deflated-size : Positive-Integer 1)
-
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define huffman-write-empty-block! : (-> Boolean Natural)
+      (lambda [BFINAL]
+        (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111) ; empty static block
+        (PUSH-BITS EOB (unsafe-vector*-ref huffman-fixed-literal-lengths EOB))
+        (SEND-BITS #:windup? BFINAL)))
+    
+    (define huffman-write-stored-block! : (-> Bytes Boolean Index Index Natural)
+      (lambda [bsrc BFINAL start end]
+        (define size : Index (unsafe-idx- end start))
+        
+        (PUSH-BITS (if BFINAL #b001 #b000) 3 #b111)
+        ($SHELL 'align)
+        (PUSH-BITS size 16 #xFFFF)
+        (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
+        (PUSH-BITS bsrc start end #true)
+        
+        (SEND-BITS #:windup? BFINAL)))
+    
+    (define huffman-write-static-block! : (-> (Vectorof Index) (Vectorof Index) Boolean Index Index Natural)
+      (lambda [l77src dists BFINAL start end]
+        (define literals : (Vectorof Index) (force huffman-fixed-literal-codewords))
+        (define distances : (Vectorof Index) (force huffman-fixed-distance-codewords))
+        
+        (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111)
+        
+        (let write-codeword ([idx : Nonnegative-Fixnum start])
+          (when (< idx end)
+            (define misc : Index (unsafe-vector*-ref l77src idx))
+            (define dist : Index (unsafe-vector*-ref dists idx))
+            
+            (cond [(= dist 0) ; pure literals
+                   (PUSH-BITS (unsafe-vector*-ref literals misc)
+                              (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
+                  
+                  [else ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
+                   (let ([hspan (backref-span->huffman-symbol misc)]
+                         [hdist (backref-distance->huffman-distance dist)])
+                     (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
+                            [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
+                       (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
+                       (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
+                     
+                     (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
+                       (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
+                       (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
+            
+            (write-codeword (+ idx 1))))
+        
+        (PUSH-BITS EOB (unsafe-vector*-ref huffman-fixed-literal-lengths EOB))
+        (SEND-BITS #:windup? BFINAL)))
+    
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
-      (let ([size++ (huffman-write-static-block! /dev/zipout lz77-block lz77-dists BFINAL 0 payload #:with bitank)])
+      (let ([size++ (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)])
         (vector-fill! lz77-dists 0)
-        (set! deflated-size (+ deflated-size size++))
         (set! lz77-payload 0)))
     
     (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean] [flush-lz77? : Boolean]) : Void
@@ -121,14 +168,11 @@
 
                (cond [(not (or BFINAL flush-lz77?)) 0]
                      [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload) 0]
-                     [(and BFINAL) (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)]
+                     [(and BFINAL) (huffman-write-empty-block! BFINAL)]
                      [else 0])]
-              [(> payload 0) (huffman-write-stored-block! /dev/zipout raw-block BFINAL 0 payload #:with bitank)]
-              [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! /dev/zipout BFINAL #:with bitank)]
+              [(> payload 0) (huffman-write-stored-block! raw-block BFINAL 0 payload)]
+              [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! BFINAL)]
               [else 0]))
-
-      (when (exact-positive-integer? written-size)
-        (set! deflated-size (+ deflated-size written-size)))
       
       (when (> raw-payload 0)
         (set! raw-payload 0)))
@@ -180,8 +224,9 @@
     
     (make-output-port name always-evt block-write block-close
                       #false port-always-write-evt #false
-                      #false void
-                      (λ [] deflated-size)
+                      (lambda () (port-next-location /dev/zipout))
+                      (lambda () (port-count-lines! /dev/zipout))
+                      (λ [] (add1 ($SHELL 'aggregate)))
                       #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -211,6 +256,10 @@
           ; sliding always occurs before the window is full, so it's safe to just add the `currnt-stock`
           (unsafe-bytes-copy! window 0 window window-idx-- (+ window-idx current-stock))
           (set! window-idx window-idx--))))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; WARNING: the port counts its position from 1, whereas `file-position` reports it from 0... 
+    (define inflated-size : Positive-Integer 1)
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
@@ -292,6 +341,10 @@
       (let ([consumed (min request supply)])
         (when (> consumed 0)
           (let ([window-idx++ (unsafe-idx+ window-idx consumed)])
+            (for ([b (in-bytes window window-idx window-idx++)]
+                  [i (in-naturals window-idx)])
+              (when (= b 0)
+                (displayln (cons i b))))
             (unsafe-bytes-copy! zipout start window window-idx window-idx++)
             (set! stock (unsafe-idx- supply consumed))
             (set! window-idx window-idx++)))
@@ -338,75 +391,15 @@
     
     (define /dev/blkin : Input-Port
       (make-input-port (or name (object-name /dev/zipin))
-                       
                        deflate-read! #false
-                       
                        (λ [] (when close-orig? (close-input-port /dev/zipin)))
-                       
                        #false #false
-                       
                        (lambda () (port-next-location /dev/zipin))
                        (lambda () (port-count-lines! /dev/zipin))
-                       
-                       1 #| initial position |#))
+                       (λ [] inflated-size)
+                       #false))
 
     /dev/blkin))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define huffman-write-empty-block! : (-> Output-Port Boolean [#:with (U Bytes Integer)] Natural)
-  (lambda [/dev/zipout BFINAL #:with [tank 0]]
-    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
-    
-    (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111) ; empty static block
-    (PUSH-BITS EOB (unsafe-vector*-ref huffman-fixed-literal-lengths EOB))
-    (SEND-BITS #:windup? BFINAL #:save? #true)))
-
-(define huffman-write-stored-block! : (-> Output-Port Bytes Boolean Index Index [#:with (U Bytes Integer)] Natural)
-  (lambda [/dev/zipout bsrc BFINAL start end #:with [tank 0]]
-    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank 1 #:restore? #true))
-    (define size : Index (unsafe-idx- end start))
-
-    (PUSH-BITS (if BFINAL #b001 #b000) 3 #b111)
-    ($SHELL 'align)
-    (PUSH-BITS size 16 #xFFFF)
-    (PUSH-BITS (unsafe-uint16-not size) 16 #xFFFF)
-    (PUSH-BITS bsrc start end #true)
-    
-    (SEND-BITS #:windup? BFINAL #:save? #true)))
-
-(define huffman-write-static-block! : (-> Output-Port (Vectorof Index) (Vectorof Index) Boolean Index Index [#:with (U Bytes Integer)] Natural)
-  (lambda [/dev/zipout l77src dists BFINAL start end #:with [tank 0]]
-    (define literals : (Vectorof Index) (force huffman-fixed-literal-codewords))
-    (define distances : (Vectorof Index) (force huffman-fixed-distance-codewords))
-    (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout tank #:restore? #true))
-    
-    (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111)
-
-    (let write-codeword ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define misc : Index (unsafe-vector*-ref l77src idx))
-        (define dist : Index (unsafe-vector*-ref dists idx))
-        
-        (cond [(= dist 0) ; pure literals
-               (PUSH-BITS (unsafe-vector*-ref literals misc)
-                          (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
-
-              [else ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
-               (let ([hspan (backref-span->huffman-symbol misc)]
-                     [hdist (backref-distance->huffman-distance dist)])
-                 (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
-                        [extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)])
-                   (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
-                   (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
-                 
-                 (let* ([extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)])
-                   (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
-                   (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
-
-        (write-codeword (+ idx 1))))
-
-    (PUSH-BITS EOB (unsafe-vector*-ref huffman-fixed-literal-lengths EOB))
-    (SEND-BITS #:windup? BFINAL #:save? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-block-placeholder : (Mutable-Vectorof LZ77-Symbol) (make-vector 0))
