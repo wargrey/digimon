@@ -258,10 +258,6 @@
           (set! window-idx window-idx--))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;; WARNING: the port counts its position from 1, whereas `file-position` reports it from 0... 
-    (define inflated-size : Positive-Integer 1)
-    
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
       (if (FEED-BITS 3)
           (let ([BFINAL? (= (PEEK-BITS 1 #b1) 1)]
@@ -341,10 +337,6 @@
       (let ([consumed (min request supply)])
         (when (> consumed 0)
           (let ([window-idx++ (unsafe-idx+ window-idx consumed)])
-            (for ([b (in-bytes window window-idx window-idx++)]
-                  [i (in-naturals window-idx)])
-              (when (= b 0)
-                (displayln (cons i b))))
             (unsafe-bytes-copy! zipout start window window-idx window-idx++)
             (set! stock (unsafe-idx- supply consumed))
             (set! window-idx window-idx++)))
@@ -396,7 +388,7 @@
                        #false #false
                        (lambda () (port-next-location /dev/zipin))
                        (lambda () (port-count-lines! /dev/zipin))
-                       (λ [] inflated-size)
+                       (λ [] (add1 ($SHELL 'aggregate)))
                        #false))
 
     /dev/blkin))

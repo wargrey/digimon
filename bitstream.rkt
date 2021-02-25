@@ -19,8 +19,8 @@
 (define-type BitStream-Output-Shell (U 'start-over 'align 'aggregate 'drop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-input-lsb-bitstream : (->* ((U Input-Port (-> Input-Port))) ((U Integer Bytes) Byte #:limited Natural #:padding-byte Byte)
-                                        (Values (->* (Byte) ((U Input-Port (-> Input-Port))) Boolean)
+(define make-input-lsb-bitstream : (->* (Input-Port) ((U Integer Bytes) #:lookahead Byte #:limited Natural #:padding-byte Byte)
+                                        (Values (-> Byte Boolean)
                                                 (case-> [Byte Byte Byte -> Byte]
                                                         [Byte Index Byte -> Index]
                                                         [Byte Byte -> Byte]
@@ -28,8 +28,8 @@
                                                         [Byte -> Index]
                                                         [-> Index])
                                                 (-> Byte Void)
-                                                (->* (BitStream-Input-Shell) ((U Input-Port (-> Input-Port))) (U Natural EOF Void))))
-  (lambda [/dev/defin [mgz/size 0] [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
+                                                (-> BitStream-Input-Shell Natural)))
+  (lambda [/dev/bsin [mgz/size 0] #:lookahead [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
     (define mgz-capacity : Index
       (let ([c0 (if (bytes? mgz/size) (bytes-length mgz/size) mgz/size)])
         (cond [(not (and (index? c0) (> c0 0))) 4096]
@@ -44,13 +44,16 @@
     (define mgz-start : Index 0)   ; index into magazine = number of used peeked bytes
     (define payload : Index 0)     ; bit buffer
     (define pwidth : Index 0)      ; bits in bit buffer
+    (define aggregate : Natural 0)
 
-    (define stock : Natural truncated)
+    (define stock : Natural
+      (cond [(> truncated 0) truncated]
+            [else mgz-capacity #| in order to eliminate evitable checks on `truncated` |#]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define feed-bits : (->* (Byte) ((U Input-Port (-> Input-Port))) Boolean)
-      (lambda [nbits [/dev/bsin /dev/defin]]
-        (cond [(< pwidth nbits) (draw-bits nbits /dev/bsin)]
+    (define feed-bits : (-> Byte Boolean)
+      (lambda [nbits]
+        (cond [(< pwidth nbits) (draw-bits nbits)]
               [else #true])))
 
     (define peek-bits : (case-> [Byte Index Byte -> Index]
@@ -68,49 +71,72 @@
     (define fire-bits : (-> Byte Void)
       (lambda [nbits]
         (set! payload (unsafe-idxrshift payload nbits))
-        (set! pwidth (unsafe-idx- pwidth nbits))))
+        (set! pwidth (unsafe-idx- pwidth nbits))
+        #;(set! aggregate (+ aggregate nbits))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define-bitstream-shell bs-shell (#:-> BitStream-Input-Shell (U Natural EOF Void))
-      #:with /dev/defin
-      #:ingredients [magazine mgz-payload mgz-start payload pwidth]
+    (define-bitstream-shell bs-shell (#:-> BitStream-Input-Shell Natural)
+      #:with /dev/bsin lookahead
+      #:ingredients [magazine mgz-payload mgz-start payload pwidth aggregate]
       #:operation [peek-bits feed-bits fire-bits])
 
-    (define (draw-bits [nbits : Byte] [/dev/?in : (U Input-Port (-> Input-Port))]) : Boolean
-      (if (< mgz-start mgz-payload)
-          (let ([v (unsafe-bytes-ref magazine mgz-start)])
-            (set! payload (unsafe-idx+ payload (unsafe-idxlshift v pwidth))) ; <= LSB
-            (set! pwidth (unsafe-idx+ pwidth 8))
-            (set! mgz-start (unsafe-idx+ mgz-start 1))
-            (feed-bits nbits /dev/?in))
-          
-          (let ([/dev/bsin (if (input-port? /dev/?in) /dev/?in (/dev/?in))])      
-            (when (> mgz-payload 0)
-              (let ([read-size (max 0 (- mgz-payload lookahead))])
-                (when (> truncated 0)
-                  (set! stock (max 0 (- stock read-size))))
-              
-                ;; commit consumed bytes, except for the last `lookahead` ones,
-                ;; which might be unwound(unpeeked) after you are done dealing with the bitstream.
-                (read-bytes! magazine /dev/bsin 0 read-size)
-                ;; awkwardly, the `unwind` operation has neiher been used nor (therefore even) defined in this implementation.
-                ;; if no `lookahead`, no bytes could be unwound even though they are fed but before fired.
-                (set! mgz-start (min lookahead mgz-payload))))
+    (define (try-commit-bits) : Void
+      (when (> mgz-payload lookahead)
+        (define commit-size : Index (unsafe-idx- mgz-payload lookahead))
 
-            (let* ([mgz-end (if (= truncated 0) mgz-capacity (min (+ mgz-start stock) mgz-capacity))]
-                   [?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start mgz-end)])
-              (cond [(and (fixnum? ?n) (> ?n 0))
-                     (set! mgz-payload (unsafe-idx+ mgz-start ?n))
-                     (draw-bits nbits /dev/bsin)]
-                    [(or (eq? ?n 0) (eof-object? ?n)) ; the bitstream is infinite by design
-                     (unsafe-bytes-set! magazine mgz-start eof-byte)
-                     (set! mgz-payload (unsafe-idx+ mgz-start 1))
-                     (draw-bits nbits /dev/bsin)
-                     #false]
-                    [else #| skip special values |# (draw-bits nbits /dev/bsin)])))))
+        ;; commit consumed bytes, except for the last `lookahead` ones,
+        ;; which might be unwound(unpeeked) after you are done dealing with the bitstream,
+        ;; be careful, don't commit to much exceeding the limit as the payload might contain padded phantom bytes.
+        (cond [(= truncated 0)
+               (read-bytes! magazine /dev/bsin 0 commit-size)
+               (set! aggregate (+ aggregate commit-size))]
+              [(> stock commit-size)
+               (read-bytes! magazine /dev/bsin 0 commit-size)
+               (set! stock (unsafe-idx- stock commit-size))
+               (set! aggregate (+ aggregate commit-size))]
+              [else
+               (read-bytes! magazine /dev/bsin 0 stock)
+               (set! aggregate (+ aggregate stock))
+               (set! stock 0)]))
+
+      (unless (= mgz-payload 0)
+        ;; at beginning, `mgz-start` points to 0; later on, it will never point to 0 unless `lookahead` is 0.
+        ;; awkwardly, the `unwind` operation has neiher been used nor (therefore even) defined in this implementation.
+        ;;   so that bytes before `mgz-start` are meaningless before the `final-commit`. 
+        ;; next time drawing bits from port, at most `lookahead` bytes will be reloaded as they are just not committed.
+        (set! mgz-start (min lookahead mgz-payload))))
+
+    (define (draw-phantom-bytes) : Void
+      ; do padding one by one, in case a gentle client doesn't exploiting to much.
+      (unsafe-bytes-set! magazine mgz-start eof-byte)
+      (set! mgz-payload (unsafe-idx+ mgz-start 1)))
+
+    (define (draw-bits [nbits : Byte]) : Boolean
+      (cond [(< mgz-start mgz-payload)
+             (let ([v (unsafe-bytes-ref magazine mgz-start)])
+               (set! payload (unsafe-idx+ payload (unsafe-idxlshift v pwidth))) ; <= LSB
+               (set! pwidth (unsafe-idx+ pwidth 8))
+               (set! mgz-start (unsafe-idx+ mgz-start 1))
+               (feed-bits nbits))]
+            [(> stock 0) ; the port should have some bytes to be read
+             (try-commit-bits)
+             (let ([?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start (min (+ mgz-start stock) mgz-capacity))])
+               (cond [(exact-positive-integer? ?n)
+                      (set! mgz-payload (unsafe-idx+ mgz-start ?n))
+                      (draw-bits nbits)]
+                     [(or (eq? ?n 0) (eof-object? ?n)) ; the port has been exhausted
+                      (set! stock 0)
+                      (draw-phantom-bytes)
+                      (draw-bits nbits)
+                      #false]
+                     [else #| skip special values |# (draw-bits nbits)]))]
+            [else ; the bitstream is infinite by design
+             (try-commit-bits)
+             (draw-phantom-bytes)
+             (draw-bits nbits)
+             #false]))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
     (values feed-bits peek-bits fire-bits bs-shell)))
 
 (define open-output-lsb-bitstream : (->* (Output-Port) ((U Integer Bytes) Byte)
@@ -136,8 +162,7 @@
     (define pre-sent : Natural 0)
     (define calibre : Index (* calibre-in-byte 8))
     
-    (define inject-maxidx : Index
-      (assert (max (- tank-capacity calibre-in-byte) 0) index?))
+    (define inject-maxidx : Natural (max (- tank-capacity calibre-in-byte) 0))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define push-bits : (case-> [Bytes Index Index Boolean -> Void]
@@ -165,9 +190,6 @@
                  [else (begin0 (+ pre-sent (flush-bits tank-payload))
                                (set! tank-payload 0))]))
 
-        (when (> pre-sent 0)
-          (set! pre-sent 0))
-
         (define sent : Natural
           (cond [(not windup?) count]
                 [else (let windup : Natural ([pwidth-- : Natural pwidth]
@@ -181,6 +203,7 @@
                                (windup 0 0 (add1 count++))]
                               [else (set!-values (payload pwidth) (values 0 0)) count++]))]))
 
+        (when (> pre-sent 0) (set! pre-sent 0))
         (set! aggregate (+ aggregate sent))
         sent))
 
@@ -190,7 +213,7 @@
       #:ingredients [tank tank-payload payload pwidth aggregate]
       #:operation [push-bits send-bits])
 
-    (define (flush-bits [payload : Index]) : Index
+    (define (flush-bits [payload : Natural]) : Index
       (write-bytes tank /dev/bsout 0 payload))
 
     (define (inject-bits [payload++ : Natural] [pwidth++ : Index] [idx : Index]) : Void

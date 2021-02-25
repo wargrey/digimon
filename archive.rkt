@@ -146,9 +146,6 @@
                            (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
                            (define-values (rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout (max 1 pool-size)))
 
-                           (define-values (r c p) (port-next-location /dev/zipin))
-                           (displayln (list r c p (file-position /dev/zipin)))
-                           
                            (unless (= CRC32 crc32)
                              (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)"
                                                 (~hexstring crc32) (~hexstring CRC32))))])

@@ -28,9 +28,10 @@
             (peek-bits 5) (fire-bits 5)
             (extract)))
         
-        (bs-shell 'final-commit)))
+        (bs-shell 'final-commit)
+        (bs-shell 'aggregate)))
 
-(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) 0 0)])
+(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) #:lookahead 0)])
         (displayln (bytes->bin-string bs #:separator " "))
         
         (feed-bits 255)
@@ -39,9 +40,10 @@
         (deal-with-bits (peek-bits 8))
         (deal-with-bits (peek-bits 32))
         
-        (bs-shell 'final-commit)))
+        (bs-shell 'final-commit)
+        (bs-shell 'aggregate)))
 
-(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) 0 0 #:limited 1)])
+(time (let-values ([(feed-bits peek-bits fire-bits bs-shell) (make-input-lsb-bitstream (open-input-bytes bs) #:lookahead 0 #:limited 1)])
         (displayln (cons 'limited (not (feed-bits 16))))
         
         (deal-with-bits (peek-bits 4 #b1111))
@@ -49,4 +51,5 @@
         (deal-with-bits (peek-bits 4 #b1111  7))
         (deal-with-bits (peek-bits 5 #b11111 11))
         
-        (bs-shell 'final-commit)))
+        (bs-shell 'final-commit)
+        (bs-shell 'aggregate)))

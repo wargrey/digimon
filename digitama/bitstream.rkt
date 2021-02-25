@@ -10,43 +10,49 @@
 (define-syntax (define-bitstream-shell stx)
   (syntax-case stx []
     [(_ id (#:-> InShell Status)
-        #:with /dev/defin
-        #:ingredients [magazine mgz-payload mgz-start payload pwidth]
+        #:with /dev/bsin lookahead
+        #:ingredients [magazine mgz-payload mgz-start payload pwidth total-committed]
         #:operation [peek-bits feed-bits fire-bits])
      (syntax/loc stx
        (begin (define (reset) : Void
                 (set!-values (mgz-payload mgz-start) (values 0 0))
                 (set!-values (payload pwidth) (values 0 0)))
               
-              (define align-bits : (-> (U Input-Port (-> Input-Port)) Index)
-                (lambda [/dev/bsin]
+              (define align-bits : (-> Index)
+                (lambda []
                   (define skip (unsafe-fxremainder pwidth 8))
 
-                  (feed-bits skip /dev/bsin)
+                  (feed-bits skip)
                   (begin0 (peek-bits skip)
                           (fire-bits skip))))
-              
-              (define final-commit-bits : (-> (U Input-Port (-> Input-Port)) (U Natural EOF))
-                (lambda [/dev/bsin]
-                  (let unwind ()
-                    ;;; NOTE
-                    ; if no `lookahead`, no bytes could be unpeeked.
-                    ; after this call, the rest unused bits are no longer available,
-                    ; and the input port would be byte-aligned.
-                    (when (and (>= pwidth 8) (> mgz-start 0))
-                      (set! mgz-start (unsafe-idx- mgz-start 1))
-                      (set! pwidth (unsafe-idx- pwidth 8))
-                      (unwind)))
-                  (begin0
-                    (read-bytes! magazine (if (input-port? /dev/bsin) /dev/bsin (/dev/bsin)) 0 mgz-start)
+
+              (define (final-size) : Index
+                (let unwind ([bits : Index pwidth]
+                             [farther : Byte lookahead]
+                             [size : Index mgz-start])
+                  ;;; NOTE
+                  ; at most `lookahead` bytes could be unpeeked.
+                  ; after this call, the rest unused bits are no longer available,
+                  ; and the input port would be byte-aligned.
+                  (cond [(or (< bits 8) (<= farther 0) (<= size 0)) size]
+                        [else (unwind (unsafe-idx- bits 8) (- farther 1) (- size 1))])))
+
+              (define final-commit-bits : (-> Void)
+                (lambda []
+                  (let ([commit-size (final-size)])
+                    (read-bytes! magazine /dev/bsin 0 commit-size)
+                    (set! total-committed (+ total-committed commit-size))
                     (reset) #| so that double call would not cause unexpected reading |#)))
 
-              (define id : (->* (InShell) ((U Input-Port (-> Input-Port))) Status)
-                (lambda [cmd [/dev/bsin /dev/defin]]
+              (define id : (-> InShell Status)
+                (lambda [cmd]
                   (case cmd
-                    [(start-over) (reset)]
-                    [(align) (align-bits /dev/bsin)]
-                    [(final-commit) (final-commit-bits /dev/bsin)])))))]
+                    [(start-over) (reset) 0]
+                    [(align) (align-bits)]
+                    [(final-commit) (final-commit-bits) total-committed]
+                    [(aggregate) (+ total-committed (final-size))]
+                    [else 0])))))]
+    
     [(_ id (#:-> OutShell Status)
         #:with /dev/bsout
         #:ingredients [tank tank-payload payload pwidth total-sent]
