@@ -111,7 +111,6 @@
       (cond [(bytes? source) source]
             [else (open-input-file source)]))
 
-    (displayln entry-name)
     (define /dev/zipout : Output-Port
       (case method
         ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.

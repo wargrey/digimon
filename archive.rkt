@@ -335,7 +335,7 @@
                            (cond [(>= pos maybe-sigoff) datum]
                                  [else (let ([cdir (read-zip-directory /dev/zipin)]
                                              [pos++ (file-position /dev/zipin)])
-                                         (extract (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e) #false)])
+                                         (extract (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
                                                         (zip-extract-entry /dev/zipin cdir read-entry datum))
                                                       datum)
                                                   (port-seek /dev/zipin pos++)))])))]))
@@ -370,7 +370,7 @@
      (if (input-port? /dev/zipin)
          (for/fold ([datum : seed datum0])
                    ([cdir (in-list (zip-list-directories /dev/zipin))])
-           (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e) #false)])
+           (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
                  (zip-extract-entry /dev/zipin cdir read-entry datum))
                datum))
          (call-with-input-file* /dev/zipin

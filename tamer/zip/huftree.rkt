@@ -123,7 +123,7 @@
           #:when (> bitsize 0))
       (displayln (list (codesymbol->visual-value symbol)
                        (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
-                       (~binstring codeword bitsize))))))
+                       '=> (~binstring codeword bitsize))))))
 
 (define display-lookup-table : (-> Huffman-Lookup-Table Void)
   (lambda [tbl]
@@ -144,12 +144,19 @@
                        (hash-ref symbols symkey
                                  (inst list (Pairof Any Any))))))
 
+    (displayln "cheatsheet:")
     (for ([(key value) (in-hash symbols)])
       (when (pair? value)
         (displayln (list (~s key) (cdar value)
                          (for/fold ([pads : (Listof Any) null])
                                    ([val (in-list value)])
-                           (cons (car val) pads))))))))
+                           (cons (car val) pads))))))
+
+    (displayln "offsets + sentinels:")
+    (for ([offset (in-vector (huffman-lookup-table-head-offsets tbl))]
+          [sentinel (in-vector (huffman-lookup-table-sentinels tbl))]
+          [length (in-naturals 1)])
+      (displayln (list length offset (~binstring sentinel))))))
 
 (define codesymbol->visual-value : (-> Integer Any)
   (lambda [sym]

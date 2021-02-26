@@ -113,6 +113,7 @@
 
     (define (draw-bits [nbits : Byte]) : Boolean
       (cond [(< mgz-start mgz-payload)
+             ; `integer-bytes->integer` is only faster for uint32 and uint64.
              (let ([v (unsafe-bytes-ref magazine mgz-start)])
                (set! payload (unsafe-idx+ payload (unsafe-idxlshift v pwidth))) ; <= LSB
                (set! pwidth (unsafe-idx+ pwidth 8))

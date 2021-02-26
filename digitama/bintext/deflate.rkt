@@ -346,12 +346,13 @@
       (define-values (symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength))
 
       (when (= code-length 0)
-        (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a"
-                           btype (if (not BFINAL?) #b0 #b1) ctype
-                           (~binstring (PEEK-BITS maxlength) maxlength)))
+        (let ([s (PEEK-BITS maxlength)])
+          (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a (prefix free: ~a)"
+                             btype (if (not BFINAL?) #b0 #b1) ctype
+                             (~binstring s maxlength) (~binstring (bits-reverse-uint16 s maxlength) maxlength))))
 
       (when (>= symbol-code upcodes)
-        (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a(~a >= ~a)"
+        (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a (~a >= ~a)"
                            btype (if (not BFINAL?) #b0 #b1) ctype
                            (~binstring symbol-code code-length) symbol-code upcodes))
 

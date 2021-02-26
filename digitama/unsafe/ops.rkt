@@ -7,8 +7,8 @@
 (provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
 ; for debug...
-;;(provide unsafe-vector*-ref unsafe-vector*-set! unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!)
-(provide (rename-out [vector-ref unsafe-vector*-ref] [vector-set! unsafe-vector*-set!]
+(provide unsafe-vector*-ref unsafe-vector*-set! unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!)
+#;(provide (rename-out [vector-ref unsafe-vector*-ref] [vector-set! unsafe-vector*-set!]
                      [bytes-ref unsafe-bytes-ref] [bytes-set! unsafe-bytes-set!] [bytes-copy! unsafe-bytes-copy!]))
 
 (require racket/unsafe/ops)
