@@ -95,7 +95,7 @@
   
 (define entries : Archive-Entries
   (list
-   #;(list (list (make-archive-file-entry (build-path tamer:// "pkzip.rkt") "stored/pkzip.rkt" #:methods '(stored))
+   (list (list (make-archive-file-entry (build-path tamer:// "pkzip.rkt") "stored/pkzip.rkt" #:methods '(stored))
                (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
                (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
          
@@ -103,12 +103,11 @@
                (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
    
-   
    (make-archive-directory-entries pktest "deflated/fixed" #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
    
-   #;(list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/config#0.rkt" #:methods '(deflated) #:options config#0)
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/config#1.rkt" #:methods '(deflated) #:options config#1)
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/config#9.rkt" #:methods '(deflated) #:options config#9))))
+   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options config#0)
+         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options config#1)
+         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options config#9))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

@@ -152,6 +152,8 @@
           (cond [(list? cdir) (write-directories (reverse cdir) size count)]
                 [else (values (+ size (write-zip-directory cdir /dev/zipout)) (+ count 1))]))))
 
+    #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
+
     (define eocdr : zip-end-of-central-directory
       (with-asserts ([offset index?]
                      [cdirsize index?]
