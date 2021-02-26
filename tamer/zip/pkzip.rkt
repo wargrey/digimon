@@ -118,13 +118,11 @@
 
   (collect-garbage*)
   
-  (time-apply*
-   (λ [] (call-with-output-file* pk.zip #:exists 'replace
+  (time* (call-with-output-file* pk.zip #:exists 'replace
            (λ [[/dev/zipout : Output-Port]]
              (write pk.zip /dev/zipout)
              (zip-create #:zip-root "pkzip" #:memory-level memlevel
                          /dev/zipout entries))))
-   #true)
 
   (let ([unzip (find-executable-path "unzip")])
     (cond [(path? unzip) (exit (system*/exit-code unzip "-t" pk.zip))]

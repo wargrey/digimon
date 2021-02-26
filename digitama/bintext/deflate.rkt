@@ -331,10 +331,6 @@
                                         [distance (if (> d-extra 0) (unsafe-idx+ d-base (PEEK-BITS d-extra)) d-base)])
                                    (when (> d-extra 0) (FIRE-BITS d-extra))
                                    (unsafe-lz77-inflate-into window (+ window-idx supply) distance span)
-
-                                   (when (< (- (+ window-idx supply) distance) window-size/2)
-                                     (displayln (cons distance span)))
-                                   
                                    (lazy-extract supply++)))]
                               [else #;EOB supply]))])))
 

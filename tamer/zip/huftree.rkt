@@ -44,14 +44,11 @@
 
     (lz77-deflate txt submit-huffman-symbol (assert (zip-name->maybe-strategy 'identity)))
         
-    (collect-garbage*)
-
     (define n : Index
-      (time-apply*
-       (λ [] (let ([n (huffman-refresh-minheap! frequencies huffman-tree)])
-               (huffman-minheapify! huffman-tree n)
-               n))
-       #true))
+      (time** #:title 'heapify
+              (let ([n (huffman-refresh-minheap! frequencies huffman-tree)])
+                (huffman-minheapify! huffman-tree n)
+                n)))
     
     (define heap? : (U Boolean Natural)
       (let sub-okay? : (U Boolean Natural) ([i 0])
@@ -72,48 +69,30 @@
       (echof #:fgcolor (if (not heap?) 'red 'green) "(~a . ~a)~n"
              (codesymbol->visual-value symbol) bitsize))
 
-    (collect-garbage*)
-
     (define maxlength : Byte
-      (time-apply*
-       (λ [] (begin (huffman-minheap-treefy! huffman-tree n)
-                    (huffman-minheap-count-lengths! huffman-tree n)))
-       #true))
+      (time** #:title 'treefy
+              (huffman-minheap-treefy! huffman-tree n)
+              (huffman-minheap-count-lengths! huffman-tree n)))
 
     (printf "max length: ~a~n" maxlength)
 
-    (collect-garbage*)
-      
-    (time-apply*
-     (λ [] (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
-     #true)
+    (time** #:title 'huffman-codewords-canonicalize!
+            (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
     
     (display-codeword codewords huffman-tree upcodes)
 
     (let ([lookup (huffman-make-lookup-table #:fast-lookup-bits (min 8 maxlength) #:max-bitwidth maxlength)])
-      (collect-garbage*)
-      
-      (time-apply*
-       (λ [] (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength temp-codes upcodes))
-       #true)
+      (time** #:title 'huffman-lookup-table-canonicalize!
+              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength temp-codes upcodes))
       
       (display-lookup-table lookup))))
 
 (define fixed-run : (-> Void)
   (lambda []
-    (collect-garbage*)
-    (display-codeword (time-apply* (λ [] (force huffman-fixed-literal-codewords)) #true)
-                      huffman-fixed-literal-lengths)
-
-    (collect-garbage*)
-    (display-codeword (time-apply* (λ [] (force huffman-fixed-distance-codewords)) #true)
-                      huffman-fixed-distance-lengths)
-
-    (collect-garbage*)
-    (display-lookup-table (time-apply* (λ [] (force huffman-fixed-literal-lookup-table)) #true))
-    
-    (collect-garbage*)
-    (display-lookup-table (time-apply* (λ [] (force huffman-fixed-distance-lookup-table)) #true))))
+    (display-codeword (time** #:title 'huffman-fixed-literal-codewords (force huffman-fixed-literal-codewords)) huffman-fixed-literal-lengths)
+    (display-codeword (time** #:title 'huffman-fixed-distance-codewords (force huffman-fixed-distance-codewords)) huffman-fixed-distance-lengths)
+    (display-lookup-table (time** #:title 'huffman-fixed-literal-lookup-table (force huffman-fixed-literal-lookup-table)))
+    (display-lookup-table (time** #:title 'huffman-fixed-distance-lookup-table (force huffman-fixed-distance-lookup-table)))))
 
 (define display-codeword : (->* ((Vectorof Index) (Vectorof Index)) (Index) Void)
   (lambda [codewords lengths [offset 0]]
@@ -170,13 +149,13 @@
     (define src.txt (λargv))
     
     (parameterize ([current-logger /dev/dtrace])
-      (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (define txt (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt)))
-
-                                 (if (bytes=? txt #"") (fixed-run) (tree-run txt))
-                                 
-                                 (dtrace-datum-notice eof)
-                                 (thread-wait tracer))))))))
+      (exit (time* (let ([tracer (thread (make-zip-log-trace))])
+                     (define txt (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt)))
+                     
+                     (if (bytes=? txt #"") (fixed-run) (tree-run txt))
+                     
+                     (dtrace-datum-notice eof)
+                     (thread-wait tracer)))))))
 
 (define make-zip-log-trace : (-> (-> Void))
   (lambda []

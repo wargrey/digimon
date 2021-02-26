@@ -207,7 +207,7 @@
     
     (if (not dest)
         (let-values ([(sdrowedoc total)
-                      (for/fold ([syms : (Listof (U Index (Pairof Index Index))) null] [total : Natural 0])
+                      (for/fold ([syms : (Listof LZ77-Symbol) null] [total : Natural 0])
                                 ([s in-symbols])
                         (values (cons s syms)
                                 (+ total (cond [(byte? s) 1]

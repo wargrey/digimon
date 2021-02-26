@@ -78,10 +78,10 @@
           (let ([retcode (nanomon-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
             (exit retcode))
-          (exit (time-apply* (λ [] (let ([tracer (thread (make-nanomon-log-trace))])
-                                     (begin0 (exec-shell shell (cmdopt-string->path the-name target))
-                                             (dtrace-datum-notice eof)
-                                             (thread-wait tracer))))))))))
+          (exit (time* (let ([tracer (thread (make-nanomon-log-trace))])
+                         (begin0 (exec-shell shell (cmdopt-string->path the-name target))
+                                 (dtrace-datum-notice eof)
+                                 (thread-wait tracer)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nanomon-event-echo : Dtrace-Receiver

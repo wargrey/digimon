@@ -198,7 +198,7 @@
                                           (unsafe-vector*-ref indices (+ count-idx0 bitsize))))
         
         ; head-offset[l + base] = index[l + 1] - headcode[l + 1]
-        ; yes, offsets might be negative
+        ; yes, offsets are nonpositive fixnums
         (unsafe-vector*-set! headoffs bitsize
                              (unsafe-fx- (unsafe-vector*-ref indices bitsize++)
                                          (unsafe-vector*-ref indices (+ head-idx0 bitsize++))))

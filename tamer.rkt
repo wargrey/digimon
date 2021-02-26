@@ -33,6 +33,7 @@
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
 
+(require "debug.rkt")
 (require "spec.rkt")
 (require "echo.rkt")
 (require "emoji.rkt")
@@ -345,7 +346,7 @@
                              [current-output-port /dev/tamer/stdout]
                              [tamer-story #false])
                 (define summary? (make-parameter #false))
-                (thread (thunk (dynamic-wind collect-garbage
+                (thread (thunk (dynamic-wind collect-garbage*
                                              tamer-prove
                                              (thunk (close-output-port /dev/tamer/stdout)))))
                 (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
@@ -507,7 +508,7 @@
                                              (list (elem (italic (string book#)) ~ (secref (car bookmark)))
                                                    (seclink (car bookmark) symtype #:underline? #false))))))
 
-                                   (match-define-values ((list pass misbehaved panic skip todo) (list cpu real gc))
+                                   (match-define-values ((list pass misbehaved panic skip todo) (list memory cpu real gc))
                                      (values (for/list ([meta (in-list (list 'pass 'misbehaved 'panic 'skip 'todo))])
                                                (hash-ref metrics meta (λ [] 0)))
                                              btimes))
@@ -585,17 +586,16 @@
                           (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
                                   (cons flow (vector-ref seed:info 1))))
                         
-                        (match-define-values ((list (cons summary (vector features flows))) cpu real gc)
-                          (time-apply (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
-                                                               (vector null null)
-                                                               #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                                                               #:selector (list '* '* example)))
-                                      null))
+                        (match-define-values ((list (cons summary (vector features flows))) memory cpu real gc)
+                          (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
+                                                                (vector null null)
+                                                                #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                                                                #:selector (list '* '* example)))))
                         
                         (define population (apply + (hash-values summary)))
 
                         (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
-                        (hash-set! btimes htag (map + (list cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
+                        (hash-set! btimes htag (map + (list memory cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
                         (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
                         
                         (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]

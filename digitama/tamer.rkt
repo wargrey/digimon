@@ -140,7 +140,7 @@
 (define tamer-scribble-story-times 'digimon:tamer:story:times)
 (define tamer-scribble-story-issues 'digimon:tamer:story:issues)
 
-(define tamer-empty-times (list 0 0 0))
+(define tamer-empty-times (list 0 0 0 0))
 (define tamer-empty-issues (make-immutable-hash))
 
 (define tamer-feature-reverse-merge

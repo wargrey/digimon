@@ -50,11 +50,11 @@
                    [pretty-print-columns 160]
                    [current-command-line-arguments (vector)]
                    [date-display-format 'iso-8601])
-      (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                                   (zipinfo options file.zip))
-                                 (dtrace-datum-notice eof)
-                                 (thread-wait tracer))))))))
+      (exit (time* (let ([tracer (thread (make-zip-log-trace))])
+                     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
+                       (zipinfo options file.zip))
+                     (dtrace-datum-notice eof)
+                     (thread-wait tracer)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-zip-log-trace : (-> (-> Void))

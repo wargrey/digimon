@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require racket/list)
 (require racket/file)
 (require racket/path)
@@ -13,11 +15,12 @@
 
 (require digimon/digitama/bintext/lz77)
 (require digimon/digitama/bintext/zipconfig)
-(require digimon/digitama/unsafe/ops)
 
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void))
+
 (define lz77-strategy : (-> Symbol String String String (List Symbol Byte Index))
   (lambda [option str.name str.#0 str.#n]
     (define strategy : Symbol (cmdopt-string->symbol option str.name))
@@ -44,7 +47,7 @@
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define lz77-run : (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void)
+(define lz77-run : LZ77-Run
   (lambda [txt strategies bits min-match farthest filtered]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
@@ -81,16 +84,11 @@
 
       (collect-garbage*)
 
-      (define memory0 : Natural (current-memory-use 'cumulative))
-      (define-values (&csize cpu real gc)
-        (time-apply (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
-                                        txt (if (lz77-verbose) display-symbol record-symbol) strategy))
-                    null))
+      (define-values (csize memory cpu real gc)
+        (time-apply* (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
+                                         txt (if (lz77-verbose) display-symbol record-symbol) strategy))))
       
       (when (lz77-verbose) (newline))
-      
-      (define csize : Index (car &csize))
-      (define memory : Integer (- (current-memory-use 'cumulative) memory0))
       (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
       
       (let ([ok? (bytes=? txt ?txt)])
@@ -118,8 +116,8 @@
         (newline)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define main : (-> (U (Listof String) (Vectorof String)) Nothing)
-  (lambda [argument-list]
+(define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
+  (lambda [argument-list [run lz77-run]]
     (define-values (options λargv) (parse-lz77-flags argument-list #:help-output-port (current-output-port)))
     (define src.txt (λargv))
 
@@ -144,18 +142,18 @@
               (map zip-run-preference (range 1 5))))
     
     (parameterize ([current-logger /dev/dtrace])
-      (exit (time-apply* (λ [] (let ([tracer (thread (make-zip-log-trace))])
-                                 (displayln (if (file-exists? src.txt) (simple-form-path src.txt) src.txt))
-                                 
-                                 (lz77-run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
-                                           (if (pair? user-strategies) user-strategies fallback-strategies)
-                                           (or (lz77-flags-B options) lz77-default-hash-bits)
-                                           (lz77-flags-m options)
-                                           (or (lz77-flags-F options) lz77-default-farthest)
-                                           (or (lz77-flags-f options) 0))
-                                 
-                                 (dtrace-datum-notice eof)
-                                 (thread-wait tracer))))))))
+      (exit (time* (let ([tracer (thread (make-zip-log-trace))])
+                     (displayln (if (file-exists? src.txt) (simple-form-path src.txt) src.txt))
+                     
+                     (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
+                          (if (pair? user-strategies) user-strategies fallback-strategies)
+                          (or (lz77-flags-B options) lz77-default-hash-bits)
+                          (lz77-flags-m options)
+                          (or (lz77-flags-F options) lz77-default-farthest)
+                          (or (lz77-flags-f options) 0))
+                     
+                     (dtrace-datum-notice eof)
+                     (thread-wait tracer)))))))
 
 (define make-zip-log-trace : (-> (-> Void))
   (lambda []
@@ -171,5 +169,6 @@
           [(zip-run-strategy? s) (format "~a:~a" name (zip-run-strategy-length s))]
           [else (symbol->string name)])))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (main (current-command-line-arguments)))
+  (lz77-main (current-command-line-arguments)))

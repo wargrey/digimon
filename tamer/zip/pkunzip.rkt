@@ -13,13 +13,11 @@
 
   (date-display-format 'iso-8601)
   
-  (time-apply*
-   (λ [] (call-with-output-file* pk.zip #:exists 'replace
+  (time* (call-with-output-file* pk.zip #:exists 'replace
            (λ [[/dev/zipout : Output-Port]]
              (write pk.zip /dev/zipout)
              (zip-create #:zip-root "pkzip" #:memory-level memlevel
                          /dev/zipout entries))))
-   #true)
 
   (printf "Archive: ~a~n" pk.zip)
 
