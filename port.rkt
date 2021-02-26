@@ -145,13 +145,8 @@
 
       (write-char #\space /dev/hexout)
       (write-char #\| /dev/hexout)
-      (for ([b (in-bytes magazine 0 n)])
-        (define ch (integer->char b))
-        (cond [(char-graphic? ch) (write-char ch /dev/hexout)]
-              [(char-whitespace? ch) (write-char #\space /dev/hexout)]
-              [else (write-char #\. /dev/hexout)]))
-      (when (> diff 0)
-        (write-string (~space diff) /dev/hexout))
+      (for ([b (in-bytes magazine 0 n)]) (write-char (~char b #\.) /dev/hexout))
+      (when (> diff 0) (write-string (~space diff) /dev/hexout))
       (write-char #\| /dev/hexout)
 
       (unless (not dec-cursor?)

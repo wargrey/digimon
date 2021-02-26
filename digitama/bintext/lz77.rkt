@@ -64,14 +64,15 @@
 
 (define-syntax (lz77-insert-string stx)
   (syntax-case stx []
-    [(_ heads prevs hash0 window start end hash-span shift mask nil)
+    [(_ heads prevs hash0 window ins-start ins-end safer-end hash-span shift mask nil)
      (syntax/loc stx
-       (let insert : Index ([idx : Index start]
-                            [hash : Index hash0])
-         (cond [(>= idx end) hash]
-               [else (let-values ([(h++ ?pointer) (lz77-accumulative-hash heads hash window idx hash-span shift mask)])
-                       (lz77-update-hash heads prevs h++ ?pointer idx nil)
-                       (insert (unsafe-idx+ idx 1) h++))])))]))
+       (let ([end (min safer-end ins-end)])
+         (let insert : Index ([idx : Index ins-start]
+                              [hash : Index hash0])
+           (cond [(>= idx end) hash]
+                 [else (let-values ([(h++ ?pointer) (lz77-accumulative-hash heads hash window idx hash-span shift mask)])
+                         (lz77-update-hash heads prevs h++ ?pointer idx nil)
+                         (insert (unsafe-idx+ idx 1) h++))]))))]))
 
 (define-syntax (define-lz77-deflate/hash stx)
   (syntax-case stx [:]
@@ -137,6 +138,7 @@
                                   (when (< d-pos d-end)
                                     (unsafe-bytes-set! dest d-pos sym)
                                     (copy-runlength:1 (unsafe-idx+ d-pos 1)))))
+
                               (let* ([s-idx (unsafe-idx- d-idx distance)]
                                      [s-end (unsafe-idx+ s-idx span)])
                                 (cond [(<= s-end d-idx) (unsafe-bytes-copy! dest d-idx dest s-idx s-end)]
@@ -254,7 +256,7 @@
                   (cond [(> span insert-limit) (deflate hash++ (unsafe-idx+ m-idx span) d-idx++)]
                         [else (let ([ins-start (unsafe-idx+ m-idx 1)]
                                     [ins-end (unsafe-idx+ m-idx span)])
-                                (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end hash-span hash-shift hash-mask nil)
+                                (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end reasonable-end hash-span hash-shift hash-mask nil)
                                   ins-end d-idx++))]))))
           
           (values m-idx d-idx)))))
@@ -290,7 +292,7 @@
                       (let* ([p-idx (unsafe-idx- m-idx 1)]
                              [p-idx++ (unsafe-idx+ p-idx p-span)])
                         (symbol-submit p-distance p-span d-idx)
-                        (lz77-insert-string heads prevs p-hash window p-idx p-idx++ hash-span hash-shift hash-mask nil)
+                        (lz77-insert-string heads prevs p-hash window p-idx p-idx++ reasonable-end hash-span hash-shift hash-mask nil)
                         (deflate p-hash p-idx++ (unsafe-idx+ d-idx 1) invalid-span 0 hash))]
                      [(or (< self-span minimum/filtered-match)
                           (and (= self-span min-match) ; throw away short matches with long distances
@@ -308,7 +310,7 @@
                               [else d-idx]))
                       (let ([m-idx++ (unsafe-idx+ m-idx self-span)])
                         (symbol-submit (unsafe-idx- m-idx pointer) self-span self-idx)
-                        (lz77-insert-string heads prevs hash++ window m-idx m-idx++ hash-span hash-shift hash-mask nil)
+                        (lz77-insert-string heads prevs hash++ window m-idx m-idx++ reasonable-end hash-span hash-shift hash-mask nil)
                         (deflate hash++ m-idx++ (unsafe-idx+ self-idx 1) invalid-span 0 hash))]
                      [(> p-span 0)
                       (let ([p-idx (unsafe-idx- m-idx 1)])
@@ -319,8 +321,7 @@
             
             [(> p-span 0)
              (symbol-submit p-distance p-span d-idx)
-             ; NOTE: it should be the `p-idx` that added by the `p-span`, but `m-idx` isn't harmful here since we've already at the end
-             (values (unsafe-idx+ m-idx p-span) (unsafe-idx+ d-idx 1))]
+             (values (unsafe-idx+ (unsafe-idx- m-idx 1) p-span) (unsafe-idx+ d-idx 1))]
             
             [else (values m-idx d-idx)]))))
 
@@ -400,12 +401,12 @@
                           ; inserting string here, hashing is actually independent of the backward stepping
                           (let ([ins-start (unsafe-idx+ m-idx 1)]
                                 [ins-end (unsafe-idx+ m-idx self-span)])
-                            (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end hash-span hash-shift hash-mask nil)
+                            (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end reasonable-end hash-span hash-shift hash-mask nil)
                               ins-end self-idx self-span++ distance)))]
                      [(<= self-span insert-limit) ; inserting string here, hashing is actually independent of the backward stepping
                       (let ([ins-start (unsafe-idx+ m-idx 1)]
                             [ins-end (unsafe-idx+ m-idx self-span)])
-                        (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end hash-span hash-shift hash-mask nil)
+                        (deflate (lz77-insert-string heads prevs hash++ window ins-start ins-end reasonable-end hash-span hash-shift hash-mask nil)
                           ins-end d-idx self-span (unsafe-idx- m-idx pointer)))]
                      [else (deflate hash++ (unsafe-idx+ m-idx self-span) d-idx self-span (unsafe-idx- m-idx pointer))]))]
             
@@ -444,11 +445,16 @@
 ; corresponds to `zlib`'s huffman-only strategy, also served as the fallback and helper
 (define lz77-deflate/identity : (->* (Bytes LZ77-Submit-Symbol) (Index Index Index) Index)
   (lambda [window symbol-submit [start 0] [end (bytes-length window)] [d-idx0 0]]
-    (let deflate ([m-idx : Index start]
-                  [d-idx : Index d-idx0])
-      (cond [(>= m-idx end) d-idx]
-            [else (symbol-submit (unsafe-bytes-ref window m-idx) d-idx)
-                  (deflate (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1))]))))
+    (if (= start d-idx0)
+        (let deflate/1 ([idx : Index start])
+          (cond [(>= idx end) idx]
+                [else (symbol-submit (unsafe-bytes-ref window idx) idx)
+                      (deflate/1 (unsafe-idx+ idx 1))]))
+        (let deflate/2 ([m-idx : Index start]
+                        [d-idx : Index d-idx0])
+          (cond [(>= m-idx end) d-idx]
+                [else (symbol-submit (unsafe-bytes-ref window m-idx) d-idx)
+                      (deflate/2 (unsafe-idx+ m-idx 1) (unsafe-idx+ d-idx 1))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-backref-span : (-> Bytes Index Index Index Index)

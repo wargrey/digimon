@@ -86,6 +86,22 @@
       (hash-ref! space n
                  (λ [] (make-string n #\space))))))
 
+(define ~char : (case-> [(U Char Integer) String -> String]
+                        [(U Char Integer) Char -> Char]
+                        [(U Char Integer) -> String])
+  (case-lambda
+    [(ch) (~char ch ".")]
+    [(c fallback)
+     (define ch : Char (if (char? c) c (integer->char c)))
+     
+     (if (string? fallback)
+         (cond [(char-graphic? ch) (string ch)]
+               [(char-whitespace? ch) " "]
+               [else fallback])
+         (cond [(char-graphic? ch) ch]
+               [(char-whitespace? ch) #\space]
+               [else fallback]))]))
+
 (define ~string : (-> String (Listof Any) String)
   (lambda [msgfmt argl]
     (if (null? argl) msgfmt (apply format msgfmt argl))))

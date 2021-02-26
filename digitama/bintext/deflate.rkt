@@ -152,35 +152,34 @@
         (set! lz77-payload 0)))
     
     (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean] [flush-lz77? : Boolean]) : Void
-      (define written-size : Natural
-        (cond [(not no-compression?)
-               (when (> payload 0)
-                 ;; NOTE
-                 ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
-                 ;   but it will never write the block with a FINAL flag depsite the value of `BFINAL`.
-                 ; Instead, another empty final block will be appended if there happens to be no more
-                 ;   content after flushing last full lz77 block. 
+      (cond [(not no-compression?)
+             (when (> payload 0)
+               ;; NOTE
+               ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
+               ;   but it will never write the block with a FINAL flag depsite the value of `BFINAL`.
+               ; Instead, another empty final block will be appended if there happens to be no more
+               ;   content after flushing last full lz77 block. 
 
-                 ;; TODO: sliding the window
-                 (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
-                               (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
-                               strategy 0 payload))
-
-               (cond [(not (or BFINAL flush-lz77?)) 0]
-                     [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload) 0]
-                     [(and BFINAL) (huffman-write-empty-block! BFINAL)]
-                     [else 0])]
-              [(> payload 0) (huffman-write-stored-block! raw-block BFINAL 0 payload)]
-              [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! BFINAL)]
-              [else 0]))
+               ;; TODO: sliding the window
+               (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
+                             (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
+                             strategy 0 payload))
+             
+             (cond [(not (or BFINAL flush-lz77?)) 0]
+                   [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload) 0]
+                   [(and BFINAL) (huffman-write-empty-block! BFINAL)]
+                   [else 0])]
+            [(> payload 0) (huffman-write-stored-block! raw-block BFINAL 0 payload)]
+            [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! BFINAL)]
+            [else 0])
       
       (when (> raw-payload 0)
         (set! raw-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
-      (define src-size : Integer (- end start))
+      (define received : Integer (- end start))
       
-      (cond [(<= src-size 0)
+      (cond [(<= received 0)
              ;;; NOTE
              ; By design, a terminate block would be inserted when flushing the port manually,
              ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is `#false`;
@@ -192,18 +191,18 @@
              (raw-block-flush (not non-block/buffered?) raw-payload #true #true)]
 
             [else ; repeatedly fill the raw block and flush it if full.
-             (let deflate ([src-size : Natural src-size]
-                           [start : Natural start]
-                           [available : Index (unsafe-idx- raw-blocksize raw-payload)])
-               (if (< src-size available)
-                   (begin
-                     (bytes-copy! raw-block raw-payload bs start end)
-                     (set! raw-payload (unsafe-idx+ raw-payload src-size)))
-                   (let ([end (+ start available)])
-                     (bytes-copy! raw-block raw-payload bs start end)
-                     (raw-block-flush #false raw-blocksize #false #false)
-                     (when (> src-size available)
-                       (deflate (unsafe-idx- src-size available) end raw-blocksize)))))])
+             (let write-raw ([recv : Natural received]
+                             [start : Natural start]
+                             [available : Index (unsafe-idx- raw-blocksize raw-payload)])
+              (if (>= recv available)
+                  (let ([start++ (unsafe-idx+ start available)])
+                    (unsafe-bytes-copy! raw-block raw-payload bs start start++)
+                    (raw-block-flush #false raw-blocksize #false #false)
+                    (when (> recv available)
+                      (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
+                  (begin
+                    (unsafe-bytes-copy! raw-block raw-payload bs start end)
+                    (set! raw-payload (unsafe-idx+ raw-payload recv)))))])
 
       ; Conventionally, non-block writing implies flushing
       (unless (not non-block/buffered?)
@@ -224,8 +223,7 @@
     
     (make-output-port name always-evt block-write block-close
                       #false port-always-write-evt #false
-                      (lambda () (port-next-location /dev/zipout))
-                      (lambda () (port-count-lines! /dev/zipout))
+                      #false void
                       (λ [] (add1 ($SHELL 'aggregate)))
                       #false)))
 
@@ -309,14 +307,14 @@
     (define (read-huffman-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean] [type : Symbol]) : Index
       (define request : Index (unsafe-idx- end start))
       (define supply : Nonnegative-Fixnum
-        (let lazy-decode ([supply : Nonnegative-Fixnum stock])
+        (let lazy-extract ([supply : Nonnegative-Fixnum stock])
           (cond [(>= supply request) supply]
                 [else (let ([misc (read-huffman-symbol literal-table huffman-fixed-literal-maxlength upcodes BFINAL? type 'literal)])
                         (cond [(< misc EOB) ; pure literals
                                (let ([supply++ (+ supply 1)])
                                  (when (> (+ window-idx supply++) window-size) (huffman-slide-window supply))
                                  (unsafe-lz77-inflate-into window (+ window-idx supply) misc)
-                                 (lazy-decode supply++))]
+                                 (lazy-extract supply++))]
                               [(> misc EOB) ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
                                (let* ([s-idx (unsafe-idx- misc backref-span-offset)]
                                       [s-base (unsafe-vector*-ref huffman-backref-bases s-idx)]
@@ -331,7 +329,7 @@
                                         [distance (if (> d-extra 0) (unsafe-idx+ d-base (PEEK-BITS d-extra)) d-base)])
                                    (when (> d-extra 0) (FIRE-BITS d-extra))
                                    (unsafe-lz77-inflate-into window (+ window-idx supply) distance span)
-                                   (lazy-decode supply++)))]
+                                   (lazy-extract supply++)))]
                               [else #;EOB supply]))])))
 
       (let ([consumed (min request supply)])
@@ -385,9 +383,7 @@
       (make-input-port (or name (object-name /dev/zipin))
                        deflate-read! #false
                        (λ [] (when close-orig? (close-input-port /dev/zipin)))
-                       #false #false
-                       (lambda () (port-next-location /dev/zipin))
-                       (lambda () (port-count-lines! /dev/zipin))
+                       #false #false #false void
                        (λ [] (add1 ($SHELL 'aggregate)))
                        #false))
 

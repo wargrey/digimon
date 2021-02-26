@@ -95,7 +95,7 @@
 ;; Canonicalize huffman codewords of lengths stored in `lengths` from `start` to `end`,
 ;    with `nextcodes` which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
-  (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength) 0)] [start 0] [end (vector-length lengths)]]
+  (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (+ maxlength maxlength 1) 0)] [start 0] [end (vector-length lengths)]]
     (define count-idx0 : Index maxlength) ; length counts are temporary, and accommodated in the 2nd half of the `nextcodes`
 
     ;(vector-fill! codewords 0)
@@ -123,7 +123,7 @@
                                                   (unsafe-vector*-ref nextcodes (+ count-idx0 bitsize)))
                                                1))
         (initialize-nextcodes bitsize++)))
-
+    
     ;;; NOTE
     ; The codewords are actually not huffman codes at all, nevertheless, they work equivalently,
     ;   as the huffman codes is a subset of certain minimum redundancy codes.
@@ -142,7 +142,7 @@
 ;; Canonicalize the lookup table of lengths stored in `lengths` from `start` to `end` for decoding huffman codewords,
 ;    with `indices`, which accommodates temporary data, just in case clients don't want it to be allocated every time.
 (define huffman-lookup-table-canonicalize! : (->* (Huffman-Lookup-Table (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
-  (lambda [table lengths maxlength [indices ((inst make-vector Index) (* maxlength 3) 0)] [start 0] [end (vector-length lengths)]]
+  (lambda [table lengths maxlength [indices ((inst make-vector Index) (add1 (* maxlength 3)) 0)] [start 0] [end (vector-length lengths)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
     (define symbols : (Mutable-Vectorof Index) (huffman-lookup-table-symbols table))
     (define headoffs : (Mutable-Vectorof Index) (huffman-lookup-table-head-offsets table))

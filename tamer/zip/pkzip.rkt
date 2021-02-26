@@ -61,7 +61,7 @@
           (let ([bname (string->symbol (path->string name))])
             (case bname
               [(block-aligned.λsh) config#id]
-              [(window-sliding.λsh) config#9]
+              [(window-sliding.λsh) config#1]
               [(backref) (list 'run 'fixed)]
               [else (cadr config)]))))
 
