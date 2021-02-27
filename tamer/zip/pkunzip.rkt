@@ -9,15 +9,13 @@
   
   (require "pkzip.rkt")
 
-  (collect-garbage*)
-
   (date-display-format 'iso-8601)
   
-  (time* (call-with-output-file* pk.zip #:exists 'replace
-           (λ [[/dev/zipout : Output-Port]]
-             (write pk.zip /dev/zipout)
-             (zip-create #:zip-root "pkzip" #:memory-level memlevel
-                         /dev/zipout entries))))
+  (time** (call-with-output-file* pk.zip #:exists 'replace
+            (λ [[/dev/zipout : Output-Port]]
+              (write pk.zip /dev/zipout)
+              (zip-create #:zip-root "pkzip" #:memory-level memlevel
+                          /dev/zipout entries))))
 
   (printf "Archive: ~a~n" pk.zip)
 

@@ -15,7 +15,7 @@
 (require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type PKZIP-Strategy (U Index Symbol ZIP-Strategy False))
+(define-type PKZIP-Strategy (U (Pairof Symbol Index) Index Symbol ZIP-Strategy False))
 
 (define pkzip-compression-methods : (Listof ZIP-Compression-Method) (list 'stored 'deflated))
 (define pkzip-digimon-version : Byte 62)
@@ -55,6 +55,8 @@
             (cond [(zip-strategy? opt) opt]
                   [(index? opt) (zip-level->maybe-strategy opt)]
                   [(symbol? opt) (zip-name->maybe-strategy opt)]
+                  [(and (pair? opt) (symbol? (car opt)) (index? (cdr opt)))
+                   (zip-name->maybe-strategy (car opt) (cdr opt))]
                   [else #false]))
           (zip-default-preference)))
 
@@ -162,7 +164,8 @@
                                            #:entry-count count #:entry-total count
                                            #:comment (or comment ""))))
 
-    (void (write-zip-end-of-central-directory eocdr /dev/zipout))))
+    (write-zip-end-of-central-directory eocdr /dev/zipout)
+    (flush-output /dev/zipout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-folder-entry? : (-> ZIP-Directory Boolean)

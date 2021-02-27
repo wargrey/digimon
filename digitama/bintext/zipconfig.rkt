@@ -29,13 +29,13 @@
       [(0)     (zip-identity-preference)]
       [else #false])))
 
-(define zip-name->maybe-strategy : (-> Symbol (Option ZIP-Strategy))
-  (lambda [name]
+(define zip-name->maybe-strategy : (->* (Symbol) ((Option Index)) (Option ZIP-Strategy))
+  (lambda [name [l #false]]
     (case name
-      [(normal fast)           (zip-normal-preference 1)]
-      [(lazy slow)             (zip-lazy-preference 6)]
+      [(normal fast)           (zip-normal-preference (or (and (zip-compression-level? l) l) 1))]
+      [(lazy slow)             (zip-lazy-preference (or (and (zip-compression-level? l) l) 6))]
       [(default backward)      (zip-default-preference)]
-      [(rle run)               (zip-run-preference 1)]
+      [(rle run)               (zip-run-preference (max (or l 1) 1))]
       [(plain fastest)         (zip-plain-preference)]
       [(identity huffman-only) (zip-identity-preference)]
       [else #false])))

@@ -48,13 +48,12 @@
 
     (parameterize ([current-logger /dev/dtrace]
                    [pretty-print-columns 160]
-                   [current-command-line-arguments (vector)]
                    [date-display-format 'iso-8601])
-      (exit (time* (let ([tracer (thread (make-zip-log-trace))])
-                     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                       (zipinfo options file.zip))
-                     (dtrace-datum-notice eof)
-                     (thread-wait tracer)))))))
+      (exit (time** (let ([tracer (thread (make-zip-log-trace))])
+                      (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
+                        (zipinfo options file.zip))
+                      (dtrace-datum-notice eof)
+                      (thread-wait tracer)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-zip-log-trace : (-> (-> Void))
@@ -125,9 +124,7 @@
       (define-values (csize rsize) (zip-content-size* file.zip))
       (printf "~a, ~a uncompressed, ~a compressed: ~a~n"
               (~n_w (length zip-entries) "entry") (~size rsize) (~size csize)
-              (zip-cfactor csize rsize 1)))
-
-    (exit 0)))
+              (zip-cfactor csize rsize 1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-cfactor : (->* (Natural Natural) (Byte) String)

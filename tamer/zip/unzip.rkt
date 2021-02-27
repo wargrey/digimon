@@ -12,8 +12,8 @@
 (require digimon/dtrace)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-cmdlet-option zip-flags #: Zip-Flags
-  #:program 'zipinfo
+(define-cmdlet-option unzip-flags #: UnZip-Flags
+  #:program 'unzip
   #:args [file.zip . entry]
 
   #:once-each
@@ -26,7 +26,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
-    (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
+    (define-values (options λargv) (parse-unzip-flags argument-list #:help-output-port (current-output-port)))
     (define-values (file.zip entries) (λargv))
 
     (parameterize ([current-logger /dev/dtrace]
@@ -37,9 +37,9 @@
                      (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                        (define hexdump
                          (make-archive-hexdump-reader
-                          #:binary? (zip-flags-b options)
-                          #:width (or (zip-flags-w options)
-                                      (if (zip-flags-b options) 16 32))))
+                          #:binary? (unzip-flags-b options)
+                          #:width (or (unzip-flags-w options)
+                                      (if (unzip-flags-b options) 16 32))))
                        
                        (cond [(null? entries) (zip-extract file.zip hexdump)]
                              [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])

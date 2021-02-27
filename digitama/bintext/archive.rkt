@@ -47,7 +47,7 @@
                                               ((Option String) #:configure (Option Archive-Directory-Configure) #:keep-directory? Boolean
                                                                #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                               Archive-Entries)
-  (lambda [#:configure [configure defualt-archive-ignore-configure] #:keep-directory? [mkdir? #true]
+  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true]
            #:methods [methods null] #:options [options null] #:comment [comment #false]
            srcdir [root-name #false]]
     (define rootdir : Path (archive-path->path srcdir))

@@ -5,7 +5,7 @@
 (provide Archive-Directory-Configure Archive-Entry-Config make-archive-directory-entries)
 (provide make-archive-chained-configure make-archive-ignore-configure defualt-archive-ignore-configure)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
-(provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference)
+(provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference zip-special-preference)
 (provide zip-identity-preference zip-plain-preference zip-backward-preference zip-run-preference)
 (provide ZIP-Entry zip-entry? sizeof-zip-entry)
 (provide ZIP-Directory zip-directory? sizeof-zip-directory)
@@ -275,7 +275,11 @@
            #:strategy [strategy #false] #:memory-level [memlevel 8]
            out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)])
-      (define /dev/zipout : Output-Port (if (output-port? out.zip) out.zip (open-output-file out.zip)))
+      (define /dev/zipout : Output-Port
+        (cond [(output-port? out.zip) out.zip]
+              [else (begin (make-parent-directory* out.zip)
+                           (open-output-file out.zip #:exists 'truncate/replace))]))
+      
       (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
       (define seekable? : Boolean (port-random-access? /dev/zipout))
       (define crc-pool : Bytes (make-bytes 4096))

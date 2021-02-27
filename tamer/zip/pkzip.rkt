@@ -115,14 +115,12 @@
   
   (require digimon/dtrace)
   (require digimon/debug)
-
-  (collect-garbage*)
   
-  (time* (call-with-output-file* pk.zip #:exists 'replace
-           (λ [[/dev/zipout : Output-Port]]
-             (write pk.zip /dev/zipout)
-             (zip-create #:zip-root "pkzip" #:memory-level memlevel
-                         /dev/zipout entries))))
+  (time** (call-with-output-file* pk.zip #:exists 'replace
+            (λ [[/dev/zipout : Output-Port]]
+              (write pk.zip /dev/zipout)
+              (zip-create #:zip-root "pkzip" #:memory-level memlevel
+                          /dev/zipout entries))))
 
   (let ([unzip (find-executable-path "unzip")])
     (cond [(path? unzip) (exit (system*/exit-code unzip "-t" pk.zip))]

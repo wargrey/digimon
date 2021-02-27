@@ -82,38 +82,39 @@
         
       (when (lz77-verbose) (printf ">>> [strategy: ~a]~n" desc))
 
-      (collect-garbage*)
-
       (define-values (csize memory cpu real gc)
-        (time-apply* (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
+        (time-apply** (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
                                          txt (if (lz77-verbose) display-symbol record-symbol) strategy))))
       
       (when (lz77-verbose) (newline))
       (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
       
-      (let ([ok? (bytes=? txt ?txt)])
-        (when (and (not ok?) (lz77-verbose))
-          (echof "==>~n~a~n" ?txt #:fgcolor 'red))
+      (lz77-display-summary desc txt ?txt csize rsize widths memory cpu real gc)
+      (newline))))
 
-        (define summary : (Listof String)
-          (list (if (not ok?) "F" "T")
-                desc (zip-size csize) (zip-cfactor csize rsize 2)
-                (~gctime cpu) (~gctime real) (~gctime gc) (~size memory)))
-
-        (define color : Term-Color (if (not ok?) 'red 'green))
-          
-        (for ([col (in-list summary)]
-              [wid (in-list widths)]
-              [idx (in-naturals)])
-          (when (> idx 0) (display #\space))
-          
-          (let ([numerical? (> idx 1)])
-            (echof #:fgcolor color
-                   (~a #:align (if numerical? 'right 'left)
-                       #:min-width wid
-                       col))))
-
-        (newline)))))
+(define lz77-display-summary : (-> String Bytes Bytes Index Index (Listof Index) Integer Natural Natural Natural Void)
+  (lambda [desc txt ?txt csize rsize widths memory cpu real gc]
+    (let ([ok? (bytes=? txt ?txt)])
+      (when (and (not ok?) (lz77-verbose))
+        (echof "==>~n~a~n" ?txt #:fgcolor 'red))
+      
+      (define summary : (Listof String)
+        (list (if (not ok?) "F" "T")
+              desc (zip-size csize) (zip-cfactor csize rsize 2)
+              (~gctime cpu) (~gctime real) (~gctime gc) (~size memory)))
+      
+      (define color : Term-Color (if (not ok?) 'red 'green))
+      
+      (for ([col (in-list summary)]
+            [wid (in-list widths)]
+            [idx (in-naturals)])
+        (when (> idx 0) (display #\space))
+        
+        (let ([numerical? (> idx 1)])
+          (echof #:fgcolor color
+                 (~a #:align (if numerical? 'right 'left)
+                     #:min-width wid
+                     col)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
