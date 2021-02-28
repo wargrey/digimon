@@ -12,6 +12,7 @@
 (require digimon/format)
 (require digimon/date)
 
+(require digimon/echo)
 (require digimon/debug)
 (require digimon/dtrace)
 
@@ -60,6 +61,32 @@
   (lambda []
     (make-dtrace-loop (if (zip-verbose) 'trace 'info))))
 
+(define zip-entry-info : (-> (U ZIP-Directory ZIP-Entry) ZipInfo-Flags (Listof String))
+  (lambda [ze opts]
+    (filter string?
+            (if (zip-directory? ze)
+                (let-values ([(csize rsize) (values (zip-directory-csize ze) (zip-directory-rsize ze))])
+                  (list (zip-version (zip-directory-create-version ze)) (symbol->immutable-string (zip-directory-create-system ze))
+                        (zip-version (zip-directory-extract-version ze)) (symbol->immutable-string (zip-directory-extract-system ze))
+                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
+                        (symbol->immutable-string (zip-directory-compression ze))
+                        (zip-datetime (zip-directory-mdate ze) (zip-directory-mtime ze) (zipinfo-flags-T opts))
+                        (zip-directory-filename ze)))
+                (let-values ([(csize rsize) (values (zip-entry-csize ze) (zip-entry-rsize ze))])
+                  (list (zip-version (zip-entry-extract-version ze)) (symbol->immutable-string (zip-entry-extract-system ze))
+                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
+                        (symbol->immutable-string (zip-entry-compression ze))
+                        (zip-datetime (zip-entry-mdate ze) (zip-entry-mtime ze) (zipinfo-flags-T opts))
+                        (zip-entry-filename ze)))))))
+
+(define zip-display-tail-info : (->* (Path-String) (Term-Color) Void)
+  (lambda [zip [fgc #false]]
+    (define-values (csize rsize) (zip-content-size* zip))
+    
+    (echof "~a, ~a uncompressed, ~a compressed: ~a~n" #:fgcolor fgc
+           (~n_w (length (zip-list-directories* zip)) "entry") (~size rsize) (~size csize)
+           (zip-cfactor csize rsize 1))))
+
 (define zipinfo : (-> ZipInfo-Flags String Any)
   (lambda [opts file.zip]
     (define zip-entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
@@ -80,23 +107,13 @@
               (~size (file-size file.zip)) (length zip-entries)))
 
     (define entries : (Listof (Listof String))
-      (cond [(zipinfo-flags-2 opts) (map (inst list String) (zip-list zip-entries))]
-            [else (for/list ([ze (in-list zip-entries)])
-                    (filter string?
-                            (if (zip-directory? ze)
-                                (let-values ([(csize rsize) (values (zip-directory-csize ze) (zip-directory-rsize ze))])
-                                  (list (zip-version (zip-directory-create-version ze)) (symbol->immutable-string (zip-directory-create-system ze))
-                                        (zip-version (zip-directory-extract-version ze)) (symbol->immutable-string (zip-directory-extract-system ze))
-                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
-                                        (symbol->immutable-string (zip-directory-compression ze))
-                                        (zip-datetime (zip-directory-mdate ze) (zip-directory-mtime ze) (zipinfo-flags-T opts))
-                                        (zip-directory-filename ze)))
-                                (let-values ([(csize rsize) (values (zip-entry-csize ze) (zip-entry-rsize ze))])
-                                  (list (zip-version (zip-entry-extract-version ze)) (symbol->immutable-string (zip-entry-extract-system ze))
-                                        (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
-                                        (symbol->immutable-string (zip-entry-compression ze))
-                                        (zip-datetime (zip-entry-mdate ze) (zip-entry-mtime ze) (zipinfo-flags-T opts))
-                                        (zip-entry-filename ze))))))]))
+      (cond [(zipinfo-flags-2 opts)
+             (map (inst list String) (zip-list zip-entries))]
+            [(or (zipinfo-flags-s opts) (zipinfo-flags-m opts) (zipinfo-flags-l opts)
+                 (not (or (zipinfo-flags-h opts) (zipinfo-flags-t opts))))
+             (for/list ([ze (in-list zip-entries)])
+               (zip-entry-info ze opts))]
+            [else null]))
 
     (when (> (string-length (car zip-comments)) 0)
       (displayln (car zip-comments)))
@@ -121,10 +138,7 @@
                       (newline)))]))
 
     (when (zipinfo-flags-t opts)
-      (define-values (csize rsize) (zip-content-size* file.zip))
-      (printf "~a, ~a uncompressed, ~a compressed: ~a~n"
-              (~n_w (length zip-entries) "entry") (~size rsize) (~size csize)
-              (zip-cfactor csize rsize 1)))))
+      (zip-display-tail-info file.zip))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-cfactor : (->* (Natural Natural) (Byte) String)

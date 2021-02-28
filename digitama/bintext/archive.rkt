@@ -47,11 +47,10 @@
                                               ((Option String) #:configure (Option Archive-Directory-Configure) #:keep-directory? Boolean
                                                                #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                               Archive-Entries)
-  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true]
+  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true] #:strip-root [strip-root (current-directory)]
            #:methods [methods null] #:options [options null] #:comment [comment #false]
            srcdir [root-name #false]]
     (define rootdir : Path (archive-path->path srcdir))
-    (define ziproot : Path-String (or root-name (dirname rootdir)))
     
     (if (directory-exists? rootdir)
         (let make-subentries ([parent : Path rootdir]
@@ -68,12 +67,12 @@
                           (let ([es (make-subentries self-path (directory-list self-path #:build? #false) null config)])
                             (make-subentries parent rest (cons es seirtne) pconfig))]
                          [else
-                          (let* ([name (archive-entry-reroot self-path rootdir ziproot)]
+                          (let* ([name (archive-entry-reroot self-path strip-root root-name)]
                                  [e (make-archive-file-entry self-path name #:methods (car config) #:options (cadr config) #:comment (caddr config))])
                             (make-subentries parent rest (cons e seirtne) pconfig))]))]
                 [(and mkdir?)
                  (cons (make-archive-file-entry #:methods (car pconfig) #:options (cadr pconfig) #:comment (caddr pconfig)
-                                                (path->directory-path parent) (archive-entry-reroot parent rootdir ziproot))
+                                                (path->directory-path parent) (archive-entry-reroot parent strip-root root-name))
                        (reverse seirtne))]
                 [else (reverse seirtne)]))
 

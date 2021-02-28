@@ -7,8 +7,13 @@
 (require digimon/cmdopt)
 (require digimon/date)
 
+(require digimon/echo)
 (require digimon/debug)
 (require digimon/dtrace)
+(require digimon/format)
+
+(require digimon/digitama/exec)
+(require digimon/digitama/bintext/zipinfo)
 
 (require (except-in "zipinfo.rkt" main))
 
@@ -35,14 +40,17 @@
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zipinfo:main : (-> (U (Listof String) (Vectorof String)) Any)
-  (lambda [argument-list]
-    (define-values (options λargv) (parse-zipinfo-flags argument-list #:help-output-port (current-output-port)))
-    (define file.zip : String (λargv))
+(define zip-exec : (-> Symbol Path-String * Void)
+  (lambda [shname . argv]
+    (define sh (find-executable-path (symbol->string shname)))
 
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-      (zipinfo options file.zip))))
-  
+    (when (path? sh)
+      (fg-recon-exec shname sh
+                     (map (λ [[arg : Path-String]]
+                            (list (if (string? arg) arg (path->string arg))))
+                          argv)
+                     'whatever))))
+
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
@@ -52,30 +60,63 @@
                    [date-display-format 'iso-8601])
       (exit (let ([tracer (thread (make-zip-log-trace))])
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
+                (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-mht") #:help-output-port (current-output-port)))
+                (define entries.λsh : (HashTable String (Listof String)) (make-hash))
+                (define entries.zip : (HashTable String (Listof String)) (make-hash))
+                
                 (define tempdir : Path (build-path (find-system-path 'temp-dir) "lambda-sh"))
                 (define sources : (Listof Path) (map simple-form-path srcs))
                 (define strategy : (Pairof Symbol Index) (or (zip-flags-strategy options) (cons 'default 6)))
+                
                 (define entries : Archive-Entries
                   (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list sources)])
                     (if (zip-flags-recurse-paths options)
                         (make-archive-directory-entries src #:configure #false)
                         (make-archive-file-entry src))))
+                
                 (define target.zip : Path
                   (if (zip-flags-temporary options)
                       (build-path tempdir (or (file-name-from-path file.zip) file.zip))
                       (simple-form-path file.zip)))
+
+                (define target_zip : Path (path-add-extension target.zip #".zip"))
                 
                 (time** (zip-create target.zip entries #:strategy strategy))
-                (zipinfo:main (list "-mht" (path->string target.zip)))
 
-                (let ([zip (find-executable-path "zip")]
-                      [zipinfo (find-executable-path "zipinfo")]
-                      [target.zip.zip (path-add-extension target.zip #".zip")])
-                  (when (path? zip)
-                    (newline)
-                    (apply system*/exit-code zip (format "-~aqr" (cdr strategy)) target.zip.zip sources)
-                    (when (path? zipinfo)
-                      (system*/exit-code zipinfo "-t" (path->string target.zip.zip))))))
+                (for ([e (in-list (zip-list-directories* target.zip))])
+                  (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
+
+                (time** (when (file-exists? target_zip)
+                          (fg-recon-rm 'zip target_zip))
+                        (apply zip-exec 'zip (format "-~aqr" (cdr strategy)) target_zip srcs))
+                
+                (for ([e (in-list (zip-list-directories* target_zip))])
+                  (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
+
+                (define all-entries : (Listof (Listof String))
+                  (for/fold ([merged-entries : (Listof (Listof String)) null])
+                            ([(entry info) (in-hash entries.λsh)])
+                    (define zip-info : (Listof String) (hash-ref entries.zip entry (inst list String)))
+                    
+                    (cond [(null? zip-info) (cons (cons "λsh" info) merged-entries)]
+                          [else (cons (cons "λsh" info) (cons (cons "zip" zip-info) merged-entries))])))
+
+                (when (pair? all-entries)
+                  (let ([widths (text-column-widths all-entries)])
+                    (for ([e (in-list all-entries)])
+                      (define fgc (if (string=? (car e) "λsh") 'green 252))
+                      (for ([col (in-list (cdr e))]
+                            [wid (in-list (cdr widths))]
+                            [idx (in-naturals)])
+                        (when (> idx 0) (display #\space))
+
+                        (let ([numerical? (memq (string-ref col (sub1 (string-length col))) (list #\% #\B))])
+                          (echof (~a col #:min-width (+ wid 1) #:align (if numerical? 'right 'left)) #:fgcolor fgc)))
+                      
+                      (newline)))
+
+                  (zip-display-tail-info target.zip 'green)
+                  (zip-display-tail-info target_zip 252)))
 
               (dtrace-datum-notice eof)
               (thread-wait tracer))))))
