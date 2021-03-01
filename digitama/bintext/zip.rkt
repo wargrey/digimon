@@ -35,9 +35,9 @@
                               Boolean PKZIP-Strategy Positive-Byte Bytes
                               (Option ZIP-Directory))
   (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memory-level pool]
-    (define entry-source : (U Bytes Path) (archive-entry-src entry))
+    (define entry-source : (U Bytes Path) (archive-entry-source entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
-    (define entry-name : String (archive-entry-reroot (zip-path-normalize (archive-entry-name entry) regular-file?) root zip-root 'stdin))
+    (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-name entry) root zip-root 'stdin) regular-file?))
     (define-values (mdate mtime) (zip-entry-modify-datetime (or (archive-entry-utc-time entry) (current-seconds))))
 
     (define method : ZIP-Compression-Method
@@ -95,7 +95,7 @@
 
     (make-zip-directory #:create-system pkzip-host-system #:create-version pkzip-digimon-version
                         #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
-                        #:filename (zip-entry-filename self-local) #:relative-offset (assert position index?)
+                        #:filename entry-name #:relative-offset (assert position index?)
                         #:crc32 (zip-data-descriptor-crc32 sizes) #:csize (zip-data-descriptor-csize sizes) #:rsize (zip-data-descriptor-rsize sizes)
                         #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
                         #:internal-attributes (if (archive-entry-ascii? entry) #b1 #b0)

@@ -42,7 +42,7 @@
         (define enqueue : LZ77-Submit-Symbol
           (case-lambda
             [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
-             (void (write-special sym /dev/lzout))]
+             (void (write-special (box sym) /dev/lzout))]
             [(distance span d-idx)
              (void (write-special (cons distance span) /dev/lzout))]))
 
@@ -50,14 +50,12 @@
           (case-lambda
             [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
              (let ([osym (read-byte-or-special /dev/lzin)])
-               (unless (eq? sym osym)
-                 (set! errdata (cons (cons sym osym) errdata))
-                 (displayln (cons sym osym))))]
+               (unless (and (box? osym) (eq? sym (unbox osym)))
+                 (set! errdata (cons (cons sym osym) errdata))))]
             [(distance span d-idx)
              (let ([osym (read-byte-or-special /dev/lzin)])
                (unless (and (pair? osym) (eq? distance (car osym)) (eq? span (cdr osym)))
-                 (set! errdata (cons (cons (cons distance span) osym) errdata))
-                 (displayln (cons (cons distance span) osym))))]))
+                 (set! errdata (cons (cons (cons distance span) osym) errdata))))]))
         
         (define-values (/dev/zipin /dev/zipout)
           (values (open-input-deflated-block /dev/bitin 0 #true #:name desc #:lz77-hook dequeue)

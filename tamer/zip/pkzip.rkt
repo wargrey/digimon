@@ -71,10 +71,10 @@
   (lambda []
     (unless (directory-exists? pktest)
       (pktest-write (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))
-                    'block-aligned.λsh)
+                    'deflated/block-aligned.λsh)
     
       (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))
-                    'window-sliding.λsh)
+                    'deflated/window-sliding.λsh)
       
       (for ([base (in-vector huffman-backref-bases)]
             [extra (in-vector huffman-backref-extra-bits)]
@@ -83,13 +83,13 @@
                              (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
                                (let ([size (+ base offset 1)])
                                  (make-bytes size (+ 97 (remainder size 26))))))
-                      (format "backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
+                      (format "deflated/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
       
       (for ([base (in-vector huffman-distance-bases)]
             [extra (in-vector huffman-distance-extra-bits)]
             [idx (in-naturals)])
         (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
-                      (format "backref/dist:~a:~a.λsh" idx base))))))
+                      (format "deflated/backref/dist:~a:~a.λsh" idx base))))))
 
 (gen-pktests)
   
@@ -103,7 +103,7 @@
                (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
    
-   (make-archive-directory-entries pktest "deflated/fixed" #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
+   (make-archive-directory-entries pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
    
    (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options config#0)
          (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options config#1)
@@ -119,7 +119,7 @@
   (time** (call-with-output-file* pk.zip #:exists 'replace
             (λ [[/dev/zipout : Output-Port]]
               (write pk.zip /dev/zipout)
-              (zip-create #:zip-root "pkzip" #:memory-level memlevel
+              (zip-create #:root pktest #:zip-root "pkzip" #:memory-level memlevel
                           /dev/zipout entries))))
 
   (let ([unzip (find-executable-path "unzip")])

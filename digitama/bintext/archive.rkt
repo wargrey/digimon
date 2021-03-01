@@ -19,8 +19,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct archive-entry
-  ([src : (U Path Bytes)]
-   [name : Path-String]
+  ([source : (U Path Bytes)]
+   [alias : (Option Path-String)]
    [ascii? : Boolean]
    [methods : (Listof Symbol)]
    [options : (Listof Any)]
@@ -33,23 +33,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; TODO: deal with link files
 (define make-archive-file-entry : (->* (Archive-Path)
-                                       ((Option String) #:ascii? Boolean #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
+                                       ((Option Path-String) #:ascii? Boolean #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                        Archive-Entry)
   (lambda [src [name #false] #:ascii? [ascii? #false] #:methods [methods null] #:options [options null] #:comment [comment #false]]
     (define path : Path (archive-path->path src))
 
-    (archive-entry path (or name (path->string path)) ascii? methods options
+    (archive-entry path name ascii? methods options
                    (file-or-directory-modify-seconds path) (file-or-directory-permissions path 'bits)
                    comment)))
 
 ; TODO: deal with link files
 (define make-archive-directory-entries : (->* (Archive-Path)
-                                              ((Option String) #:configure (Option Archive-Directory-Configure) #:keep-directory? Boolean
-                                                               #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
+                                              ((Option Path-String) #:configure (Option Archive-Directory-Configure) #:keep-directory? Boolean
+                                                                    #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                               Archive-Entries)
-  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true] #:strip-root [strip-root ""]
+  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true]
            #:methods [methods null] #:options [options null] #:comment [comment #false]
-           srcdir [root-name #false]]
+           srcdir [root #false]]
     (define rootdir : Path (archive-path->path srcdir))
     
     (if (directory-exists? rootdir)
@@ -66,18 +66,18 @@
                          [(directory-exists? self-path)
                           (let ([es (make-subentries self-path (directory-list self-path #:build? #false) null config)])
                             (make-subentries parent rest (cons es seirtne) pconfig))]
-                         [else
-                          (let* ([name (archive-entry-reroot self-path strip-root root-name)]
+                         [else ; regular file
+                          (let* ([name (and root (archive-entry-reroot self-path root #false))]
                                  [e (make-archive-file-entry self-path name #:methods (car config) #:options (cadr config) #:comment (caddr config))])
                             (make-subentries parent rest (cons e seirtne) pconfig))]))]
                 [(and mkdir?)
-                 (cons (make-archive-file-entry #:methods (car pconfig) #:options (cadr pconfig) #:comment (caddr pconfig)
-                                                (path->directory-path parent) (archive-entry-reroot parent strip-root root-name))
-                       (reverse seirtne))]
+                 (let ([name (and root (archive-entry-reroot parent root #false))])
+                   (cons (make-archive-file-entry (path->directory-path parent) name #:methods (car pconfig) #:options (cadr pconfig) #:comment (caddr pconfig))
+                         (reverse seirtne)))]
                 [else (reverse seirtne)]))
 
         (list (make-archive-file-entry #:methods methods #:options options #:comment comment
-                                       rootdir (archive-entry-reroot rootdir strip-root root-name))))))
+                                       rootdir (and root (archive-entry-reroot rootdir root #false)))))))
 
 (define make-archive-ascii-entry : (->* ((U Bytes String))
                                         ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Any)
@@ -134,6 +134,13 @@
           [(symbol? name) (symbol->immutable-string name)]
           [else (format "~a" name)])))
 
+(define archive-entry-name : (-> Archive-Entry Path-String)
+  (lambda [e]
+    (or (archive-entry-alias e)
+        (let ([src (archive-entry-source e)])
+          (cond [(bytes? src) ""]
+                [else src])))))
+
 (define archive-path->path : (-> Archive-Path Path)
   (lambda [src]
     (simple-form-path
@@ -141,8 +148,8 @@
            [(string? src) (string->path src)]
            [else (bytes->path src)]))))
 
-(define archive-entry-reroot : (->* (Path-String (Option Path-String) (Option Path-String)) ((Option Symbol)) String)
-  (lambda [name strip-root zip-root [gen-stdin-name #false]]
+(define archive-entry-reroot : (->* (Path-String (Option Path-String)) ((Option Path-String) (Option Symbol)) String)
+  (lambda [name strip-root [zip-root #false] [gen-stdin-name #false]]
     (define stdin? : Boolean (equal? name ""))
     
     (cond [(and stdin? (not gen-stdin-name)) ""]

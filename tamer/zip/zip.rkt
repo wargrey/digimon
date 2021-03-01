@@ -13,6 +13,7 @@
 (require digimon/format)
 
 (require digimon/digitama/exec)
+(require digimon/digitama/bintext/archive)
 (require digimon/digitama/bintext/zipinfo)
 
 (require (except-in "zipinfo.rkt" main))
@@ -54,7 +55,7 @@
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
-    (define-values (file.zip srcs) (λargv))
+    (define-values (file.zip sources) (λargv))
 
     (parameterize ([current-logger /dev/dtrace]
                    [date-display-format 'iso-8601])
@@ -65,14 +66,14 @@
                 (define entries.zip : (HashTable String (Listof String)) (make-hash))
                 
                 (define tempdir : Path (build-path (find-system-path 'temp-dir) "lambda-sh"))
-                (define sources : (Listof Path) (map simple-form-path srcs))
                 (define strategy : (Pairof Symbol Index) (or (zip-flags-strategy options) (cons 'default 6)))
                 
                 (define entries : Archive-Entries
-                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list sources)])
+                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
+                    (define alias : (Option Path-String) (if (relative-path? src) (current-directory) ""))
                     (if (zip-flags-recurse-paths options)
-                        (make-archive-directory-entries src #:configure #false)
-                        (make-archive-file-entry src))))
+                        (make-archive-directory-entries src alias #:configure #false)
+                        (make-archive-file-entry src (archive-entry-reroot src alias #false)))))
                 
                 (define target.zip : Path
                   (if (zip-flags-temporary options)
@@ -90,7 +91,9 @@
                 (time** #:title 'zip
                         (when (file-exists? target_zip)
                           (fg-recon-rm 'zip target_zip))
-                        (apply zip-exec 'zip (format "-~aqr" (cdr strategy)) target_zip srcs))
+                        (apply zip-exec 'zip
+                               (format "-~aq~a" (cdr strategy) (if (zip-flags-recurse-paths options) 'r ""))
+                               target_zip sources))
                 
                 (for ([e (in-list (zip-list-directories* target_zip))])
                   (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))

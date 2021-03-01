@@ -148,17 +148,12 @@
         (SEND-BITS #:windup? BFINAL)))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
-      (let ([size++ (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)])
-        (vector-fill! lz77-dists 0)
-        (set! lz77-payload 0)))
-    
     (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean] [flush-lz77? : Boolean]) : Void
       (cond [(not no-compression?)
              (when (> payload 0)
                ;; NOTE
                ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
-               ;   but it will never write the block with a FINAL flag depsite the value of `BFINAL`.
+               ;   but which will never write the block with a FINAL flag depsite the value of `BFINAL`.
                ; Instead, another empty final block will be appended if there happens to be no more
                ;   content after flushing last full lz77 block. 
 
@@ -179,6 +174,18 @@
       
       (when (> raw-payload 0)
         (set! raw-payload 0)))
+
+    (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
+      ;;; NOTE
+      ; The handy thing is that backward distances can cross block boundaries,
+      ;   thus, the only thing to do here is to figure out a good way encoding
+      ;   and feed the bitstream resulting bits to output.
+      ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
+      ;   reasonable data with a proper environment.
+      
+      (let ([size++ (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)])
+        (vector-fill! lz77-dists 0)
+        (set! lz77-payload 0)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define received : Integer (- end start))
