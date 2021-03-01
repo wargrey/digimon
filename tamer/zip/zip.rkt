@@ -81,12 +81,14 @@
 
                 (define target_zip : Path (path-add-extension target.zip #".zip"))
                 
-                (time** (zip-create target.zip entries #:strategy strategy))
+                (time** #:title 'λsh
+                        (zip-create target.zip entries #:strategy strategy))
 
                 (for ([e (in-list (zip-list-directories* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
 
-                (time** (when (file-exists? target_zip)
+                (time** #:title 'zip
+                        (when (file-exists? target_zip)
                           (fg-recon-rm 'zip target_zip))
                         (apply zip-exec 'zip (format "-~aqr" (cdr strategy)) target_zip srcs))
                 

@@ -95,9 +95,6 @@
 (define lz77-display-summary : (-> String Bytes Bytes Index Index (Listof Index) Integer Natural Natural Natural Void)
   (lambda [desc txt ?txt csize rsize widths memory cpu real gc]
     (let ([ok? (bytes=? txt ?txt)])
-      (when (and (not ok?) (lz77-verbose))
-        (echof "==>~n~a~n" ?txt #:fgcolor 'red))
-      
       (define summary : (Listof String)
         (list (if (not ok?) "F" "T")
               desc (zip-size csize) (zip-cfactor csize rsize 2)

@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(require racket/port)
+
 (require digimon/thread)
 (require digimon/dtrace)
 (require digimon/format)
@@ -32,12 +34,35 @@
       (when (lz77-verbose) (printf ">>> [strategy: ~a]~n" desc))
 
       (parameterize ([current-custodian (make-custodian)])
+        (define-values (/dev/lzin /dev/lzout) (make-pipe-with-specials))
         (define-values (/dev/bitin /dev/bitout) (make-pipe))
         (define /dev/bsout (open-output-bytes))
+        (define errdata : (Listof (Pairof Any Any)) null)
 
+        (define enqueue : LZ77-Submit-Symbol
+          (case-lambda
+            [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
+             (void (write-special sym /dev/lzout))]
+            [(distance span d-idx)
+             (void (write-special (cons distance span) /dev/lzout))]))
+
+        (define dequeue : LZ77-Submit-Symbol
+          (case-lambda
+            [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
+             (let ([osym (read-byte-or-special /dev/lzin)])
+               (unless (eq? sym osym)
+                 (set! errdata (cons (cons sym osym) errdata))
+                 (displayln (cons sym osym))))]
+            [(distance span d-idx)
+             (let ([osym (read-byte-or-special /dev/lzin)])
+               (unless (and (pair? osym) (eq? distance (car osym)) (eq? span (cdr osym)))
+                 (set! errdata (cons (cons (cons distance span) osym) errdata))
+                 (displayln (cons (cons distance span) osym))))]))
+        
         (define-values (/dev/zipin /dev/zipout)
-          (values (open-input-deflated-block /dev/bitin 0 #true #:name desc)
+          (values (open-input-deflated-block /dev/bitin 0 #true #:name desc #:lz77-hook dequeue)
                   (open-output-deflated-block #:allow-dynamic-block? #false #:memory-level 1 #:name desc #:safe-flush-on-close? #true
+                                              #:lz77-hook enqueue
                                               /dev/bitout strategy #true)))
 
         (define-values (csize memory cpu real gc)
@@ -51,7 +76,10 @@
 
         (let ([?txt (get-output-bytes /dev/bsout #true)])
           (lz77-display-summary desc txt ?txt csize rsize widths memory cpu real gc)
-          (newline))))))
+          (newline))
+
+        (when (pair? errdata)
+          (displayln errdata))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

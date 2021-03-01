@@ -118,40 +118,6 @@
                                      [hash-span min-match-1])
                                  (define-values (m-idx d-idx) (begin body ...))
                                  (lz77-deflate/identity window symbol-submit m-idx end d-idx)))))]))))]))
-
-(define-syntax (define-lz77-inflate stx)
-  (syntax-case stx []
-    [(_ lz77-inflate-into #:with [unsafe-bytes-set! unsafe-bytes-copy!])
-     (syntax/loc stx
-       (define lz77-inflate-into : (case-> [Bytes Natural Index -> Index]
-                                           [Bytes Natural Index Index -> Index])
-         (case-lambda
-           [(dest d-idx sym)
-            (unsafe-bytes-set! dest d-idx sym)
-            (unsafe-idx+ d-idx 1)]
-           [(dest d-idx distance span)
-            (cond [(< d-idx distance) d-idx]
-                  [else (let ([d-end (unsafe-idx+ d-idx span)])
-                          (if (= distance 1)
-                              (let ([sym (unsafe-bytes-ref dest (unsafe-idx- d-idx 1))])
-                                (let copy-runlength:1 ([d-pos : Natural d-idx])
-                                  (when (< d-pos d-end)
-                                    (unsafe-bytes-set! dest d-pos sym)
-                                    (copy-runlength:1 (unsafe-idx+ d-pos 1)))))
-
-                              (let* ([s-idx (unsafe-idx- d-idx distance)]
-                                     [s-end (unsafe-idx+ s-idx span)])
-                                (cond [(<= s-end d-idx) (unsafe-bytes-copy! dest d-idx dest s-idx s-end)]
-                                      [else (let copy-overlap ([d-pos : Index d-idx]
-                                                               [delta : Index (unsafe-idx- d-idx s-idx)])
-                                              (define pos++ : Index (unsafe-idx+ d-pos delta))
-                                              (if (< pos++ d-end)
-                                                  (let ([2*delta (unsafe-idx+ delta delta)])
-                                                    (unsafe-bytes-copy! dest d-pos dest s-idx d-pos)
-                                                    (copy-overlap pos++ 2*delta))
-                                                  (let ([s-end (unsafe-idx+ s-idx (unsafe-idx- d-end d-pos))])
-                                                    (unsafe-bytes-copy! dest d-pos dest s-idx s-end))))])))
-                          d-end)])])))]))
        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-deflate : (->* (Bytes LZ77-Submit-Symbol ZIP-Strategy)
@@ -217,9 +183,9 @@
         (values dest
                 (for/fold ([total : Index d-start])
                           ([s in-symbols])
-                  (cond [(byte? s) (unsafe-lz77-inflate-into dest total s)]
-                        [(pair? s) (unsafe-lz77-inflate-into dest total (car s) (cdr s))]
-                        [else (unsafe-lz77-inflate-into dest total (unsafe-idxrshift s span-bits) (bitwise-and s span-mask))]))))))
+                  (cond [(byte? s) (lz77-inflate-into dest total s)]
+                        [(pair? s) (lz77-inflate-into dest total (car s) (cdr s))]
+                        [else (lz77-inflate-into dest total (unsafe-idxrshift s span-bits) (bitwise-and s span-mask))]))))))
 
 (define lz77-backref-pair : (->* (Index Index) (Positive-Byte) Index)
   (lambda [distance span [span-bits lz77-default-backref-span-bits]]
@@ -325,8 +291,28 @@
             
             [else (values m-idx d-idx)]))))
 
-(define-lz77-inflate lz77-inflate-into #:with [bytes-set! bytes-copy!])
-(define-lz77-inflate unsafe-lz77-inflate-into #:with [unsafe-bytes-set! unsafe-bytes-copy!])
+(define lz77-inflate-into : (case-> [Bytes Index Index -> Index]
+                                    [Bytes Index Index Index -> Index])
+  (case-lambda
+    [(dest d-idx sym)
+     (unsafe-bytes-set! dest d-idx sym)
+     (unsafe-idx+ d-idx 1)]
+    [(dest d-idx distance span)
+     (let ([d-end (unsafe-idx+ d-idx span)]
+           [s-idx (unsafe-idx- d-idx distance)])
+       (if (<= span distance)
+           (unsafe-bytes-copy! dest d-idx dest s-idx (unsafe-idx+ s-idx span))
+           
+           (let copy-overlap ([d-pos : Index d-idx]
+                              [delta : Index (unsafe-idx- d-idx s-idx)])
+             (define pos++ : Index (unsafe-idx+ d-pos delta))
+             (if (< pos++ d-end)
+                 (let ([2*delta (unsafe-idx+ delta delta)])
+                   (unsafe-bytes-copy! dest d-pos dest s-idx d-pos)
+                   (copy-overlap pos++ 2*delta))
+                 (let ([s-end (unsafe-idx+ s-idx (unsafe-idx- d-end d-pos))])
+                   (unsafe-bytes-copy! dest d-pos dest s-idx s-end)))))
+       d-end)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; corresponds to `zlib`'s fastest strategy, no lazy, chain, filter or preferences

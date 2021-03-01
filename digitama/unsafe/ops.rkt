@@ -29,6 +29,21 @@
                                              [Natural Natural -> Index])]
  [(unsafe-fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])])
 
+#;(unsafe-require/typed
+ racket/fixnum
+ [(fx* unsafe-idx*) (-> Natural Natural Index)]
+ [(fx+ unsafe-idx+) (-> Natural Natural Index)]
+ [(fx- unsafe-idx-) (case-> [Byte Byte -> Byte]
+                                   [Zero Negative-Fixnum -> Index]
+                                   [Natural Natural -> Index])]
+ [(fxxor unsafe-idxxor) (-> Integer Natural Index)]
+ [(fxlshift unsafe-idxlshift) (case-> [Positive-Integer Fixnum -> Positive-Index]
+                                             [Natural Fixnum -> Index])]
+ [(fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
+                                             [Natural Byte -> Index]
+                                             [Natural Natural -> Index])]
+ [(fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])])
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.
 ; The safe version would be `(~n) & #xFFFF` or `(n & #xFFFF) ^ #xFFFF`

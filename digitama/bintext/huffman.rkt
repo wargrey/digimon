@@ -184,7 +184,7 @@
                                                   (unsafe-vector*-ref indices (+ count-idx0 bitsize)))
                                                1))
 
-        ; sentinel[l + base] = (headcode[l + 1] + count[l + 1]) << (maxlength - l)
+        ; sentinel[l + base] = (headcode[l + 1] + count[l + 1]) << (maxlength - (l + 1))
         ; so that all sentinels have the same length equalling to `maxlength`
         ;   except the last one which overflows to 1-bit longer.
         (unsafe-vector*-set! sentinels bitsize

@@ -47,7 +47,7 @@
                                               ((Option String) #:configure (Option Archive-Directory-Configure) #:keep-directory? Boolean
                                                                #:methods (Listof Symbol) #:options (Listof Any) #:comment (Option String))
                                               Archive-Entries)
-  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true] #:strip-root [strip-root (current-directory)]
+  (lambda [#:configure [configure #false] #:keep-directory? [mkdir? #true] #:strip-root [strip-root ""]
            #:methods [methods null] #:options [options null] #:comment [comment #false]
            srcdir [root-name #false]]
     (define rootdir : Path (archive-path->path srcdir))
@@ -77,7 +77,7 @@
                 [else (reverse seirtne)]))
 
         (list (make-archive-file-entry #:methods methods #:options options #:comment comment
-                                       rootdir (archive-entry-reroot rootdir (path-only rootdir) root-name))))))
+                                       rootdir (archive-entry-reroot rootdir strip-root root-name))))))
 
 (define make-archive-ascii-entry : (->* ((U Bytes String))
                                         ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Any)

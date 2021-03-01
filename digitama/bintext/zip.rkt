@@ -196,14 +196,14 @@
             [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
             [else (values (make-bytes 4096 0) 4096)]))
     
-    (let copy-entry/checksum ([pos : Natural 0]
+    (let copy-entry/checksum ([total : Natural 0]
                               [crc32 : Index 0])
       (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
       
       (cond [(exact-positive-integer? read-size)
              (write-bytes pool /dev/zipout 0 read-size)
-             (copy-entry/checksum (+ pos read-size) (checksum-crc32* pool crc32 0 read-size))]
-            [else (flush-output /dev/zipout) (values pos crc32)]))))
+             (copy-entry/checksum (+ total read-size) (checksum-crc32* pool crc32 0 read-size))]
+            [else (flush-output /dev/zipout) (values total crc32)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-path-normalize : (case-> [Path-String -> String]

@@ -24,11 +24,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte
-                                                   #:allow-dynamic-block? Boolean #:safe-flush-on-close? Boolean #:name Any)
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
+                                                   #:safe-flush-on-close? Boolean #:name Any #:lz77-hook LZ77-Submit-Symbol)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8]
-           #:allow-dynamic-block? [allow-dynamic? #false] #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true]
+           #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout] #:lz77-hook [on-symbol void]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
@@ -68,12 +68,14 @@
         [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (on-symbol sym d-idx)
          (when (= lz77-payload lz77-blocksize)
            (void (lz77-block-flush #false lz77-payload)))]
         [(distance span d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (on-symbol distance span d-idx)
          (when (= lz77-payload lz77-blocksize)
            (void (lz77-block-flush #false lz77-payload)))]))
 
@@ -231,16 +233,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-input-deflated-block : (->* (Input-Port Natural)
-                                         (Boolean #:window-bits Positive-Byte
+                                         (Boolean #:window-bits Positive-Byte #:lz77-hook LZ77-Submit-Symbol
                                                   #:name (Option String) #:error-name Symbol #:commit? Boolean)
                                          Input-Port)
-  (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]
+  (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false] #:lz77-hook [on-symbol void]
            /dev/zipin csize [close-orig? #false]]
-    (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #x00 #:limited csize))
-
     (define BTYPE : (Option Symbol) #false)
     (define BFINAL : Boolean #false)
-    (define stock : Index 0)
     
     (define literal-table : Huffman-Lookup-Table (force huffman-fixed-literal-lookup-table))
     (define distance-table : Huffman-Lookup-Table (force huffman-fixed-distance-lookup-table))
@@ -248,16 +247,21 @@
     (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
     (define window-size : Nonnegative-Fixnum (+ window-size/2 window-size/2))
     (define window : Bytes (make-bytes window-size))
+
+    ;; NOTE: The backward distances are allowed to cross the block boundaries
     (define window-idx : Index window-size/2)
+    (define stock : Index 0)
 
     (define (huffman-slide-window [current-stock : Index]) : Void
       (when (>= window-idx window-size/2)
         (let ([window-idx-- (unsafe-idx- window-idx window-size/2)])
-          ; sliding always occurs before the window is full, so it's safe to just add the `currnt-stock`
+          ; sliding always occurs before the window is full, so it's safe to just add the `current-stock`
           (unsafe-bytes-copy! window 0 window window-idx-- (+ window-idx current-stock))
           (set! window-idx window-idx--))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #x00 #:limited csize))
+    
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
       (if (FEED-BITS 3)
           (let ([BFINAL? (= (PEEK-BITS 1 #b1) 1)]
@@ -284,9 +288,6 @@
       (FIRE-BITS 32))
     
     (define (huffman-begin-static-block! [BFINAL? : Boolean]) : Any
-      (set! window-idx window-size/2)
-      (set! stock 0)
-      
       (unless (or (eq? BTYPE 'static) (not BTYPE))
         (set! literal-table (force huffman-fixed-literal-lookup-table))
         (set! distance-table (force huffman-fixed-distance-lookup-table))))
@@ -314,23 +315,19 @@
                 [else (let ([misc (read-huffman-symbol literal-table huffman-fixed-literal-maxlength upcodes BFINAL? type 'literal)])
                         (cond [(< misc EOB) ; pure literals
                                (let ([supply++ (+ supply 1)])
-                                 (when (> (+ window-idx supply++) window-size) (huffman-slide-window supply))
-                                 (unsafe-lz77-inflate-into window (+ window-idx supply) misc)
+                                 (when (>= window-idx window-size) (huffman-slide-window supply))
+                                 (lz77-inflate-into window (unsafe-idx+ window-idx supply) misc)
+                                 (on-symbol misc (unsafe-idx+ window-idx supply))
                                  (lazy-extract supply++))]
                               [(> misc EOB) ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
-                               (let* ([s-idx (unsafe-idx- misc backref-span-offset)]
-                                      [s-base (unsafe-vector*-ref huffman-backref-bases s-idx)]
-                                      [s-extra (unsafe-vector*-ref huffman-backref-extra-bits s-idx)]
-                                      [span (if (> s-extra 0) (unsafe-idx+ s-base (PEEK-BITS s-extra)) s-base)]
+                               (let* ([span-idx (unsafe-idx- misc backref-span-offset)]
+                                      [span (read-huffman-extra-datum span-idx huffman-backref-bases huffman-backref-extra-bits)]
                                       [supply++ (+ supply span)])
-                                 (when (> s-extra 0) (FIRE-BITS s-extra))
-                                 (when (> (+ window-idx supply++) window-size) (huffman-slide-window supply))
+                                 (when (>= (+ window-idx supply++) window-size) (huffman-slide-window supply))
                                  (let* ([hdist (read-huffman-symbol distance-table huffman-fixed-distance-maxlength updistances BFINAL? type 'distance)]
-                                        [d-base (unsafe-vector*-ref huffman-distance-bases hdist)]
-                                        [d-extra (unsafe-vector*-ref huffman-distance-extra-bits hdist)]
-                                        [distance (if (> d-extra 0) (unsafe-idx+ d-base (PEEK-BITS d-extra)) d-base)])
-                                   (when (> d-extra 0) (FIRE-BITS d-extra))
-                                   (unsafe-lz77-inflate-into window (+ window-idx supply) distance span)
+                                        [distance (read-huffman-extra-datum hdist huffman-distance-bases huffman-distance-extra-bits)])
+                                   (lz77-inflate-into window (unsafe-idx+ window-idx supply) distance span)
+                                   (on-symbol distance span (unsafe-idx+ window-idx supply))
                                    (lazy-extract supply++)))]
                               [else #;EOB supply]))])))
 
@@ -338,8 +335,8 @@
         (when (> consumed 0)
           (let ([window-idx++ (unsafe-idx+ window-idx consumed)])
             (unsafe-bytes-copy! zipout start window window-idx window-idx++)
-            (set! stock (unsafe-idx- supply consumed))
             (set! window-idx window-idx++)))
+        (set! stock (unsafe-idx- supply consumed))
         (unsafe-idx+ start consumed)))
 
     (define (read-huffman-symbol [table : Huffman-Lookup-Table] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
@@ -360,6 +357,14 @@
 
       (FIRE-BITS code-length)
       symbol-code)
+
+    (define (read-huffman-extra-datum [idx : Index] [base-bits : (Immutable-Vectorof Index)] [extra-bits : (Immutable-Vectorof Byte)]) : Index
+      (define base : Index (unsafe-vector*-ref base-bits idx))
+      (define extra : Byte (unsafe-vector*-ref extra-bits idx))
+
+      (cond [(= extra 0) base]
+            [else (begin0 (unsafe-idx+ base (PEEK-BITS extra))
+                          (FIRE-BITS extra))]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (deflate-read! [zipout : Bytes]) : Port-Reader-Plain-Datum
