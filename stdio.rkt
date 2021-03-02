@@ -347,14 +347,14 @@
     (define bsize : Index (string-utf-8-length s))
     
     (+ (write-muintptr bsize nsize /dev/stdout)
-       (write-nbstring s bsize /dev/stdout))))
+       (write-nbstring s 0 /dev/stdout))))
 
 (define write-ln:bstring : (->* (String Natural) (Output-Port) Nonnegative-Fixnum)
   (lambda [s nsize [/dev/stdout (current-output-port)]]
     (define bsize : Index (string-utf-8-length s))
     
     (+ (write-luintptr bsize nsize /dev/stdout)
-       (write-nbstring s bsize /dev/stdout))))
+       (write-nbstring s 0 /dev/stdout))))
 
 (define write-msintptr : (->* (Integer Integer) (Output-Port) Byte)
   (lambda [n size [/dev/stdout (current-output-port)]]
@@ -380,8 +380,6 @@
 
 (define write-nbstring : (->* (String Index) (Output-Port) Index)
   (lambda [s bsize [/dev/stdout (current-output-port)]]
-    ;;; WARNING
-    ; Don't work with `write-string` here since
-    ;   we need the number of actual written bytes
-    (cond [(= bsize 0) (write-bytes (string->bytes/utf-8 s) /dev/stdout)]
-          [else (write-bytes (string->bytes/utf-8 s) /dev/stdout 0 bsize)])))
+    (cond [(> bsize 0) (write-bytes (string->bytes/utf-8 s) /dev/stdout 0 bsize)]
+          [else (let ([ch-size (write-string s /dev/stdout)])
+                  (string-utf-8-length s 0 ch-size))])))

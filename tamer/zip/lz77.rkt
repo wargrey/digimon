@@ -14,6 +14,7 @@
 (require digimon/echo)
 
 (require digimon/digitama/bintext/lz77)
+(require digimon/digitama/bintext/archive)
 (require digimon/digitama/bintext/zipconfig)
 
 (require "zipinfo.rkt")
@@ -38,12 +39,15 @@
    [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "use ~1 as the default minimum match"]
    [(#\F)   #:=> cmdopt-string->index farthest #: Index         "use ~1 as the distance limit for short matches"]
    [(#\f)   #:=> cmdopt-string->index filtered #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
+
+   [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
    [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
                    "run with the strategy ~1 and compression levels in range [~2, ~3]"]])
 
+(define lz77-brief : (Parameterof Boolean) (make-parameter #false))
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -52,8 +56,9 @@
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
-    (printf "[size: ~a] [hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-            (~size (bytes-length txt)) bits (or min-match 'auto) farthest filtered)
+    (when (lz77-verbose)
+      (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+              bits (or min-match 'auto) farthest filtered))
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -89,7 +94,9 @@
       (when (lz77-verbose) (newline))
       (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
       
-      (lz77-display-summary desc txt ?txt csize rsize widths memory cpu real gc)
+      (lz77-display-summary desc txt ?txt csize rsize widths memory cpu real gc))
+
+    (when (and (not (lz77-verbose)) (lz77-brief))
       (newline))))
 
 (define lz77-display-summary : (-> String Bytes Bytes Index Index (Listof Index) Integer Natural Natural Natural Void)
@@ -100,20 +107,38 @@
               desc (zip-size csize) (zip-cfactor csize rsize 2)
               (~gctime cpu) (~gctime real) (~gctime gc) (~size memory)))
       
-      (define color : Term-Color (if (not ok?) 'red 'green))
-      
-      (for ([col (in-list summary)]
-            [wid (in-list widths)]
-            [idx (in-naturals)])
-        (when (> idx 0) (display #\space))
-        
-        (let ([numerical? (> idx 1)])
-          (echof #:fgcolor color
-                 (~a #:align (if numerical? 'right 'left)
-                     #:min-width wid
-                     col)))))))
+        (define color : Term-Color (if (not ok?) 'red 'green))
+
+      (cond [(and (not (lz77-verbose)) (lz77-brief))
+             (echof "~a " (car summary) #:fgcolor color)
+             (flush-output (current-output-port))]
+            [else
+             (for ([col (in-list summary)]
+                   [wid (in-list widths)]
+                   [idx (in-naturals)])
+               (when (> idx 0) (display #\space))
+               
+               (let ([numerical? (> idx 1)])
+                 (echof #:fgcolor color
+                        (~a #:align (if numerical? 'right 'left)
+                            #:min-width wid
+                            col))))
+             (newline)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define lz77-run-on-text : (-> String Lz77-Flags (Listof ZIP-Strategy) LZ77-Run Void)
+  (lambda [src.txt options strategies run]
+    (if (file-exists? src.txt)
+        (printf "~a [~a]~n" (simple-form-path src.txt) (~size (file-size src.txt)))
+        (printf "~a [~a]~n" src.txt (~size (string-utf-8-length src.txt))))
+    
+    (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
+         strategies
+         (or (lz77-flags-B options) lz77-default-hash-bits)
+         (lz77-flags-m options)
+         (or (lz77-flags-F options) lz77-default-farthest)
+         (or (lz77-flags-f options) 0))))
+
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
   (lambda [argument-list [run lz77-run]]
     (define-values (options λargv) (parse-lz77-flags argument-list #:help-output-port (current-output-port)))
@@ -140,18 +165,21 @@
               (map zip-run-preference (range 1 5))))
     
     (parameterize ([current-logger /dev/dtrace])
-      (exit (time* (let ([tracer (thread (make-zip-log-trace))])
-                     (displayln (if (file-exists? src.txt) (simple-form-path src.txt) src.txt))
-                     
-                     (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
-                          (if (pair? user-strategies) user-strategies fallback-strategies)
-                          (or (lz77-flags-B options) lz77-default-hash-bits)
-                          (lz77-flags-m options)
-                          (or (lz77-flags-F options) lz77-default-farthest)
-                          (or (lz77-flags-f options) 0))
-                     
-                     (dtrace-datum-notice eof)
-                     (thread-wait tracer)))))))
+      (exit (let ([tracer (thread (make-zip-log-trace))])
+              (define strategies : (Listof ZIP-Strategy)
+                (if (pair? user-strategies) user-strategies fallback-strategies))
+              
+              (cond [(directory-exists? src.txt)
+                     (let ([entries (make-archive-directory-entries src.txt #:configure defualt-archive-ignore-configure #:keep-directory? #false)])
+                       (let run-on-dir ([es : Archive-Entries entries])
+                         (for ([e (in-list es)])
+                           (cond [(list? e) (run-on-dir e)]
+                                 [else (let ([src (~a (archive-entry-source e))])
+                                         (lz77-run-on-text src options strategies run))]))))]
+                    [else (lz77-run-on-text src.txt options strategies run)])
+              
+              (dtrace-datum-notice eof)
+              (thread-wait tracer))))))
 
 (define make-zip-log-trace : (-> (-> Void))
   (lambda []

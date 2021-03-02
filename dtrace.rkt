@@ -134,8 +134,11 @@
                                 #:topic-receivers receivers #:default-receiver receiver)))
 
     (begin0
-      (parameterize ([current-logger logger]) (proc))
-      (log-message logger 'debug "Done" sentry)
+      (parameterize ([current-logger logger])
+        (with-syntax ([exn:break? void]
+                      [exn:fail? dtrace-exception])
+          (proc)))
+      (log-message logger (dtrace-symbol->level level) "Done" sentry)
       (thread-wait dtrace))))
 
 (define open-output-dtrace : (->* ()

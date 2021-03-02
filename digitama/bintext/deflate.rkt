@@ -24,11 +24,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
-                                                   #:name Any #:lz77-hook LZ77-Submit-Symbol)
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean #:name Any)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true]
-           #:name [name '/dev/dfbout] #:lz77-hook [on-symbol void]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
@@ -68,14 +66,12 @@
         [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
-         (on-symbol sym d-idx)
          (when (= lz77-payload lz77-blocksize)
            (void (lz77-block-flush #false lz77-payload)))]
         [(distance span d-idx)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
-         (on-symbol distance span d-idx)
          (when (= lz77-payload lz77-blocksize)
            (void (lz77-block-flush #false lz77-payload)))]))
 
@@ -203,7 +199,7 @@
                     (set! raw-payload (unsafe-idx+ raw-payload recv)))))]
 
             [(or non-block/buffered? #| non-block writing implies flushing |#
-                 (<= received 0) #| via `flush-port` or non-block writing with empty bytes |#)
+                 (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
              (raw-block-flush #false raw-payload #true)])
       
       (- end start))
@@ -222,10 +218,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-input-deflated-block : (->* (Input-Port Natural)
-                                         (Boolean #:window-bits Positive-Byte #:lz77-hook LZ77-Submit-Symbol
-                                                  #:name (Option String) #:error-name Symbol #:commit? Boolean)
+                                         (Boolean #:window-bits Positive-Byte #:name (Option String) #:error-name Symbol #:commit? Boolean)
                                          Input-Port)
-  (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false] #:lz77-hook [on-symbol void]
+  (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]
            /dev/zipin csize [close-orig? #false]]
     (define BTYPE : (Option Symbol) #false)
     (define BFINAL : Boolean #false)
@@ -306,9 +301,8 @@
                                (let ([supply++ (+ supply 1)])
                                  (when (>= window-idx window-size) (huffman-slide-window supply))
                                  (lz77-inflate-into window (unsafe-idx+ window-idx supply) misc)
-                                 (on-symbol misc (unsafe-idx+ window-idx supply))
                                  (lazy-extract supply++))]
-                              [(> misc EOB) ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
+                              [(> misc EOB) ; <span, backward distance>s, extra bits represent MSB machine (unsigned) integers
                                (let* ([span-idx (unsafe-idx- misc backref-span-offset)]
                                       [span (read-huffman-extra-datum span-idx huffman-backref-bases huffman-backref-extra-bits)]
                                       [supply++ (+ supply span)])
@@ -316,7 +310,6 @@
                                  (let* ([hdist (read-huffman-symbol distance-table huffman-fixed-distance-maxlength updistances BFINAL? type 'distance)]
                                         [distance (read-huffman-extra-datum hdist huffman-distance-bases huffman-distance-extra-bits)])
                                    (lz77-inflate-into window (unsafe-idx+ window-idx supply) distance span)
-                                   (on-symbol distance span (unsafe-idx+ window-idx supply))
                                    (lazy-extract supply++)))]
                               [else #;EOB supply]))])))
 
@@ -329,7 +322,8 @@
         (unsafe-idx+ start consumed)))
 
     (define (read-huffman-symbol [table : Huffman-Lookup-Table] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
-      (FEED-BITS upbits)
+      (unless (FEED-BITS upbits)
+        (display #\.))
 
       (define-values (symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength))
 

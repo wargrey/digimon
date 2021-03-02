@@ -122,7 +122,7 @@
                                             (cdr cs))]))))])))
 
 (define defualt-archive-ignore-configure : Archive-Directory-Configure
-  (make-archive-ignore-configure (cons #px"/(compiled|[.]DS_Store|[.]git)/?$" (use-compiled-file-paths))))
+  (make-archive-ignore-configure (cons #px"/(compiled|[.]DS_Store|[.]git.*)/?$" (use-compiled-file-paths))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-port-name : (-> Input-Port String)
