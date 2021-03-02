@@ -61,7 +61,7 @@
                    [date-display-format 'iso-8601])
       (exit (let ([tracer (thread (make-zip-log-trace))])
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-mht") #:help-output-port (current-output-port)))
+                (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-lht") #:help-output-port (current-output-port)))
                 (define entries.λsh : (HashTable String (Listof String)) (make-hash))
                 (define entries.zip : (HashTable String (Listof String)) (make-hash))
                 

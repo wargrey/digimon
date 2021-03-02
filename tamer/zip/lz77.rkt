@@ -74,8 +74,8 @@
          (flush-output (current-output-port))]))
 
     (define widths : (Listof Index)
-      (text-column-widths (list (list "T" "strategy-name" "00.000KB" "100.00%"
-                                      "00.000" "00.000" "00.000" "00.000KB"))))
+      (text-column-widths (list (list "T" "strategy-name" "000.000KB" "100.00%"
+                                      "00.000" "00.000" "00.000" "000.000KB"))))
 
     (for ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))])
       (define desc : String (strategy->description strategy))

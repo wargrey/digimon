@@ -25,10 +25,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
-                                                   #:safe-flush-on-close? Boolean #:name Any #:lz77-hook LZ77-Submit-Symbol)
+                                                   #:name Any #:lz77-hook LZ77-Submit-Symbol)
                                           Output-Port)
   (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true]
-           #:safe-flush-on-close? [safe-flush-on-close? #true] #:name [name '/dev/dfbout] #:lz77-hook [on-symbol void]
+           #:name [name '/dev/dfbout] #:lz77-hook [on-symbol void]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
@@ -148,7 +148,7 @@
         (SEND-BITS #:windup? BFINAL)))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [add-empty-final-block? : Boolean] [flush-lz77? : Boolean]) : Void
+    (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [flush-lz77? : Boolean]) : Void
       (cond [(not no-compression?)
              (when (> payload 0)
                ;; NOTE
@@ -164,14 +164,12 @@
                              (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
                              strategy 0 payload))
              
-             (cond [(not (or BFINAL flush-lz77?)) 0]
-                   [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload) 0]
-                   [(and BFINAL) (huffman-write-empty-block! BFINAL)]
-                   [else 0])]
+             (when (or BFINAL flush-lz77?)
+               (cond [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload)]
+                     [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
             [(> payload 0) (huffman-write-stored-block! raw-block BFINAL 0 payload)]
-            [(and BFINAL add-empty-final-block?) (huffman-write-empty-block! BFINAL)]
-            [else 0])
-      
+            [(and BFINAL) (huffman-write-empty-block! BFINAL)])
+
       (when (> raw-payload 0)
         (set! raw-payload 0)))
 
@@ -190,44 +188,28 @@
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define received : Integer (- end start))
       
-      (cond [(<= received 0)
-             ;;; NOTE
-             ; By design, a terminate block would be inserted when flushing the port manually,
-             ; a.k.a calling `flush-port`, in which case `non-block/buffered?` is `#false`;
-             
-             ; But when performing a non-block writing with an empty bytes,
-             ; say, via `write-bytes-avail*`, it would reach here too, and
-             ; the `non-block/buffered?` is `#true`. So that, doing flush as
-             ; usual but do not insert the block as the final one.
-             (raw-block-flush (not non-block/buffered?) raw-payload #true #true)]
-
-            [else ; repeatedly fill the raw block and flush it if full.
+      (cond [(> received 0)
              (let write-raw ([recv : Natural received]
                              [start : Natural start]
                              [available : Index (unsafe-idx- raw-blocksize raw-payload)])
               (if (>= recv available)
                   (let ([start++ (unsafe-idx+ start available)])
                     (unsafe-bytes-copy! raw-block raw-payload bs start start++)
-                    (raw-block-flush #false raw-blocksize #false #false)
+                    (raw-block-flush #false raw-blocksize #false)
                     (when (> recv available)
                       (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
                   (begin
                     (unsafe-bytes-copy! raw-block raw-payload bs start end)
-                    (set! raw-payload (unsafe-idx+ raw-payload recv)))))])
+                    (set! raw-payload (unsafe-idx+ raw-payload recv)))))]
 
-      ; Conventionally, non-block writing implies flushing
-      (unless (not non-block/buffered?)
-        (raw-block-flush #false raw-payload #false #true))
+            [(or non-block/buffered? #| non-block writing implies flushing |#
+                 (<= received 0) #| via `flush-port` or non-block writing with empty bytes |#)
+             (raw-block-flush #false raw-payload #true)])
       
       (- end start))
 
     (define (block-close) : Void
-      (unless (not safe-flush-on-close?)
-        ;;; NOTE
-        ; When `safe-flush-on-close?` is `#false`, it means the lifecycle of the port is maintained automatically,
-        ; say by a custodian, and client API will manually terminate the block chain in some ways.
-        ; Or flushing will probably make blocks being written to wrong positions.
-        (raw-block-flush #true raw-payload #true #true))
+      (raw-block-flush #true raw-payload #true)
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))

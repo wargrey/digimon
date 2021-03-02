@@ -149,7 +149,7 @@
 (define zip-size : (-> Index String)
   (lambda [size]
     (~size size
-           #:precision '(= 1)
+           #:precision '(= 3)
            #:bytes->string (λ [n u] (~a n " B")))))
 
 (define zip-version : (-> Index String)

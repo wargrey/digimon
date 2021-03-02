@@ -97,6 +97,7 @@
   (list
    (list (list (make-archive-file-entry (build-path tamer:// "pkzip.rkt") "stored/pkzip.rkt" #:methods '(stored))
                (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
+               (make-archive-ascii-entry #"" "stored/empty.txt" #:methods '(stored))
                (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
          
          (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)

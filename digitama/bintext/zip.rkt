@@ -106,39 +106,46 @@
                                     ((Option Natural))
                                     ZIP-Data-Descriptor)
   (lambda [pool /dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
-    (when (exact-integer? seek)
-      (file-position /dev/stdout seek))
-    
-    (define /dev/zipin : (U Input-Port Bytes)
-      (cond [(bytes? source) source]
-            [else (open-input-file source)]))
+    (define anchor : Natural
+      (cond [(not seek) (file-position /dev/stdout)]
+            [else (file-position /dev/stdout seek) seek]))
 
     (define /dev/zipout : Output-Port
       (case method
-        ; Just leave all constructed ports to the custodian so that the original output port won't be closed unexpectedly.
         [(deflated)
-         (open-output-deflated-block #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level
-                                     #:name entry-name #:safe-flush-on-close? #false
-                                     /dev/stdout strategy)]
-        [else /dev/stdout #| the original one that shouldn't be closed here |#]))
+         (open-output-deflated-block /dev/stdout strategy #false #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level #:name entry-name)]
+        [else /dev/stdout]))
     
     (define-values (rsize crc32)
-      (if (bytes? /dev/zipin)
-          (let ([rsize : Natural (bytes-length /dev/zipin)])
+      (if (bytes? source)
+          (let ([rsize : Natural (bytes-length source)])
             (when (> rsize 0)
-              (write-bytes /dev/zipin /dev/zipout))
-            (flush-output /dev/zipout)
-            (values rsize (checksum-crc32 /dev/zipin 0 rsize)))
+              (write-bytes source /dev/zipout))
+            (values rsize (checksum-crc32 source 0 rsize)))
 
-          (zip-entry-copy /dev/zipin /dev/zipout pool)))
+          (zip-entry-copy (open-input-file source) /dev/zipout pool
+
+                          ; some systems may limit the maximum number of open files
+                          ; if exception escapes, constructed ports would be closed by the custodian
+                          #:close-input-port? #true
+
+                          ; keep consistent with other kind of sources
+                          #:flush-output-port? #false)))
+
+    ; by design, all output ports associated with compression methods should follow the convention:
+    ;   never mark the block with the FINAL flag when flushing manually,
+    ;   and let the closing flush and terminate the bitstream.
+    ; as such, only do flushing on non-compression output port,
+    ;   and we would have a chance to save some bytes for another empty final block
+    ;   if the bitstream isn't block aligned.
+    (if (eq? /dev/stdout /dev/zipout)
+        (flush-output /dev/zipout)
+        (close-output-port /dev/zipout))
     
-    (define csize : Natural
-      (cond [(eq? /dev/zipout /dev/stdout) rsize]
-            [else (file-position /dev/zipout)]))
-    
-    (make-zip-data-descriptor #:crc32 (assert crc32 index?)
-                              #:csize (assert csize index?)
-                              #:rsize (assert rsize index?))))
+    (let ([csize (- (file-position /dev/stdout) anchor)])
+      (make-zip-data-descriptor #:crc32 (assert crc32 index?)
+                                #:csize (assert csize index?)
+                                #:rsize (assert rsize index?)))))
 
 (define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Void)
   (lambda [/dev/zipout comment cdirs]
@@ -189,8 +196,8 @@
       [else (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-entry-copy : (->* (Input-Port Output-Port) ((U Bytes Index False)) (Values Natural Index))
-  (lambda [/dev/zipin /dev/zipout [pool0 4096]]
+(define zip-entry-copy : (->* (Input-Port Output-Port) ((U Bytes Index False) #:close-input-port? Boolean #:flush-output-port? Boolean) (Values Natural Index))
+  (lambda [/dev/zipin /dev/zipout [pool0 4096] #:close-input-port? [close-in? #false] #:flush-output-port? [flush-out? #true]]
     (define-values (#{pool : Bytes} #{pool-size : Index})
       (cond [(bytes? pool0) (values pool0 (bytes-length pool0))]
             [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
@@ -200,10 +207,12 @@
                               [crc32 : Index 0])
       (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
       
-      (cond [(exact-positive-integer? read-size)
-             (write-bytes pool /dev/zipout 0 read-size)
-             (copy-entry/checksum (+ total read-size) (checksum-crc32* pool crc32 0 read-size))]
-            [else (flush-output /dev/zipout) (values total crc32)]))))
+      (if (exact-positive-integer? read-size)
+          (begin (write-bytes pool /dev/zipout 0 read-size)
+                 (copy-entry/checksum (+ total read-size) (checksum-crc32* pool crc32 0 read-size)))
+          (begin (when (and flush-out?) (flush-output /dev/zipout))
+                 (when (and close-in?) (close-input-port /dev/zipin))
+                 (values total crc32))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-path-normalize : (case-> [Path-String -> String]

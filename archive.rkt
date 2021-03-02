@@ -138,8 +138,6 @@
 
            (make-parent-directory* target)
 
-           ; archive extractor manages the custodian, which controls the file resource.
-           ; TODO: deal with file permission and more
            (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
              (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
                    [else (let ([cdir (assert (current-zip-entry))])      
@@ -150,7 +148,12 @@
                              (throw-check-error /dev/zipin '|| "Bad CRC ~a (should be ~a)"
                                                 (~hexstring crc32) (~hexstring CRC32))))])
 
+             ; some system may limit the maximum number of open files
+             ; but, if exception is threw, the open file would be closed by the custodian
+             (close-output-port /dev/zipout)
 
+             ; TODO: deal with file permission and more
+           
              (cond [(path? solution)
                     (file-or-directory-modify-seconds target timestamp)
                     #false #| don't `touch` existing file |#]
