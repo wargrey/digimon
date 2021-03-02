@@ -83,7 +83,7 @@
            codewords)))
 
 (define huffman-fixed-literal-lookup-table : (Promise Huffman-Lookup-Table)
-  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits 8)])
+  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits huffman-fixed-literal-maxlength)])
            (huffman-lookup-table-canonicalize! table huffman-fixed-literal-lengths huffman-fixed-literal-maxlength)
            table)))
 

@@ -244,7 +244,7 @@
           (set! window-idx window-idx--))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #x00 #:limited csize))
+    (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #xFF #:limited csize))
     
     (define (huffman-read-block-header!) : (Values Symbol Boolean)
       (if (FEED-BITS 3)
@@ -322,8 +322,7 @@
         (unsafe-idx+ start consumed)))
 
     (define (read-huffman-symbol [table : Huffman-Lookup-Table] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
-      (unless (FEED-BITS upbits)
-        (display #\.))
+      (FEED-BITS upbits)
 
       (define-values (symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength))
 

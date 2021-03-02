@@ -5,6 +5,7 @@
 (require racket/file)
 
 (require digimon/archive)
+(require digimon/format)
 
 (require digimon/digitama/bintext/lz77)
 (require digimon/digitama/bintext/huffman)
@@ -40,12 +41,13 @@
   (lambda [raw filename]
     (define test.λsh (build-path pktest (format "~a" filename)))
 
-    (make-parent-directory* test.λsh)
+    (unless (file-exists? test.λsh)
+      (make-parent-directory* test.λsh)
     
-    (call-with-output-file* #:exists 'truncate/replace
-      test.λsh
-      (λ [[/dev/zipout : Output-Port]]
-        (void (write-bytes raw /dev/zipout))))))
+      (call-with-output-file* #:exists 'truncate/replace
+        test.λsh
+        (λ [[/dev/zipout : Output-Port]]
+          (void (write-bytes raw /dev/zipout)))))))
 
 (define pktest-configure : Archive-Directory-Configure
   (lambda [path name config]
@@ -60,7 +62,7 @@
                         (list (zip-run-preference (max 1 (assert base index?))))))))
           (let ([bname (string->symbol (path->string name))])
             (case bname
-              [(block-aligned.λsh) config#id]
+              [(block-aligned.λsh literals.λsh) config#id]
               [(window-sliding.λsh) config#1]
               [(backref) (list 'run 'fixed)]
               [else (cadr config)]))))
@@ -69,27 +71,32 @@
 
 (define gen-pktests : (-> Void)
   (lambda []
-    (unless (directory-exists? pktest)
-      (pktest-write (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))
-                    'deflated/block-aligned.λsh)
+    (pktest-write (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))
+                  'deflated/block-aligned.λsh)
     
-      (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))
-                    'deflated/window-sliding.λsh)
-      
-      (for ([base (in-vector huffman-backref-bases)]
-            [extra (in-vector huffman-backref-extra-bits)]
-            [idx (in-naturals)])
-        (pktest-write (apply bytes-append
-                             (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
-                               (let ([size (+ base offset 1)])
-                                 (make-bytes size (+ 97 (remainder size 26))))))
-                      (format "deflated/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
-      
-      (for ([base (in-vector huffman-distance-bases)]
-            [extra (in-vector huffman-distance-extra-bits)]
-            [idx (in-naturals)])
-        (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
-                      (format "deflated/backref/dist:~a:~a.λsh" idx base))))))
+    (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))
+                  'deflated/window-sliding.λsh)
+    
+    (for ([base (in-vector huffman-backref-bases)]
+          [extra (in-vector huffman-backref-extra-bits)]
+          [idx (in-naturals)])
+      (pktest-write (apply bytes-append
+                           (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
+                             (let ([size (+ base offset 1)])
+                               (make-bytes size (+ 97 (remainder size 26))))))
+                    (format "deflated/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
+    
+    (for ([base (in-vector huffman-distance-bases)]
+          [extra (in-vector huffman-distance-extra-bits)]
+          [idx (in-naturals)])
+      (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
+                    (format "deflated/backref/dist:~a:~a.λsh" idx base)))
+    
+    (for ([idx (in-range #x100)])
+      (pktest-write (bytes idx)
+                    (format "deflated/literals/~a/~a.λsh"
+                      (vector-ref huffman-fixed-literal-lengths idx)
+                      (byte->hex-string (assert idx byte?)))))))
 
 (gen-pktests)
   
@@ -104,7 +111,7 @@
                (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
    
-   (make-archive-directory-entries pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
+   (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
    
    (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options config#0)
          (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options config#1)
