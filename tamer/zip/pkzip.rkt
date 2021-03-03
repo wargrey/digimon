@@ -29,14 +29,14 @@
 (define config#9 : (Listof Any)  (list 9))
 (define config#id : (Listof Any) (list 'huffman-only))
 
-(define random-symbol : (-> Index Byte Real Index)
-  (lambda [i smax ratio]
+(define random-symbol : (-> Index Byte Real Byte Natural)
+  (lambda [i smax ratio base0]
     (define threshold (real->double-flonum (* smax ratio)))
     (define letter (random smax))
     
-    (if (> letter threshold)
-        (assert letter byte?)
-        (remainder i 26))))
+    (cond [(> letter threshold) (+ letter base0)]
+          [(= (remainder letter 8) 0) (char->integer #\newline)]
+          [else (+ (random smax) base0)])))
 
 (define pktest-write : (-> Bytes (U String Symbol) Void)
   (lambda [raw filename]
@@ -75,7 +75,7 @@
     (pktest-write (apply bytes (build-list (arithmetic-shift 1 (+ memlevel 6)) (λ [[i : Index]] (+ (remainder i 26) 65))))
                   'deflated/block-aligned.λsh)
     
-    (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (+ (random-symbol i 26 0.95) 97))))
+    (pktest-write (apply bytes (build-list (arithmetic-shift 1 (add1 window-ibits)) (λ [[i : Index]] (random-symbol i 95 0.95 32))))
                   'deflated/window-sliding.λsh)
     
     (for ([base (in-vector huffman-backref-bases)]

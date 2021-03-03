@@ -46,7 +46,7 @@
 ;     symbols, but their consecutive "indices".
 ;   in terms of compression,
 ;     "symbols" are codes for original plain text;
-;     "codewords" are codes for encoded text.
+;     "codewords" are codes for encoded bitstream.
 ;   for decoder, "codewords" are introduced to be referred by
 ;     their internal indices simply known as "symbol-indices".
 ;
@@ -297,7 +297,8 @@
                 ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
                 (let ([0-base-length-idx (- code-length 1)])
                   (if (< prefix-code (unsafe-vector*-ref (huffman-lookup-table-sentinels table) 0-base-length-idx))
-                      (let* ([nbits-code (unsafe-idxrshift prefix-code (unsafe-idx- codeword-bwidth code-length))]
+                      (let* ([dropping-bitsize (unsafe-idx- codeword-bwidth code-length)]
+                             [nbits-code (if (> dropping-bitsize 0) (unsafe-idxrshift prefix-code dropping-bitsize) prefix-code)]
                              [head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) 0-base-length-idx)])
                         (values (unsafe-vector*-ref (huffman-lookup-table-symbols table) (unsafe-fx+ head-offset nbits-code))
                                 code-length))

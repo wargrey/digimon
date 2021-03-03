@@ -228,7 +228,7 @@
     (define literal-table : Huffman-Lookup-Table (force huffman-fixed-literal-lookup-table))
     (define distance-table : Huffman-Lookup-Table (force huffman-fixed-distance-lookup-table))
 
-    (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
+    (define window-size/2 : Index (unsafe-idxlshift 1 (max winbits 15))) ; should be at least 32KB
     (define window-size : Nonnegative-Fixnum (+ window-size/2 window-size/2))
     (define window : Bytes (make-bytes window-size))
 
@@ -236,12 +236,18 @@
     (define window-idx : Index window-size/2)
     (define stock : Index 0)
 
-    (define (huffman-slide-window [current-stock : Index]) : Void
-      (when (>= window-idx window-size/2)
-        (let ([window-idx-- (unsafe-idx- window-idx window-size/2)])
-          ; sliding always occurs before the window is full, so it's safe to just add the `current-stock`
-          (unsafe-bytes-copy! window 0 window window-idx-- (+ window-idx current-stock))
-          (set! window-idx window-idx--))))
+    (define (huffman-try-slide-window [idx : Index] [supply : Index] [span : Index]) : (Values Index Index Nonnegative-Fixnum)
+      (define sliding-end : Index (unsafe-idx+ idx supply))
+      (define supply++ : Nonnegative-Fixnum (+ supply span))
+      
+      (cond [(< (+ sliding-end span) window-size) (values idx sliding-end supply++)]
+            [else (let* ([sliding-start (unsafe-idx- sliding-end window-size/2)])
+                    (unsafe-bytes-copy! window 0 window sliding-start sliding-end)
+                    ; don't complicate it, the above line says "to translate it from `sliding-start` to 0",
+                    ; thus, the distance should be just the `sliding-start` rather than the `window-size/2`.
+                    (values (unsafe-idx- idx sliding-start)
+                            (unsafe-idx- sliding-end sliding-start)
+                            supply++))]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define-values (FEED-BITS PEEK-BITS FIRE-BITS $SHELL) (make-input-lsb-bitstream /dev/zipin #:padding-byte #xFF #:limited csize))
@@ -293,32 +299,33 @@
 
     (define (read-huffman-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean] [type : Symbol]) : Index
       (define request : Index (unsafe-idx- end start))
-      (define supply : Nonnegative-Fixnum
-        (let lazy-extract ([supply : Nonnegative-Fixnum stock])
-          (cond [(>= supply request) supply]
+      (define-values (supply winpos)
+        (let lazy-extract : (Values Nonnegative-Fixnum Index)
+          ([supply : Nonnegative-Fixnum stock]
+           [widx : Index window-idx])
+          (cond [(>= supply request) (values supply widx)]
                 [else (let ([misc (read-huffman-symbol literal-table huffman-fixed-literal-maxlength upcodes BFINAL? type 'literal)])
                         (cond [(< misc EOB) ; pure literals
-                               (let ([supply++ (+ supply 1)])
-                                 (when (>= window-idx window-size) (huffman-slide-window supply))
-                                 (lz77-inflate-into window (unsafe-idx+ window-idx supply) misc)
-                                 (lazy-extract supply++))]
+                               (let-values ([(widx++ ipos supply++) (huffman-try-slide-window widx supply 1)])
+                                 (lz77-inflate-into window ipos misc)
+                                 (lazy-extract supply++ widx++))]
                               [(> misc EOB) ; <span, backward distance>s, extra bits represent MSB machine (unsigned) integers
                                (let* ([span-idx (unsafe-idx- misc backref-span-offset)]
                                       [span (read-huffman-extra-datum span-idx huffman-backref-bases huffman-backref-extra-bits)]
-                                      [supply++ (+ supply span)])
-                                 (when (>= (+ window-idx supply++) window-size) (huffman-slide-window supply))
-                                 (let* ([hdist (read-huffman-symbol distance-table huffman-fixed-distance-maxlength updistances BFINAL? type 'distance)]
-                                        [distance (read-huffman-extra-datum hdist huffman-distance-bases huffman-distance-extra-bits)])
-                                   (lz77-inflate-into window (unsafe-idx+ window-idx supply) distance span)
-                                   (lazy-extract supply++)))]
-                              [else #;EOB supply]))])))
+                                      [hdist (read-huffman-symbol distance-table huffman-fixed-distance-maxlength updistances BFINAL? type 'distance)]
+                                      [distance (read-huffman-extra-datum hdist huffman-distance-bases huffman-distance-extra-bits)])
+                                 (let-values ([(widx++ ipos supply++) (huffman-try-slide-window widx supply span)])
+                                   (lz77-inflate-into window ipos distance span)
+                                   (lazy-extract supply++ widx++)))]
+                              [else #;EOB (values supply widx)]))])))
 
       (let ([consumed (min request supply)])
+        ; `zero consumed` implies that no datum has been extracted this time as we employ a lazy strategy
         (when (> consumed 0)
-          (let ([window-idx++ (unsafe-idx+ window-idx consumed)])
-            (unsafe-bytes-copy! zipout start window window-idx window-idx++)
-            (set! window-idx window-idx++)))
-        (set! stock (unsafe-idx- supply consumed))
+          (let ([winpos++ (unsafe-idx+ winpos consumed)])
+            (unsafe-bytes-copy! zipout start window winpos winpos++)
+            (set! stock (unsafe-idx- supply consumed))
+            (set! window-idx winpos++)))
         (unsafe-idx+ start consumed)))
 
     (define (read-huffman-symbol [table : Huffman-Lookup-Table] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
