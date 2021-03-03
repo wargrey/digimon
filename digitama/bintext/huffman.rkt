@@ -9,16 +9,6 @@
 ;;; illumos://gate/usr/src/grub/grub-0.97/stage2/gunzip.c
 ;;; illumos://gate/usr/src/contrib/zlib/deflate.c
 
-; NOTE
-; Just in case you are confused by arguments' names
-;   in terms of compression,
-;     "symbols" are codes for decoded text;
-;     "codewords" are codes for encoded text.
-;   from the perspective of client applications,
-;     "symbols" have to be arranged in order, so that
-;     algorithms don't have to know concrete symbols,
-;     but their "indices".
-
 (provide (all-defined-out) force)
 (provide (all-from-out "table/huffman.rkt"))
 
@@ -47,6 +37,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; FIXED HUFFMAN SYMBOLS AND CODEWORDS
 ; WARNING: all vectors are 0-based, in which `head-offsets` and `sentinels` are different from those in "common" implementations.
+
+; NOTE
+; in case you are confused by arguments' names:
+;   from the perspective of client applications,
+;     "symbols" have to be arranged in order, so that
+;     compression algorithms don't have to know concrete
+;     symbols, but their consecutive "indices".
+;   in terms of compression,
+;     "symbols" are codes for original plain text;
+;     "codewords" are codes for encoded text.
+;   for decoder, "codewords" are introduced to be referred by
+;     their internal indices simply known as "symbol-indices".
+;
+;   That is to say, the decoder is nothing but a function
+;     that maps a "symbol index", which is resolved from
+;     the compressed bitstream, to its original symbol "index".
 
 (struct huffman-lookup-table
   ([cheatsheet : (Mutable-Vectorof Index)]    ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
@@ -83,68 +89,78 @@
            codewords)))
 
 (define huffman-fixed-literal-lookup-table : (Promise Huffman-Lookup-Table)
-  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits huffman-fixed-literal-maxlength)])
+  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits (min huffman-fixed-literal-maxlength 8))])
            (huffman-lookup-table-canonicalize! table huffman-fixed-literal-lengths huffman-fixed-literal-maxlength)
            table)))
 
 (define huffman-fixed-distance-lookup-table : (Promise Huffman-Lookup-Table)
-  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits huffman-fixed-distance-maxlength)])
+  (delay (let ([table (huffman-make-lookup-table #:fast-lookup-bits (min huffman-fixed-distance-maxlength 8))])
            (huffman-lookup-table-canonicalize! table huffman-fixed-distance-lengths huffman-fixed-distance-maxlength)
            table)))
 
 ;; Canonicalize huffman codewords of lengths stored in `lengths` from `start` to `end`,
-;    with `nextcodes` which accommodates temporary data, just in case clients don't want it to be allocated every time.
+;    with `nextcodes` and `counts`, which accommodate temporary data, just in case clients don't want them to be allocated every time.
 ;    also note that, `maxlength` means that lengths range in the closed interval [0, maxlength], hence `add1`s.
-(define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
-  (lambda [codewords lengths maxlength [nextcodes ((inst make-vector Index) (* (add1 maxlength) 2) 0)] [start 0] [end (vector-length lengths)]]
-    (define count-idx0 : Index (add1 maxlength)) ; length counts are temporary, and accommodated in the 2nd half of the `nextcodes`
+(define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) (Vectorof Index) Byte)
+                                               ((Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index)
+                                               Void)
+  (lambda [codewords lengths maxlength
+                     [nextcodes ((inst make-vector Index) (add1 maxlength) 0)] [counts ((inst make-vector Index) (add1 maxlength) 0)]
+                     [start 0] [end (vector-length lengths)]]
 
-    ;(vector-fill! codewords 0)
-    (vector-fill! nextcodes 0)
-
-    (let count-each-length ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
+    (let count-each-length ([cursor-idx : Nonnegative-Fixnum start])
+      (when (< cursor-idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths cursor-idx))
 
         (when (and (> self-length 0) (<= self-length maxlength))
           ; count[lengths[idx]]++;
-          (let ([cidx (unsafe-idx+ count-idx0 self-length)])
-            (unsafe-vector*-set! nextcodes cidx (unsafe-idx+ (unsafe-vector*-ref nextcodes cidx) 1))))
+          (unsafe-vector*-set! counts self-length
+                               (unsafe-idx+ (unsafe-vector*-ref counts self-length) 1)))
 
-        (count-each-length (+ idx 1))))
+        (count-each-length (+ cursor-idx 1))))
 
-    ; headcodes are just initial nextcodes, and they are temporary codes for encoder.
-    (let initialize-nextcodes ([bitsize : Index 0])
-      (when (< bitsize maxlength)
-        (define bitsize++ : Index (+ bitsize 1))
+    (unsafe-vector*-set! nextcodes 0 0)
+    (unsafe-vector*-set! counts 0 0)
 
+    (let initialize-nextcodes ([len : Index 0])
+      (when (< len maxlength)
+        (define len+1 : Index (+ len 1))
+
+        ; headcodes are just initial nextcodes.
         ; headcode[l + 1] = (headcode[l] + count[l]) << 1
-        (unsafe-vector*-set! nextcodes bitsize++
-                             (unsafe-idxlshift (+ (unsafe-vector*-ref nextcodes bitsize)
-                                                  (unsafe-vector*-ref nextcodes (+ count-idx0 bitsize)))
+        (unsafe-vector*-set! nextcodes len+1
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref nextcodes len)
+                                                  (unsafe-vector*-ref counts len))
                                                1))
-        (initialize-nextcodes bitsize++)))
+        (initialize-nextcodes len+1)))
     
     ;;; NOTE
     ; The codewords are actually not huffman codes at all, nevertheless, they work equivalently,
     ;   as the huffman codes is a subset of certain minimum redundancy codes.
-    (let resolve-codewords ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
+    (let resolve-codewords ([cursor-idx : Nonnegative-Fixnum start])
+      (when (< cursor-idx end)
+        (define code-length : Index (unsafe-vector*-ref lengths cursor-idx))
 
-        (when (and (> self-length 0) (<= self-length maxlength))
+        (when (and (> code-length 0) (<= code-length maxlength))
           ; [LSB] codeword[i] = nextcode[l]++
-          (let ([self-code (unsafe-vector*-ref nextcodes self-length)])
-            (unsafe-vector*-set! codewords (unsafe-idx- idx start) (bits-reverse-uint16 self-code self-length))
-            (unsafe-vector*-set! nextcodes self-length (unsafe-idx+ self-code 1))))
+          (let ([self-code (unsafe-vector*-ref nextcodes code-length)])
+            (unsafe-vector*-set! codewords (unsafe-idx- cursor-idx start) (bits-reverse-uint16 self-code code-length))
+            (unsafe-vector*-set! nextcodes code-length (unsafe-idx+ self-code 1))))
 
-        (resolve-codewords (+ idx 1))))))
+        (resolve-codewords (+ cursor-idx 1))))))
 
 ;; Canonicalize the lookup table of lengths stored in `lengths` from `start` to `end` for decoding huffman codewords,
-;    with `indices`, which accommodates temporary data, just in case clients don't want it to be allocated every time.
+;    with `indices`, `counts` and `headcodes`, which accommodate temporary data, just in case clients don't want them to be allocated every time.
 ;    also note that, `maxlength` means that lengths range in the closed interval [0, maxlength], hence `add1`s.
-(define huffman-lookup-table-canonicalize! : (->* (Huffman-Lookup-Table (Vectorof Index) Byte) ((Mutable-Vectorof Index) Index Index) Void)
-  (lambda [table lengths maxlength [indices ((inst make-vector Index) (* (add1 maxlength) 3) 0)] [start 0] [end (vector-length lengths)]]
+(define huffman-lookup-table-canonicalize! : (->* (Huffman-Lookup-Table (Vectorof Index) Byte)
+                                                  (#:on-error (Option (-> Any))
+                                                   (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index)
+                                                  Void)
+  (lambda [table lengths maxlength #:on-error [oops! #false]
+                 [symbol-indices ((inst make-vector Index) (add1 maxlength) 0)]
+                 [counts ((inst make-vector Index) (add1 maxlength) 0)]
+                 [codes ((inst make-vector Index) (add1 maxlength) 0)]
+                 [start 0] [end (vector-length lengths)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-lookup-table-cheatsheet table))
     (define symbols : (Mutable-Vectorof Index) (huffman-lookup-table-symbols table))
     (define headoffs : (Mutable-Vectorof Fixnum) (huffman-lookup-table-head-offsets table))
@@ -152,80 +168,87 @@
     (define cheat-bwidth : Byte (huffman-lookup-table-cheat-bwidth table))
     (define symbol-bwidth : Byte (huffman-lookup-table-symbol-bwidth table))
     
-    (define count-idx0 : Index (add1 maxlength))                ; length counts are temporary, and accommodated in the 2nd section of the `indices`
-    (define head-idx0 : Index (unsafe-idx* (add1 maxlength) 2)) ; head codes are temporary, and accommodated in the 3rd section of the `indices`
-    
-    ;(vector-fill! symbols 0)
     (vector-fill! cheatsheet 0)
-    (vector-fill! indices 0)
 
     ; same as in `huffman-codewords-canonicalize!`
-    (let count-each-length ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
+    (let count-each-length ([cursor-idx : Nonnegative-Fixnum start])
+      (when (< cursor-idx end)
+        (define self-length : Index (unsafe-vector*-ref lengths cursor-idx))
 
         (when (and (> self-length 0) (<= self-length maxlength))
           ; count[lengths[idx]]++;
-          (let ([cidx (unsafe-idx+ count-idx0 self-length)])
-            (unsafe-vector*-set! indices cidx (unsafe-idx+ (unsafe-vector*-ref indices cidx) 1))))
+          (unsafe-vector*-set! counts self-length
+                               (unsafe-idx+ (unsafe-vector*-ref counts self-length) 1)))
 
-        (count-each-length (+ idx 1))))
+        (count-each-length (+ cursor-idx 1))))
+
+    (unsafe-vector*-set! symbol-indices 0 0)
+    (unsafe-vector*-set! codes 0 0)
+    (unsafe-vector*-set! counts 0 0)
 
     ;; WARNING
     ; Both `head-offsets` and `sentinels` here are 0-base vectors, and the `bitsize` starts from 0,
-    ;   other "common" implementations might employ 1-base vectors, so please care the indice of them.
-    (let resolve-coordinates ([bitsize : Index 0])
-      (when (< bitsize maxlength)
-        (define bitsize++ : Index (+ bitsize 1))
+    ;   other "common" implementations might employ 1-base vectors, so please care the indices of them.
+    (let resolve-coordinates ([len : Index 0])
+      (when (< len maxlength)
+        (define len+1 : Index (+ len 1))
 
         ; headcode[l + 1] = (headcode[l] + count[l]) << 1
-        (unsafe-vector*-set! indices (+ head-idx0 bitsize++)
-                             (unsafe-idxlshift (+ (unsafe-vector*-ref indices (+ head-idx0 bitsize))
-                                                  (unsafe-vector*-ref indices (+ count-idx0 bitsize)))
+        (unsafe-vector*-set! codes len+1
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref codes len)
+                                                  (unsafe-vector*-ref counts len))
                                                1))
+
+        (unless (not oops!)
+          (when (> (unsafe-vector*-ref counts len+1) 0)
+            (define exclusive-last-codeword : Nonnegative-Fixnum (+ (unsafe-vector*-ref codes len+1) (unsafe-vector*-ref counts len+1)))
+            (define max-codeword-of-length+1 : Index (unsafe-idxlshift 1 len+1))
+
+            (when (> exclusive-last-codeword max-codeword-of-length+1)
+              ; <=> end-1 > (0b1000... - 1) = 0b111...
+              (oops!))))
 
         ; sentinel[l + base] = (headcode[l + 1] + count[l + 1]) << (maxlength - (l + 1))
         ; so that all sentinels have the same length equalling to `maxlength`
         ;   except the last one which overflows to 1-bit longer.
-        (unsafe-vector*-set! sentinels bitsize
-                             (unsafe-idxlshift (+ (unsafe-vector*-ref indices (+ head-idx0 bitsize++))
-                                                  (unsafe-vector*-ref indices (+ count-idx0 bitsize++)))
-                                               (unsafe-idx- maxlength bitsize++)))
+        (unsafe-vector*-set! sentinels len
+                             (unsafe-idxlshift (+ (unsafe-vector*-ref codes len+1)
+                                                  (unsafe-vector*-ref counts len+1))
+                                               (unsafe-idx- maxlength len+1)))
 
-        ; index[l + 1] = index[l] + count[l]
-        (unsafe-vector*-set! indices bitsize++
-                             (unsafe-idx+ (unsafe-vector*-ref indices bitsize)
-                                          (unsafe-vector*-ref indices (+ count-idx0 bitsize))))
+        ; symbol-index[l + 1] = symbol-index[l] + count[l]
+        (unsafe-vector*-set! symbol-indices len+1
+                             (unsafe-idx+ (unsafe-vector*-ref symbol-indices len)
+                                          (unsafe-vector*-ref counts len)))
         
         ; head-offset[l + base] = index[l + 1] - headcode[l + 1]
         ; yes, offsets are nonpositive fixnums
-        (unsafe-vector*-set! headoffs bitsize
-                             (unsafe-fx- (unsafe-vector*-ref indices bitsize++)
-                                         (unsafe-vector*-ref indices (+ head-idx0 bitsize++))))
+        (unsafe-vector*-set! headoffs len
+                             (unsafe-fx- (unsafe-vector*-ref symbol-indices len+1)
+                                         (unsafe-vector*-ref codes len+1)))
         
-        (resolve-coordinates bitsize++)))
+        (resolve-coordinates len+1)))
 
-    (let resolve-symbols ([idx : Nonnegative-Fixnum start])
-      (when (< idx end)
-        (define self-length : Index (unsafe-vector*-ref lengths idx))
+    (let resolve-symbols ([cursor-idx : Nonnegative-Fixnum start])
+      (when (< cursor-idx end)
+        (define code-length : Index (unsafe-vector*-ref lengths cursor-idx))
 
-        (when (and (> self-length 0) (<= self-length maxlength))
-          (define symbol-idx : Index (unsafe-idx- idx start))
-          (define pad-length : Fixnum (- cheat-bwidth self-length))
+        (when (and (> code-length 0) (<= code-length maxlength))
+          (define idx : Index (unsafe-idx- cursor-idx start))
+          (define pad-length : Fixnum (- cheat-bwidth code-length))
 
-          ; symbol[i] = index[l]++
-          (let ([self-index (unsafe-vector*-ref indices self-length)])
-            (unsafe-vector*-set! symbols symbol-idx self-index)
-            (unsafe-vector*-set! indices self-length (unsafe-idx+ self-index 1)))
+          ; symbol[symbol-index[l]++] = idx
+          (let ([self-index (unsafe-vector*-ref symbol-indices code-length)])
+            (unsafe-vector*-set! symbols self-index idx)
+            (unsafe-vector*-set! symbol-indices code-length (unsafe-idx+ self-index 1)))
 
           (when (>= pad-length 0)
-            (define codeword-idx : Fixnum (+ head-idx0 self-length))
-            (define self-code : Index (unsafe-vector*-ref indices codeword-idx))
-            (define codeword : Index (bits-reverse-uint16 self-code self-length))
+            (define self-code : Index (unsafe-vector*-ref codes code-length))
+            (define codeword : Index (bits-reverse-uint16 self-code code-length))
             (define padmask+1 : Index (unsafe-idxlshift 1 pad-length))
 
             ; code[l]++
-            (unsafe-vector*-set! indices codeword-idx (unsafe-idx+ self-code 1))
+            (unsafe-vector*-set! codes code-length (unsafe-idx+ self-code 1))
             
             (let pad-cheatsheet ([padding : Nonnegative-Fixnum 0])
               (when (< padding padmask+1)
@@ -234,17 +257,17 @@
                                      ; say, suppose the max bit width is 3, after padding, an 1-bit codeword
                                      ;   takes 4 entries of the cheatsheet, 00x, 01x, 10x, and 11x.
                                      ; BTW, the name 'padmask+1' helps you understand this algorithm.
-                                     (bitwise-ior codeword (unsafe-idxlshift padding self-length))
+                                     (bitwise-ior codeword (unsafe-idxlshift padding code-length))
 
-                                     ; the cheat code should be `(cons self-length symbol-idx)`,
+                                     ; the cheat code should be `(cons code-length idx)`,
                                      ;   but these are all small integers (a.k.a fixnums) even in a 32-bit system,
                                      ;   in which case compiler will generate more efficient code for them instead
                                      ;   of allocating lots of momery for pairs.
-                                     (bitwise-xor (unsafe-idxlshift self-length #| a.k.a code-length |# symbol-bwidth) symbol-idx))
+                                     (bitwise-xor (unsafe-idxlshift code-length symbol-bwidth) idx))
                 
                 (pad-cheatsheet (+ padding 1))))))
 
-        (resolve-symbols (+ idx 1))))))
+        (resolve-symbols (+ cursor-idx 1))))))
 
 ;; Extract one symbol from current bitstream
 ; NOTE that the `Huffman-Lookup-Table` is intentionally designed for clients to reuse memory,
@@ -257,29 +280,31 @@
             [else (bitwise-and codeword+more (huffman-lookup-table-cheat-mask table))]))
     (define cheat-code : Index (unsafe-vector*-ref cheatsheet cheat-idx))
 
-    (cond [(> cheat-code 0)
-           ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
-           (values (bitwise-and cheat-code (huffman-lookup-table-symbol-mask table))
-                   (unsafe-brshift cheat-code (huffman-lookup-table-symbol-bwidth table)))]
+    (if (> cheat-code 0)
+        
+        ; see `pad-cheatsheet` in `huffman-lookup-table-canonicalize!`
+        (values (bitwise-and cheat-code (huffman-lookup-table-symbol-mask table))
+                (unsafe-brshift cheat-code (huffman-lookup-table-symbol-bwidth table)))
+        
+        ; manually do canonical decoding with the bits in MSB-first order
+        (let* ([prefix-code (bits-reverse-uint16 codeword+more codeword-bwidth)])
+          ;; NOTE
+          ; In zip implementation, the number of search is usually very small,
+          ;   thus, binary search is not a neccesity here.
+          (let linear-search ([code-length : Nonnegative-Fixnum (+ (huffman-lookup-table-cheat-bwidth table) 1)])
+            (if (<= code-length codeword-bwidth)
 
-          [else ; manually do canonical decoding with the bits in MSB-first order
-           (let* ([prefix-code (bits-reverse-uint16 codeword+more codeword-bwidth)]
-                  [symbols (huffman-lookup-table-symbols table)]
-                  [upindices (vector-length symbols)])
-             ;; NOTE
-             ; In zip implementation, the number of search is usually very small,
-             ;   thus, binary search is not a neccesity here.
-             ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
-             (let linear-search ([code-length : Nonnegative-Fixnum (+ (huffman-lookup-table-cheat-bwidth table) 1)])
-               (if (<= code-length codeword-bwidth)
-                   (let ([0-base-length-idx (- code-length 1)])
-                     (if (< prefix-code (unsafe-vector*-ref (huffman-lookup-table-sentinels table) 0-base-length-idx))
-                         (let* ([head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) 0-base-length-idx)]
-                                [nbits-code (unsafe-idxrshift prefix-code (unsafe-idx- codeword-bwidth code-length))])
-                           (values (unsafe-vector*-ref symbols (unsafe-fx+ head-offset nbits-code))
-                                   code-length))
-                         (linear-search (+ code-length 1))))
-                   #| not found |# (values 0 0))))])))
+                ; Also recall that both `sentinels` and `head-offsets` are 0-base vectors
+                (let ([0-base-length-idx (- code-length 1)])
+                  (if (< prefix-code (unsafe-vector*-ref (huffman-lookup-table-sentinels table) 0-base-length-idx))
+                      (let* ([nbits-code (unsafe-idxrshift prefix-code (unsafe-idx- codeword-bwidth code-length))]
+                             [head-offset (unsafe-vector*-ref (huffman-lookup-table-head-offsets table) 0-base-length-idx)])
+                        (values (unsafe-vector*-ref (huffman-lookup-table-symbols table) (unsafe-fx+ head-offset nbits-code))
+                                code-length))
+                      (linear-search (+ code-length 1))))
+
+                #| not found |#
+                (values 0 0)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; HUFFMAN TREE

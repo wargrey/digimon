@@ -32,7 +32,9 @@
     (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
     (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
     (define codewords : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define temp-codes : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define nextcodes : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define counts : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define symbol-indices : (Mutable-Vectorof Index) (make-vector upcodes 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -77,13 +79,13 @@
     (printf "max length: ~a~n" maxlength)
 
     (time** #:title 'huffman-codewords-canonicalize!
-            (huffman-codewords-canonicalize! codewords huffman-tree maxlength temp-codes upcodes))
+            (huffman-codewords-canonicalize! codewords huffman-tree maxlength nextcodes counts upcodes))
     
     (display-codeword codewords huffman-tree upcodes)
 
     (let ([lookup (huffman-make-lookup-table #:fast-lookup-bits (min 8 maxlength) #:max-bitwidth maxlength)])
       (time** #:title 'huffman-lookup-table-canonicalize!
-              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength temp-codes upcodes))
+              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength symbol-indices counts nextcodes upcodes))
       
       (display-lookup-table lookup))))
 

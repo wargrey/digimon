@@ -49,7 +49,7 @@
 (define make-archive-hexdump-reader : (->* ()
                                            (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
                                            (Archive-Entry-Readerof* Natural))
-  (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #true] #:metainfo? [metainfo? #true]
+  (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:metainfo? [metainfo? #true]
            [/dev/zipout (current-output-port)]]
     (λ [/dev/zipin entry directory? timestamp idx]
       (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))

@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/file)
+(require racket/list)
 
 (require digimon/archive)
 (require digimon/format)
@@ -92,11 +93,10 @@
       (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
                     (format "deflated/backref/dist:~a:~a.λsh" idx base)))
     
-    (for ([idx (in-range #x100)])
-      (pktest-write (bytes idx)
-                    (format "deflated/literals/~a/~a.λsh"
-                      (vector-ref huffman-fixed-literal-lengths idx)
-                      (byte->hex-string (assert idx byte?)))))))
+    (for ([symbols (in-list (group-by (λ [[s : Index]] (vector-ref huffman-fixed-literal-lengths s)) (range #x100)))])
+      (pktest-write (apply bytes symbols)
+                    (format "deflated/literals/~abits.λsh"
+                      (vector-ref huffman-fixed-literal-lengths (car symbols)))))))
 
 (gen-pktests)
   
