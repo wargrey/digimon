@@ -29,12 +29,12 @@
   (lambda [txt]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
-    (define frequencies : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ upcodes upcodes) 0))
-    (define codewords : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define nextcodes : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define counts : (Mutable-Vectorof Index) (make-vector upcodes 0))
-    (define symbol-indices : (Mutable-Vectorof Index) (make-vector upcodes 0))
+    (define frequencies : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ uplitcodes uplitcodes) 0))
+    (define codewords : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define nextcodes : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define counts : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define symbol-indices : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -66,7 +66,7 @@
     (for ([idx (in-range n)])
       (define ptr (vector-ref huffman-tree idx))
       (define bitsize (vector-ref huffman-tree ptr))
-      (define symbol (- ptr upcodes))
+      (define symbol (- ptr uplitcodes))
 
       (echof #:fgcolor (if (not heap?) 'red 'green) "(~a . ~a)~n"
              (codesymbol->visual-value symbol) bitsize))
@@ -79,13 +79,13 @@
     (printf "max length: ~a~n" maxlength)
 
     (time** #:title 'huffman-codewords-canonicalize!
-            (huffman-codewords-canonicalize! codewords huffman-tree maxlength nextcodes counts upcodes))
+            (huffman-codewords-canonicalize! codewords huffman-tree maxlength nextcodes counts uplitcodes))
     
-    (display-codeword codewords huffman-tree upcodes)
+    (display-codeword codewords huffman-tree uplitcodes)
 
     (let ([lookup (huffman-make-lookup-table #:fast-lookup-bits (min 8 maxlength) #:max-bitwidth maxlength)])
       (time** #:title 'huffman-lookup-table-canonicalize!
-              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength symbol-indices counts nextcodes upcodes))
+              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength symbol-indices counts nextcodes uplitcodes))
       
       (display-lookup-table lookup))))
 

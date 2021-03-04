@@ -1,9 +1,10 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide unsafe-b+ unsafe-brshift)
 (provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder)
-(provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift)
-(provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift unsafe-brshift)
+(provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift unsafe-fxmax unsafe-fxmin)
+(provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift)
 (provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
 ; for debug...
@@ -16,6 +17,9 @@
 
 (unsafe-require/typed
  racket/unsafe/ops
+ [(unsafe-fx+ unsafe-b+) (-> Index Index Byte)]
+ [(unsafe-fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])]
+ 
  [(unsafe-fx* unsafe-idx*) (-> Natural Natural Index)]
  [(unsafe-fx+ unsafe-idx+) (-> Natural Natural Index)]
  [(unsafe-fx- unsafe-idx-) (case-> [Byte Byte -> Byte]
@@ -26,11 +30,13 @@
                                              [Natural Fixnum -> Index])]
  [(unsafe-fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
                                              [Natural Byte -> Index]
-                                             [Natural Natural -> Index])]
- [(unsafe-fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])])
+                                             [Natural Natural -> Index])])
 
 #;(unsafe-require/typed
  racket/fixnum
+ [(fx+ unsafe-b+) (-> Byte Byte Byte)]
+ [(fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])]
+ 
  [(fx* unsafe-idx*) (-> Natural Natural Index)]
  [(fx+ unsafe-idx+) (-> Natural Natural Index)]
  [(fx- unsafe-idx-) (case-> [Byte Byte -> Byte]
@@ -41,8 +47,7 @@
                                              [Natural Fixnum -> Index])]
  [(fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
                                              [Natural Byte -> Index]
-                                             [Natural Natural -> Index])]
- [(fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])])
+                                             [Natural Natural -> Index])])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.

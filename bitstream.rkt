@@ -71,8 +71,7 @@
     (define fire-bits : (-> Byte Void)
       (lambda [nbits]
         (set! payload (unsafe-idxrshift payload nbits))
-        (set! pwidth (unsafe-idx- pwidth nbits))
-        #;(set! aggregate (+ aggregate nbits))))
+        (set! pwidth (unsafe-idx- pwidth nbits))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define-bitstream-shell bs-shell (#:-> BitStream-Input-Shell Natural)

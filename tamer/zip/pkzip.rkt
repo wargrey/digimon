@@ -79,7 +79,7 @@
                   'deflated/window-sliding.λsh)
     
     (for ([base (in-vector huffman-backref-bases)]
-          [extra (in-vector huffman-backref-extra-bits)]
+          [extra (in-bytes huffman-backref-extra-bits)]
           [idx (in-naturals)])
       (pktest-write (apply bytes-append
                            (for/list : (Listof Bytes) ([offset (in-range 0 (expt 2 extra))])
@@ -88,7 +88,7 @@
                     (format "deflated/backref/~a:~a.λsh" (+ idx backref-span-offset) base)))
     
     (for ([base (in-vector huffman-distance-bases)]
-          [extra (in-vector huffman-distance-extra-bits)]
+          [extra (in-bytes huffman-distance-extra-bits)]
           [idx (in-naturals)])
       (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
                     (format "deflated/backref/dist:~a:~a.λsh" idx base)))

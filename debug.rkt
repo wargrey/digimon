@@ -10,14 +10,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (assert* stx)
   (syntax-case stx []
-    [(_ sexp pred throw) (syntax/loc stx (assert* sexp pred throw 'assert))]
-    [(_ sexp pred throw src)
+    [(_ sexp pred throw) (syntax/loc stx (assert* sexp pred throw #false 'assert))]
+    [(_ sexp pred throw src0 srcs ...)
      (quasisyntax/loc stx
        (let ([v sexp]
              [? pred])
          #,(syntax-property
             (quasisyntax/loc stx
-              (if (? v) v (throw src (~a (object-name ?)) v)))
+              (if (? v) v (throw src0 srcs ... ? v)))
             'feature-profile:TR-dynamic-check #t)))]))
 
 (define-syntax (time* stx)

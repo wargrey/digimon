@@ -17,25 +17,25 @@
     [(_ read-integer do-bytes->integer #:-> Integer_t)
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port Natural -> Integer_t]
-                                               [Input-Port Natural (-> Any Boolean : a) -> a]
-                                               [Input-Port Natural (-> Any Boolean : a) Symbol -> a]
-                                               [Input-Port Natural (-> Any Boolean : a) Symbol Throw-Range-Error -> a]))
+                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
+                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
+                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin size) (do-bytes->integer (read-integer-bytes! /dev/stdin size) 0 size)]
            [(/dev/stdin size subinteger?) (assert (read-integer /dev/stdin size) subinteger?)]
-           [(/dev/stdin size subinteger? op) (read-integer /dev/stdin size subinteger? op throw-range-error)]
-           [(/dev/stdin size subinteger? op throw) (assert* (read-integer /dev/stdin size) subinteger? throw op)])))]
+           [(/dev/stdin size subinteger? op) (assert* (read-integer /dev/stdin size) subinteger? throw-range-error /dev/stdin op)]
+           [(/dev/stdin size subinteger? op throw) (assert* (read-integer /dev/stdin size) subinteger? throw /dev/stdin op)])))]
     [(_ read-integer do-bytes->integer signed? bsize #:-> Integer_t)
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port -> Integer_t]
-                                               [Input-Port (-> Any Boolean : a) -> a]
-                                               [Input-Port (-> Any Boolean : a) Symbol -> a]
-                                               [Input-Port (-> Any Boolean : a) Symbol Throw-Range-Error -> a]))
+                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
+                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
+                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin) (do-bytes->integer (read-integer-bytes! /dev/stdin bsize) 0 signed?)]
            [(/dev/stdin subinteger?) (assert (read-integer /dev/stdin) subinteger?)]
-           [(/dev/stdin subinteger? op) (read-integer /dev/stdin subinteger? op throw-range-error)]
-           [(/dev/stdin subinteger? op throw) (assert* (read-integer /dev/stdin) subinteger? throw op)])))]))
+           [(/dev/stdin subinteger? op) (assert* (read-integer /dev/stdin) subinteger? throw-range-error /dev/stdin op)]
+           [(/dev/stdin subinteger? op throw) (assert* (read-integer /dev/stdin) subinteger? throw /dev/stdin op)])))]))
 
 (define-syntax (define-read-integer* stx)
   (syntax-case stx [:]
@@ -134,7 +134,7 @@
     (lambda [/dev/stdin size]
       (define s : (U Natural EOF) (read-bytes! intptr /dev/stdin 0 size))
       (cond [(eq? s size) intptr]
-            [else (throw-eof-error /dev/stdin)]))))
+            [else (throw-eof-error /dev/stdin 'read-integer-bytes!)]))))
 
 (define peek-integer-bytes! : (-> Input-Port Natural Natural (Option Bytes))
   (let ([intptr (make-bytes 8)])

@@ -67,7 +67,7 @@
 
 (define-for-syntax (stdio-datum-type <DataType>)
   (syntax-parse <DataType> #:datum-literals []
-    [(#:enum type datum->raw raw-datum (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error])))
+    [(#:enum type datum->raw raw-datum (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*])))
      (let ([bintype (stdio-integer-type (syntax-e #'type))])
        (and (list? bintype)
             (append (cons #'Symbol (cdr bintype))
@@ -278,13 +278,13 @@
   (lambda [/dev/stdin size]
     (define bs : (U Bytes EOF) (read-bytes size /dev/stdin))
     (cond [(bytes? bs) bs]
-          [(raise (throw-eof-error /dev/stdin))])))
+          [(raise (throw-eof-error /dev/stdin 'read-bytes*))])))
 
 (define read-nbytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (define bs : (U Bytes EOF) (read-bytes size /dev/stdin))
     (cond [(and (bytes? bs) (= (bytes-length bs) size)) bs]
-          [else (throw-eof-error /dev/stdin)])))
+          [else (throw-eof-error /dev/stdin 'read-nbytes)])))
 
 (define read-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
@@ -309,13 +309,13 @@
 (define peek-bytes* : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
     (define bs : (U Bytes EOF) (peek-bytes size skip /dev/stdin))
-    (if (bytes? bs) bs (throw-eof-error /dev/stdin))))
+    (if (bytes? bs) bs (throw-eof-error /dev/stdin 'peek-bytes*))))
 
 (define peek-nbytes : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
     (define bs : (U Bytes EOF) (peek-bytes size skip /dev/stdin))
     (cond [(and (bytes? bs) (= (bytes-length bs) size)) bs]
-          [else (throw-eof-error /dev/stdin)])))
+          [else (throw-eof-error /dev/stdin 'peek-nbytes)])))
 
 (define peek-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin size]

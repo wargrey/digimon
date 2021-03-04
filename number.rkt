@@ -151,7 +151,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bits-bytes-length : (-> Natural Index)
   (lambda [bits]
-    (assert (quotient (+ bits 7) 8) index?)))
+    (arithmetic-shift (assert (+ bits 7) index?) -3)))
 
 (define integer-bytes-length : (-> Integer Index)
   (lambda [mpint]

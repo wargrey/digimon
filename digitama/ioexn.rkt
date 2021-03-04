@@ -8,7 +8,8 @@
 (require racket/path)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Throw-Range-Error (-> Symbol String Any Nothing))
+(define-type Throw-Range-Error (-> (Option Input-Port) Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
+(define-type Throw-Range-Error* (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:fail:read:signature exn:fail:read () #:extra-constructor-name make-exn:read:signature)
@@ -18,14 +19,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define throw-impossible-error : (-> Input-Port Symbol Nothing)
-  (lambda [/dev/stdin fname]
-    (raise (make-exn:fail:read:eof (format "~a: ~a: [I have a bug report]!" (port-name /dev/stdin) fname)
+  (lambda [/dev/stdin src]
+    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src (list "[I have a bug report]!")))
                                    (current-continuation-marks)
                                    null))))
 
-(define throw-eof-error : (-> Input-Port Nothing)
-  (lambda [/dev/stdin]
-    (raise (make-exn:fail:read:eof (format "~a: unexpected end of file!" (port-name /dev/stdin))
+(define throw-eof-error : (-> Input-Port Symbol Nothing)
+  (lambda [/dev/stdin src]
+    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src (list "unexpected end of file!")))
                                    (current-continuation-marks)
                                    null))))
 
@@ -59,13 +60,19 @@
                                   (current-continuation-marks)
                                   null))))
 
-(define throw-range-error : (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
-  (lambda [src constraint given . args]
+(define throw-range-error : (-> (Option Input-Port) Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
+  (lambda [/dev/stdin src constraint given . args]
     (define message : String (exn-args->message args "out of range"))
     (define expected : String (exn-constraint->string constraint))
-    (raise (make-exn:syntax:range (format "~a: ~a~n expected: ~a~n given: ~s" src message expected given)
+    (define extended-args : (Listof Any) (list "~a~n expected: ~a~n given: ~s" message expected given))
+    (raise (make-exn:syntax:range (cond [(not /dev/stdin) (exn-src+args->message src extended-args)]
+                                        [else (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src extended-args))])
                                   (current-continuation-marks)
                                   null))))
+
+(define throw-range-error* : (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
+  (lambda [src constraint given . args]
+    (apply throw-range-error #false src constraint given args)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-name : (-> Input-Port String)

@@ -24,7 +24,7 @@
                              [else 8]))]      ; [#b11000000,  #b11000111]
                     [maxlength (apply max (syntax->datum #'(lengths ...)))])
        (syntax/loc stx
-         (values ((inst vector-immutable Byte) lengths ...)
+         (values ((inst vector-immutable Positive-Byte) lengths ...)
                  maxlength)))]))
 
 (define-syntax (huffman-fixed-distance-codeword-bit-lengths stx)
@@ -33,7 +33,7 @@
      (with-syntax* ([(lengths ...) (for/list ([idx (in-range 32)]) 5)]
                     [maxlength (apply max (syntax->datum #'(lengths ...)))])
        (syntax/loc stx
-         (values ((inst vector-immutable Byte) lengths ...)
+         (values ((inst vector-immutable Positive-Byte) lengths ...)
                  maxlength)))]))
 
 (define-syntax (define-huffman-fixed-backref-span-literal-table stx)
@@ -51,7 +51,7 @@
                           (cond [(< span (car bs)) (search (cdr bs) (cdr hs))]
                                 [else (list-set syms span (car hs))]))))])
        (syntax/loc stx
-         (begin (define huffman-backref-span-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits0 extra-bits ...))
+         (begin (define huffman-backref-span-extra-bits : Bytes (bytes extra-bits0 extra-bits ...))
                 (define huffman-backref-span-bases : (Immutable-Vectorof Index) (vector-immutable base-span0 base-span ...))
                 (define span-idx0 : Index literal0)
 
@@ -76,18 +76,18 @@
                                 [(< dist-1 256) (list (car hi.lo) (list-set (cadr hi.lo) dist-1 (car hs)))]
                                 [else (list (list-set (car hi.lo) (arithmetic-shift dist-1 -7) (car hs)) (cadr hi.lo))]))))])
        (syntax/loc stx
-         (begin (define huffman-distance-extra-bits : (Immutable-Vectorof Byte) (vector-immutable extra-bits ...))
+         (begin (define huffman-distance-extra-bits : Bytes (bytes extra-bits ...))
                 (define huffman-distance-bases : (Immutable-Vectorof Positive-Index) (vector-immutable base-distance ...))
 
-                (define hi-distances : (Immutable-Vectorof Byte) (vector-immutable hi-distance ...))
-                (define lo-distances : (Immutable-Vectorof Byte) (vector-immutable lo-distance ...))
+                (define hi-distances : Bytes (bytes hi-distance ...))
+                (define lo-distances : Bytes (bytes lo-distance ...))
                 
                 (define distance->huffman-distance : (-> Index Byte)
                   (lambda [distance]
                     (let ([dist-1 (unsafe-idx- distance 1)])
                       (if (< dist-1 256)
-                          (unsafe-vector*-ref lo-distances dist-1)
-                          (unsafe-vector*-ref hi-distances (unsafe-idxrshift dist-1 7)))))))))]))
+                          (unsafe-bytes-ref lo-distances dist-1)
+                          (unsafe-bytes-ref hi-distances (unsafe-idxrshift dist-1 7)))))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-values (huffman-fixed-literal-lengths huffman-fixed-literal-maxlength) (huffman-fixed-literal-codeword-bit-lengths))
@@ -171,4 +171,8 @@
    [29       24577 13]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define updistances : Index (vector-length huffman-distance-extra-bits))
+(define uplitcodes : Index (vector-length huffman-fixed-literal-lengths))
+(define strict-uplitcodes : Index (unsafe-idx+ backref-span-offset (vector-length huffman-backref-bases)))
+
+(define updistcodes : Index (vector-length huffman-fixed-distance-lengths))
+(define strict-updistcodes : Index (vector-length huffman-distance-bases))
