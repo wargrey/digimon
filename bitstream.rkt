@@ -44,6 +44,7 @@
     (define mgz-start : Index 0)   ; index into magazine = number of used peeked bytes
     (define payload : Index 0)     ; bit buffer
     (define pwidth : Index 0)      ; bits in bit buffer
+    (define eof-width : Natural 0)
     (define aggregate : Natural 0)
 
     (define stock : Natural
@@ -54,7 +55,9 @@
     (define feed-bits : (-> Byte Boolean)
       (lambda [nbits]
         (cond [(< pwidth nbits) (draw-bits nbits)]
-              [else #true])))
+              [(= eof-width 0) #true]
+              [(>= eof-width pwidth) #false]
+              [else (<= (- pwidth eof-width) nbits)])))
 
     (define peek-bits : (case-> [Byte Index Byte -> Index]
                                 [Byte Byte Byte -> Byte]
@@ -76,7 +79,7 @@
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define-bitstream-shell bs-shell (#:-> BitStream-Input-Shell Natural)
       #:with /dev/bsin lookahead
-      #:ingredients [magazine mgz-payload mgz-start payload pwidth aggregate]
+      #:ingredients [magazine mgz-payload mgz-start payload pwidth eof-width aggregate]
       #:operation [peek-bits feed-bits fire-bits])
 
     (define (try-commit-bits) : Void
@@ -108,7 +111,8 @@
     (define (draw-phantom-bytes) : Void
       ; do padding one by one, in case a gentle client doesn't exploiting to much.
       (unsafe-bytes-set! magazine mgz-start eof-byte)
-      (set! mgz-payload (unsafe-idx+ mgz-start 1)))
+      (set! mgz-payload (unsafe-idx+ mgz-start 1))
+      (set! eof-width (+ eof-width 8)))
 
     (define (draw-bits [nbits : Byte]) : Boolean
       (cond [(< mgz-start mgz-payload)
@@ -127,14 +131,12 @@
                      [(or (eq? ?n 0) (eof-object? ?n)) ; the port has been exhausted
                       (set! stock 0)
                       (draw-phantom-bytes)
-                      (draw-bits nbits)
-                      #false]
+                      (draw-bits nbits)]
                      [else #| skip special values |# (draw-bits nbits)]))]
             [else ; the bitstream is infinite by design
              (try-commit-bits)
              (draw-phantom-bytes)
-             (draw-bits nbits)
-             #false]))
+             (draw-bits nbits)]))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (values feed-bits peek-bits fire-bits bs-shell)))

@@ -83,18 +83,18 @@
     
     (display-codeword codewords huffman-tree uplitcodes)
 
-    (let ([lookup (huffman-make-lookup-table #:fast-lookup-bits (min 8 maxlength) #:max-bitwidth maxlength)])
-      (time** #:title 'huffman-lookup-table-canonicalize!
-              (huffman-lookup-table-canonicalize! lookup huffman-tree maxlength symbol-indices counts nextcodes uplitcodes))
+    (let ([lookup (huffman-make-alphabet #:max-bitwidth maxlength)])
+      (time** #:title 'huffman-alphabet-canonicalize!
+              (huffman-alphabet-canonicalize! lookup huffman-tree symbol-indices counts nextcodes uplitcodes))
       
-      (display-lookup-table lookup))))
+      (display-alphabet lookup))))
 
 (define fixed-run : (-> Void)
   (lambda []
     (display-codeword (time** #:title 'huffman-fixed-literal-codewords (force huffman-fixed-literal-codewords)) huffman-fixed-literal-lengths)
     (display-codeword (time** #:title 'huffman-fixed-distance-codewords (force huffman-fixed-distance-codewords)) huffman-fixed-distance-lengths)
-    (display-lookup-table (time** #:title 'huffman-fixed-literal-lookup-table (force huffman-fixed-literal-lookup-table)))
-    (display-lookup-table (time** #:title 'huffman-fixed-distance-lookup-table (force huffman-fixed-distance-lookup-table)))))
+    (display-alphabet (time** #:title 'huffman-fixed-literal-alphabet (force huffman-fixed-literal-alphabet)))
+    (display-alphabet (time** #:title 'huffman-fixed-distance-alphabet (force huffman-fixed-distance-alphabet)))))
 
 (define display-codeword : (->* ((Vectorof Index) (Vectorof Index)) (Index) Void)
   (lambda [codewords lengths [offset 0]]
@@ -106,16 +106,16 @@
                        (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
                        '=> (~binstring codeword bitsize))))))
 
-(define display-lookup-table : (-> Huffman-Lookup-Table Void)
+(define display-alphabet : (-> Huffman-Alphabet Void)
   (lambda [tbl]
     (define symbols : (HashTable Any (Listof (Pairof Any Any))) (make-hasheq))
-    (define cheat-bwidth (huffman-lookup-table-cheat-bwidth tbl))
+    (define cheat-bwidth (huffman-alphabet-cheat-bwidth tbl))
       
-    (for ([cheatcode (in-vector (huffman-lookup-table-cheatsheet tbl))]
+    (for ([cheatcode (in-vector (huffman-alphabet-cheatsheet tbl))]
           [codeword (in-naturals)]
           #:when (> cheatcode 0))
-      (define symbol (bitwise-and cheatcode (huffman-lookup-table-symbol-mask tbl)))
-      (define bitsize (arithmetic-shift cheatcode (- (huffman-lookup-table-symbol-bwidth tbl))))
+      (define symbol (bitwise-and cheatcode (huffman-alphabet-symbol-mask tbl)))
+      (define bitsize (arithmetic-shift cheatcode (- (huffman-alphabet-symbol-bwidth tbl))))
       (define symkey (codesymbol->visual-value symbol))
       (define symval (cons (~binstring codeword cheat-bwidth)
                            (~binstring (bitwise-bit-field codeword 0 bitsize) bitsize)))
@@ -134,8 +134,8 @@
                            (cons (car val) pads))))))
 
     (displayln "offsets + sentinels:")
-    (for ([offset (in-vector (huffman-lookup-table-head-offsets tbl))]
-          [sentinel (in-vector (huffman-lookup-table-sentinels tbl))]
+    (for ([offset (in-vector (huffman-alphabet-head-offsets tbl))]
+          [sentinel (in-vector (huffman-alphabet-sentinels tbl))]
           [length (in-naturals 1)])
       (displayln (list length offset (~binstring sentinel))))))
 

@@ -169,10 +169,3 @@
    [27       12289 12]
    [28       16385 13]
    [29       24577 13]])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define uplitcodes : Index (vector-length huffman-fixed-literal-lengths))
-(define strict-uplitcodes : Index (unsafe-idx+ backref-span-offset (vector-length huffman-backref-bases)))
-
-(define updistcodes : Index (vector-length huffman-fixed-distance-lengths))
-(define strict-updistcodes : Index (vector-length huffman-distance-bases))

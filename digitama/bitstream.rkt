@@ -11,12 +11,12 @@
   (syntax-case stx []
     [(_ id (#:-> InShell Status)
         #:with /dev/bsin lookahead
-        #:ingredients [magazine mgz-payload mgz-start payload pwidth total-committed]
+        #:ingredients [magazine mgz-payload mgz-start payload pwidth eof-width total-committed]
         #:operation [peek-bits feed-bits fire-bits])
      (syntax/loc stx
        (begin (define (reset) : Void
                 (set!-values (mgz-payload mgz-start) (values 0 0))
-                (set!-values (payload pwidth) (values 0 0)))
+                (set!-values (payload pwidth eof-width) (values 0 0 0)))
               
               (define align-bits : (-> Index)
                 (lambda []
