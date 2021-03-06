@@ -23,12 +23,6 @@
 
 (define memlevel : Positive-Byte 4)
 
-(define config#0 : (Listof Any)  (list 0))
-(define config#1 : (Listof Any)  (list 1))
-(define config#6 : (Listof Any)  (list 6))
-(define config#9 : (Listof Any)  (list 9))
-(define config#id : (Listof Any) (list 'huffman-only))
-
 (define random-symbol : (-> Index Byte Real Byte Natural)
   (lambda [i smax ratio base0]
     (define threshold (real->double-flonum (* smax ratio)))
@@ -60,11 +54,11 @@
                  (and (not (list? pos))
                       (let* ([bname (path->string name)]
                              [base (string->number (substring bname (car pos) (cdr pos)))])
-                        (list (zip-run-preference (max 1 (assert base index?))))))))
+                        (list (zip-run-preference (max 1 (assert base index?))) 'fixed)))))
           (let ([bname (string->symbol (path->string name))])
             (case bname
-              [(block-aligned.λsh literals.λsh) config#id]
-              [(window-sliding.λsh) config#1]
+              [(block-aligned.λsh literals.λsh) (list 'huffman-only 'fixed)]
+              [(window-sliding.λsh) (list 1 'fixed)]
               [(backref) (list 'run 'fixed)]
               [else (cadr config)]))))
 
@@ -93,10 +87,10 @@
       (pktest-write (make-bytes (+ base lz77-default-max-match extra) (+ 65 extra))
                     (format "deflated/backref/dist:~a:~a.λsh" idx base)))
     
-    (for ([symbols (in-list (group-by (λ [[s : Index]] (vector-ref huffman-fixed-literal-lengths s)) (range #x100)))])
+    (for ([symbols (in-list (group-by (λ [[s : Index]] (bytes-ref huffman-fixed-literal-lengths s)) (range #x100)))])
       (pktest-write (apply bytes symbols)
                     (format "deflated/literals/~abits.λsh"
-                      (vector-ref huffman-fixed-literal-lengths (car symbols)))))))
+                      (bytes-ref huffman-fixed-literal-lengths (car symbols)))))))
 
 (gen-pktests)
   
@@ -107,15 +101,15 @@
                (make-archive-ascii-entry #"" "stored/empty.txt" #:methods '(stored))
                (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
          
-         (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options config#0)
-               (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options config#id)
-               (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options (list 6 'fixed))))
+         (list (make-archive-binary-entry #"" "deflated/blank.λsh" #:methods '(deflated) #:options '(0 fixed))
+               (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options '(id fixed))
+               (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options '(6 fixed))))
    
-   (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated))
+   (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
    
-   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options config#0)
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options config#1)
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options config#9))))
+   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0 fixed))
+         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1 fixed))
+         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9 fixed)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

@@ -47,8 +47,8 @@
 
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
     (define raw-block : Bytes (make-bytes raw-blocksize))
-    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
-    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? lz77-dictionary-placeholder 0))
+    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? vector-placeholder 0))
+    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression? vector-placeholder 0))
 
     (define raw-payload : Index 0)
     (define lz77-payload : Index 0)
@@ -58,8 +58,8 @@
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size : Index (unsafe-idxlshift 1 winbits))
 
-    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression? lz77-dictionary-placeholder 0))
-    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize no-compression? lz77-dictionary-placeholder 0))
+    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression? vector-placeholder 0))
+    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize no-compression? vector-placeholder 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -76,12 +76,16 @@
            (void (lz77-block-flush #false lz77-payload)))]))
 
     ;; for (dynamic) huffman tree
-    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcodes (or no-compression? (not allow-dynamic?)) lz77-dictionary-placeholder 0))
-    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcodes (or no-compression? (not allow-dynamic?)) lz77-dictionary-placeholder 0))
+    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcodes (or no-compression? (not allow-dynamic?)) vector-placeholder 0))
+    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcodes (or no-compression? (not allow-dynamic?)) vector-placeholder 0))
+    (define literal-lengths : (Vectorof Index) (smart-make-vector uplitcodes (not allow-dynamic?) vector-placeholder 0))
+    (define distance-lengths : (Vectorof Index) (smart-make-vector updistcodes (not allow-dynamic?) vector-placeholder 0))
+    (define codelen-lengths : (Vectorof Index) (smart-make-vector uplencodes (not allow-dynamic?) vector-placeholder 0))
+    (define codeword-lengths : (Vectorof Index) (smart-make-vector (+ uplitcodes updistcodes) (not allow-dynamic?) vector-placeholder 0))
 
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
+        [(sym d-idx) ; <=> (submit-huffman-symbol+frequency sym 0 d-idx)
          (unsafe-vector*-set! literal-frequencies sym (unsafe-idx+ (unsafe-vector*-ref literal-frequencies sym) 1))
          (submit-huffman-symbol sym d-idx)]
         [(distance span d-idx)
@@ -124,18 +128,18 @@
             
             (cond [(= dist 0) ; pure literals
                    (PUSH-BITS (unsafe-vector*-ref literals misc)
-                              (unsafe-vector*-ref huffman-fixed-literal-lengths misc))]
+                              (unsafe-bytes-ref huffman-fixed-literal-lengths misc))]
                   
                   [else ; <span, backward distance>, extra bits represent MSB machine (unsigned) integers
                    (let ([hspan (backref-span->huffman-symbol misc)]
                          [hdist (backref-distance->huffman-distance dist)])
                      (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
                             [extra (unsafe-bytes-ref huffman-backref-extra-bits s-idx)])
-                       (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-vector*-ref huffman-fixed-literal-lengths hspan))
+                       (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-bytes-ref huffman-fixed-literal-lengths hspan))
                        (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
                      
                      (let* ([extra (unsafe-bytes-ref huffman-distance-extra-bits hdist)])
-                       (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-vector*-ref huffman-fixed-distance-lengths hdist))
+                       (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-bytes-ref huffman-fixed-distance-lengths hdist))
                        (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
             
             (write-codeword (+ idx 1))))
@@ -159,17 +163,17 @@
                            (define code-length : Index
                              (if (= dist 0)
                                  ; pure literals
-                                 (unsafe-vector*-ref huffman-fixed-literal-lengths misc)
+                                 (unsafe-bytes-ref huffman-fixed-literal-lengths misc)
 
                                  ; <span, backward distance>
                                  (unsafe-idx+
                                   (let* ([hspan (backref-span->huffman-symbol misc)]
                                          [s-idx (unsafe-idx- hspan backref-span-offset)])
-                                    (+ (unsafe-vector*-ref huffman-fixed-literal-lengths hspan)
+                                    (+ (unsafe-bytes-ref huffman-fixed-literal-lengths hspan)
                                        (unsafe-bytes-ref huffman-backref-extra-bits s-idx)))
                                   
                                   (let ([hdist (backref-distance->huffman-distance dist)])
-                                    (+ (unsafe-vector*-ref huffman-fixed-distance-lengths hdist)
+                                    (+ (unsafe-bytes-ref huffman-fixed-distance-lengths hdist)
                                        (unsafe-bytes-ref huffman-distance-extra-bits hdist))))))
 
                            (fold-codeword (+ idx 1) (unsafe-idx+ bitsize code-length)))])))
@@ -204,15 +208,18 @@
 
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
       ;;; NOTE
-      ; The handy thing is that backward distances are allowed to cross block boundaries,
-      ;   thus, the only thing to do here is to figure out a good way encoding and
-      ;   feed the bitstream resulting bits to output.
+      ; The handy thing is that backref distances are allowed to cross block boundaries,
+      ;   thus, the only thing to do here is to figure out a good way to encode the current
+      ;   lz77 block and feed the bitstream resulting bits to output.
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
       ;   reasonable data with a proper environment.
+
+      (cond [(not allow-dynamic?) (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)]
+            [else (let ([dyn-maxlength 15])
+                    (void))])
       
-      (let ([size++ (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)])
-        (vector-fill! lz77-dists 0)
-        (set! lz77-payload 0)))
+      (vector-fill! lz77-dists 0)
+      (set! lz77-payload 0))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define received : Integer (- end start))
@@ -267,8 +274,8 @@
     (define dynamic-literal-alphabet : Huffman-Alphabet (huffman-make-alphabet uplitcodes #:max-bitwidth upbits))
     (define dynamic-distance-alphabet : Huffman-Alphabet (huffman-make-alphabet updistcodes #:max-bitwidth upbits))
     (define codelen-alphabet : Huffman-Alphabet (huffman-make-alphabet uplencodes #:max-bitwidth uplenbits))
-    (define codelen-lengths : (Mutable-Vectorof Index) (make-vector uplencodes 0))
-    (define codeword-lengths : (Mutable-Vectorof Index) (make-vector (+ uplitcodes updistcodes) 0))
+    (define codelen-lengths : Bytes (make-bytes uplencodes 0))
+    (define codeword-lengths : Bytes (make-bytes (+ uplitcodes updistcodes) 0))
     (define prefab-indices : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
     (define prefab-counts : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
     (define prefab-codes : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
@@ -364,12 +371,12 @@
           (throw-eof-error /dev/blkin 'read-codelen-lengths!))
 
         (when (< nhclen uplencodes) ; the rest are 0s
-          (vector-fill! codelen-lengths 0))
+          (bytes-fill! codelen-lengths 0))
         
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0]
                                     [skip : Byte 0])
           (when (< idx nhclen)
-            (unsafe-vector*-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
+            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
             (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
 
         (FIRE-BITS codelen-lengths-bits)
@@ -385,13 +392,13 @@
         ;   but indicators for repeating previous or zero lengths, and the repetition might run
         ;   across the boundary of lengths of literals and distances.
         ; thus, lengths of literals and distances have to be read in one batch.
-        (vector-fill! codeword-lengths 0) ; for values 17, 18, in which case tons of 0s are copied.
+        (bytes-fill! codeword-lengths 0) ; for values 17, 18, in which case tons of 0s are copied.
         (let read-lit+dist-lengths ([code-idx : Nonnegative-Fixnum 0]
                                     [prevlength : (Option Index) #false])
           (when (< code-idx N)
             (define len : Index (read-huffman-symbol codelen-alphabet uplenbits uplencodes BFINAL? 'dynamic 'length))
 
-            (cond [(< len 16) (unsafe-vector*-set! codeword-lengths code-idx len) (read-lit+dist-lengths (+ code-idx 1) len)]
+            (cond [(< len 16) (unsafe-bytes-set! codeword-lengths code-idx len) (read-lit+dist-lengths (+ code-idx 1) len)]
                   [(= len 17) (read-lit+dist-lengths (+ code-idx (read-huffman-repetition-times code-idx 3 #b111 3 N BFINAL?)) 0)]
                   [(= len 18) (read-lit+dist-lengths (+ code-idx (read-huffman-repetition-times code-idx 7 #x7F 11 N BFINAL?)) 0)]
                   [else ; 16) ; to repeat previous length 3 - 6 times, determined by next 2 bits
@@ -399,7 +406,7 @@
                      (cond [(not prevlength) (throw-check-error /dev/blkin ename "dynamic[~a]: no previous length to copy" (if (not BFINAL?) #b0 #b1))]
                            [else (let ([idx++ : Index (unsafe-idx+ code-idx n)])
                                    (let copy-code ([idx : Nonnegative-Fixnum code-idx])
-                                     (cond [(< idx idx++) (unsafe-vector*-set! codeword-lengths idx prevlength) (copy-code (+ idx 1))]
+                                     (cond [(< idx idx++) (unsafe-bytes-set! codeword-lengths idx prevlength) (copy-code (+ idx 1))]
                                            [else (read-lit+dist-lengths idx++ prevlength)])))]))])))
 
         (huffman-alphabet-canonicalize!
@@ -453,7 +460,7 @@
                                (let-values ([(widx++ ipos supply++) (huffman-try-slide-window widx supply 1)])
                                  (lz77-inflate-into window ipos misc)
                                  (lazy-extract supply++ widx++))]
-                              [(> misc EOB) ; <span, backward distance>s, extra bits represent MSB machine (unsigned) integers
+                              [(> misc EOB) ; <span, backward distance>s, extra bits represent MSB-first machine (unsigned) integers
                                (let* ([span-idx (unsafe-idx- misc backref-span-offset)]
                                       [span (read-huffman-extra-datum span-idx huffman-backref-bases huffman-backref-extra-bits)]
                                       [hdist (read-huffman-symbol distance-alphabet distance-maxlength strict-updistcodes BFINAL? type 'distance)]
@@ -545,10 +552,9 @@
     /dev/blkin))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define lz77-block-placeholder : (Mutable-Vectorof LZ77-Symbol) (make-vector 0))
-(define lz77-dictionary-placeholder : (Mutable-Vectorof Index) (make-vector 0))
+(define vector-placeholder : (Mutable-Vectorof Index) (make-vector 0))
 
-(define smart-make-vector : (All (t) (-> Index Boolean (Mutable-Vectorof t) t (Mutable-Vectorof t)))
+(define smart-make-vector : (All (t) (-> Natural Boolean (Mutable-Vectorof t) t (Mutable-Vectorof t)))
   (lambda [size unused? placeholder defval]
     (cond [(not unused?) (make-vector size defval)]
           [else placeholder])))

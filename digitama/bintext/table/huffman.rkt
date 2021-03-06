@@ -23,18 +23,14 @@
                              [(<= idx 279) 7] ; [#b0000000,   #b0010111]
                              [else 8]))]      ; [#b11000000,  #b11000111]
                     [maxlength (apply max (syntax->datum #'(lengths ...)))])
-       (syntax/loc stx
-         (values ((inst vector-immutable Positive-Byte) lengths ...)
-                 maxlength)))]))
+       (syntax/loc stx (values (bytes lengths ...) maxlength)))]))
 
 (define-syntax (huffman-fixed-distance-codeword-bit-lengths stx)
   (syntax-case stx []
     [(_ ) ; NOTE: indices in [30, 31] are unused
      (with-syntax* ([(lengths ...) (for/list ([idx (in-range 32)]) 5)]
                     [maxlength (apply max (syntax->datum #'(lengths ...)))])
-       (syntax/loc stx
-         (values ((inst vector-immutable Positive-Byte) lengths ...)
-                 maxlength)))]))
+       (syntax/loc stx (values (bytes lengths ...) maxlength)))]))
 
 (define-syntax (define-huffman-fixed-backref-span-literal-table stx)
   (syntax-case stx []

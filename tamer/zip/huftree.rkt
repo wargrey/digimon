@@ -30,6 +30,7 @@
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define frequencies : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define lengths : Bytes (make-bytes uplitcodes 0))
     (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ uplitcodes uplitcodes) 0))
     (define codewords : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
     (define nextcodes : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
@@ -46,15 +47,15 @@
 
     (lz77-deflate txt submit-huffman-symbol (assert (zip-name->maybe-strategy 'identity)))
         
-    (define n : Index
+    (define heapsize : Index
       (time** #:title 'heapify
-              (let ([n (huffman-refresh-minheap! frequencies huffman-tree)])
-                (huffman-minheapify! huffman-tree n)
-                n)))
+              (let ([heapsize (huffman-refresh-minheap! frequencies huffman-tree)])
+                (huffman-minheapify! huffman-tree heapsize)
+                heapsize)))
     
     (define heap? : (U Boolean Natural)
       (let sub-okay? : (U Boolean Natural) ([i 0])
-        (or (>= i n)
+        (or (>= i heapsize)
             (let* ([self-freq (vector-ref huffman-tree (vector-ref huffman-tree i))]
                    [left-freq (sub-okay? (+ (* i 2) 1))]
                    [right-freq (sub-okay? (+ (* i 2) 2))])
@@ -63,7 +64,7 @@
                    (or (boolean? right-freq) (<= self-freq right-freq))
                    self-freq)))))
 
-    (for ([idx (in-range n)])
+    (for ([idx (in-range heapsize)])
       (define ptr (vector-ref huffman-tree idx))
       (define bitsize (vector-ref huffman-tree ptr))
       (define symbol (- ptr uplitcodes))
@@ -73,21 +74,22 @@
 
     (define maxlength : Byte
       (time** #:title 'treefy
-              (huffman-minheap-treefy! huffman-tree n)
-              (huffman-minheap-count-lengths! huffman-tree n)))
+              (huffman-minheap-treefy! huffman-tree heapsize)
+              (let-values ([(lengths maxlength) (huffman-minheap-count-lengths! huffman-tree heapsize lengths)])
+                maxlength)))
 
     (printf "max length: ~a~n" maxlength)
 
     (time** #:title 'huffman-codewords-canonicalize!
-            (huffman-codewords-canonicalize! codewords huffman-tree maxlength nextcodes counts uplitcodes))
+            (huffman-codewords-canonicalize! codewords lengths maxlength nextcodes counts))
     
-    (display-codeword codewords huffman-tree uplitcodes)
+    (display-codeword codewords lengths)
 
-    (let ([lookup (huffman-make-alphabet #:max-bitwidth maxlength)])
+    (let ([alphabet (huffman-make-alphabet #:max-bitwidth maxlength)])
       (time** #:title 'huffman-alphabet-canonicalize!
-              (huffman-alphabet-canonicalize! lookup huffman-tree symbol-indices counts nextcodes uplitcodes))
+              (huffman-alphabet-canonicalize! alphabet lengths symbol-indices counts nextcodes))
       
-      (display-alphabet lookup))))
+      (display-alphabet alphabet))))
 
 (define fixed-run : (-> Void)
   (lambda []
@@ -96,10 +98,10 @@
     (display-alphabet (time** #:title 'huffman-fixed-literal-alphabet (force huffman-fixed-literal-alphabet)))
     (display-alphabet (time** #:title 'huffman-fixed-distance-alphabet (force huffman-fixed-distance-alphabet)))))
 
-(define display-codeword : (->* ((Vectorof Index) (Vectorof Index)) (Index) Void)
-  (lambda [codewords lengths [offset 0]]
+(define display-codeword : (-> (Vectorof Index) Bytes Void)
+  (lambda [codewords lengths]
     (for ([codeword (in-vector codewords)]
-          [bitsize (in-vector lengths offset)]
+          [bitsize (in-bytes lengths)]
           [symbol (in-naturals)]
           #:when (> bitsize 0))
       (displayln (list (codesymbol->visual-value symbol)

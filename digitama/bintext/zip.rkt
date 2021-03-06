@@ -12,6 +12,7 @@
 (require "../ioexn.rkt")
 
 (require "../../port.rkt")
+(require "../../format.rkt")
 (require "../../checksum.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -202,7 +203,7 @@
       (cond [(bytes? pool0) (values pool0 (bytes-length pool0))]
             [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
             [else (values (make-bytes 4096 0) 4096)]))
-    
+
     (let copy-entry/checksum ([total : Natural 0]
                               [crc32 : Index 0])
       (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
@@ -213,6 +214,17 @@
           (begin (when (and flush-out?) (flush-output /dev/zipout))
                  (when (and close-in?) (close-input-port /dev/zipin))
                  (values total crc32))))))
+
+(define zip-entry-copy/trap : (->* (Input-Port Output-Port Natural Index) ((U Bytes Index False)) (U String True))
+  (lambda [/dev/zipin /dev/zipout rSize CRC32 [pool0 4096]]
+    (define /dev/subin (open-input-block /dev/zipin (* rSize 2)))
+    
+    (with-handlers ([exn:fail? exn-message])
+      (let-values ([(rsize crc32) (zip-entry-copy /dev/subin /dev/zipout pool0)])
+        (cond [(not (eof-object? (peek-byte /dev/zipin))) "malicious entry with infinite content"]
+              [(not (= rSize rsize)) (format "bad size ~a (should be ~a)" rsize rSize)]
+              [(not (= CRC32 crc32)) (format "bad checksum ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
+              [else #true])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-path-normalize : (case-> [Path-String -> String]

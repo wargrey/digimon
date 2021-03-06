@@ -19,6 +19,7 @@
 (require "filesystem.rkt")
 (require "dtrace.rkt")
 (require "format.rkt")
+(require "echo.rkt")
 (require "port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -47,10 +48,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-hexdump-reader : (->* ()
-                                           (Output-Port #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
+                                           (Output-Port Boolean #:width Byte #:add-gap-line? Boolean #:binary? Boolean #:decimal-cursor? Boolean #:metainfo? Boolean)
                                            (Archive-Entry-Readerof* Natural))
   (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:metainfo? [metainfo? #true]
-           [/dev/zipout (current-output-port)]]
+           [/dev/zipout (current-output-port)] [check? #true]]
     (λ [/dev/zipin entry directory? timestamp idx]
       (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))
       
@@ -59,11 +60,15 @@
           (newline /dev/zipout)))
       
       (let ([cdir (current-zip-entry)])
+        (define-values (CRC32 rSize csize)
+          (cond [(zip-directory? cdir) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir) (zip-directory-csize cdir))]
+                [(zip-entry? cdir) (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir) (zip-entry-csize cdir))]
+                [else (values 0 0 0)]))
+        
         (display (object-name /dev/zipin) /dev/zipout)
 
         (cond [(or directory? (not cdir)) (newline /dev/zipout)]
-              [else (let*-values ([(csize rsize) (zip-content-size* (list cdir))]
-                                  [(cfactor) (- 1 (if (= rsize 0) 1 (/ csize rsize)))])
+              [else (let*-values ([(cfactor) (- 1 (if (= rSize 0) 1 (/ csize rSize)))])
                       (fprintf /dev/zipout " [~a]~n" (~% cfactor #:precision `(= 2))))])
         
         (when (zip-directory? cdir)
@@ -73,9 +78,12 @@
 
           (unless (not metainfo?)
             (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
-              (displayln info)))))
-      
-      (copy-port /dev/zipin /dev/hexout)
+              (displayln info /dev/zipout))))
+
+        (cond [(not check?) (copy-port /dev/zipin /dev/hexout)]
+            [else (let ([errmsg (zip-entry-copy/trap /dev/zipin /dev/hexout rSize CRC32)])
+                    (when (string? errmsg)
+                      (eechof "~a~n" errmsg #:fgcolor 'red)))]))
 
       (cond [(void? idx) 1]
             [else (add1 idx)]))))
@@ -91,14 +99,8 @@
                    (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))
                    (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
              
-             (define result : (U True String)
-               (with-handlers ([exn:fail? exn-message])
-                 (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/null (max 1 pool-size))])
-                   (cond [(not (= rSize rsize)) (format "Bad size ~a (should be ~a)" rsize rSize)]
-                         [(not (= CRC32 crc32)) (format "Bad CRC ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
-                         [else #true]))))
-
-             (let ([entry-result (list entry result)])
+             (let* ([result (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size))]
+                    [entry-result (list entry result)])
                (when (symbol? topic)
                  (if (string? result)
                      (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
