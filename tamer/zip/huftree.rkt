@@ -29,13 +29,13 @@
   (lambda [txt]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
-    (define frequencies : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
-    (define lengths : Bytes (make-bytes uplitcodes 0))
-    (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ uplitcodes uplitcodes) 0))
-    (define codewords : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
-    (define nextcodes : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
-    (define counts : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
-    (define symbol-indices : (Mutable-Vectorof Index) (make-vector uplitcodes 0))
+    (define frequencies : (Mutable-Vectorof Index) (make-vector uplitcode 0))
+    (define lengths : Bytes (make-bytes uplitcode 0))
+    (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ uplitcode uplitcode) 0))
+    (define codewords : (Mutable-Vectorof Index) (make-vector uplitcode 0))
+    (define nextcodes : (Mutable-Vectorof Index) (make-vector uplitcode 0))
+    (define counts : (Mutable-Vectorof Index) (make-vector uplitcode 0))
+    (define symbol-indices : (Mutable-Vectorof Index) (make-vector uplitcode 0))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -67,15 +67,15 @@
     (for ([idx (in-range heapsize)])
       (define ptr (vector-ref huffman-tree idx))
       (define bitsize (vector-ref huffman-tree ptr))
-      (define symbol (- ptr uplitcodes))
+      (define symbol (- ptr uplitcode))
 
       (echof #:fgcolor (if (not heap?) 'red 'green) "(~a . ~a)~n"
              (codesymbol->visual-value symbol) bitsize))
 
-    (define maxlength : Byte
+    (define maxlength
       (time** #:title 'treefy
               (huffman-minheap-treefy! huffman-tree heapsize)
-              (let-values ([(lengths maxlength) (huffman-minheap-count-lengths! huffman-tree heapsize lengths)])
+              (let-values ([(_ maxlength _ec) (huffman-minheap-count-lengths! huffman-tree heapsize lengths)])
                 maxlength)))
 
     (printf "max length: ~a~n" maxlength)

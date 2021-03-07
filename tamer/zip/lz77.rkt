@@ -41,7 +41,8 @@
    [(#\f)   #:=> cmdopt-string->index filtered #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
 
    [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
-   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]]
+   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]
+   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (deflating only)"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
@@ -49,6 +50,7 @@
 
 (define lz77-brief : (Parameterof Boolean) (make-parameter #false))
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
+(define lz77-dynamic : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-run : LZ77-Run

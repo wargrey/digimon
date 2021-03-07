@@ -107,9 +107,9 @@
    
    (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
    
-   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0 fixed))
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1 fixed))
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9 fixed)))))
+   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0))
+         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1))
+         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

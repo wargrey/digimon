@@ -38,20 +38,21 @@
         (define /dev/bsout (open-output-bytes))
 
         (define-values (csize memory cpu real gc)
-          (time-apply** (λ []
-                          (let ([&csize : (Boxof Natural) (box 0)])
-                            (let ([/dev/zipout (open-output-deflated-block /dev/bsout strategy #false #:memory-level 1 #:name desc)])
-                              (write-bytes-avail txt /dev/zipout)
-                              (close-output-port /dev/zipout)
-                              (set-box! &csize (file-position /dev/bsout)))
-
-                            (let ([/dev/zipin (open-input-deflated-block (open-input-bytes (get-output-bytes /dev/bsout #true)) 0 #true #:name desc)])
-                              (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e))])
-                                (let-values ([(csize crc32) (zip-entry-copy /dev/zipin /dev/bsout)])
-                                  (custodian-shutdown-all (current-custodian)))))
-                          
-                            (assert (unbox &csize) index?)))))
-
+          (time-apply**
+           (λ []
+             (let ([&csize : (Boxof Natural) (box 0)])
+               (let ([/dev/zipout (open-output-deflated-block /dev/bsout strategy #false #:memory-level 1 #:name desc #:allow-dynamic-block? (lz77-dynamic))])
+                 (write-bytes-avail txt /dev/zipout)
+                 (close-output-port /dev/zipout)
+                 (set-box! &csize (file-position /dev/bsout)))
+               
+               (let ([/dev/zipin (open-input-deflated-block (open-input-bytes (get-output-bytes /dev/bsout #true)) 0 #true #:name desc)])
+                 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e))])
+                   (let-values ([(csize crc32) (zip-entry-copy /dev/zipin /dev/bsout)])
+                     (custodian-shutdown-all (current-custodian)))))
+               
+               (assert (unbox &csize) index?)))))
+        
         (let ([?txt (get-output-bytes /dev/bsout #true)])
           (lz77-display-summary desc txt ?txt csize rsize widths memory cpu real gc))))
 
