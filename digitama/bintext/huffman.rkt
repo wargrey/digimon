@@ -557,59 +557,53 @@
                                                       (unsafe-bytes-ref huffman-distance-extra-bits distance)))))
                 total))))))
 
-(define huffman-dynamic-lengths-deflate! : (-> Bytes Index (Mutable-Vectorof Index) (Mutable-Vectorof Index) Void)
-  (lambda [lengths N symbols frequencies]
-    (vector-fill! symbols 0)
+(define huffman-dynamic-lengths-deflate! : (-> Bytes Index Bytes Bytes (Mutable-Vectorof Index) Void)
+  (lambda [lengths N symbols repeats frequencies]
+    (bytes-fill! symbols 0) ; if data in symbols is clean, dirty data in repeats won't harmful
     (vector-fill! frequencies 0)
 
-    (define index0 : Index
-      (let ([length0 (unsafe-bytes-ref lengths 0)])
-        (cond [(= length0 0) 0]
-              [else ; copying non-0 length needs a previous length
-               (unsafe-vector*-set! symbols 0 length0)
-               (unsafe-vector*-set! frequencies length0 1)
-               1])))
-    
-    (let run-length ([len-idx : Nonnegative-Fixnum index0]
-                     [sym-idx : Index index0])
+    (let run-length ([len-idx : Nonnegative-Fixnum 0]
+                     [sym-idx : Index 0])
       (when (< len-idx N)
         (define self-length : Byte (unsafe-bytes-ref lengths len-idx))
-        (define-values (copying max-idx)
-          (if (= self-length 0)
-              (values 0 (unsafe-fxmin N (+ len-idx codelen-max-match:7)))
-              (values (unsafe-bytes-ref lengths (unsafe-idx- len-idx 1))
-                      (unsafe-fxmin N (+ len-idx codelen-max-match:2)))))
+        
+        (define-values (copying start-idx max-idx)
+          (cond [(= self-length 0) (values 0 (+ len-idx 1) (unsafe-fxmin N (+ len-idx codelen-max-match:7)))]
+                [(= len-idx 0) (values self-length #| <= any non-0 is okay |# len-idx len-idx)]
+                [else (let ([p-length (unsafe-bytes-ref lengths (unsafe-idx- len-idx 1))])
+                        (if (= p-length 0)
+                            (values self-length #| <= any non-0 is okay |# len-idx len-idx)
+                            (values p-length len-idx (unsafe-fxmin N (+ len-idx codelen-max-match:2)))))]))
         
         (define count : Index
-          (let fold-repeated ([rdx : Nonnegative-Fixnum (+ len-idx 1)])
+          (let fold-repeated ([rdx : Nonnegative-Fixnum start-idx])
             (cond [(and (= (unsafe-bytes-ref lengths rdx) copying) (< rdx max-idx)) (fold-repeated (+ rdx 1))]
                   [else (unsafe-idx- rdx len-idx)])))
         
-        (define-values (codelen-sym codelen-info idx-delta)
-          (cond [(>= count codelen-max-match:7) (values codelen-copy:7 (huffman-codelen-info codelen-copy:7 count) count)]
-                [(< count codelen-min-match) (values self-length self-length 1)]
-                [(= copying 0) (values codelen-copy:3 (huffman-codelen-info codelen-copy:3 count) count)]
-                [else (values codelen-copy:2 (huffman-codelen-info codelen-copy:2 count) count)]))
+        (define-values (codelen-sym repeat)
+          (cond [(>= count codelen-min-match:7)
+                 (unsafe-bytes-set! symbols sym-idx codelen-copy:7)
+                 (unsafe-bytes-set! repeats sym-idx count)
+                 (values codelen-copy:7 count)]
+                [(< count codelen-min-match)
+                 (unsafe-bytes-set! symbols sym-idx self-length)
+                 (values self-length 1)]
+                [(= copying 0)
+                 (unsafe-bytes-set! symbols sym-idx codelen-copy:3)
+                 (unsafe-bytes-set! repeats sym-idx count)
+                 (values codelen-copy:3 count)]
+                [else ; repeating previous length
+                 (unsafe-bytes-set! symbols sym-idx codelen-copy:2)
+                 (unsafe-bytes-set! repeats sym-idx count)
+                 (values codelen-copy:2 count)]))
 
-        (unsafe-vector*-set! symbols sym-idx codelen-info)
         (unsafe-vector*-set! frequencies codelen-sym
                              (unsafe-idx+ (unsafe-vector*-ref frequencies codelen-sym) 1))
         
-        (run-length (+ len-idx idx-delta)
-                    (unsafe-idx+ sym-idx 1))))))
+        (run-length (+ len-idx repeat) (unsafe-idx+ sym-idx 1))))))
 
 (define huffman-dynamic-codelen-effective-count : (-> Bytes Index)
   (lambda [codelen-lengths]
     (let countdown ([idx : Index (unsafe-idx- uplencode 1)])
       (cond [(= (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)) 0) (countdown (unsafe-idx- idx 1))]
             [else #| always greater than 4, since EOB won't be in first 4 slots (16, 17, 18, 0) |# (unsafe-idx+ idx 1)]))))
-
-(define huffman-codelen-info : (->* (Byte Index) (Positive-Byte) Index)
-  (lambda [symbol count [symbol-span-bits 7]]
-    ; just in case the code is 0, which is impossible in current specification
-    (bitwise-xor (unsafe-idxlshift count symbol-span-bits) symbol)))
-
-(define huffman-codelen-symbol : (->* (Index) (Positive-Byte Index) (Values Index Index))
-  (lambda [info [symbol-span-bits 7] [symbol-mask (unsafe-idx- (unsafe-idxlshift 1 symbol-span-bits) 1)]]
-    (values (unsafe-fxand info symbol-mask)
-            (unsafe-idxrshift info symbol-span-bits))))

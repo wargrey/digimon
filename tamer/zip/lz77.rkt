@@ -20,7 +20,7 @@
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte (Option Positive-Byte) Index Index Void))
+(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte Positive-Byte Index Index Positive-Byte Void))
 
 (define lz77-strategy : (-> Symbol String String String (List Symbol Byte Index))
   (lambda [option str.name str.#0 str.#n]
@@ -35,14 +35,15 @@
   #:args [filename]
 
   #:once-each
-  [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte "use ~1 as the default hash bits"]
-   [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "use ~1 as the default minimum match"]
-   [(#\F)   #:=> cmdopt-string->index farthest #: Index         "use ~1 as the distance limit for short matches"]
-   [(#\f)   #:=> cmdopt-string->index filtered #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
+  [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte    "use ~1 as the default hash bits"]
+   [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte    "use ~1 as the default minimum match"]
+   [(#\F)   #:=> cmdopt-string->index farthest #: Index            "use ~1 as the distance limit for short matches"]
+   [(#\f)   #:=> cmdopt-string->index filtered #: Index            "use ~1 as the filtered threshold to throw away random distributed data"]
 
-   [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
-   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]
-   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (deflating only)"]]
+   [(#\b)   #:=> lz77-brief                                        "only display T or F as the test result of a test"]
+   [(#\v)   #:=> lz77-verbose                                      "run with verbose messages"]
+   [(#\d)   #:=> lz77-dynamic                                      "allow dynamic huffman encoding (deflating only)"]
+   [(#\M)   #:=> cmdopt-string+>byte memory-level #: Positive-Byte "encoding in memory level of ~1 (deflating only)"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
@@ -54,13 +55,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-run : LZ77-Run
-  (lambda [txt strategies bits min-match farthest filtered]
+  (lambda [txt strategies bits min-match farthest filtered memory-level]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
     (when (lz77-verbose)
       (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-              bits (or min-match 'auto) farthest filtered))
+              bits min-match farthest filtered))
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -137,9 +138,10 @@
     (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
          strategies
          (or (lz77-flags-B options) lz77-default-hash-bits)
-         (lz77-flags-m options)
+         (or (lz77-flags-m options) lz77-default-min-match)
          (or (lz77-flags-F options) lz77-default-farthest)
-         (or (lz77-flags-f options) 0))))
+         (or (lz77-flags-f options) 0)
+         (or (lz77-flags-M options) 1))))
 
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
   (lambda [argument-list [run lz77-run]]

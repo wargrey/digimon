@@ -122,20 +122,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-deflate : (->* (Bytes LZ77-Submit-Symbol ZIP-Strategy)
                             (#:hash-bits Positive-Index #:hash-heads (Option (Vectorof Index)) #:hash-chain (Option (Vectorof Index))
-                             #:min-match (Option Positive-Byte) #:max-match Index #:farthest Index #:filtered Index
+                             #:min-match Positive-Byte #:max-match Index #:farthest Index #:filtered Index
                              Index Index)
                             Index)
   (lambda [#:hash-bits [hash-bits lz77-default-hash-bits] #:hash-heads [hs #false] #:hash-chain [ps #false]
-           #:min-match [?min-match #false] #:max-match [max-match lz77-default-max-match]
+           #:min-match [min-match lz77-default-min-match] #:max-match [max-match lz77-default-max-match]
            #:farthest [farthest lz77-default-farthest] #:filtered [filtered 0]
            window symbol-submit strategy [start 0] [end (bytes-length window)]]
     (cond [(zip-run-strategy? strategy) ; better for PNGs
-           (lz77-deflate/rle #:min-match (or ?min-match lz77-default-min-match) #:max-match max-match
-                             window symbol-submit strategy start end)]
+           (lz77-deflate/rle window symbol-submit strategy start end #:min-match min-match #:max-match max-match)]
           [(zip-backward-strategy? strategy) ; corresponds to the medium strategy of intel's `zlib-new`
            (let* ([level (zip-strategy-level strategy)]
-                  [preference (zip-backward-strategy-config strategy)]
-                  [min-match (or ?min-match (if (< level 6) 4 lz77-default-min-match))])
+                  [preference (zip-backward-strategy-config strategy)])
              (cond [(> level 0)
                     (lz77-deflate/backward #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                            #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
@@ -143,8 +141,7 @@
                    [else #| dead code for `zip-create` |# (lz77-deflate/identity window symbol-submit start end)]))]
           [(zip-normal-strategy? strategy)
            (let* ([level (zip-strategy-level strategy)]
-                  [preference (zip-normal-strategy-config strategy)]
-                  [min-match (or ?min-match lz77-default-min-match)])
+                  [preference (zip-normal-strategy-config strategy)])
              (cond [(> level 0)
                     (lz77-deflate/normal #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                          #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
@@ -152,8 +149,7 @@
                    [else #| dead code for `zip-create` |# (lz77-deflate/identity window symbol-submit start end)]))]
           [(zip-lazy-strategy? strategy)
            (let* ([level (zip-strategy-level strategy)]
-                  [preference (zip-lazy-strategy-config strategy)]
-                  [min-match (or ?min-match lz77-default-min-match)])
+                  [preference (zip-lazy-strategy-config strategy)])
              (cond [(> level 0)
                     (lz77-deflate/lazy #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                        #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
@@ -163,7 +159,7 @@
            (case (zip-strategy-name strategy)
              [(plain)
               (lz77-deflate/plain #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
-                                  #:min-match (or ?min-match 4) #:max-match max-match
+                                  #:min-match min-match #:max-match max-match
                                   window symbol-submit start end)]
              [else #| identity, huffman-only, and the fallback |# (lz77-deflate/identity window symbol-submit start end)])])))
 

@@ -17,13 +17,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define deflation-run : LZ77-Run
-  (lambda [txt strategies bits min-match farthest filtered]
+  (lambda [txt strategies bits min-match farthest filtered memory-level]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
     (when (lz77-verbose)
-      (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-              bits (or min-match 'auto) farthest filtered))
+      (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a] [memory level: ~a]~n"
+              bits (or min-match 'auto) farthest filtered memory-level))
 
     (define widths : (Listof Index)
       (text-column-widths (list (list "T" "strategy-name" "000.000KB" "100.00%"
@@ -41,7 +41,8 @@
           (time-apply**
            (λ []
              (let ([&csize : (Boxof Natural) (box 0)])
-               (let ([/dev/zipout (open-output-deflated-block /dev/bsout strategy #false #:memory-level 1 #:name desc #:allow-dynamic-block? (lz77-dynamic))])
+               (let ([/dev/zipout (open-output-deflated-block #:memory-level memory-level #:name desc #:allow-dynamic-block? (lz77-dynamic)
+                                                              /dev/bsout strategy #false)])
                  (write-bytes-avail txt /dev/zipout)
                  (close-output-port /dev/zipout)
                  (set-box! &csize (file-position /dev/bsout)))

@@ -24,9 +24,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean #:name Any)
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
+                                                   #:min-match Positive-Byte #:name Any)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true] #:name [name '/dev/dfbout]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true]
+           #:min-match [min-match lz77-default-min-match] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
     (define memory-level : Positive-Byte (min memlevel 9))
@@ -85,10 +87,11 @@
     (define distance-lengths : Bytes (smart-make-bytes updistcode (or no-compression? (not allow-dynamic?))))
 
     (define codeword-lengths : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
-    (define codelen-symbols : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
+    (define codelen-symbols : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
+    (define codelen-repeats : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
+    (define codelen-lengths : Bytes (smart-make-bytes uplencode (or no-compression? (not allow-dynamic?))))
     (define codelen-frequencies : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? (not allow-dynamic?))))
     (define codelen-codewords : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? (not allow-dynamic?))))
-    (define codelen-lengths : Bytes (smart-make-bytes uplencode (or no-compression? (not allow-dynamic?))))
     
     (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) (or no-compression? (not allow-dynamic?))))
     (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
@@ -106,7 +109,40 @@
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
            (submit-huffman-symbol distance span d-idx))]))
     
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (define (huffman-calculate-stored-block-length [start : Index] [end : Index]) : Nonnegative-Fixnum       
+      (+ 43 #| 3 + 8 + 16 * 2 |# ; TODO: work with precise align padding instead of 8
+         (unsafe-idxlshift (unsafe-idx- end start) 3)))
+
+    (define (huffman-calculate-static-block-length) : Nonnegative-Fixnum
+      (unsafe-fx+ 3
+                  ; EOB is counted in literal-frequencies
+                  (huffman-calculate-length literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
+
+    (define (huffman-calculate-dynamic-block-length [hclen : Index]) : Nonnegative-Fixnum
+      (unsafe-fx+ 17 #| 3 + 5 + 5 + 4 |#
+
+                  ; codelen codes lengths
+                  (unsafe-idx+
+                   (unsafe-idx+ (unsafe-idx* hclen 3)
+
+                                (let codelensum ([len : Nonnegative-Fixnum 0]
+                                                 [total : Nonnegative-Fixnum 0])
+                                  (cond [(>= len uplencode) total]
+                                        [else (codelensum (+ len 1)
+                                                          (unsafe-idx+ total
+                                                                       (unsafe-idx* (unsafe-vector*-ref codelen-frequencies len)
+                                                                                    (+ (unsafe-bytes-ref codelen-lengths len)
+                                                                                       (cond [(< len codelen-copy:2) 0]
+                                                                                             [(= len codelen-copy:2) 2]
+                                                                                             [(= len codelen-copy:3) 3]
+                                                                                             [(= len codelen-copy:7) 7]
+                                                                                             [else 0])))))])))
+                  
+                   ; EOB is counted in literal-frequencies
+                   (huffman-calculate-length literal-frequencies distance-frequencies literal-lengths distance-lengths))))
+
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-write-empty-block! [BFINAL : Boolean]) : Natural
       (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111) ; empty static block
       (PUSH-BITS EOB EOBbits)
@@ -147,19 +183,19 @@
           (PUSH-BITS (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)) 3 #b111)
           (push-codelen-lengths (+ idx 1))))
 
-      (let ([ncodeword (unsafe-idx+ hlit hdist)])
+      (let ([N (unsafe-idx+ hlit hdist)])
         (let push-codeword-lengths ([idx : Nonnegative-Fixnum 0])
-          (when (< idx ncodeword)
-            (define lensym : Index (unsafe-vector*-ref codelen-symbols idx))
+          (when (< idx N)
+            (define lensym : Index (unsafe-bytes-ref codelen-symbols idx))
 
-            (if (< lensym codelen-copy:2)
-                (PUSH-BITS (unsafe-vector*-ref codelen-codewords lensym) (unsafe-bytes-ref codelen-lengths lensym))
+            (PUSH-BITS (unsafe-vector*-ref codelen-codewords lensym) (unsafe-bytes-ref codelen-lengths lensym))
 
-                (let-values ([(copysym count) (huffman-codelen-symbol lensym)])
-                  (PUSH-BITS (unsafe-vector*-ref codelen-codewords copysym) (unsafe-bytes-ref codelen-lengths copysym))
-                  (cond [(= copysym codelen-copy:2) (PUSH-BITS (unsafe-idx- count codelen-min-match) 2 #b11)]
-                        [(= copysym codelen-copy:3) (PUSH-BITS (unsafe-idx- count codelen-min-match) 3 #b111)]
-                        [(= copysym codelen-copy:7) (PUSH-BITS (unsafe-idx- count codelen-min-match:7) 7 #x7F)]))))))
+            (cond [(< lensym codelen-copy:2) (push-codeword-lengths (+ idx 1))]
+                  [else (let ([repeat (unsafe-bytes-ref codelen-repeats idx)])
+                          (cond [(= lensym codelen-copy:2) (PUSH-BITS (unsafe-idx- repeat codelen-min-match)   2 #b11)]
+                                [(= lensym codelen-copy:3) (PUSH-BITS (unsafe-idx- repeat codelen-min-match)   3 #b111)]
+                                [(= lensym codelen-copy:7) (PUSH-BITS (unsafe-idx- repeat codelen-min-match:7) 7 #x7F)])
+                          (push-codeword-lengths (+ idx repeat)))]))))
       
       (huffman-write-block! l77src dists literal-codewords distance-codewords literal-lengths distance-lengths start end)
       
@@ -169,61 +205,28 @@
     (define (huffman-write-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)]
                                   [literals : (Vectorof Index)] [distances : (Vectorof Index)]
                                   [literal-lengths : Bytes] [distance-lengths : Bytes]
-                                  [start : Index] [end : Index]) : Void
-      (let write-codeword ([idx : Nonnegative-Fixnum start])
-        (when (< idx end)
-          (define misc : Index (unsafe-vector*-ref l77src idx))
-          (define dist : Index (unsafe-vector*-ref dists idx))
-          
-          (cond [(= dist 0) ; pure literals
-                 (PUSH-BITS (unsafe-vector*-ref literals misc)
-                            (unsafe-bytes-ref literal-lengths misc))]
-                
-                [else ; <span, backward distance>, extra bits represent MSB-first machine (unsigned) integers
-                 (let ([hspan (backref-span->huffman-symbol misc)]
-                       [hdist (backref-distance->huffman-distance dist)])
-                   (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
-                          [extra (unsafe-bytes-ref huffman-backref-extra-bits s-idx)])
-                     (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-bytes-ref literal-lengths hspan))
-                     (when (> extra 0) (PUSH-BITS (unsafe-idx- misc (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
-                   
-                   (let* ([extra (unsafe-bytes-ref huffman-distance-extra-bits hdist)])
-                     (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-bytes-ref distance-lengths hdist))
-                     (when (> extra 0) (PUSH-BITS (unsafe-idx- dist (unsafe-vector*-ref huffman-distance-bases hdist)) extra))))])
+                                  [start : Nonnegative-Fixnum] [end : Index]) : Void
+      (when (< start end)
+        (define literal : Index (unsafe-vector*-ref l77src start))
+        (define distance : Index (unsafe-vector*-ref dists start))
+        
+        (if (= distance 0)
+            ; pure literals
+            (PUSH-BITS (unsafe-vector*-ref literals literal) (unsafe-bytes-ref literal-lengths literal))
 
-          (write-codeword (+ idx 1)))))
+            ; <span, backward distance>, extra bits represent MSB-first machine (unsigned) integers
+            (let ([hspan (backref-span->huffman-symbol literal)]
+                  [hdist (backref-distance->huffman-distance distance)])
+              (let* ([s-idx (unsafe-idx- hspan backref-span-offset)]
+                     [extra (unsafe-bytes-ref huffman-backref-extra-bits s-idx)])
+                (PUSH-BITS (unsafe-vector*-ref literals hspan) (unsafe-bytes-ref literal-lengths hspan))
+                (when (> extra 0) (PUSH-BITS (unsafe-idx- literal (unsafe-vector*-ref huffman-backref-bases s-idx)) extra)))
+              
+              (let* ([extra (unsafe-bytes-ref huffman-distance-extra-bits hdist)])
+                (PUSH-BITS (unsafe-vector*-ref distances hdist) (unsafe-bytes-ref distance-lengths hdist))
+                (when (> extra 0) (PUSH-BITS (unsafe-idx- distance (unsafe-vector*-ref huffman-distance-bases hdist)) extra)))))
 
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-calculate-stored-block-length [start : Index] [end : Index]) : Nonnegative-Fixnum       
-      (+ 43 #| 3 + 8 + 16 * 2 |# ; TODO: work with precise align padding instead of 8
-         (unsafe-idxlshift (unsafe-idx- end start) 3)))
-
-    (define (huffman-calculate-static-block-length) : Nonnegative-Fixnum
-      (unsafe-fx+ 3
-                  ; EOB is counted in literal-frequencies
-                  (huffman-calculate-length literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
-
-    (define (huffman-calculate-dynamic-block-length [hclen : Index]) : Nonnegative-Fixnum
-      (unsafe-fx+ 17 #| 3 + 5 + 5 + 4 |#
-
-                  ; codelen codes lengths
-                  (unsafe-idx+
-                   (unsafe-idx+ (unsafe-idx* hclen 3)
-
-                                (let codelensum ([len : Nonnegative-Fixnum 0]
-                                                 [total : Nonnegative-Fixnum 0])
-                                  (cond [(>= len uplencode) total]
-                                        [else (codelensum (+ len 1)
-                                                          (unsafe-idx+ total
-                                                                       (unsafe-idx* (unsafe-vector*-ref codelen-frequencies len)
-                                                                                    (+ (unsafe-bytes-ref codelen-lengths len)
-                                                                                       (cond [(= len codelen-copy:2) 2]
-                                                                                             [(= len codelen-copy:3) 3]
-                                                                                             [(= len codelen-copy:7) 7]
-                                                                                             [else 0])))))])))
-                  
-                   ; EOB is counted in literal-frequencies
-                   (huffman-calculate-length literal-frequencies distance-frequencies literal-lengths distance-lengths))))
+        (huffman-write-block! l77src dists literals distances literal-lengths distance-lengths (+ start 1) end)))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [flush-lz77? : Boolean]) : Void
@@ -238,7 +241,7 @@
                ;; TODO: slide the window
                (vector-fill! hash-heads 0)
                (vector-fill! hash-prevs 0)
-               (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs
+               (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
                              (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
                              strategy 0 payload))
              
@@ -269,7 +272,7 @@
                         (and (< lit-maxlength codelen-copy:2)
                              (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
                              (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
-                             (huffman-dynamic-lengths-deflate! codeword-lengths (unsafe-idx+ hlit hdist) codelen-symbols codelen-frequencies)
+                             (huffman-dynamic-lengths-deflate! codeword-lengths (unsafe-idx+ hlit hdist) codelen-symbols codelen-repeats codelen-frequencies)
                              (let*-values ([(who cares) (huffman-frequencies->tree! codelen-frequencies codelen-codewords codelen-lengths uplencode minheap)]
                                            [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
                                            [(static-length) (huffman-calculate-static-block-length)]
@@ -415,9 +418,9 @@
       (unless (FEED-BITS 14)
         (throw-eof-error /dev/blkin 'huffman-begin-dynamic-block!))
       
-      (define nhlit : Index (unsafe-idx+ (PEEK-BITS 5 #x1F) literal-nbase))
-      (define nhdist : Index (+ (PEEK-BITS 5 #x1F 5) distance-nbase))
-      (define nhclen : Index (+ (PEEK-BITS 4 #xF 10) codelen-nbase))
+      (define hlit  : Index (unsafe-idx+ (PEEK-BITS 5 #x1F) literal-nbase))
+      (define hdist : Index (+ (PEEK-BITS 5 #x1F 5) distance-nbase))
+      (define hclen : Index (+ (PEEK-BITS 4 #x0F 10) codelen-nbase))
 
       (FIRE-BITS 14)
 
@@ -427,16 +430,16 @@
       ;   nonetheless, some buggy implementations might use them.
       ; thus, we are not going to check their validity.
 
-      (let ([codelen-lengths-bits (unsafe-b* nhclen 3) #| <= (19 * 3) < 64 |#])
+      (let ([codelen-lengths-bits (unsafe-b* hclen 3) #| <= (19 * 3) < 64 |#])
         (unless (FEED-BITS codelen-lengths-bits) 
           (throw-eof-error /dev/blkin 'read-codelen-lengths!))
 
-        (when (< nhclen uplencode) ; the rest are 0s
+        (when (< hclen uplencode) ; the rest are 0s
           (bytes-fill! codelen-lengths 0))
         
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0]
                                     [skip : Byte 0])
-          (when (< idx nhclen)
+          (when (< idx hclen)
             (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
             (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
 
@@ -448,14 +451,14 @@
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: codelen length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
          codelen-alphabet codelen-lengths prefab-indices prefab-counts prefab-codes 0 uplencode))
 
-      (let ([N (unsafe-idx+ nhlit nhdist)])
-        ; by design, the lengths 16, 17, and 18 in codelen lengths are not real lengths of codelen codes,
+      (let ([N (unsafe-idx+ hlit hdist)])
+        ; the lengths 16, 17, and 18 in codelen lengths are not real lengths of codelen codes,
         ;   but indicators for repeating previous or zero lengths, and the repetition might run
         ;   across the boundary of lengths of literals and distances.
         ; thus, lengths of literals and distances have to be read in one batch.
         (bytes-fill! codeword-lengths 0) ; for values 17, 18, in which case tons of 0s are copied.
         (let read-lit+dist-lengths ([code-idx : Nonnegative-Fixnum 0]
-                                    [prev-len : (Option Index) #false])
+                                    [prev-len : Index 0])
           (when (< code-idx N)
             (define len : Index (read-huffman-symbol codelen-alphabet uplenbits uplencode BFINAL? 'dynamic 'length))
 
@@ -464,7 +467,7 @@
                   [(= len codelen-copy:7) (read-lit+dist-lengths (+ code-idx (read-huffman-repetition-times code-idx 7 #x7F codelen-min-match:7 N BFINAL?)) 0)]
                   [else ; codelen-copy:2) ; to repeat previous length 3 - 6 times, determined by next 2 bits
                    (let ([n (read-huffman-repetition-times code-idx 2 #b11 codelen-min-match N BFINAL?)])
-                     (cond [(not prev-len) (throw-check-error /dev/blkin ename "dynamic[~a]: no previous length to copy" (if (not BFINAL?) #b0 #b1))]
+                     (cond [(= prev-len 0) (throw-check-error /dev/blkin ename "dynamic[~a]: previous length shouldn't be zero" (if (not BFINAL?) #b0 #b1))]
                            [else (let ([idx++ : Index (unsafe-idx+ code-idx n)])
                                    (let copy-code ([idx : Nonnegative-Fixnum code-idx])
                                      (cond [(< idx idx++) (unsafe-bytes-set! codeword-lengths idx prev-len) (copy-code (+ idx 1))]
@@ -472,11 +475,11 @@
 
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: literal length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         dynamic-literal-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes 0 nhlit)
+         dynamic-literal-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes 0 hlit)
         
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: distance length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         dynamic-distance-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes nhlit N))
+         dynamic-distance-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes hlit N))
 
       (unless (eq? BTYPE 'dynamic)
         (set! literal-alphabet dynamic-literal-alphabet)
