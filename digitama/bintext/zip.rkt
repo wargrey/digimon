@@ -217,7 +217,7 @@
 
 (define zip-entry-copy/trap : (->* (Input-Port Output-Port Natural Index) ((U Bytes Index False)) (U String True))
   (lambda [/dev/zipin /dev/zipout rSize CRC32 [pool0 4096]]
-    (define /dev/subin (open-input-block /dev/zipin (* rSize 2)))
+    (define /dev/subin (open-input-block /dev/zipin (* rSize 2 #| <= for debugging |#)))
     
     (with-handlers ([exn:fail? exn-message])
       (let-values ([(rsize crc32) (zip-entry-copy /dev/subin /dev/zipout pool0)])

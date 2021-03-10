@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
-(provide define-scenario describe)
+(provide (except-out (all-defined-out) it:describe))
 (provide (rename-out [define-scenario define-feature]))
+(provide (rename-out [describe context]))
 
 (require racket/stxparam)
 
@@ -16,7 +17,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax-parameter it
   (lambda [stx]
-    (raise-syntax-error 'it "cannot be used outside `describe` or `context`" stx)))
+    (raise-syntax-error 'it "should be inside `describe` or `context`" stx)))
 
 (define-syntax (define-scenario stx)
   (syntax-parse stx
@@ -25,6 +26,7 @@
 
 (define-syntax (describe stx)
   (syntax-parse stx
+    [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (describe (format fmt brief ...) rest ...))]
     [(_ brief (~optional (~seq #:do
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
@@ -34,19 +36,12 @@
        (syntax/loc stx
          (make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'it:describe)])
-                              (list (spec-expand expr) ...))
+                              (list expr ...))
                             #:before setup #:after teardown)))]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-syntax (spec-expand stx)
-  (syntax-parse stx #:datum-literals [describe context it]
-    [(_ (describe expr ...)) (syntax/loc stx (describe expr ...))]
-    [(_ (context expr ...)) (syntax/loc stx (describe expr ...))]
-    [(_ (it expr ...)) (syntax/loc stx (it expr ...))]
-    [(_ (expect expr ...)) (raise-syntax-error 'spec "unrecognized clause" #'expect)]))
 
 (define-syntax (it:describe stx)
   (syntax-parse stx
+    [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (it:describe (format fmt brief ...) rest ...))]
     [(_ brief (~optional (~seq #:do
                                (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
                                     (~seq (~seq #:after teardown) (~seq #:before setup)))))
@@ -56,7 +51,65 @@
                    [empty? (null? (syntax->list #'(expr ...)))])
        (syntax/loc stx
          (if (and empty?)
-             (make-spec-behavior brief (λ [] (parameterize ([default-spec-issue-location (spec-location #'brief)])
-                                               (spec-misbehave 'todo))))
-             (make-spec-behavior brief (λ [] expr ... (void))
+             (make-spec-behavior brief
+                                 (λ [] (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'brief))])
+                                         (spec-misbehave 'todo))))
+             (make-spec-behavior brief
+                                 (λ [] expr ... (void))
                                  #:before setup #:after teardown))))]))
+
+(define-syntax (define-behavior stx)
+  (syntax-parse stx
+    [(_ [id pstx ...] (local ... #:it brief #:do body ...))
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "" b-stx)])
+              (syntax/loc b-stx
+                (local ...
+                  (it brief #:do
+                      (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
+                        body ...)))))])))]
+    [(_ [id pstx ...] definition ... #:it brief #:do body ...)
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "" b-stx)])
+              (syntax/loc b-stx
+                (begin definition ...
+                       (it brief #:do
+                           (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
+                             body ...)))))])))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (ignore stx)
+  (syntax-parse stx
+    [(_ reason:str argl ...)
+     (syntax/loc stx
+       (raise (make-exn:fail:unsupported
+               (spec-message reason (list argl ...))
+               (current-continuation-marks))))]))
+
+(define-syntax (pending stx)
+  (syntax-parse stx
+    [(id reason:str argl ...)
+     (syntax/loc stx
+       (parameterize ([default-spec-issue-message (spec-message reason (list argl ...))]
+                      [default-spec-issue-location (or (default-spec-issue-location) (spec-location #'id))])
+         (spec-misbehave 'todo)))]))
+
+(define-syntax (collapse stx)
+  (syntax-parse stx
+    [(id reason:str argl ...)
+     (syntax/loc stx
+       (parameterize ([default-spec-issue-message (spec-message reason (list argl ...))]
+                      [default-spec-issue-location (or (default-spec-issue-location) (spec-location #'id))])
+         (spec-misbehave)))]))
+
+(define-syntax (make-it stx)
+  (syntax-parse stx
+    [(_ argl ...)
+     (syntax/loc stx
+       #true)]))

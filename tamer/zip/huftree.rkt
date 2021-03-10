@@ -79,6 +79,7 @@
                 maxlength)))
 
     (printf "max length: ~a~n" maxlength)
+    (printf "lengths: ~a~n" (bytes->list lengths))
 
     (time** #:title 'huffman-codewords-canonicalize!
             (huffman-codewords-canonicalize! codewords lengths maxlength nextcodes counts))

@@ -5,10 +5,15 @@
 (require "issue.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define spec-message : (-> (Listof Any) (Option String))
-  (lambda [argl]
-    (and (pair? argl) (string? (car argl))
-         (apply format (car argl) (cdr argl)))))
+(define spec-message : (case-> [(Listof Any) -> (Option String)]
+                               [String (Listof Any) -> String])
+  (case-lambda
+    [(argl)
+     (and (pair? argl) (string? (car argl))
+          (spec-message (car argl) (cdr argl)))]
+    [(fmt argl)
+     (cond [(null? argl) fmt]
+           [else (apply format fmt argl)])]))
 
 (define spec-location : (-> Syntax (Option srcloc))
   (lambda [stx]

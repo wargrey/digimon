@@ -54,9 +54,9 @@
 (define strict-updistcode : Index (vector-length huffman-distance-bases))
 
 ; these `nbase`s are designed for reducing the bits of dynamic block header by substracting them before encoding
-(define literal-nbase : Index backref-span-offset)
+(define literal-nbase : Index backref-span-offset) ; APPNOTE is wrong
 (define distance-nbase : Byte 1)
-(define codelen-nbase : Byte 4)
+(define codelen-nbase : Byte 4) ; APPNOTE is wrong
 
 ; as intricate as it is, the "codelen codes" are "codewords" for
 ;   encoding the lengths of "codewords" of the dynamic huffman codes,
@@ -138,7 +138,10 @@
                      [nextcodes ((inst make-vector Index) (add1 maxlength) 0)] [counts ((inst make-vector Index) (add1 maxlength) 0)]
                      [start 0] [end (bytes-length lengths)]]
     (unsafe-vector*-set! nextcodes 0 0) ; exclude zero lengths
-    (vector-fill! counts 0) ; if data in `counts` is clean, dirty data in other vectors won't be harmful 
+
+    ; note that `lengths[idx]` might not be consecutive, so that `counts` must be reset first
+    ; if data in `counts` are clean, dirty data in other vectors wouldn't be harmful
+    (vector-fill! counts 0)
     
     (let count-each-length ([cursor-idx : Nonnegative-Fixnum start])
       (when (< cursor-idx end)
@@ -146,7 +149,6 @@
 
         (when (and (> self-length 0) (<= self-length maxlength))
           ; count[lengths[idx]]++;
-          ; note that `lengths[idx]` might not be consecutive, so that `counts` must be reset first
           (unsafe-vector*-set! counts self-length
                                (unsafe-idx+ (unsafe-vector*-ref counts self-length) 1)))
 
@@ -184,10 +186,12 @@
 ;  Also note that, `maxlength`, which is the smaller one between `strict-maxlength` and `max-bwidth` of the alphabet,
 ;    means that lengths range in the closed interval [0, maxlength], hence `add1`s.
 (define huffman-alphabet-canonicalize! : (->* (Huffman-Alphabet Bytes)
-                                              (#:strict-bitwidth Byte #:on-error (Option (Index -> Any))
+                                              (#:strict-bitwidth Byte #:on-error (Index -> Nothing)
                                                (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index)
                                               Void)
-  (lambda [alphabet lengths #:strict-bitwidth [strict-maxlength (huffman-alphabet-max-bwidth alphabet)] #:on-error [oops! #false]
+  (lambda [alphabet lengths
+                    #:strict-bitwidth [strict-maxlength (huffman-alphabet-max-bwidth alphabet)]
+                    #:on-error [oops! (λ [[len : Index]] (error 'huffman-alphabet-canonicalize! "codewords of length ~a overflow!" len))]
                     [symbol-indices ((inst make-vector Index) (add1 strict-maxlength) 0)]
                     [counts ((inst make-vector Index) (add1 strict-maxlength) 0)]
                     [codes ((inst make-vector Index) (add1 strict-maxlength) 0)]
@@ -204,8 +208,7 @@
     (unsafe-vector*-set! symbol-indices 0 0)
     (unsafe-vector*-set! codes 0 0)
     
-    ; if data in these vectors are clean
-    ; dirty data in other vectors won't be harmful 
+    ; if data in these vectors are clean, dirty data in other vectors wouldn't be harmful 
     (vector-fill! cheatsheet 0)
     (vector-fill! sentinels 0)
     
@@ -236,14 +239,13 @@
                                                   (unsafe-vector*-ref counts len))
                                                1))
 
-        (unless (not oops!)
-          (when (> (unsafe-vector*-ref counts len+1) 0)
-            (define exclusive-last-codeword : Nonnegative-Fixnum (+ (unsafe-vector*-ref codes len+1) (unsafe-vector*-ref counts len+1)))
-            (define max-codeword-of-length+1 : Index (unsafe-idxlshift 1 len+1))
-
-            (when (> exclusive-last-codeword max-codeword-of-length+1)
-              ; <=> end > (0b1000... - 1) = 0b111...
-              (oops! len+1))))
+        (unless (= (unsafe-vector*-ref counts len+1) 0)
+          (define last-codeword+1 : Nonnegative-Fixnum (+ (unsafe-vector*-ref codes len+1) (unsafe-vector*-ref counts len+1)))
+          (define length-mask+1 : Index (unsafe-idxlshift 1 len+1))
+          
+          (when (> last-codeword+1 length-mask+1)
+            ; <=> end > (0b1000... - 1) = 0b111...
+            (oops! len+1)))
 
         ; sentinel[l + base] = (headcode[l + 1] + count[l + 1]) << (maxlength - (l + 1))
         ; so that all sentinels have the same length equalling to `maxlength`
@@ -365,27 +367,28 @@
 ;   the head portion accommodates heap pointers, and
 ;   the tail portion accommodates the frequencies to be linked by heap pointers.
 ; and return the size of the `heap`.
-(define huffman-refresh-minheap! : (->* ((Vectorof Index) (Mutable-Vectorof Index)) (Index) Index)
-  (lambda [frequencies heap [upcode uplitcode]]
+(define huffman-refresh-minheap! : (->* ((Vectorof Index) (Mutable-Vectorof Index)) (Index #:frequency-peak Index) Index)
+  (lambda [frequencies heap [upcode (vector-length frequencies)] #:frequency-peak [fpeak #xFFFF]]
     (define freq-count : Index (min upcode (vector-length frequencies)))
     (define freq-end : Index (vector-length heap))
     (define freq-start : Index (unsafe-idx- freq-end freq-count))
 
+    (vector-fill! heap 0)
+    
     ;;; WARNING
-    ; Don't squeeze out 0-frequent symbols
-    ;   since they are mapped to indices so that
-    ;   we don't have to maintain them separately.
-    (vector-copy! heap freq-start frequencies 0 freq-count)
-
-    (let heap-link! ([f-idx : Nonnegative-Fixnum freq-start]
+    ; Don't squeeze out 0-frequent symbols since they are mapped to indices so that we don't have to maintain them separately
+    (let heap-link! ([fp-idx : Nonnegative-Fixnum freq-start]
+                     [f-idx : Index 0]
                      [n : Index 0])
-      (cond [(>= f-idx freq-end) n]
-            [else (let ([freq (unsafe-vector*-ref heap f-idx)]
-                        [f-idx++ (add1 f-idx)])
-                    (cond [(= freq 0) (heap-link! f-idx++ n)]
+      (cond [(>= fp-idx freq-end) n]
+            [else (let ([freq (unsafe-vector*-ref frequencies f-idx)]
+                        [fp-idx++ (add1 fp-idx)]
+                        [f-idx++ (unsafe-idx+ f-idx 1)])
+                    (cond [(= freq 0) (heap-link! fp-idx++ f-idx++ n)]
                           [else (let ([n++ (unsafe-idx+ n 1)])
-                                  (unsafe-vector*-set! heap n f-idx)
-                                  (heap-link! f-idx++ n++))]))]))))
+                                  (unsafe-vector*-set! heap fp-idx (min fpeak freq))
+                                  (unsafe-vector*-set! heap n fp-idx)
+                                  (heap-link! fp-idx++ f-idx++ n++))]))]))))
 
 ;; Phase 1: Creation (`heapify` is more accurate since it occurs in place)
 ; To repeatedly increase the size of the heap by 1
@@ -455,13 +458,13 @@
 ;   so that we don't have to thoroughly count lengths manually.
 ; After this phase, the `heap` is totally damaged as it is a intermediary structure.  
 (define huffman-minheap-count-lengths! : (->* ((Mutable-Vectorof Index) Index) (Bytes Index) (Values Bytes Byte Index))
-  (lambda [heap n [lengths (make-bytes uplitcode 0)] [upcode uplitcode]]
+  (lambda [heap n [lengths (make-bytes uplitcode 0)] [upcode (bytes-length lengths)]]
     (vector-set! heap 1 0) ; root is 0
 
     (let update-subtree-depths ([idx : Nonnegative-Fixnum 2])
       (when (< idx n) ; WARNING: subtrees only take at most the first n consecutive slots after the root node
         (let ([parent-idx (unsafe-vector*-ref heap idx)])
-          (unsafe-vector*-set! heap idx (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1))
+          (unsafe-vector*-set! heap idx (unsafe-idx+ (unsafe-vector*-ref heap parent-idx) 1))
           (update-subtree-depths (+ idx 1)))))
 
     (let* ([code-end (vector-length heap)]
@@ -470,13 +473,13 @@
       (let update-lengths ([idx : Nonnegative-Fixnum code-start]
                            [effective-idx : Index 0]
                            [maxlength : Byte 0])
-        ; WARNING: despite the subtrees, each of leaves of the `heap` corresponds to a valid symbol index.
+        ; WARNING: despite the subtrees, each leaf of the `heap` corresponds to a valid symbol index.
         (cond [(< idx code-end)
                (let ([parent-idx (unsafe-vector*-ref heap idx)]
                      [idx++ (+ idx 1)])
                  (cond [(= parent-idx 0) (update-lengths idx++ effective-idx maxlength)]
                        [else (let ([length (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1)]
-                                   [self-idx : Index (unsafe-idx- idx code-start)])
+                                   [self-idx (unsafe-idx- idx code-start)])
                                (unsafe-bytes-set! lengths self-idx length)
                                (update-lengths idx++ self-idx (unsafe-fxmax maxlength length)))]))]
               [(= effective-idx 0) (values lengths maxlength effective-idx)]
@@ -522,15 +525,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Miscellaneous
 
-(define huffman-frequencies->tree! : (->* ((Vectorof Index) (Mutable-Vectorof Index) Bytes) (Index (Mutable-Vectorof Index)) (Values Byte Index))
-  (lambda [frequencies codewords lengths [upcode uplitcode] [tree ((inst make-vector Index) (* upcode 2))]]
-    (let ([heapsize (huffman-refresh-minheap! frequencies tree upcode)])
+(define huffman-frequencies->tree! : (->* ((Vectorof Index) (Mutable-Vectorof Index) Bytes)
+                                          (Index (Mutable-Vectorof Index) #:length-limit Byte)
+                                          (Values Byte Index))
+  (lambda [#:length-limit [length-limit (sub1 codelen-copy:2)]
+           frequencies codewords lengths [upcode (vector-length frequencies)] [tree ((inst make-vector Index) (* upcode 2))]]
+    (let length-limit-huffman-canonicalize! ([peak : Index #xFFFF])
+      (define heapsize : Index (huffman-refresh-minheap! frequencies tree upcode #:frequency-peak peak))
+    
       (huffman-minheapify! tree heapsize)
       (huffman-minheap-treefy! tree heapsize)
-
+      
       (let-values ([(_ maxlength effective-count) (huffman-minheap-count-lengths! tree heapsize lengths upcode)])
-        (huffman-codewords-canonicalize! codewords lengths maxlength)
-        (values maxlength effective-count)))))
+        (cond [(or (<= maxlength length-limit) (= peak 0))
+               (huffman-codewords-canonicalize! codewords lengths maxlength)
+               (values maxlength effective-count)]
+              [else (length-limit-huffman-canonicalize! (quotient peak 2))])))))
 
 (define huffman-calculate-length : (-> (Vectorof Index) (Vectorof Index) Bytes Bytes Nonnegative-Fixnum)
   (lambda [literal-frequencies distance-frequencies literal-lengths distance-lengths]
@@ -559,7 +569,7 @@
 
 (define huffman-dynamic-lengths-deflate! : (-> Bytes Index Bytes Bytes (Mutable-Vectorof Index) Void)
   (lambda [lengths N symbols repeats frequencies]
-    (bytes-fill! symbols 0) ; if data in symbols is clean, dirty data in repeats won't harmful
+    (bytes-fill! symbols 0) ; if data in `symbols` are clean, dirty data in `repeats` wouldn't be harmful
     (vector-fill! frequencies 0)
 
     (let run-length ([len-idx : Nonnegative-Fixnum 0]

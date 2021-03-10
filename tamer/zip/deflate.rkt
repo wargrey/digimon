@@ -2,12 +2,10 @@
 
 (require racket/port)
 
-(require digimon/thread)
+(require digimon/checksum)
 (require digimon/dtrace)
 (require digimon/format)
-(require digimon/number)
 (require digimon/debug)
-(require digimon/echo)
 
 (require digimon/digitama/bintext/zip)
 (require digimon/digitama/bintext/lz77)
@@ -49,7 +47,8 @@
                
                (let ([/dev/zipin (open-input-deflated-block (open-input-bytes (get-output-bytes /dev/bsout #true)) 0 #true #:name desc)])
                  (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e))])
-                   (let-values ([(csize crc32) (zip-entry-copy /dev/zipin /dev/bsout)])
+                   (let ([?errmsg (zip-entry-copy/trap /dev/zipin /dev/bsout rsize (checksum-crc32 txt 0 rsize))])
+                     (when (string? ?errmsg) (dtrace-error ?errmsg))
                      (custodian-shutdown-all (current-custodian)))))
                
                (assert (unbox &csize) index?)))))

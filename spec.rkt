@@ -2,9 +2,11 @@
 
 (provide (all-defined-out))
 (provide (rename-out [spec-begin example-begin]))
+(provide Spec-Summary Spec-Behavior Spec-Feature)
 (provide spec-feature? spec-behavior? spec-feature-brief default-spec-issue-handler)
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
-(provide define-feature define-scenario describe Spec-Summary Spec-Behavior Spec-Feature)
+(provide define-feature define-scenario define-behavior describe context it)
+(provide collapse ignore pending make-it)
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
 (provide (all-from-out "digitama/spec/expectation.rkt"))
@@ -23,14 +25,18 @@
 (require racket/string)
 
 (require (for-syntax racket/base))
+(require (for-syntax syntax/parse))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (spec-begin stx)
-  (syntax-case stx [:]
-    [(_ id expr ...)
+  (syntax-parse stx
+    [(_ id:id #:do expr ...)
      (syntax/loc stx
-       (begin (define-feature id expr ...)
+       (begin (define-feature id #:do expr ...)
 
-              (void ((default-spec-handler) 'id id))))]))
+              (void ((default-spec-handler) 'id id))))]
+    [(_ id:id expr ...) (syntax/loc stx (begin (spec-begin id #:do expr ...)))]
+    [(_ expr ...) (syntax/loc stx (begin (spec-begin spec #:do expr ...)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Behavior-Prove (-> String (Listof String) (-> Void) Spec-Issue))
@@ -46,10 +52,6 @@
                         (with-handlers ([exn:fail? spec-misbehave])
                           (evaluation)
                           (make-spec-issue 'pass)))))))
-
-(define spec-unsupported : (-> String Nothing)
-  (lambda [reason]
-    (raise (make-exn:fail:unsupported reason (current-continuation-marks)))))
 
 (define default-spec-handler : (Parameterof (-> Symbol Spec-Feature Any)) (make-parameter (λ [[id : Symbol] [spec : Spec-Feature]] (spec-prove spec))))
 (define default-spec-behavior-prove : (Parameterof Spec-Behavior-Prove) (make-parameter spec-behavior-prove))

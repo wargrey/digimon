@@ -160,12 +160,12 @@
       (SEND-BITS #:windup? BFINAL))
 
     (define (huffman-write-static-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)] [BFINAL : Boolean] [start : Index] [end : Index]) : Natural
-      (define literals : (Vectorof Index) (force huffman-fixed-literal-codewords))
-      (define distances : (Vectorof Index) (force huffman-fixed-distance-codewords))
-      
       (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111)
       
-      (huffman-write-block! l77src dists literals distances huffman-fixed-literal-lengths huffman-fixed-distance-lengths start end)
+      (huffman-write-block! l77src dists
+                            (force huffman-fixed-literal-codewords) (force huffman-fixed-distance-codewords)
+                            huffman-fixed-literal-lengths huffman-fixed-distance-lengths
+                            start end)
         
       (PUSH-BITS EOB EOBbits)
       (SEND-BITS #:windup? BFINAL))
@@ -182,7 +182,7 @@
         (when (< idx hclen)
           (PUSH-BITS (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)) 3 #b111)
           (push-codelen-lengths (+ idx 1))))
-
+      
       (let ([N (unsafe-idx+ hlit hdist)])
         (let push-codeword-lengths ([idx : Nonnegative-Fixnum 0])
           (when (< idx N)
@@ -197,7 +197,10 @@
                                 [(= lensym codelen-copy:7) (PUSH-BITS (unsafe-idx- repeat codelen-min-match:7) 7 #x7F)])
                           (push-codeword-lengths (+ idx repeat)))]))))
       
-      (huffman-write-block! l77src dists literal-codewords distance-codewords literal-lengths distance-lengths start end)
+      (huffman-write-block! l77src dists
+                            literal-codewords distance-codewords
+                            literal-lengths distance-lengths
+                            start end)
       
       (PUSH-BITS EOB (unsafe-bytes-ref literal-lengths EOB))
       (SEND-BITS #:windup? BFINAL))
@@ -268,17 +271,18 @@
                       (< dist-maxlength codelen-copy:2)
                       (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)`
                       (let-values ([(lit-maxlength hlit) (huffman-frequencies->tree! literal-frequencies literal-codewords literal-lengths uplitcode minheap)])
-                        ; the dynamic huffman approach treat literal alphebet and distance alphabet as a unified one
                         (and (< lit-maxlength codelen-copy:2)
-                             (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
-                             (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
-                             (huffman-dynamic-lengths-deflate! codeword-lengths (unsafe-idx+ hlit hdist) codelen-symbols codelen-repeats codelen-frequencies)
-                             (let*-values ([(who cares) (huffman-frequencies->tree! codelen-frequencies codelen-codewords codelen-lengths uplencode minheap)]
-                                           [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
-                                           [(static-length) (huffman-calculate-static-block-length)]
-                                           [(dynamic-length) (huffman-calculate-dynamic-block-length hclen)])
-                               (and (< dynamic-length static-length)
-                                    (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen))))))))
+                             ; combine literal alphebet and distance alphabet for better compressed codelen codes
+                             (let ([N (unsafe-idx+ hlit hdist)])
+                               (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
+                               (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
+                               (huffman-dynamic-lengths-deflate! codeword-lengths N codelen-symbols codelen-repeats codelen-frequencies)
+                               (let*-values ([(who cares) (huffman-frequencies->tree! codelen-frequencies codelen-codewords codelen-lengths uplencode minheap)]
+                                             [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
+                                             [(static-length) (huffman-calculate-static-block-length)]
+                                             [(dynamic-length) (huffman-calculate-dynamic-block-length hclen)])
+                                 (and (< dynamic-length static-length)
+                                      (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen)))))))))
           
           (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload))
 
@@ -437,14 +441,13 @@
         (when (< hclen uplencode) ; the rest are 0s
           (bytes-fill! codelen-lengths 0))
         
-        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0]
-                                    [skip : Byte 0])
+        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
           (when (< idx hclen)
-            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
-            (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
+            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 (unsafe-b* idx 3)))
+            (read-codelen-lengths! (+ idx 1))))
 
         (FIRE-BITS codelen-lengths-bits)
-
+      
         ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
         ; the code length codes are just what encode those lengths.
         (huffman-alphabet-canonicalize!
@@ -575,12 +578,12 @@
 
     (define (read-huffman-repetition-times [idx : Index] [bitsize : Byte] [bitmask : Byte] [nbase : Byte] [N : Index] [BFINAL? : Boolean]) : Byte
       (let ([n (unsafe-b+ (PEEK-BITS bitsize bitmask) nbase)])
+        (FIRE-BITS bitsize)
+
         (when (> (+ idx n) N)
           (throw-check-error /dev/blkin ename
                              "dynamic[~a]: repeated codes overflow: ~a (~a left)"
                              (if (not BFINAL?) #b0 #b1) n (- N idx)))
-        
-        (FIRE-BITS bitsize)
         n))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

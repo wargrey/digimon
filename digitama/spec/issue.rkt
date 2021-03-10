@@ -14,7 +14,7 @@
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
-(define default-spec-issue-expectation : (Parameterof Symbol) (make-parameter '||))
+(define default-spec-issue-expectation : (Parameterof (Option Symbol)) (make-parameter #false))
 (define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
 (define default-spec-issue-location : (Parameterof (Option srcloc)) (make-parameter #false))
 (define default-spec-issue-expressions : (Parameterof (Listof Any)) (make-parameter null))
@@ -29,7 +29,7 @@
   ([type : Spec-Issue-Type]
    [brief : (Option String)]
 
-   [expectation : Symbol]
+   [expectation : (Option Symbol)]
    [message : (Option String)]
    [location : (Option srcloc)]
    [expressions : (Listof Any)]
@@ -107,7 +107,8 @@
     (let ([exprs (spec-issue-expressions issue)]
           [argus (spec-issue-arguments issue)]
           [paras (map ~s (spec-issue-parameters issue))])
-      (eechof #:fgcolor color "~a expectation: <~a>~n" headspace (spec-issue-expectation issue))
+      (when (spec-issue-expectation issue)
+        (eechof #:fgcolor color "~a expectation: <~a>~n" headspace (spec-issue-expectation issue)))
       
       (when (pair? argus)
         (define asize : Index (apply max (map string-length argus)))
@@ -137,7 +138,7 @@
     
     (let ([message (spec-issue-message issue)])
       (unless (not message)
-        (spec-display-message headspace color null 'TODO message)))))
+        (spec-display-message headspace color null 'reason message)))))
 
 (define spec-issue-skip-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkblue] #:indent [headspace ""]]

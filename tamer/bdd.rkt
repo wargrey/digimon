@@ -44,7 +44,7 @@ Despite the fact that people invented so many concepts and methodologies in orde
                  (describe "special issues" #:do
                            (it "do it later" #:do)
                            (it "intends to be skipped" #:do
-                               (spec-unsupported "a buggy specification but it is forgiven for representation purpose"))))]
+                               (ignore "a buggy specification but it is forgiven for representation purpose"))))]
 
 @handbook-reference[]
 

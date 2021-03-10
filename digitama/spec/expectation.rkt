@@ -13,6 +13,7 @@
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-spec-expectation stx)
   (syntax-parse stx #:literals [:]
     [(_ (id:id [arg:id : Type:expr] ...) body ...)
@@ -22,11 +23,11 @@
                 (define argc : Index (length argv))
                 
                 (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
-                  (lambda [name stx exprs]
+                  (lambda [name loc exprs]
                     (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
                       (parameterize ([default-spec-issue-expectation name]
                                      [default-spec-issue-message (spec-message argl)]
-                                     [default-spec-issue-location (spec-location stx)]
+                                     [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
                                      [default-spec-issue-expressions exprs]
                                      [default-spec-issue-arguments argv]
                                      [default-spec-issue-parameters (list arg ...)])
@@ -55,19 +56,37 @@
 (define-spec-boolean-expectation (not-eqv [v1 : Any] [v2 : Any]) (not (eqv? v1 v2)))
 (define-spec-boolean-expectation (not-equal [v1 : Any] [v2 : Any]) (not (equal? v1 v2)))
 
+(define-spec-boolean-expectation (member [given : Any] [range : (Listof Any)]) (member given range))
+(define-spec-boolean-expectation (memv [given : Any] [range : (Listof Any)]) (memv given range))
+(define-spec-boolean-expectation (memq [given : Any] [range : (Listof Any)]) (memq given range))
+(define-spec-boolean-expectation (not-member [given : Any] [range : (Listof Any)]) (not (member given range)))
+(define-spec-boolean-expectation (not-memv [given : Any] [range : (Listof Any)]) (not (memv given range)))
+(define-spec-boolean-expectation (not-memq [given : Any] [range : (Listof Any)]) (not (memq given range)))
+
+(define-spec-boolean-expectation (zero [given : Number]) (zero? given))
+(define-spec-boolean-expectation (eof [given : Any]) (eof-object? given))
+(define-spec-boolean-expectation (null [given : Any]) (null? given))
+(define-spec-boolean-expectation (void [given : Any]) (void? given))
 (define-spec-boolean-expectation (true [given : Any]) (eq? given #true))
 (define-spec-boolean-expectation (false [given : Any]) (eq? given #false))
 (define-spec-boolean-expectation (not-false [given : Any]) given)
-(define-spec-boolean-expectation (collapse) #false)
 
-(define-spec-boolean-expectation (fl= [v1 : Flonum] [v2 : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- v1 v2)) epsilon))
+(define-spec-boolean-expectation (= [given : Real] [expected : Real]) (= given expected))
+(define-spec-boolean-expectation (< [v1 : Real] [v2 : Real]) (< v1 v2))
+(define-spec-boolean-expectation (> [v1 : Real] [v2 : Real]) (> v1 v2))
+(define-spec-boolean-expectation (<= [v1 : Real] [v2 : Real]) (<= v1 v2))
+(define-spec-boolean-expectation (>= [v1 : Real] [v2 : Real]) (>= v1 v2))
 
-(define-spec-expectation (throw [except : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
+(define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-spec-expectation (throw [exception : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
   (define maybe-e (with-handlers ([exn:fail? values]) (void (routine))))
-  (let ([e? (if (procedure? except) except exn:fail?)])
+  
+  (let ([e? (if (procedure? exception) exception exn:fail?)])
     (cond [(and (exn:fail? maybe-e) (e? maybe-e))
-           (or (procedure? except)
-               (regexp-match? except (exn-message maybe-e))
+           (or (procedure? exception)
+               (regexp-match? exception (exn-message maybe-e))
                (parameterize ([default-spec-issue-exception maybe-e])
                  (spec-misbehave)))]
           [(exn:fail? maybe-e)
