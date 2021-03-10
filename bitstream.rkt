@@ -19,7 +19,7 @@
 (define-type BitStream-Output-Shell (U 'start-over 'align 'aggregate 'drop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-input-lsb-bitstream : (->* (Input-Port) ((U Integer Bytes) #:lookahead Byte #:limited Natural #:padding-byte Byte)
+(define make-input-lsb-bitstream : (->* (Input-Port) ((U Integer Bytes) #:lookahead Byte #:limited (Option Natural) #:padding-byte Byte)
                                         (Values (-> Byte Boolean)
                                                 (case-> [Byte Byte Byte -> Byte]
                                                         [Byte Index Byte -> Index]
@@ -29,7 +29,7 @@
                                                         [-> Index])
                                                 (-> Byte Void)
                                                 (-> BitStream-Input-Shell Natural)))
-  (lambda [/dev/bsin [mgz/size 0] #:lookahead [lookahead 8] #:limited [truncated 0] #:padding-byte [eof-byte #xFF]]
+  (lambda [/dev/bsin [mgz/size 0] #:lookahead [lookahead 8] #:limited [truncated #false] #:padding-byte [eof-byte #xFF]]
     (define mgz-capacity : Index
       (let ([c0 (if (bytes? mgz/size) (bytes-length mgz/size) mgz/size)])
         (cond [(not (and (index? c0) (> c0 0))) 4096]
@@ -48,8 +48,8 @@
     (define aggregate : Natural 0)
 
     (define stock : Natural
-      (cond [(> truncated 0) truncated]
-            [else mgz-capacity #| in order to eliminate evitable checks on `truncated` |#]))
+      (cond [(not truncated) mgz-capacity #| in order to eliminate evitable checks on `truncated` |#]
+            [else truncated]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define feed-bits : (-> Byte Boolean)
@@ -57,7 +57,7 @@
         (cond [(< pwidth nbits) (draw-bits nbits)]
               [(= eof-width 0) #true]
               [(>= eof-width pwidth) #false]
-              [else (<= (- pwidth eof-width) nbits)])))
+              [else (<= nbits (- pwidth eof-width))])))
 
     (define peek-bits : (case-> [Byte Index Byte -> Index]
                                 [Byte Byte Byte -> Byte]
@@ -89,7 +89,7 @@
         ;; commit consumed bytes, except for the last `lookahead` ones,
         ;; which might be unwound(unpeeked) after you are done dealing with the bitstream,
         ;; be careful, don't commit to much exceeding the limit as the payload might contain padded phantom bytes.
-        (cond [(= truncated 0)
+        (cond [(not truncated)
                (read-bytes! magazine /dev/bsin 0 commit-size)
                (set! aggregate (+ aggregate commit-size))]
               [(> stock commit-size)
@@ -122,14 +122,13 @@
                (set! pwidth (unsafe-idx+ pwidth 8))
                (set! mgz-start (unsafe-idx+ mgz-start 1))
                (feed-bits nbits))]
-            [(> stock 0) ; the port should have some bytes to be read
+            [(> stock mgz-start) ; the port should have some bytes to be read
              (try-commit-bits)
-             (let ([?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start (min (+ mgz-start stock) mgz-capacity))])
+             (let ([?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start (min stock mgz-capacity))])
                (cond [(exact-positive-integer? ?n)
                       (set! mgz-payload (unsafe-idx+ mgz-start ?n))
                       (draw-bits nbits)]
                      [(or (eq? ?n 0) (eof-object? ?n)) ; the port has been exhausted
-                      (set! stock 0)
                       (draw-phantom-bytes)
                       (draw-bits nbits)]
                      [else #| skip special values |# (draw-bits nbits)]))]

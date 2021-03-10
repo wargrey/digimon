@@ -95,7 +95,7 @@
     
     (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) (or no-compression? (not allow-dynamic?))))
     (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
-    (define prefab-codes : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
+    (define prefab-nextcodes : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
     
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
@@ -108,6 +108,9 @@
            (unsafe-vector*-set! literal-frequencies hspan (unsafe-idx+ (unsafe-vector*-ref literal-frequencies hspan) 1))
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
            (submit-huffman-symbol distance span d-idx))]))
+
+    (define (construct-tree [freqs : (Vectorof Index)] [codes : (Mutable-Vectorof Index)] [lengths : Bytes] [upcode : Index] [limit : Byte]) : (Values Byte Index)
+      (huffman-frequencies->tree! freqs codes lengths upcode minheap prefab-nextcodes prefab-counts #:length-limit limit))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-calculate-stored-block-length [start : Index] [end : Index]) : Nonnegative-Fixnum       
@@ -260,24 +263,24 @@
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
       ;;; NOTE
       ; The handy thing is that backref distances are allowed to cross block boundaries,
-      ;   thus, the only thing to do here is to figure out a good way to encode the current
+      ;   thus, the only thing to do here is to figure out a good way to encode current
       ;   lz77 block and feed the bitstream resulting bits to output.
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
       ;   reasonable data with a proper environment.
 
       (or (and allow-dynamic?
-               (let-values ([(dist-maxlength hdist) (huffman-frequencies->tree! distance-frequencies distance-codewords distance-lengths updistcode minheap)])
+               (let-values ([(dist-maxlength hdist) (construct-tree distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
                  (and (>= hdist distance-nbase) ; it's impossible to compress a block with zero back references
                       (< dist-maxlength codelen-copy:2)
                       (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)`
-                      (let-values ([(lit-maxlength hlit) (huffman-frequencies->tree! literal-frequencies literal-codewords literal-lengths uplitcode minheap)])
+                      (let-values ([(lit-maxlength hlit) (construct-tree literal-frequencies literal-codewords literal-lengths uplitcode codeword-length-limit)])
                         (and (< lit-maxlength codelen-copy:2)
                              ; combine literal alphebet and distance alphabet for better compressed codelen codes
                              (let ([N (unsafe-idx+ hlit hdist)])
                                (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
                                (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
                                (huffman-dynamic-lengths-deflate! codeword-lengths N codelen-symbols codelen-repeats codelen-frequencies)
-                               (let*-values ([(who cares) (huffman-frequencies->tree! codelen-frequencies codelen-codewords codelen-lengths uplencode minheap)]
+                               (let*-values ([(who cares) (construct-tree codelen-frequencies codelen-codewords codelen-lengths uplencode uplenbits)]
                                              [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
                                              [(static-length) (huffman-calculate-static-block-length)]
                                              [(dynamic-length) (huffman-calculate-dynamic-block-length hclen)])
@@ -395,13 +398,16 @@
                       [(#b00) (huffman-begin-stored-block! BFINAL?) 'stored]
                       [(#b01) (huffman-begin-static-block! BFINAL?) 'static]
                       [(#b10) (huffman-begin-dynamic-block! BFINAL?) 'dynamic]
-                      [else (throw-check-error /dev/blkin ename "unknown deflated block type: ~a" (~binstring BTYPE 2))])
+                      [else (throw-check-error /dev/blkin ename "unknown deflate block type: ~a" (~binstring BTYPE 2))])
                     BFINAL?))
           (values 'EOB #true)))
 
     (define (huffman-begin-stored-block! [BFINAL? : Boolean]) : Any
       ($SHELL 'align)
-      (FEED-BITS 32)
+      
+      (unless (FEED-BITS 32)
+        (throw-eof-error /dev/blkin 'huffman-begin-stored-block!))
+      
       (set! payload (PEEK-BITS 16 #xFFFF))
 
       (let ([chksum (PEEK-BITS 16 #xFFFF 16)])

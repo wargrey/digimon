@@ -76,6 +76,8 @@
 (define codelen-min-match : Positive-Byte 3)
 (define codelen-min-match:7 : Positive-Byte 11)
 
+(define codeword-length-limit : Byte (sub1 codelen-copy:2))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; FIXED HUFFMAN SYMBOLS AND CODEWORDS
 ; WARNING: all vectors are 0-based, in which `head-offsets` and `sentinels` are different from those in "common" implementations.
@@ -95,8 +97,8 @@
 ;   since the `huffman-alphabet` is intentionally designed to allow client applications reusing memory.
 ; also note that, there is no `symbol-bwidth` field to pair with the `symbol-mask`, since `max-bwidth` is
 ;   already there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, but in
-;   practice for some reasons, say with an extreme large difference between the maximum and minimum bit
-;   lengths, a symbol in certain alphabet might have to be encoded with more bits than required.
+;   practice for some reasons, say with a large difference between the maximum and minimum bit lengths,
+;   a symbol in certain alphabet might have to be encoded with more bits than required.
 (define huffman-make-alphabet : (->* () (Index #:max-bitwidth Byte #:cheat-bitwidth Byte) Huffman-Alphabet)
   (lambda [[capacity uplitcode] #:max-bitwidth [max-bwidth upbits] #:cheat-bitwidth [cheat-bwidth (min 8 max-bwidth)]]
     (define symbol-mask : Index (- (unsafe-idxlshift 1 max-bwidth) 1))
@@ -529,7 +531,7 @@
 (define huffman-frequencies->tree! : (->* ((Vectorof Index) (Mutable-Vectorof Index) Bytes)
                                           (#:length-limit Byte Index (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index))
                                           (Values Byte Index))
-  (lambda [#:length-limit [length-limit (sub1 codelen-copy:2)]
+  (lambda [#:length-limit [length-limit codeword-length-limit]
            frequencies codewords lengths [upcode (vector-length frequencies)] [tree ((inst make-vector Index) (* upcode 2))]
            [nextcodes ((inst make-vector Index) (add1 length-limit) 0)] [counts ((inst make-vector Index) (add1 (add1 length-limit)) 0)]]
     (let length-limit-huffman-canonicalize! ([peak : Index #xFFFF])

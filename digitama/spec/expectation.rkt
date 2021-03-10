@@ -91,6 +91,11 @@
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 
+(define-spec-boolean-expectation (bytes [given : Bytes] [expected : Bytes]) (bytes=? given expected))
+(define-spec-boolean-expectation (bytes-ci [given : Bytes] [expected : Bytes]) (bytes=? given expected))
+(define-spec-boolean-expectation (string [given : String] [expected : String]) (string=? given expected))
+(define-spec-boolean-expectation (string-ci [given : String] [expected : String]) (string-ci=? given expected))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-expectation (throw [exception : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
   (define maybe-e (with-handlers ([exn:fail? values]) (void (routine))))
