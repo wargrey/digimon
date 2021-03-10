@@ -132,8 +132,8 @@
       (for ([b (in-bytes magazine 0 n)]
             [i (in-naturals 1)])
         (if (not binary?)
-            (write-string (byte->hex-string b) /dev/hexout)
-            (write-string (byte->bin-string b) /dev/hexout))
+            (write-string (byte->hexstring b) /dev/hexout)
+            (write-string (byte->binstring b) /dev/hexout))
         (write-char #\space /dev/hexout)
         (when (and (= r 0) (= q i))
           (write-char #\space /dev/hexout)))

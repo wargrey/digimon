@@ -16,7 +16,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-spec-expectation stx)
   (syntax-parse stx #:literals [:]
-    [(_ (id:id [arg:id : Type:expr] ...) body ...)
+    [(_ (id:id [arg:id : Type:expr] ...)
+        (~alt (~optional (~seq #:default-format format) #:defaults ([format #'#false]))
+              (~optional (~seq #:name alt-name) #:defaults ([alt-name #'#false]))) ...
+        body ...)
      (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))])
        (syntax/loc stx
          (begin (define argv : (Listof String) (list (symbol->immutable-string 'arg) ...))
@@ -25,12 +28,13 @@
                 (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
                   (lambda [name loc exprs]
                     (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
-                      (parameterize ([default-spec-issue-expectation name]
+                      (parameterize ([default-spec-issue-expectation (or alt-name name)]
                                      [default-spec-issue-message (spec-message argl)]
                                      [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
                                      [default-spec-issue-expressions exprs]
                                      [default-spec-issue-arguments argv]
-                                     [default-spec-issue-parameters (list arg ...)])
+                                     [default-spec-issue-parameters (list arg ...)]
+                                     [default-spec-issue-format (or (default-spec-issue-format) format)])
                         body ... (void)))
                     expect-id))
 
@@ -42,9 +46,14 @@
 
 (define-syntax (define-spec-boolean-expectation stx)
   (syntax-parse stx #:literals [:]
-    [(_ (?:id [arg:id : Type:expr] ...) body ...)
+    [(_ (?:id [arg:id : Type:expr] ...)
+        (~alt (~optional (~seq #:default-format format) #:defaults ([format #'#false]))
+              (~optional (~seq #:name alt-name) #:defaults ([alt-name #'#false]))) ...
+        body ...)
      (syntax/loc stx
        (define-spec-expectation (? [arg : Type] ...)
+         #:default-format format
+         #:name 'alt-name
          (or (let () (void) body ...)
              (spec-misbehave))))]))
 
@@ -76,6 +85,9 @@
 (define-spec-boolean-expectation (> [v1 : Real] [v2 : Real]) (> v1 v2))
 (define-spec-boolean-expectation (<= [v1 : Real] [v2 : Real]) (<= v1 v2))
 (define-spec-boolean-expectation (>= [v1 : Real] [v2 : Real]) (>= v1 v2))
+
+(define-spec-boolean-expectation (bin= [given : Integer] [expected : Integer]) #:name = #:default-format spec-format/bin (= given expected))
+(define-spec-boolean-expectation (hex= [given : Integer] [expected : Integer]) #:name = #:default-format spec-format/hex (= given expected))
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 

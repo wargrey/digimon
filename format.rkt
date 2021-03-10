@@ -69,7 +69,7 @@
 (define ~hexstring : (-> Any String)
   (lambda [val]
     (cond [(integer? val) (~r val #:base 16)]
-          [(bytes? val) (bytes->hex-string val #:separator " ")]
+          [(bytes? val) (bytes->hexstring val #:separator " ")]
           [(boolean? val) (~hexstring (if val 1 0))]
           [else (~hexstring (string->bytes/utf-8 (~a val)))])))
 
@@ -111,26 +111,26 @@
   (lambda [base]
     (symbol->immutable-string (gensym base))))
 
-(define byte->hex-string : (-> Byte String)
+(define byte->hexstring : (-> Byte String)
   (lambda [b]
     (define hex (number->string b 16))
     
     (if (> b #xF) hex (string-append "0" hex))))
 
-(define byte->bin-string : (->* (Byte) (Integer) String)
+(define byte->binstring : (->* (Byte) (Integer) String)
   (lambda [b [width 8]]
     (~r b #:base 2 #:min-width (if (<= width 0) 8 width) #:pad-string "0")))
 
-(define bytes->hex-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
+(define bytes->hexstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
   (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
     (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
-                   (byte->hex-string b))
+                   (byte->hexstring b))
                  sep)))
 
 (define bytes->bin-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
   (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
     (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
-                   (byte->bin-string b))
+                   (byte->binstring b))
                  sep)))
 
 (define symb0x->number : (-> Symbol (Option Integer))

@@ -5,10 +5,10 @@
 (require digimon/format)
 (require digimon/spec)
 
-(require (for-syntax racket/base))
+(require "huftree.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define t:alphabet : Huffman-Alphabet (huffman-make-alphabet upbits))
+(define t:alphabet : Huffman-Alphabet (huffman-make-alphabet uplitcode))
 (define t:codewords : (Mutable-Vectorof Index) (make-vector uplitcode))
 (define t:lengths : Bytes (make-bytes uplitcode))
 
@@ -41,14 +41,20 @@
     (huffman-frequencies->tree! freqs codewords lengths #:length-limit length-limit)
     (void)))
 
-(define-behavior (it-will-extract-symbol alphabet msb-code symbol-code symbol-bits)
+(define-behavior (it-will-extract-symbol-from alphabet msb-code symbol-code symbol-bits)
   (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
     #:it ["will extract symbol '~a' from bit stream '~a' [LSB: 0x~a] [MSB: 0x~a]"
           symbol-code (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
     (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
-      (when (> symbol-bits 0)
-        (expect-= symbol symbol-code))
+      (expect-bin= symbol symbol-code)
       (expect-= length symbol-bits))))
+
+(define-behavior (it-will-extract-nothing-from alphabet msb-code symbol-bits)
+  (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
+    #:it ["won't extract any symbol from bit stream '~a' [LSB: 0x~a] [MSB: 0x~a]"
+          (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
+    (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
+      (expect-= length 0))))
 
 (define-behavior (it-check-length ls idx v)
   #:it ["~a[~a] => ~a" 'ls idx v] #:do
@@ -56,7 +62,7 @@
 
 (define-behavior (it-check-codeword cds idx v)
   #:it ["~a[~a] => 0x~a" 'cds idx (~hexstring v)] #:do
-  (expect-= (vector-ref cds idx) v))
+  (expect-bin= (vector-ref cds idx) v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-feature huffman #:do
@@ -139,32 +145,32 @@
             (context "alphabet" #:do
                      (context ["when provided with lengths ~a" basic-lengths] #:do
                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes basic-lengths))) #:do
-                              (it-will-extract-symbol t:alphabet #b000     0      3)
-                              (it-will-extract-symbol t:alphabet #b011     3      3)
-                              (it-will-extract-symbol t:alphabet #b11110   17     5)
-                              (it-will-extract-symbol t:alphabet #b111110  16     6)
-                              (it-will-extract-symbol t:alphabet #b1111111 #false 0))
+                              (it-will-extract-symbol-from t:alphabet  #b000     0      3)
+                              (it-will-extract-symbol-from t:alphabet  #b011     3      3)
+                              (it-will-extract-symbol-from t:alphabet  #b11110   17     5)
+                              (it-will-extract-symbol-from t:alphabet  #b111110  16     6)
+                              (it-will-extract-nothing-from t:alphabet #b1111111        7))
                      
                      (context ["when provided with lengths ~a" rfc1951-lengths] #:do
                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes rfc1951-lengths))) #:do
-                              (it-will-extract-symbol t:alphabet #b010  0 3)
-                              (it-will-extract-symbol t:alphabet #b011  1 3)
-                              (it-will-extract-symbol t:alphabet #b100  2 3)
-                              (it-will-extract-symbol t:alphabet #b101  3 3)
-                              (it-will-extract-symbol t:alphabet #b110  4 3)
-                              (it-will-extract-symbol t:alphabet #b00   5 2)
-                              (it-will-extract-symbol t:alphabet #b1110 6 4)
-                              (it-will-extract-symbol t:alphabet #b1111 7 4))
+                              (it-will-extract-symbol-from t:alphabet #b010  0 3)
+                              (it-will-extract-symbol-from t:alphabet #b011  1 3)
+                              (it-will-extract-symbol-from t:alphabet #b100  2 3)
+                              (it-will-extract-symbol-from t:alphabet #b101  3 3)
+                              (it-will-extract-symbol-from t:alphabet #b110  4 3)
+                              (it-will-extract-symbol-from t:alphabet #b00   5 2)
+                              (it-will-extract-symbol-from t:alphabet #b1110 6 4)
+                              (it-will-extract-symbol-from t:alphabet #b1111 7 4))
                      
                      (context ["when provided with extreme lengths ~a" extreme-lengths] #:do
                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes extreme-lengths))) #:do
-                              (it-will-extract-symbol t:alphabet 0 0 3)
-                              (it-will-extract-symbol t:alphabet 1 1 3)
-                              (it-will-extract-symbol t:alphabet 2 2 3)
+                              (it-will-extract-symbol-from t:alphabet 0 0 3)
+                              (it-will-extract-symbol-from t:alphabet 1 1 3)
+                              (it-will-extract-symbol-from t:alphabet 2 2 3)
                               
-                              (it-will-extract-symbol t:alphabet #x3000 3 15)
-                              (it-will-extract-symbol t:alphabet #x3001 4 15)
-                              (it-will-extract-symbol t:alphabet #x3002 5 15))
+                              (it-will-extract-symbol-from t:alphabet #x3000 3 15)
+                              (it-will-extract-symbol-from t:alphabet #x3001 4 15)
+                              (it-will-extract-symbol-from t:alphabet #x3002 5 15))
                      
                      (context ["when provided with malicious lengths ~a" evil-lengths] #:do
                               (it "will overflow the sentinel bits" #:do

@@ -65,7 +65,7 @@
        (define-syntax (id b-stx)
          (syntax-parse b-stx
            [(_ pstx ...)
-            (with-syntax ([loc (datum->syntax #false "" b-stx)])
+            (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
               (syntax/loc b-stx
                 (local ...
                   (it brief #:do
@@ -76,7 +76,7 @@
        (define-syntax (id b-stx)
          (syntax-parse b-stx
            [(_ pstx ...)
-            (with-syntax ([loc (datum->syntax #false "" b-stx)])
+            (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
               (syntax/loc b-stx
                 (begin definition ...
                        (it brief #:do

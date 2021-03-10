@@ -87,26 +87,27 @@
    [symbols : (Mutable-Vectorof Index)]
    [cheat-bwidth : Byte]
    [cheat-mask : Index]
-   [symbol-bwidth : Byte]
-   [symbol-mask : Index]
-   [max-bwidth : Byte])
+   [max-bwidth : Byte]
+   [symbol-mask : Index])
   #:type-name Huffman-Alphabet)
 
 ; note the keyword `#:max-bitwidth`, which means the actual `maxlength` might be smaller (but not larger)
-; since the `huffman-alphabet` is intentionally designed to allow client applications reusing the memory.
+;   since the `huffman-alphabet` is intentionally designed to allow client applications reusing memory.
+; also note that, there is no `symbol-bwidth` field to pair with the `symbol-mask`, since `max-bwidth` is
+;   already there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, but in
+;   practice for some reasons, say with an extreme large difference between the maximum and minimum bit
+;   lengths, a symbol in certain alphabet might have to be encoded with more bits than required.
 (define huffman-make-alphabet : (->* () (Index #:max-bitwidth Byte #:cheat-bitwidth Byte) Huffman-Alphabet)
-  (lambda [[capacity uplitcode] #:max-bitwidth [maxlength upbits] #:cheat-bitwidth [cheat-bwidth (min 8 maxlength)]]
-    (define symbol-bwidth : Byte (assert (exact-ceiling (log capacity 2)) byte?))
-    (define symbol-mask : Index (- (unsafe-idxlshift 1 symbol-bwidth) 1))
+  (lambda [[capacity uplitcode] #:max-bitwidth [max-bwidth upbits] #:cheat-bitwidth [cheat-bwidth (min 8 max-bwidth)]]
+    (define symbol-mask : Index (- (unsafe-idxlshift 1 max-bwidth) 1))
     (define cheat-size : Positive-Index (unsafe-idxlshift 1 cheat-bwidth))
     
     (huffman-alphabet ((inst make-vector Index) cheat-size 0)
-                      ((inst make-vector Fixnum) maxlength 0)
-                      ((inst make-vector Index) maxlength 0)
+                      ((inst make-vector Fixnum) max-bwidth 0)
+                      ((inst make-vector Index) max-bwidth 0)
                       ((inst make-vector Index) capacity 0)
                       cheat-bwidth (- cheat-size 1)
-                      symbol-bwidth symbol-mask
-                      maxlength)))
+                      max-bwidth symbol-mask)))
 
 (define huffman-fixed-literal-codewords : (Promise (Vectorof Index))
   (delay (let ([codewords ((inst make-vector Index) uplitcode)])
@@ -132,14 +133,15 @@
 ;    with `nextcodes` and `counts`, which accommodate temporary data, just in case clients don't want them to be allocated every time.
 ;    also note that, `maxlength` means that lengths range in the closed interval [0, maxlength], hence `add1`s.
 (define huffman-codewords-canonicalize! : (->* ((Mutable-Vectorof Index) Bytes Byte)
-                                               ((Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index)
+                                               (Index Index (Mutable-Vectorof Index) (Mutable-Vectorof Index))
                                                Void)
-  (lambda [codewords lengths maxlength
-                     [nextcodes ((inst make-vector Index) (add1 maxlength) 0)] [counts ((inst make-vector Index) (add1 maxlength) 0)]
-                     [start 0] [end (bytes-length lengths)]]
+  (lambda [codewords lengths maxlength [start 0] [end (bytes-length lengths)]
+                     [nextcodes ((inst make-vector Index) (add1 maxlength) 0)] [counts ((inst make-vector Index) (add1 maxlength) 0)]]
     (unsafe-vector*-set! nextcodes 0 0) ; exclude zero lengths
 
-    ; note that `lengths[idx]` might not be consecutive, so that `counts` must be reset first
+    ; note that `lengths[idx]` might not be consecutive, so that dirty data must be cleared manually
+    (vector-fill! codewords 0)
+    
     ; if data in `counts` are clean, dirty data in other vectors wouldn't be harmful
     (vector-fill! counts 0)
     
@@ -186,22 +188,21 @@
 ;  Also note that, `maxlength`, which is the smaller one between `strict-maxlength` and `max-bwidth` of the alphabet,
 ;    means that lengths range in the closed interval [0, maxlength], hence `add1`s.
 (define huffman-alphabet-canonicalize! : (->* (Huffman-Alphabet Bytes)
-                                              (#:strict-bitwidth Byte #:on-error (Index -> Nothing)
-                                               (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index) Index Index)
+                                              (#:strict-bitwidth Byte #:on-error (Index -> Nothing) Index Index
+                                               (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index))
                                               Void)
-  (lambda [alphabet lengths
+  (lambda [alphabet lengths [start 0] [end (bytes-length lengths)]
                     #:strict-bitwidth [strict-maxlength (huffman-alphabet-max-bwidth alphabet)]
                     #:on-error [oops! (λ [[len : Index]] (error 'huffman-alphabet-canonicalize! "codewords of length ~a overflow!" len))]
                     [symbol-indices ((inst make-vector Index) (add1 strict-maxlength) 0)]
                     [counts ((inst make-vector Index) (add1 strict-maxlength) 0)]
-                    [codes ((inst make-vector Index) (add1 strict-maxlength) 0)]
-                    [start 0] [end (bytes-length lengths)]]
+                    [codes ((inst make-vector Index) (add1 strict-maxlength) 0)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-alphabet-cheatsheet alphabet))
     (define symbols : (Mutable-Vectorof Index) (huffman-alphabet-symbols alphabet))
     (define headoffs : (Mutable-Vectorof Fixnum) (huffman-alphabet-head-offsets alphabet))
     (define sentinels : (Mutable-Vectorof Index) (huffman-alphabet-sentinels alphabet))
     (define cheat-bwidth : Byte (huffman-alphabet-cheat-bwidth alphabet))
-    (define symbol-bwidth : Byte (huffman-alphabet-symbol-bwidth alphabet))
+    (define symbol-bwidth : Byte (huffman-alphabet-max-bwidth alphabet))
     (define maxlength : Byte (min strict-maxlength (huffman-alphabet-max-bwidth alphabet)))
 
     ; exclude zero lengths
@@ -210,7 +211,7 @@
     
     ; if data in these vectors are clean, dirty data in other vectors wouldn't be harmful 
     (vector-fill! cheatsheet 0)
-    (vector-fill! sentinels 0)
+    (vector-fill! symbols 0)
     
     ; same as in `huffman-codewords-canonicalize!`
     (vector-fill! counts 0)
@@ -323,7 +324,7 @@
         
         ; see `pad-cheatsheet` in `huffman-alphabet-canonicalize!`
         (values (bitwise-and cheat-code (huffman-alphabet-symbol-mask alphabet))
-                (unsafe-brshift cheat-code (huffman-alphabet-symbol-bwidth alphabet)))
+                (unsafe-brshift cheat-code (huffman-alphabet-max-bwidth alphabet)))
         
         ; manually do canonical decoding with the bits in MSB-first order
         (let* ([prefix-code (bits-reverse-uint16 codeword+more codeword-bwidth)])
@@ -526,10 +527,11 @@
 ;;; Miscellaneous
 
 (define huffman-frequencies->tree! : (->* ((Vectorof Index) (Mutable-Vectorof Index) Bytes)
-                                          (Index (Mutable-Vectorof Index) #:length-limit Byte)
+                                          (#:length-limit Byte Index (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index))
                                           (Values Byte Index))
   (lambda [#:length-limit [length-limit (sub1 codelen-copy:2)]
-           frequencies codewords lengths [upcode (vector-length frequencies)] [tree ((inst make-vector Index) (* upcode 2))]]
+           frequencies codewords lengths [upcode (vector-length frequencies)] [tree ((inst make-vector Index) (* upcode 2))]
+           [nextcodes ((inst make-vector Index) (add1 length-limit) 0)] [counts ((inst make-vector Index) (add1 (add1 length-limit)) 0)]]
     (let length-limit-huffman-canonicalize! ([peak : Index #xFFFF])
       (define heapsize : Index (huffman-refresh-minheap! frequencies tree upcode #:frequency-peak peak))
     
@@ -538,7 +540,7 @@
       
       (let-values ([(_ maxlength effective-count) (huffman-minheap-count-lengths! tree heapsize lengths upcode)])
         (cond [(or (<= maxlength length-limit) (= peak 0))
-               (huffman-codewords-canonicalize! codewords lengths maxlength)
+               (huffman-codewords-canonicalize! codewords lengths maxlength 0 upcode nextcodes counts)
                (values maxlength effective-count)]
               [else (length-limit-huffman-canonicalize! (quotient peak 2))])))))
 

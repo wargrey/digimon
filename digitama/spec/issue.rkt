@@ -21,6 +21,7 @@
 (define default-spec-issue-arguments : (Parameterof (Listof String)) (make-parameter null))
 (define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
+(define default-spec-issue-format : (Parameterof (Option (-> Any String))) (make-parameter #false))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
 
@@ -35,7 +36,9 @@
    [expressions : (Listof Any)]
    [arguments : (Listof String)]
    [parameters : (Listof Any)]
-   [exception : (Option exn:fail)])
+   [exception : (Option exn:fail)]
+   
+   [format : (Option (-> Any String))])
   #:type-name Spec-Issue
   #;transparent)
 
@@ -50,7 +53,9 @@
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
-                (default-spec-issue-exception))))
+                (default-spec-issue-exception)
+
+                (default-spec-issue-format))))
 
 ;; NOTE
 ; If a panic issue is catched, it means the code of the specification itself has bugs.
@@ -66,7 +71,9 @@
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
-                e)))
+                e
+                
+                (default-spec-issue-format))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-issue-fgcolor : (-> Spec-Issue-Type Symbol)
@@ -106,9 +113,9 @@
 
     (let ([exprs (spec-issue-expressions issue)]
           [argus (spec-issue-arguments issue)]
-          [paras (map ~s (spec-issue-parameters issue))])
+          [paras (map (or (spec-issue-format issue) ~s) (spec-issue-parameters issue))])
       (when (spec-issue-expectation issue)
-        (eechof #:fgcolor color "~a expectation: <~a>~n" headspace (spec-issue-expectation issue)))
+        (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
       
       (when (pair? argus)
         (define asize : Index (apply max (map string-length argus)))

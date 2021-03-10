@@ -4,6 +4,8 @@
 
 (require "issue.rkt")
 
+(require "../../format.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-message : (case-> [(Listof Any) -> (Option String)]
                                [String (Listof Any) -> String])
@@ -22,3 +24,18 @@
           [column (syntax-column stx)])                        
       (and (or (path? src) (path-string? src)) line column
            (srcloc src line column (syntax-position stx) (syntax-span stx))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-format/bin : (-> Any String)
+  (lambda [v]
+    (cond [(byte? v) (byte->binstring v)]
+          [(integer? v) (~binstring v)]
+          [(bytes? v) (~binstring v)]
+          [else (~s v)])))
+
+(define spec-format/hex : (-> Any String)
+  (lambda [v]
+    (cond [(byte? v) (byte->hexstring v)]
+          [(integer? v) (~hexstring v)]
+          [(bytes? v) (~hexstring v)]
+          [else (~s v)])))

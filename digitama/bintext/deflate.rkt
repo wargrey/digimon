@@ -452,7 +452,7 @@
         ; the code length codes are just what encode those lengths.
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: codelen length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         codelen-alphabet codelen-lengths prefab-indices prefab-counts prefab-codes 0 uplencode))
+         codelen-alphabet codelen-lengths 0 uplencode prefab-indices prefab-counts prefab-codes))
 
       (let ([N (unsafe-idx+ hlit hdist)])
         ; the lengths 16, 17, and 18 in codelen lengths are not real lengths of codelen codes,
@@ -478,11 +478,11 @@
 
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: literal length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         dynamic-literal-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes 0 hlit)
+         dynamic-literal-alphabet codeword-lengths 0 hlit prefab-indices prefab-counts prefab-codes)
         
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: distance length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         dynamic-distance-alphabet codeword-lengths prefab-indices prefab-counts prefab-codes hlit N))
+         dynamic-distance-alphabet codeword-lengths hlit N prefab-indices prefab-counts prefab-codes))
 
       (unless (eq? BTYPE 'dynamic)
         (set! literal-alphabet dynamic-literal-alphabet)

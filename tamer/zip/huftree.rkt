@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require racket/file)
 
 (require digimon/cmdopt)
@@ -82,13 +84,13 @@
     (printf "lengths: ~a~n" (bytes->list lengths))
 
     (time** #:title 'huffman-codewords-canonicalize!
-            (huffman-codewords-canonicalize! codewords lengths maxlength nextcodes counts))
+            (huffman-codewords-canonicalize! codewords lengths maxlength 0 uplitcode nextcodes counts))
     
     (display-codeword codewords lengths)
 
     (let ([alphabet (huffman-make-alphabet #:max-bitwidth maxlength)])
       (time** #:title 'huffman-alphabet-canonicalize!
-              (huffman-alphabet-canonicalize! alphabet lengths symbol-indices counts nextcodes))
+              (huffman-alphabet-canonicalize! alphabet lengths 0 uplitcode symbol-indices counts nextcodes))
       
       (display-alphabet alphabet))))
 
@@ -118,7 +120,7 @@
           [codeword (in-naturals)]
           #:when (> cheatcode 0))
       (define symbol (bitwise-and cheatcode (huffman-alphabet-symbol-mask tbl)))
-      (define bitsize (arithmetic-shift cheatcode (- (huffman-alphabet-symbol-bwidth tbl))))
+      (define bitsize (arithmetic-shift cheatcode (- (huffman-alphabet-max-bwidth tbl))))
       (define symkey (codesymbol->visual-value symbol))
       (define symval (cons (~binstring codeword cheat-bwidth)
                            (~binstring (bitwise-bit-field codeword 0 bitsize) bitsize)))

@@ -217,13 +217,13 @@
 
 (define bplist-print-byte : (-> Bytes Output-Port Integer Char (-> String String) Void)
   (lambda [/dev/bplin /dev/stdout pos separator _]
-    (display (_ (byte->hex-string (bytes-ref /dev/bplin pos))) /dev/stdout)
+    (display (_ (byte->hexstring (bytes-ref /dev/bplin pos))) /dev/stdout)
     (display separator /dev/stdout)))
 
 (define bplist-print-integer-octets : (-> Bytes Output-Port Integer Byte Char (-> String String) Void)
   (lambda [/dev/bplin /dev/stdout pos size separator _]
     (for ([offset (in-range size)])
-      (display (_ (byte->hex-string (bytes-ref /dev/bplin (+ pos offset)))) /dev/stdout))
+      (display (_ (byte->hexstring (bytes-ref /dev/bplin (+ pos offset)))) /dev/stdout))
     (display separator /dev/stdout)))
 
 (define bplist-newline : (-> Output-Port Void)
