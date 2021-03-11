@@ -366,8 +366,6 @@
       (cond [(<= (+ slide-end span) window-size) (values p-idx slide-end payload++)]
             [else (let* ([slide-start (unsafe-idx- slide-end window-size/2)])
                     (unsafe-bytes-copy! window 0 window slide-start slide-end)
-                    ; don't complicate it, the above line says "to translate it from `slide-start` to 0",
-                    ; thus, the subtrahend is just the `slide-start` rather than the `window-size/2`.
                     (values (unsafe-idx- p-idx slide-start)
                             (unsafe-idx- slide-end slide-start)
                             payload++))]))
@@ -434,6 +432,8 @@
 
       (FIRE-BITS 14)
 
+      (printf "hlit: ~a; hdist: ~a; hclen: ~a; codelen code: " hlit hdist hclen)
+      
       ; note that bits of the header are extremely compact,
       ;   so that they never exceed the permissive upper boundaries.
       ; also recall that the last two codes of both literals and distances are actually ununsed,
@@ -450,9 +450,13 @@
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
           (when (< idx hclen)
             (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 (unsafe-b* idx 3)))
+            (printf "~a " (bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)))
             (read-codelen-lengths! (+ idx 1))))
 
         (FIRE-BITS codelen-lengths-bits)
+
+        (newline)
+        (newline)
       
         ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
         ; the code length codes are just what encode those lengths.
@@ -469,18 +473,27 @@
         (let read-lit+dist-lengths ([code-idx : Nonnegative-Fixnum 0]
                                     [prev-len : Index 0])
           (when (< code-idx N)
-            (define len : Index (read-huffman-symbol codelen-alphabet uplenbits uplencode BFINAL? 'dynamic 'length))
+            (define lensym : Index (read-huffman-symbol codelen-alphabet uplenbits uplencode BFINAL? 'dynamic 'length))
 
-            (cond [(< len codelen-copy:2) (unsafe-bytes-set! codeword-lengths code-idx len) (read-lit+dist-lengths (+ code-idx 1) len)]
-                  [(= len codelen-copy:3) (read-lit+dist-lengths (+ code-idx (read-huffman-repetition-times code-idx 3 #b111 codelen-min-match N BFINAL?)) 0)]
-                  [(= len codelen-copy:7) (read-lit+dist-lengths (+ code-idx (read-huffman-repetition-times code-idx 7 #x7F codelen-min-match:7 N BFINAL?)) 0)]
+            (printf "~a " lensym)
+
+            (cond [(< lensym codelen-copy:2) (unsafe-bytes-set! codeword-lengths code-idx lensym) (read-lit+dist-lengths (+ code-idx 1) lensym)]
+                  [(= lensym codelen-copy:3) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 3 #b111 codelen-min-match N BFINAL?) 0)]
+                  [(= lensym codelen-copy:7) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 7 #x7F codelen-min-match:7 N BFINAL?) 0)]
                   [else ; codelen-copy:2) ; to repeat previous length 3 - 6 times, determined by next 2 bits
-                   (let ([n (read-huffman-repetition-times code-idx 2 #b11 codelen-min-match N BFINAL?)])
+                   (let ([idx++ (read-huffman-repetition-times code-idx 2 #b11 codelen-min-match N BFINAL?)])
                      (cond [(= prev-len 0) (throw-check-error /dev/blkin ename "dynamic[~a]: previous length shouldn't be zero" (if (not BFINAL?) #b0 #b1))]
-                           [else (let ([idx++ : Index (unsafe-idx+ code-idx n)])
-                                   (let copy-code ([idx : Nonnegative-Fixnum code-idx])
-                                     (cond [(< idx idx++) (unsafe-bytes-set! codeword-lengths idx prev-len) (copy-code (+ idx 1))]
-                                           [else (read-lit+dist-lengths idx++ prev-len)])))]))])))
+                           [else (let copy-code ([idx : Nonnegative-Fixnum code-idx])
+                                   (cond [(< idx idx++) (unsafe-bytes-set! codeword-lengths idx prev-len) (copy-code (unsafe-fx+ idx 1))]
+                                         [else (read-lit+dist-lengths idx++ prev-len)]))]))])))
+
+        (printf "~n~a~n" N)
+        
+        (for ([cl (in-bytes codeword-lengths 0 N)])
+          (printf "~a " cl))
+
+        (for ([i (in-range 18)])
+          (newline))
 
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: literal length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
@@ -569,7 +582,11 @@
                              btype (if (not BFINAL?) #b0 #b1) ctype
                              (~binstring symbol-code code-length)))
 
+        (when (= maxlength uplenbits)
+          (printf "[~a] " code-length))
+        
         (FIRE-BITS code-length)
+        
         symbol-code))
 
     ; the next two functions are invoked as extra subroutines of the above one
@@ -582,15 +599,19 @@
             [else (begin0 (unsafe-idx+ base (PEEK-BITS extra))
                           (FIRE-BITS extra))]))
 
-    (define (read-huffman-repetition-times [idx : Index] [bitsize : Byte] [bitmask : Byte] [nbase : Byte] [N : Index] [BFINAL? : Boolean]) : Byte
-      (let ([n (unsafe-b+ (PEEK-BITS bitsize bitmask) nbase)])
-        (FIRE-BITS bitsize)
+    (define (read-huffman-repetition-times [idx : Index] [bitsize : Byte] [bitmask : Byte] [nbase : Byte] [N : Index] [BFINAL? : Boolean]) : Nonnegative-Fixnum
+      (define n (unsafe-b+ (PEEK-BITS bitsize bitmask) nbase))
+      (define idx++ (+ idx n))
 
-        (when (> (+ idx n) N)
-          (throw-check-error /dev/blkin ename
-                             "dynamic[~a]: repeated codes overflow: ~a (~a left)"
-                             (if (not BFINAL?) #b0 #b1) n (- N idx)))
-        n))
+      (printf "~a " n)
+      
+      (when (> idx++ N)
+        (throw-check-error /dev/blkin ename
+                           "dynamic[~a]: repeated codes overflow: ~a (~a left)"
+                           (if (not BFINAL?) #b0 #b1) n (- N idx)))
+
+      (FIRE-BITS bitsize)
+      idx++)
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (deflate-read! [zipout : Bytes]) : Port-Reader-Plain-Datum

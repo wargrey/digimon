@@ -26,9 +26,16 @@
            (srcloc src line column (syntax-position stx) (syntax-span stx))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-format/octet : (-> Any String)
+  (lambda [v]
+    (cond [(byte? v) (~binstring v 8)]
+          [(integer? v) (~binstring v)]
+          [(bytes? v) (~binstring v)]
+          [else (~s v)])))
+
 (define spec-format/bin : (-> Any String)
   (lambda [v]
-    (cond [(byte? v) (byte->binstring v)]
+    (cond [(byte? v) (~binstring v)]
           [(integer? v) (~binstring v)]
           [(bytes? v) (~binstring v)]
           [else (~s v)])))

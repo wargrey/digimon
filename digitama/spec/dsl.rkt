@@ -36,7 +36,7 @@
        (syntax/loc stx
          (make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'it:describe)])
-                              (list expr ...))
+                              (list (λ [] expr) #| the simplest way to do lazy evaluation |# ...))
                             #:before setup #:after teardown)))]))
 
 (define-syntax (it:describe stx)
@@ -57,7 +57,7 @@
                                  (λ [] (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'brief))])
                                          (spec-misbehave 'todo))))
              (make-spec-behavior brief
-                                 (λ [] expr ... (void))
+                                 (λ [] expr ... (void)) ; this is lazy by nature
                                  #:before setup #:after teardown
                                  #:timeout timeout))))]))
 

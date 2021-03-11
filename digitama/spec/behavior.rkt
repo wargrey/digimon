@@ -31,16 +31,17 @@
                          [else (λ [] (dynamic-wind setup evaluation teardown))])
                    ms)))
 
-(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (U Spec-Feature Spec-Behavior)) [#:before (-> Any)] [#:after (-> Any)] Spec-Feature)
-  (lambda [name behaviors #:before [setup void] #:after [teardown void]]
+(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (-> (U Spec-Feature Spec-Behavior))) [#:before (-> Any)] [#:after (-> Any)] Spec-Feature)
+  (lambda [name make-behaviors #:before [setup void] #:after [teardown void]]
     (define #:forall (s) (evaluate [downfold : (Spec-Feature-Downfold s)] [upfold : (Spec-Feature-Upfold s)] [herefold : (Spec-Feature-Herefold s)] [seed : s]) : s
       (for/fold ([seed : s seed])
-                ([b (in-list behaviors)])
-        (if (spec-behavior? b)
-            (herefold (spec-behavior-brief b) (spec-behavior-evaluate b) (spec-behavior-timeout/ms b) seed)
-            (spec-feature-fold-pace b downfold upfold herefold seed))))
-    (spec-feature (spec-name->brief name)
-                  evaluate setup teardown)))
+                ([make-behavior (in-list make-behaviors)])
+        (let ([behavior (make-behavior) #| the spec objects are delayed until exactly their turns to be evaluated |#])
+          (if (spec-behavior? behavior)
+              (herefold (spec-behavior-brief behavior) (spec-behavior-evaluate behavior) (spec-behavior-timeout/ms behavior) seed)
+              (spec-feature-fold-pace behavior downfold upfold herefold seed)))))
+    
+    (spec-feature (spec-name->brief name) evaluate setup teardown)))
 
 (define spec-behaviors-fold : (All (s) (-> (Spec-Feature-Downfold s) (Spec-Feature-Upfold s) (Spec-Feature-Herefold s) s (U Spec-Feature Spec-Behavior) s))
   (lambda [downfold upfold herefold seed feature]

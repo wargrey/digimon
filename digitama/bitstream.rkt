@@ -17,7 +17,7 @@
        (begin (define (reset) : Void
                 (set!-values (mgz-payload mgz-start) (values 0 0))
                 (set!-values (payload pwidth eof-width) (values 0 0 0)))
-              
+
               (define align-bits : (-> Index)
                 (lambda []
                   (define skip (unsafe-fxremainder pwidth 8))
@@ -47,7 +47,6 @@
               (define id : (-> InShell Status)
                 (lambda [cmd]
                   (case cmd
-                    [(start-over) (reset) 0]
                     [(align) (align-bits)]
                     [(final-commit) (final-commit-bits) total-committed]
                     [(aggregate) (+ total-committed (final-size))]
@@ -60,14 +59,13 @@
      (syntax/loc stx
        (begin (define (reset) : Void
                 (set!-values (payload pwidth) (values 0 0)))
-              
+
               (define (align-bits) : Void
                 (push-bits 0 (unsafe-idx- 8 (unsafe-fxremainder pwidth 8)) #b0))
 
               (define id : (-> OutShell Status)
                 (lambda [cmd]
                   (case cmd
-                    [(start-over) (reset)]
                     [(align) (align-bits)]
                     [(drop) (reset)])
 

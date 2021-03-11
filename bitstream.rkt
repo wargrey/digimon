@@ -15,8 +15,8 @@
 ;;; 2. The MSB-first bitstream corresponds the big-endian integer
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type BitStream-Input-Shell (U 'start-over 'align 'aggregate 'final-commit))
-(define-type BitStream-Output-Shell (U 'start-over 'align 'aggregate 'drop))
+(define-type BitStream-Input-Shell (U 'align 'aggregate 'final-commit))
+(define-type BitStream-Output-Shell (U 'align 'aggregate 'drop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-input-lsb-bitstream : (->* (Input-Port) ((U Integer Bytes) #:lookahead Byte #:limited (Option Natural) #:padding-byte Byte)
@@ -246,7 +246,7 @@
 
     (values push-bits send-bits bs-shell)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bits-reverse-uint8 : (case-> [Byte -> Byte]
                                      [Byte Index -> Byte])
   (case-lambda

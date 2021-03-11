@@ -123,7 +123,7 @@
       (define bitsize (arithmetic-shift cheatcode (- (huffman-alphabet-max-bwidth tbl))))
       (define symkey (codesymbol->visual-value symbol))
       (define symval (cons (~binstring codeword cheat-bwidth)
-                           (~binstring (bitwise-bit-field codeword 0 bitsize) bitsize)))
+                           (~binstring (bitwise-bit-field codeword 0 bitsize))))
 
       (hash-set! symbols symkey
                  (cons symval

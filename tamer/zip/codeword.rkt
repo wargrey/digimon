@@ -9,6 +9,8 @@
 
 (require "huftree.rkt")
 
+(require (for-syntax racket/base))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define t:alphabet : Huffman-Alphabet (huffman-make-alphabet uplitcode))
 (define t:codewords : (Mutable-Vectorof Index) (make-vector uplitcode))
@@ -34,6 +36,46 @@
 
 (define bad-stored-block : Bytes (bytes #x01 #x05 #x00 #x12 #x34))
 (define good-stored-block : Bytes (bytes-append (bytes #x01 #x05 #x00 #xfa #xff) (string->bytes/utf-8 "Hello")))
+
+(define deflated-twocities : Bytes
+  (bytes #x74 #xeb #xcd #x0d #x80 #x20 #x0c #x47 #x71 #xdc #x9d #xa2 #x03 #xb8 #x88 #x63
+         #xf0 #xf1 #x47 #x9a #x00 #x35 #xb4 #x86 #xf5 #x0d #x27 #x63 #x82 #xe7 #xdf #x7b
+         #x87 #xd1 #x70 #x4a #x96 #x41 #x1e #x6a #x24 #x89 #x8c #x2b #x74 #xdf #xf8 #x95
+         #x21 #xfd #x8f #xdc #x89 #x09 #x83 #x35 #x4a #x5d #x49 #x12 #x29 #xac #xb9 #x41
+         #xbf #x23 #x2e #x09 #x79 #x06 #x1e #x85 #x91 #xd6 #xc6 #x2d #x74 #xc4 #xfb #xa1
+         #x7b #x0f #x52 #x20 #x84 #x61 #x28 #x0c #x63 #xdf #x53 #xf4 #x00 #x1e #xc3 #xa5
+         #x97 #x88 #xf4 #xd9 #x04 #xa5 #x2d #x49 #x54 #xbc #xfd #x90 #xa5 #x0c #xae #xbf
+         #x3f #x84 #x77 #x88 #x3f #xaf #xc0 #x40 #xd6 #x5b #x14 #x8b #x54 #xf6 #x0f #x9b
+         #x49 #xf7 #xbf #xbf #x36 #x54 #x5a #x0d #xe6 #x3e #xf0 #x9e #x29 #xcd #xa1 #x41
+         #x05 #x36 #x48 #x74 #x4a #xe9 #x46 #x66 #x2a #x19 #x17 #xf4 #x71 #x8e #xcb #x15
+         #x5b #x57 #xe4 #xf3 #xc7 #xe7 #x1e #x9d #x50 #x08 #xc3 #x50 #x18 #xc6 #x2a #x19
+         #xa0 #xdd #xc3 #x35 #x82 #x3d #x6a #xb0 #x34 #x92 #x16 #x8b #xdb #x1b #xeb #x7d
+         #xbc #xf8 #x16 #xf8 #xc2 #xe1 #xaf #x81 #x7e #x58 #xf4 #x9f #x74 #xf8 #xcd #x39
+         #xd3 #xaa #x0f #x26 #x31 #xcc #x8d #x9a #xd2 #x04 #x3e #x51 #xbe #x7e #xbc #xc5
+         #x27 #x3d #xa5 #xf3 #x15 #x63 #x94 #x42 #x75 #x53 #x6b #x61 #xc8 #x01 #x13 #x4d
+         #x23 #xba #x2a #x2d #x6c #x94 #x65 #xc7 #x4b #x86 #x9b #x25 #x3e #xba #x01 #x10
+         #x84 #x81 #x28 #x80 #x55 #x1c #xc0 #xa5 #xaa #x36 #xa6 #x09 #xa8 #xa1 #x85 #xf9
+         #x7d #x45 #xbf #x80 #xe4 #xd1 #xbb #xde #xb9 #x5e #xf1 #x23 #x89 #x4b #x00 #xd5
+         #x59 #x84 #x85 #xe3 #xd4 #xdc #xb2 #x66 #xe9 #xc1 #x44 #x0b #x1e #x84 #xec #xe6
+         #xa1 #xc7 #x42 #x6a #x09 #x6d #x9a #x5e #x70 #xa2 #x36 #x94 #x29 #x2c #x85 #x3f
+         #x24 #x39 #xf3 #xae #xc3 #xca #xca #xaf #x2f #xce #x8e #x58 #x91 #x00 #x25 #xb5
+         #xb3 #xe9 #xd4 #xda #xef #xfa #x48 #x7b #x3b #xe2 #x63 #x12 #x00 #x00 #x20 #x04
+         #x80 #x70 #x36 #x8c #xbd #x04 #x71 #xff #xf6 #x0f #x66 #x38 #xcf #xa1 #x39 #x11
+         #x0f))
+
+(define /dev/bsout : Output-Port (open-output-bytes))
+
+(define-syntax (open-lsb-input-bitstream-from-bytes stx)
+  (syntax-case stx []
+    [(_ bs argl ...)
+     (syntax/loc stx
+       (make-input-lsb-bitstream (open-input-bytes bs) argl ...))]))
+
+(define-syntax (open-lsb-input-bitstream-from-string-port stx)
+  (syntax-case stx []
+    [(_ /dev/strin argl ...)
+     (syntax/loc stx
+       (open-lsb-input-bitstream-from-bytes (get-output-bytes /dev/strin #false) argl ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define huffman-symbol-extract/length : (->* (Huffman-Alphabet Index) (Byte) Byte)
@@ -162,11 +204,11 @@
             (describe "alphabet" #:do
                       (context ["when provided with lengths ~a" basic-lengths] #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes basic-lengths))) #:do
-                               (it-will-extract-symbol-from t:alphabet  #b000     0      3)
-                               (it-will-extract-symbol-from t:alphabet  #b011     3      3)
-                               (it-will-extract-symbol-from t:alphabet  #b11110   17     5)
-                               (it-will-extract-symbol-from t:alphabet  #b111110  16     6)
-                               (it-will-extract-nothing-from t:alphabet #b1111111        7))
+                               (it-will-extract-symbol-from t:alphabet  #b000     0  3)
+                               (it-will-extract-symbol-from t:alphabet  #b011     3  3)
+                               (it-will-extract-symbol-from t:alphabet  #b11110   17 5)
+                               (it-will-extract-symbol-from t:alphabet  #b111110  16 6)
+                               (it-will-extract-nothing-from t:alphabet #b1111111    7))
                      
                       (context ["when provided with lengths ~a" rfc1951-lengths] #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes rfc1951-lengths))) #:do
@@ -202,11 +244,91 @@
                                (it "shouldn't hit any symbol in its alphabet" #:do
                                    (expect-zero (huffman-symbol-extract/length t:alphabet #xFFFF))))))
 
+  (describe "lsb input bitstream" #:do
+            (let-values ([(push-bits send-bits _) (open-output-lsb-bitstream /dev/bsout)])
+              (it "should construct a 2-byte bitstream" #:do
+                  (push-bits #b1101  4)
+                  (push-bits #b110   3)
+                  (push-bits #b1011  4)
+                  (push-bits #b10001 5)
+                  (expect-= (send-bits #:windup? #true) 2)))
+            
+            (it "should arrange bits LSB-first but the forming bytes MSB-first" #:do
+                (expect-bytes (get-output-bytes /dev/bsout #false) (bytes #b11101101 #b10001101)))
+            
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout)])
+              (context "with the certain 2-byte bitstream" #:do
+                       (it "should be okay to accept feeding request for 16 bits" #:do
+                           (expect-true (feed-bits 16)))
+                       (it "should read original bits in exactly same order" #:do
+                           (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1101)
+                           (expect-bin= (begin0 (peek-bits 3 #b111)   (fire-bits 3)) #b110)
+                           (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1011)
+                           (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 5)) #b10001))
+                       (it "should report 2 as the number of bytes actually comsumed" #:do
+                           (expect-= ($ 'aggregate) 2))))
+
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 0 #:limited 1)])
+              (context "with the certain 2-byte bitstream, truncated to 1-byte, padded with `#xFF`" #:do
+                       (it "should be okay to accept feeding request for 16 bits, but return `#false` to indicate that it has exhausted" #:do
+                           (expect-false (feed-bits 16)))
+                       (it "should only restore the first half of orginal text" #:do
+                           (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1101)
+                           (expect-bin= (begin0 (peek-bits 3 #b111)   (fire-bits 3)) #b110))
+                       (it "should employ the padding byte for following feeding request" #:do
+                           (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1111)
+                           (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 4)) #b11111))
+                       (it "should report 2 as the number of bytes actually comsumed" #:do
+                           (expect-= ($ 'aggregate) 2))))
+
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 0)])
+              (context "with the certain 2-byte bitstream, no lookahead" #:do
+                       (it "should be okay to accept feeding request for 255 bits, but return `#false` to indicate that it has exhausted" #:do
+                           (expect-false (feed-bits 255)))
+                       (it "should skip 5 bits to align to the next byte boundary after firing 3 bits" #:do
+                           (fire-bits 3)
+                           (expect-bin= ($ 'align) #b11101)
+                           (expect-bin= (begin0 (peek-bits 8) (fire-bits 8)) #b10001101))
+                       (it "should report 32 as the number of bytes actually comsumed before and after committing" #:do
+                           (expect-= ($ 'aggregate) 32)
+                           ($ 'final-commit)
+                           (expect-= ($ 'aggregate) 32))))
+
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 4)])
+              (context "with the certain 2-byte bitstream, 4-byte lookahead, padded with `#xFF`" #:do
+                       (it "should employ the padding byte after exhausting" #:do
+                           (feed-bits 255)
+                           (fire-bits 16)
+                           (expect-hex= (peek-bits 32) #xFFFFFFFF))
+                       (it "should report 28 as the number of bytes actually comsumed before and after committing" #:do
+                           (expect-= ($ 'aggregate) 28)
+                           ($ 'final-commit)
+                           (expect-= ($ 'aggregate) 28))
+                       (it "should report 28 as the number of bytes actually comsumed after firing 16 lookaheaded bits before commiting" #:do
+                           (fire-bits 208)
+                           (fire-bits 16)
+                           (expect-= ($ 'aggregate) 28))
+                       (it "should report 30 as the number of bytes actually comsumed after commiting" #:do
+                           ($ 'final-commit)
+                           (expect-= ($ 'aggregate) 30))))
+            
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-bytes (make-bytes 30000))])
+              (context "with a 30000-byte bitstream, 8-byte lookahead" #:do
+                       (it "should report 30000 as the number of bytes actually comsumed after exhausting it before and after committing" #:do
+                           (let exhaust ()
+                             (when (feed-bits 16)
+                               (peek-bits) (fire-bits 16)
+                               (exhaust)))
+                           (expect-= ($ 'aggregate) 30000)
+                           ($ 'final-commit)
+                           (expect-= ($ 'aggregate) 30000)))))
+
   (describe "inflate" #:do
             (context "when provided with an invalid block" #:do
                      (it "should throw an exception due to unkown block type" #:do
                          (expect-throw "unknown deflate block type"
                                        (λ [] (inflate (bytes #x06))))))
+
             (context "when provided with an stored block" #:do
                      (it "should return EOF immediately due to empty block" #:do
                          (expect-eof (open-input-deflated-block (open-input-bytes bad-stored-block) 0 #:name "/dev/zero")))
@@ -220,8 +342,15 @@
                          (expect-throw "unexpected end of file"
                                        (λ [] (inflate good-stored-block 9))))
                      (it "should read the uncompressed text" #:do
-                         (expect-bytes (inflate good-stored-block) #"Hello")))))
+                         (expect-bytes (inflate good-stored-block) #"Hello")))
+
+            (context "when provided with a dynamically deflated block" #:do
+                     (it "should be inflated and restored to its original text" #:do
+                         #:timeout/ms 200 #:do
+                         (expect-bytes (inflate deflated-twocities) #"Hello")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (void (spec-prove huffman)))
+  (void (spec-prove huffman))
+
+  #;(displayln (bytes->bin-string deflated-twocities #:separator " ")))

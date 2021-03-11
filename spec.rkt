@@ -155,6 +155,7 @@
       (define population : Natural (apply + (hash-values summary)))
       (define misbehavior : Natural (hash-ref summary 'misbehaved (λ [] 0)))
       (define panic : Natural (hash-ref summary 'panic (λ [] 0)))
+      (define failures : Natural (+ misbehavior panic))
 
       (if (positive? population)
           (let ([~s (λ [[ms : Natural]] : String (~r (* ms 0.001) #:precision '(= 3)))]
@@ -163,9 +164,9 @@
                 [skip (hash-ref summary 'skip (λ [] 0))])
             (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
                    (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
-            (echof #:fgcolor 'lightcyan "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
+            (echof #:fgcolor (if (> failures 0) 'lightyellow 'lightcyan) "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
                    (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") skip todo
                    (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
           (echof #:fgcolor 'darkcyan "~nNo particular sample!~n"))
 
-      (+ misbehavior panic))))
+      failures)))
