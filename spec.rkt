@@ -20,6 +20,7 @@
 (require "digitama/spec/dsl.rkt")
 
 (require "format.rkt")
+(require "debug.rkt")
 (require "echo.rkt")
 
 (require racket/string)
@@ -61,7 +62,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-summary-fold
   : (All (s) (-> (U Spec-Feature Spec-Behavior) s
-                 #:downfold (-> String Index s s) #:upfold (-> String Index s s s) #:herefold (-> String Spec-Issue Index Natural Natural Natural s s)
+                 #:downfold (-> String Index s s) #:upfold (-> String Index s s s) #:herefold (-> String Spec-Issue Index Integer Natural Natural Natural s s)
                  [#:selector Spec-Prove-Selector]
                  (Pairof Spec-Summary s)))
   (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:selector [selector null]]
@@ -91,16 +92,22 @@
                         (cdr (spec-seed-namepath children-seed))
                         #:exceptions (cdr (spec-seed-exceptions children-seed))))
       
-      (define (fold-behavior [brief : String] [action : (-> Void)] [seed : (Spec-Seed s)]) : (Spec-Seed s)
+      (define (fold-behavior [brief : String] [action : (-> Void)] [timeout : Natural] [seed : (Spec-Seed s)]) : (Spec-Seed s)
         (define fixed-action : (-> Void)
           (cond [(findf exn? (spec-seed-exceptions seed))
-                 => (lambda [[e : exn:fail]] (λ [] (spec-misbehave e)))]
+                 => (λ [[e : exn:fail]] (λ [] (spec-misbehave e)))]
+                [(> timeout 0)
+                 (λ [] (let ([ghostcat (thread action)])
+                         (with-handlers ([exn:fail? (λ [[e : exn:fail]] (kill-thread ghostcat) (spec-misbehave e))]
+                                         [exn:break? (λ [[e : exn:break]] (kill-thread ghostcat) (raise e))])
+                           (unless (sync/timeout/enable-break (/ timeout 1000.0) (thread-dead-evt ghostcat))
+                             (error 'spec "timeout (longer than ~a)" (~gctime timeout))))))]
                 [else action]))
         (define namepath : (Listof String) (spec-seed-namepath seed))
-        (define-values (&issue cpu real gc) (time-apply (λ [] (prove brief namepath fixed-action)) null))
+        (define-values (issue memory cpu real gc) (time-apply* (λ [] (prove brief namepath fixed-action))))
 
-        (spec-seed-copy seed (herefold brief (car &issue) (length namepath) cpu real gc (spec-seed-datum seed)) namepath
-                        #:summary (hash-update (spec-seed-summary seed) (spec-issue-type (car &issue)) add1 (λ [] 0))))
+        (spec-seed-copy seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath
+                        #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))))
 
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
@@ -122,7 +129,7 @@
                           (cddr children:orders))]))
       
       (define (fold-behavior [brief : String] [issue : Spec-Issue] [indent : Index]
-                             [cpu : Natural] [real : Natural] [gc : Natural] [seed:orders : (Listof Natural)]) : (Listof Natural)
+                             [memory : Integer] [cpu : Natural] [real : Natural] [gc : Natural] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (define type : Spec-Issue-Type (spec-issue-type issue))
         (define headline : String (format "~a~a ~a - " (~space (+ indent indent)) (~symbol type) (if (null? seed:orders) 1 (car seed:orders))))
         (define headspace : String (~space (string-length headline)))
@@ -130,7 +137,7 @@
         (echof #:fgcolor (~fgcolor type) "~a~a" headline (spec-issue-brief issue))
 
         (case type
-          [(pass) (echof #:fgcolor 'darkgrey " [~a real time, ~a gc time]~n" real gc)]
+          [(pass) (echof #:fgcolor 'darkgrey " [~a, ~a real time, ~a gc time]~n" (~size memory) real gc)]
           [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
           [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
           [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
@@ -138,14 +145,13 @@
         
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
-      (define-values (&summary cpu real gc)
-        (time-apply (λ [] ((inst spec-summary-fold (Listof Natural))
-                           feature null
-                           #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                           #:selector selector))
-                    null))
+      (define-values (summaries memory cpu real gc)
+        (time-apply* (λ [] ((inst spec-summary-fold (Listof Natural))
+                            feature null
+                            #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                            #:selector selector))))
 
-      (define summary : Spec-Summary (caar &summary))
+      (define summary : Spec-Summary (car summaries))
       (define population : Natural (apply + (hash-values summary)))
       (define misbehavior : Natural (hash-ref summary 'misbehaved (λ [] 0)))
       (define panic : Natural (hash-ref summary 'panic (λ [] 0)))
@@ -157,9 +163,8 @@
                 [skip (hash-ref summary 'skip (λ [] 0))])
             (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
                    (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
-            (echof #:fgcolor 'lightcyan "~a, ~a, ~a, ~a, ~a, ~a% Okay.~n"
-                   (~n_w population "sample") (~n_w misbehavior "misbehavior")
-                   (~n_w panic "panic") (~n_w skip "skip") (~n_w todo "TODO")
+            (echof #:fgcolor 'lightcyan "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
+                   (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") skip todo
                    (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
           (echof #:fgcolor 'darkcyan "~nNo particular sample!~n"))
 

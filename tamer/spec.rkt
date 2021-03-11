@@ -13,25 +13,28 @@
   (describe "normal issues" #:do
             (context "given function `read`, we can extract typed datum from the stream directly" #:do
                      (describe read #:do
-                               (it "produces a number when digits are consumed" #:do
+                               (it "should keep waiting before the stream really has datum to be read" #:do
+                                   #:timeout/ms 1000 #:do
+                                   (read (current-input-port)))
+                               (it "should produce a number when digits are consumed" #:do
                                    (expect-satisfy number? (read /dev/stdin)))
 
-                               (it "produces a symbol when consuming digits immediately followed by non-digit chars" #:do
+                               (it "should produce a symbol when consuming digits immediately followed by non-digit chars" #:do
                                    (expect-satisfy symbol? (read /dev/stdin)))
                                
-                               (context "when provided with invalid value" #:do
-                                        (it "produces a parse error" #:do
+                               (context "when provided with an invalid value" #:do
+                                        (it "should produce a parse error" #:do
                                             (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))))
 
-                                        (it "procudes an end-of-file error" #:do
+                                        (it "should procude an end-of-file error" #:do
                                             (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))
                                                           "EOF is neither a typical datum nor an error"))))))
   
   (describe "special issues" #:do
             (describe "issues are allowed to be described later" #:do
-                      (it "tags empty behavior with TODO automatically" #:do)
+                      (it "should tag empty behavior with TODO automatically" #:do)
                       
-                      (it "tags a TODO issue with useful information" #:do
+                      (it "should tag a TODO issue with useful information" #:do
                           (pending "I am here to tell you some tasks are pending")))
 
             (describe "panic issues indicate bugs in the specification" #:do
@@ -50,10 +53,10 @@
                       (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
                           (ignore "a buggy specification, but it's okay for representation purpose"))
                       
-                      (describe "skips user scenarios since no network interface card is found" #:do
+                      (describe "skipping user scenarios since no network interface card is found" #:do
                                 #:before (λ [] (ignore "NIC is not present")) #:do
                                 
-                                (describe "searches the network neighbors" #:do
+                                (describe "should searche the network neighbors" #:do
                                           (it "should be skipped since its grandparent is skipped" #:do
                                               (make-it)))))))
 

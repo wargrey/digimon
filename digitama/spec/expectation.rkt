@@ -25,7 +25,7 @@
          (begin (define argv : (Listof String) (list (symbol->immutable-string 'arg) ...))
                 (define argc : Index (length argv))
                 
-                (define do-expecting : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
+                (define make-expect : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
                   (lambda [name loc exprs]
                     (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
                       (parameterize ([default-spec-issue-expectation (or alt-name name)]
@@ -41,8 +41,8 @@
                 (define-syntax (expect-id stx)
                   (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" stx)])
                     (syntax-parse stx
-                      [(_:id . arglist) (syntax/loc stx ((do-expecting 'id #'loc (take 'arglist argc)) . arglist))]
-                      [_:id (syntax/loc stx (do-expecting 'id #'loc 'expect-id))]))))))]))
+                      [(_:id . arglist) (syntax/loc stx ((make-expect 'id #'loc (take 'arglist argc)) . arglist))]
+                      [_:id (syntax/loc stx (make-expect 'id #'loc 'expect-id))]))))))]))
 
 (define-syntax (define-spec-boolean-expectation stx)
   (syntax-parse stx #:literals [:]
@@ -73,7 +73,6 @@
 (define-spec-boolean-expectation (not-memq [given : Any] [range : (Listof Any)]) (not (memq given range)))
 
 (define-spec-boolean-expectation (zero [given : Number]) (zero? given))
-(define-spec-boolean-expectation (eof [given : Any]) (eof-object? given))
 (define-spec-boolean-expectation (null [given : Any]) (null? given))
 (define-spec-boolean-expectation (void [given : Any]) (void? given))
 (define-spec-boolean-expectation (true [given : Any]) (eq? given #true))
@@ -91,10 +90,17 @@
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 
-(define-spec-boolean-expectation (bytes [given : Bytes] [expected : Bytes]) (bytes=? given expected))
-(define-spec-boolean-expectation (bytes-ci [given : Bytes] [expected : Bytes]) (bytes=? given expected))
+(define-spec-boolean-expectation (bytes [given : Bytes] [expected : Bytes])     #:default-format spec-format/hex (bytes=? given expected))
+(define-spec-boolean-expectation (bytes-ci [given : Bytes] [expected : Bytes])  #:default-format spec-format/hex (bytes=? given expected))
+(define-spec-boolean-expectation (octets [given : Bytes] [expected : Bytes])    #:default-format spec-format/bin (bytes=? given expected))
+(define-spec-boolean-expectation (octets-ci [given : Bytes] [expected : Bytes]) #:default-format spec-format/bin (bytes=? given expected))
+
 (define-spec-boolean-expectation (string [given : String] [expected : String]) (string=? given expected))
 (define-spec-boolean-expectation (string-ci [given : String] [expected : String]) (string-ci=? given expected))
+
+(define-spec-boolean-expectation (eof [given : Any])
+  (cond [(input-port? given) (eof-object? (peek-byte given))]
+        [else (eof-object? given)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-expectation (throw [exception : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
@@ -122,6 +128,7 @@
   (or (predicate given)
       (spec-misbehave)))
 
-(define-spec-expectation (regexp-match [px : (U Byte-Regexp Regexp Bytes String)] [given : (U Path-String Bytes)])
-  (or (regexp-match? px given)
+(define-spec-expectation (regexp-match [px : (U Byte-Regexp Regexp Bytes String)] [given : (U Path-String Bytes Input-Port)])
+  (or (cond [(input-port? given) (regexp-match-peek px given)]
+            [else (regexp-match? px given)])
       (spec-misbehave)))

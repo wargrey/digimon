@@ -28,8 +28,8 @@
   (syntax-parse stx
     [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (describe (format fmt brief ...) rest ...))]
     [(_ brief (~optional (~seq #:do
-                               (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
-                                    (~seq (~seq #:after teardown) (~seq #:before setup)))))
+                               (~alt (~optional (~seq #:before setup))
+                                     (~optional (~seq #:after teardown))) ...))
         (~seq #:do expr ...))
      (with-syntax ([setup (or (attribute setup) #'void)]
                    [teardown (or (attribute teardown) #'void)])
@@ -43,11 +43,13 @@
   (syntax-parse stx
     [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (it:describe (format fmt brief ...) rest ...))]
     [(_ brief (~optional (~seq #:do
-                               (~or (~seq (~optional (~seq #:before setup)) (~optional (~seq #:after teardown)))
-                                    (~seq (~seq #:after teardown) (~seq #:before setup)))))
+                               (~alt (~optional (~seq #:before setup))
+                                     (~optional (~seq #:after teardown))
+                                     (~optional (~seq (~or #:timeout/ms #:millisecond) timeout))) ...))
         (~seq #:do expr ...))
      (with-syntax ([setup (or (attribute setup) #'void)]
                    [teardown (or (attribute teardown) #'void)]
+                   [timeout (or (attribute timeout) #'0)]
                    [empty? (null? (syntax->list #'(expr ...)))])
        (syntax/loc stx
          (if (and empty?)
@@ -56,7 +58,8 @@
                                          (spec-misbehave 'todo))))
              (make-spec-behavior brief
                                  (λ [] expr ... (void))
-                                 #:before setup #:after teardown))))]))
+                                 #:before setup #:after teardown
+                                 #:timeout timeout))))]))
 
 (define-syntax (define-behavior stx)
   (syntax-parse stx

@@ -575,7 +575,7 @@
                                     [else (cons (cons (tamer-feature brief this-issues) (cadr issues)) (cddr issues))])
                                   (vector-ref children:info 1)))
                         
-                        (define (fold-behavior brief issue indent cpu real gc seed:info)
+                        (define (fold-behavior brief issue indent memory cpu real gc seed:info)
                           (define issues (vector-ref seed:info 0))
                           (define idx (add1 (length (car issues))))
                           (define type (spec-issue-type issue))
@@ -586,7 +586,7 @@
                           (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
                                   (cons flow (vector-ref seed:info 1))))
                         
-                        (match-define-values ((list (cons summary (vector features flows))) memory cpu real gc)
+                        (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
                           (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
                                                                 (vector null null)
                                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior

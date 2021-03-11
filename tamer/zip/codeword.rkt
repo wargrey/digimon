@@ -58,7 +58,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-behavior (it-will-extract-symbol-from alphabet msb-code symbol-code symbol-bits)
   (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
-    #:it ["should extract symbol '~a' from bit stream '~a' [LSB: 0x~a] [MSB: 0x~a]"
+    #:it ["should extract symbol '~a' from codeword '~a' [LSB: 0x~a] [MSB: 0x~a]"
           symbol-code (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
     (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
       (expect-bin= symbol symbol-code)
@@ -66,7 +66,7 @@
 
 (define-behavior (it-will-extract-nothing-from alphabet msb-code symbol-bits)
   (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
-    #:it ["shouldn't extract any symbol from bit stream '~a' [LSB: 0x~a] [MSB: 0x~a]"
+    #:it ["shouldn't extract any symbol from codeword '~a' [LSB: 0x~a] [MSB: 0x~a]"
           (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
     (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
       (expect-= length 0))))
@@ -179,7 +179,7 @@
                                (it-will-extract-symbol-from t:alphabet #b1110 6 4)
                                (it-will-extract-symbol-from t:alphabet #b1111 7 4))
                      
-                      (context ["when provided with extreme lengths ~a" extreme-lengths] #:do
+                      (context ["when provided with long lengths ~a" extreme-lengths] #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes extreme-lengths))) #:do
                                (it-will-extract-symbol-from t:alphabet 0 0 3)
                                (it-will-extract-symbol-from t:alphabet 1 1 3)
@@ -190,7 +190,7 @@
                                (it-will-extract-symbol-from t:alphabet #x3002 5 15))
                      
                       (context ["when provided with malicious lengths ~a" evil-lengths] #:do
-                               (it "should overflow the sentinel bits" #:do
+                               (it "should throw an exception due to sentinel bits overflow" #:do
                                    (expect-throw exn:fail?
                                                  (λ [] (huffman-alphabet-canonicalize!
                                                         t:alphabet (apply bytes evil-lengths))))))
@@ -208,15 +208,15 @@
                          (expect-throw "unknown deflate block type"
                                        (λ [] (inflate (bytes #x06))))))
             (context "when provided with an stored block" #:do
-                     (it "should return EOF because of an empty block" #:do
-                         (expect-eof (read (open-input-deflated-block (open-input-bytes bad-stored-block) 0 #:name "/dev/zero"))))
+                     (it "should return EOF immediately due to empty block" #:do
+                         (expect-eof (open-input-deflated-block (open-input-bytes bad-stored-block) 0 #:name "/dev/zero")))
                      (it "should throw an exception due to broken length fields" #:do
                          (expect-throw "unexpected end of file"
                                        (λ [] (inflate bad-stored-block 4))))
                      (it "should throw an exception due to invalid block length" #:do
                          (expect-throw "invalid block length"
                                        (λ [] (inflate bad-stored-block))))
-                     (it "should throw an exception due to unexpected EOF" #:do
+                     (it "should throw an exception due to unexpected end of file" #:do
                          (expect-throw "unexpected end of file"
                                        (λ [] (inflate good-stored-block 9))))
                      (it "should read the uncompressed text" #:do

@@ -95,10 +95,10 @@
 
 ; note the keyword `#:max-bitwidth`, which means the actual `maxlength` might be smaller (but not larger)
 ;   since the `huffman-alphabet` is intentionally designed to allow client applications reusing memory.
-; also note that, there is no `symbol-bwidth` field to pair with the `symbol-mask`, since `max-bwidth` is
-;   already there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, but in
-;   practice for some reasons, say with a large difference between the maximum and minimum bit lengths,
-;   a symbol in certain alphabet might have to be encoded with more bits than required.
+; also note that, there is no `symbol-bwidth` paired with the `symbol-mask`, since `max-bwidth` is already
+;   there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, whereas in
+;   practice for some reasons, always generating an optimal huffman codewords is somehow ideal, a symbol
+;   therefore in certain alphabet might have to be encoded with more bits than required.
 (define huffman-make-alphabet : (->* () (Index #:max-bitwidth Byte #:cheat-bitwidth Byte) Huffman-Alphabet)
   (lambda [[capacity uplitcode] #:max-bitwidth [max-bwidth upbits] #:cheat-bitwidth [cheat-bwidth (min 8 max-bwidth)]]
     (define symbol-mask : Index (- (unsafe-idxlshift 1 max-bwidth) 1))
