@@ -15,6 +15,11 @@
 ;;; 2. The MSB-first bitstream corresponds the big-endian integer
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; the 'aggregate for input bitstream always reports the actual bytes fired
+;   just in case you have no chance to check it after final committing.
+;   Say, the bitstream is employed to implement an input port,
+;   in which case operations are meaningless after closing the port,
+;   where there is the only way to trigger the committing.
 (define-type BitStream-Input-Shell (U 'align 'aggregate 'final-commit))
 (define-type BitStream-Output-Shell (U 'align 'aggregate 'drop))
 
@@ -122,7 +127,7 @@
                (set! pwidth (unsafe-idx+ pwidth 8))
                (set! mgz-start (unsafe-idx+ mgz-start 1))
                (feed-bits nbits))]
-            [(> stock mgz-start) ; the port should have some bytes to be read
+            [(>= stock mgz-start) ; the port should have some bytes to be read
              (try-commit-bits)
              (let ([?n (peek-bytes-avail! magazine mgz-start #f /dev/bsin mgz-start (min stock mgz-capacity))])
                (cond [(exact-positive-integer? ?n)

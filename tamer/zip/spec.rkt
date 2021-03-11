@@ -277,7 +277,7 @@
                            (expect-bin= (begin0 (peek-bits 3 #b111)   (fire-bits 3)) #b110))
                        (it "should employ the padding byte for following feeding request" #:do
                            (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1111)
-                           (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 4)) #b11111))
+                           (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 5)) #b11111))
                        (it "should report 2 as the number of bytes actually comsumed" #:do
                            (expect-= ($ 'aggregate) 2))))
 
@@ -303,12 +303,14 @@
                        (it "should report 28 as the number of bytes actually comsumed before and after committing" #:do
                            (expect-= ($ 'aggregate) 28)
                            ($ 'final-commit)
-                           (expect-= ($ 'aggregate) 28))
-                       (it "should report 28 as the number of bytes actually comsumed after firing 16 lookaheaded bits before commiting" #:do
-                           (fire-bits 208)
-                           (fire-bits 16)
-                           (expect-= ($ 'aggregate) 28))
-                       (it "should report 30 as the number of bytes actually comsumed after commiting" #:do
+                           (expect-= ($ 'aggregate) 28))))
+
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 4)])
+              (context "with the certain 2-byte bitstream, 4-byte lookahead, padded with `#xFF`, fired 240 bits" #:do
+                       (it "should report 30 as the number of bytes actually comsumed before and after committing" #:do
+                           (feed-bits 255)
+                           (fire-bits 240)
+                           (expect-= ($ 'aggregate) 30)
                            ($ 'final-commit)
                            (expect-= ($ 'aggregate) 30))))
             
