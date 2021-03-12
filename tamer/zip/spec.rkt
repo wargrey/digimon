@@ -376,26 +376,9 @@
                            (expect-bytes= codelen-lengths
                                           (bytes 3 7 5 7 3 2 2 0 0 0 0 0 0 0 0 0 6 4 3)))
                        
-                       #;(it ["should extract ~a codeword lengths from following compressed bits" (+ hlit hdist)] #:do
-                           (huffman-alphabet-canonicalize! codelen-alphabet codelen-lengths 0 uplencode)
-                           
-                           #;(expect-equal (vector-take length-codes (+ hlit hdist))
-                                         (list (cons 17 10) 6 (cons 18 21) 4 (cons 18 11) 6 (cons 18 28) 6 (cons 18 23) 5 (cons 16 3)
-                                               3 5 6 5 4 0 0 5 5 5 4 6 0 5 4 4 6 0 5 (cons 18 136) 6 0 5 (cons 17 5) 6 0 6 0 0 5 6
-                                               (cons 17 9) 1 2 2))
-
-                           (expect-bytes= (subbytes codeword-lengths (+ hlit hdist))
-                                          (bytes 0 0 0 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0
-                                                 0 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0 0 0 0 0 0
-                                                 0 0 0 0 0 0 0 0 0 0 0 5 5 5 5 3 5 6 5 4 0 0 5 5 5 4 6 0 5 4 4 6 0 5 0 0 0 0 0 0 0 0 0
-                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0
-                                                 5 0 0 0 0 0 6 0 6 0 0 5 6 0 0 0 0 0 0 0 0 0 1 2 2)))
-                       
-                       #;(it "should be inflated and restored to its original text" #:do
+                       (it "should be inflated and restored to its original text" #:do
                            #:timeout/ms 200 #:do
-                           (expect-bytes (inflate deflated-twocities) #"Hello"))))))
+                           (expect-bytes= (inflate deflated-twocities) #"Hello"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

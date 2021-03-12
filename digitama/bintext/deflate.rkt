@@ -425,10 +425,13 @@
     (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
       (unless (FEED-BITS 14)
         (throw-eof-error /dev/blkin 'huffman-begin-dynamic-block!))
+
+      (displayln 'here)
       
       (define hlit  : Index (unsafe-idx+ (PEEK-BITS 5 #x1F) literal-nbase))
       (define hdist : Index (+ (PEEK-BITS 5 #x1F 5) distance-nbase))
-      (define hclen : Index (+ (PEEK-BITS 4 #x0F 10) codelen-nbase))
+      (define hclen0 : Byte (PEEK-BITS 4 #x0F 10))
+      (define hclen : Index (+ hclen0 codelen-nbase))
 
       (FIRE-BITS 14)
       
@@ -438,26 +441,53 @@
       ;   nonetheless, some buggy implementations might use them.
       ; thus, we are not going to check their validity.
 
-      (let ([codelen-lengths-bits (unsafe-b* hclen 3) #| <= (19 * 3) < 64 |#])
-        (unless (FEED-BITS codelen-lengths-bits) 
-          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
+      ;; WARNING
+      ; After feeding and firing 3 + 14 bits, there are still 7 bits left in the bitstream before loading more,
+      ;   and the codelen codes will consume at most 19 * 3 = 57 bits, which seems safe in a 64-bit system.
+      ;   However, Racket supports big integer as the first-class number by reserving the leading 1 or 3 bits
+      ;   (depending on the variant) for distinguishing big integers and mechine integers (a.k.a fixnums).
+      ; Operating bits one by one is usually inefficient, our bitstream facility is therefore in the charge of
+      ;   `racket/unsafe/ops`. That is to say, we have to keep in mind that the feeding bits shouldn't exceed
+      ;   the max fixnums, or the momery would be ruined clandestinely.
+      ; Thus, the loading of codelen codes must be separated into two steps. Yes, another alternative would be
+      ;   to do FEED-PEEK-FIRE operations on every codes, but that is less efficient as it sounds.
+      ; Lucky, the specification says the number of codelen codes must be at least 4, that's a reasonable hint.
+      ;
+      ; NOTE that the above is discussed in a specific case, but a huffman block doesn't have to start at byte
+      ;   boundary. Nonetheless, requiring another 7 bits is always heuristic.
 
-        (when (< hclen uplencode) ; the rest are 0s
-          (bytes-fill! codelen-lengths 0))
+      (when (< hclen uplencode) ; the omited codelen codes are 0s
+        (bytes-fill! codelen-lengths 0))
+      
+      ; load the first 4 codelen codes, it would require at most 12 + 7 bits
+      (let ([base-bits (unsafe-b* codelen-nbase 3)])
+        (unless (FEED-BITS base-bits) (throw-eof-error /dev/blkin 'read-codelen-lengths!))
         
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
-          (when (< idx hclen)
+          (when (< idx codelen-nbase)
             (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 (unsafe-b* idx 3)))
             (read-codelen-lengths! (+ idx 1))))
-
-        (FIRE-BITS codelen-lengths-bits)
-
-        ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
-        ; the code length codes are just what encode those lengths.
-        (huffman-alphabet-canonicalize!
-         #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: codelen length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
-         codelen-alphabet codelen-lengths 0 uplencode prefab-indices prefab-counts prefab-codes))
-
+        
+        (FIRE-BITS base-bits))
+      
+      ; load the rest, it would require at most 45 + 7 bits, which is always safe in a 64-bit system
+      (let ([rest-bits (unsafe-b* hclen0 3)])
+        (unless (FEED-BITS rest-bits) (throw-eof-error /dev/blkin 'read-codelen-lengths!))
+        
+        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum codelen-nbase]
+                                    [skip : Byte 0])
+          (when (< idx hclen)
+            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
+            (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
+        
+        (FIRE-BITS rest-bits))
+      
+      ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
+      ; the code length codes are just what encode those lengths.
+      (huffman-alphabet-canonicalize!
+       #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: codelen length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
+       codelen-alphabet codelen-lengths 0 uplencode prefab-indices prefab-counts prefab-codes)
+    
       (let ([N (unsafe-idx+ hlit hdist)])
         ; the lengths 16, 17, and 18 in codelen lengths are not real lengths of codelen codes,
         ;   but indicators for repeating previous or zero lengths, and the repetition might run
@@ -583,8 +613,6 @@
     (define (read-huffman-repetition-times [idx : Index] [bitsize : Byte] [bitmask : Byte] [nbase : Byte] [N : Index] [BFINAL? : Boolean]) : Nonnegative-Fixnum
       (define n (unsafe-b+ (PEEK-BITS bitsize bitmask) nbase))
       (define idx++ (+ idx n))
-
-      (printf "~a " n)
       
       (when (> idx++ N)
         (throw-check-error /dev/blkin ename
