@@ -8,6 +8,7 @@
 (define-type (Spec-Feature-Upfold s) (-> String (-> Any) (-> Any) s s s))
 (define-type (Spec-Feature-Downfold s) (-> String (-> Any) (-> Any) s (Option s)))
 (define-type (Spec-Feature-Herefold s) (-> String (-> Void) Natural s s))
+(define-type Described-Behaviors (U Spec-Feature Spec-Behavior (Listof (U Spec-Feature Spec-Behavior))))
 
 (struct spec-behavior
   ([brief : String]
@@ -31,15 +32,21 @@
                          [else (λ [] (dynamic-wind setup evaluation teardown))])
                    ms)))
 
-(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (-> (U Spec-Feature Spec-Behavior))) [#:before (-> Any)] [#:after (-> Any)] Spec-Feature)
+(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (-> Described-Behaviors)) [#:before (-> Any)] [#:after (-> Any)] Spec-Feature)
   (lambda [name make-behaviors #:before [setup void] #:after [teardown void]]
     (define #:forall (s) (evaluate [downfold : (Spec-Feature-Downfold s)] [upfold : (Spec-Feature-Upfold s)] [herefold : (Spec-Feature-Herefold s)] [seed : s]) : s
-      (for/fold ([seed : s seed])
-                ([make-behavior (in-list make-behaviors)])
-        (let ([behavior (make-behavior) #| the spec objects are delayed until exactly their turns to be evaluated |#])
-          (if (spec-behavior? behavior)
-              (herefold (spec-behavior-brief behavior) (spec-behavior-evaluate behavior) (spec-behavior-timeout/ms behavior) seed)
-              (spec-feature-fold-pace behavior downfold upfold herefold seed)))))
+      ; please keep the order of evaluation exactly as that defining the features and behaviors
+      ;   since the evaluation implicitly occurs inside its closure, which might depend on some
+      ;   pre-conditions and even other features and behaviors
+      (let flatten-eval ([seed : s seed]
+                         [behavior : (Listof (U (-> Described-Behaviors) Described-Behaviors)) make-behaviors])
+        (for/fold ([seed : s seed])
+                  ([behavior (in-list behavior)])
+          (let eval-behavior ([behavior : (U (-> Described-Behaviors) Described-Behaviors) behavior])
+            (cond [(spec-behavior? behavior) (herefold (spec-behavior-brief behavior) (spec-behavior-evaluate behavior) (spec-behavior-timeout/ms behavior) seed)]
+                  [(spec-feature? behavior) (spec-feature-fold-pace behavior downfold upfold herefold seed)]
+                  [(list? behavior) (flatten-eval seed behavior)]
+                  [else (eval-behavior (behavior))])))))
     
     (spec-feature (spec-name->brief name) evaluate setup teardown)))
 

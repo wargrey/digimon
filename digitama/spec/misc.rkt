@@ -6,6 +6,8 @@
 
 (require "../../format.rkt")
 
+(require (for-syntax racket/base))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-message : (case-> [(Listof Any) -> (Option String)]
                                [String (Listof Any) -> String])

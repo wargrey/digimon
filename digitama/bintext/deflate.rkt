@@ -431,8 +431,6 @@
       (define hclen : Index (+ (PEEK-BITS 4 #x0F 10) codelen-nbase))
 
       (FIRE-BITS 14)
-
-      (printf "hlit: ~a; hdist: ~a; hclen: ~a; codelen code: " hlit hdist hclen)
       
       ; note that bits of the header are extremely compact,
       ;   so that they never exceed the permissive upper boundaries.
@@ -450,14 +448,10 @@
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
           (when (< idx hclen)
             (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 (unsafe-b* idx 3)))
-            (printf "~a " (bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)))
             (read-codelen-lengths! (+ idx 1))))
 
         (FIRE-BITS codelen-lengths-bits)
 
-        (newline)
-        (newline)
-      
         ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
         ; the code length codes are just what encode those lengths.
         (huffman-alphabet-canonicalize!
@@ -475,8 +469,6 @@
           (when (< code-idx N)
             (define lensym : Index (read-huffman-symbol codelen-alphabet uplenbits uplencode BFINAL? 'dynamic 'length))
 
-            (printf "~a " lensym)
-
             (cond [(< lensym codelen-copy:2) (unsafe-bytes-set! codeword-lengths code-idx lensym) (read-lit+dist-lengths (+ code-idx 1) lensym)]
                   [(= lensym codelen-copy:3) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 3 #b111 codelen-min-match N BFINAL?) 0)]
                   [(= lensym codelen-copy:7) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 7 #x7F codelen-min-match:7 N BFINAL?) 0)]
@@ -486,14 +478,6 @@
                            [else (let copy-code ([idx : Nonnegative-Fixnum code-idx])
                                    (cond [(< idx idx++) (unsafe-bytes-set! codeword-lengths idx prev-len) (copy-code (unsafe-fx+ idx 1))]
                                          [else (read-lit+dist-lengths idx++ prev-len)]))]))])))
-
-        (printf "~n~a~n" N)
-        
-        (for ([cl (in-bytes codeword-lengths 0 N)])
-          (printf "~a " cl))
-
-        (for ([i (in-range 18)])
-          (newline))
 
         (huffman-alphabet-canonicalize!
          #:on-error (λ [[len : Index]] (throw-check-error /dev/blkin ename "dynamic[~a]: literal length overflow: ~a" (if (not BFINAL?) #b0 #b1) len))
@@ -581,9 +565,6 @@
                              "~a[~a]: invalid ~a codeword: ~a"
                              btype (if (not BFINAL?) #b0 #b1) ctype
                              (~binstring symbol-code code-length)))
-
-        (when (= maxlength uplenbits)
-          (printf "[~a] " code-length))
         
         (FIRE-BITS code-length)
         

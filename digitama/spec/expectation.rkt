@@ -61,9 +61,9 @@
 (define-spec-boolean-expectation (eq [given : Any] [expected : Any]) (eq? expected given))
 (define-spec-boolean-expectation (eqv [given : Any] [expected : Any]) (eqv? expected given))
 (define-spec-boolean-expectation (equal [given : Any] [expected : Any]) (equal? expected given))
-(define-spec-boolean-expectation (not-eq [v1 : Any] [v2 : Any]) (not (eq? v1 v2)))
-(define-spec-boolean-expectation (not-eqv [v1 : Any] [v2 : Any]) (not (eqv? v1 v2)))
-(define-spec-boolean-expectation (not-equal [v1 : Any] [v2 : Any]) (not (equal? v1 v2)))
+(define-spec-boolean-expectation (not-eq [given : Any] [origin : Any]) (not (eq? given origin)))
+(define-spec-boolean-expectation (not-eqv [given : Any] [origin : Any]) (not (eqv? given origin)))
+(define-spec-boolean-expectation (not-equal [given : Any] [origin : Any]) (not (equal? given origin)))
 
 (define-spec-boolean-expectation (member [given : Any] [range : (Listof Any)]) (member given range))
 (define-spec-boolean-expectation (memv [given : Any] [range : (Listof Any)]) (memv given range))
@@ -77,27 +77,26 @@
 (define-spec-boolean-expectation (void [given : Any]) (void? given))
 (define-spec-boolean-expectation (true [given : Any]) (eq? given #true))
 (define-spec-boolean-expectation (false [given : Any]) (eq? given #false))
-(define-spec-boolean-expectation (not-false [given : Any]) given)
+(define-spec-boolean-expectation (not-false [given : Any]) (and given #true))
 
 (define-spec-boolean-expectation (= [given : Real] [expected : Real]) (= given expected))
-(define-spec-boolean-expectation (< [v1 : Real] [v2 : Real]) (< v1 v2))
-(define-spec-boolean-expectation (> [v1 : Real] [v2 : Real]) (> v1 v2))
-(define-spec-boolean-expectation (<= [v1 : Real] [v2 : Real]) (<= v1 v2))
-(define-spec-boolean-expectation (>= [v1 : Real] [v2 : Real]) (>= v1 v2))
+(define-spec-boolean-expectation (< [given : Real] [origin : Real]) (< given origin))
+(define-spec-boolean-expectation (> [given : Real] [origin : Real]) (> given origin))
+(define-spec-boolean-expectation (<= [given : Real] [origin : Real]) (<= given origin))
+(define-spec-boolean-expectation (>= [given : Real] [origin : Real]) (>= given origin))
 
-(define-spec-boolean-expectation (bin= [given : Integer] [expected : Integer]) #:name = #:default-format spec-format/bin (= given expected))
-(define-spec-boolean-expectation (hex= [given : Integer] [expected : Integer]) #:name = #:default-format spec-format/hex (= given expected))
+(define-spec-boolean-expectation (bin= [given : Integer] [expected : Integer]) #:default-format spec-format/bin (= given expected))
+(define-spec-boolean-expectation (hex= [given : Integer] [expected : Integer]) #:default-format spec-format/hex (= given expected))
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 
-(define-spec-boolean-expectation (octet [given : Byte] [expected : Byte])       #:default-format spec-format/octet (= given expected))
-(define-spec-boolean-expectation (octets [given : Bytes] [expected : Bytes])    #:default-format spec-format/octet (bytes=? given expected))
-(define-spec-boolean-expectation (octets-ci [given : Bytes] [expected : Bytes]) #:default-format spec-format/octet (bytes=? given expected))
-(define-spec-boolean-expectation (bytes [given : Bytes] [expected : Bytes])     #:default-format spec-format/hex (bytes=? given expected))
-(define-spec-boolean-expectation (bytes-ci [given : Bytes] [expected : Bytes])  #:default-format spec-format/hex (bytes=? given expected))
+(define-spec-boolean-expectation (octet= [given : Byte] [expected : Byte])       #:default-format spec-format/octet (= given expected))
+(define-spec-boolean-expectation (octets= [given : Bytes] [expected : Bytes])    #:default-format spec-format/octet (bytes=? given expected))
+(define-spec-boolean-expectation (bytes= [given : Bytes] [expected : Bytes])     #:default-format spec-format/hex (bytes=? given expected))
+(define-spec-boolean-expectation (bytes-ci= [given : Bytes] [expected : Bytes])  #:default-format spec-format/hex (bytes=? given expected))
 
-(define-spec-boolean-expectation (string [given : String] [expected : String]) (string=? given expected))
-(define-spec-boolean-expectation (string-ci [given : String] [expected : String]) (string-ci=? given expected))
+(define-spec-boolean-expectation (string= [given : String] [expected : String]) (string=? given expected))
+(define-spec-boolean-expectation (string-ci= [given : String] [expected : String]) (string-ci=? given expected))
 
 (define-spec-boolean-expectation (eof [given : Any])
   (cond [(input-port? given) (eof-object? (peek-byte given))]

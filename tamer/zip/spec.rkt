@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(require racket/vector)
+
 (require digimon/digitama/bintext/huffman)
 (require digimon/digitama/bintext/deflate)
 (require digimon/digitama/bintext/zip)
@@ -254,7 +256,7 @@
                   (expect-= (send-bits #:windup? #true) 2)))
             
             (it "should arrange bits LSB-first but the forming bytes MSB-first" #:do
-                (expect-bytes (get-output-bytes /dev/bsout #false) (bytes #b11101101 #b10001101)))
+                (expect-bytes= (get-output-bytes /dev/bsout #false) (bytes #b11101101 #b10001101)))
             
             (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout)])
               (context "with the certain 2-byte bitstream" #:do
@@ -265,7 +267,7 @@
                            (expect-bin= (begin0 (peek-bits 3 #b111)   (fire-bits 3)) #b110)
                            (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1011)
                            (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 5)) #b10001))
-                       (it "should report 2 as the number of bytes actually comsumed" #:do
+                       (it "should report 2 as the number of bytes actually fired" #:do
                            (expect-= ($ 'aggregate) 2))))
 
             (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 0 #:limited 1)])
@@ -278,7 +280,7 @@
                        (it "should employ the padding byte for following feeding request" #:do
                            (expect-bin= (begin0 (peek-bits 4 #b1111)  (fire-bits 4)) #b1111)
                            (expect-bin= (begin0 (peek-bits 5 #b11111) (fire-bits 5)) #b11111))
-                       (it "should report 2 as the number of bytes actually comsumed" #:do
+                       (it "should report 2 as the number of bytes actually fired" #:do
                            (expect-= ($ 'aggregate) 2))))
 
             (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 0)])
@@ -289,7 +291,7 @@
                            (fire-bits 3)
                            (expect-bin= ($ 'align) #b11101)
                            (expect-bin= (begin0 (peek-bits 8) (fire-bits 8)) #b10001101))
-                       (it "should report 32 as the number of bytes actually comsumed before and after committing" #:do
+                       (it "should report 32 as the number of bytes actually fired before and after committing" #:do
                            (expect-= ($ 'aggregate) 32)
                            ($ 'final-commit)
                            (expect-= ($ 'aggregate) 32))))
@@ -300,30 +302,31 @@
                            (feed-bits 255)
                            (fire-bits 16)
                            (expect-hex= (peek-bits 32) #xFFFFFFFF))
-                       (it "should report 28 as the number of bytes actually comsumed before and after committing" #:do
+                       (it "should report 28 as the number of bytes actually fired before and after committing" #:do
                            (expect-= ($ 'aggregate) 28)
                            ($ 'final-commit)
                            (expect-= ($ 'aggregate) 28))))
 
             (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-string-port /dev/bsout #:lookahead 4)])
               (context "with the certain 2-byte bitstream, 4-byte lookahead, padded with `#xFF`, fired 240 bits" #:do
-                       (it "should report 30 as the number of bytes actually comsumed before and after committing" #:do
+                       (it "should report 30 as the number of bytes actually fired before and after committing" #:do
                            (feed-bits 255)
                            (fire-bits 240)
                            (expect-= ($ 'aggregate) 30)
                            ($ 'final-commit)
                            (expect-= ($ 'aggregate) 30))))
             
-            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-bytes (make-bytes 30000))])
-              (context "with a 30000-byte bitstream, 8-byte lookahead" #:do
-                       (it "should report 30000 as the number of bytes actually comsumed after exhausting it before and after committing" #:do
+            (let*-values ([(n) 30000]
+                          [(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-bytes (make-bytes n))])
+              (context ["with a ~a-byte bitstream" n] #:do
+                       (it ["should report ~a as the number of bytes actually fired after exhausting it before and after committing" n] #:do
                            (let exhaust ()
                              (when (feed-bits 16)
                                (peek-bits) (fire-bits 16)
                                (exhaust)))
-                           (expect-= ($ 'aggregate) 30000)
+                           (expect-= ($ 'aggregate) n)
                            ($ 'final-commit)
-                           (expect-= ($ 'aggregate) 30000)))))
+                           (expect-= ($ 'aggregate) n)))))
 
   (describe "inflate" #:do
             (context "when provided with an invalid block" #:do
@@ -344,12 +347,55 @@
                          (expect-throw "unexpected end of file"
                                        (λ [] (inflate good-stored-block 9))))
                      (it "should read the uncompressed text" #:do
-                         (expect-bytes (inflate good-stored-block) #"Hello")))
+                         (expect-bytes= (inflate good-stored-block) #"Hello")))
 
-            (context "when provided with a dynamically deflated block" #:do
-                     (it "should be inflated and restored to its original text" #:do
-                         #:timeout/ms 200 #:do
-                         (expect-bytes (inflate deflated-twocities) #"Hello")))))
+            (let-values ([(feed-bits peek-bits fire-bits $) (open-lsb-input-bitstream-from-bytes deflated-twocities)]
+                         [(hlit hdist hclen) (values 0 0 0)]
+                         [(codelen-lengths) (make-bytes uplencode 0)]
+                         [(length-codes) ((inst make-vector (U (Pairof Byte Byte) Byte)) (+ uplitcode updistcode) 0)]
+                         [(codeword-lengths) (make-bytes (+ uplitcode updistcode) 0)]
+                         [(codelen-alphabet) (huffman-make-alphabet uplencode #:max-bitwidth uplenbits)])
+              (context "when provided with a dynamically deflated block" #:do
+                       (it "should extract the header of dynamic block" #:do
+                           (feed-bits 3)
+                           (expect-bin= (peek-bits 2 #b11 1) #b10)
+                           (fire-bits 3))
+                       
+                       (it "should extract the header of dynamic huffman encoding" #:do
+                           (feed-bits 14)
+                           (expect-= ($! hlit (assert (+ (peek-bits 5 #b11111) literal-nbase) index?)) 271)
+                           (expect-= ($! hdist (+ (peek-bits 5 #b11111 5) distance-nbase)) 12)
+                           (expect-= ($! hclen (+ (peek-bits 4 #b1111 10) codelen-nbase)) 19)
+                           (fire-bits 14))
+
+                       (it ["should extract ~a codelen codes from next ~a bits" hclen (* hclen 3)] #:do
+                           (for ([idx (in-range hclen)])
+                             (feed-bits 3)
+                             (bytes-set! codelen-lengths (bytes-ref codelen-lengths-order idx) (peek-bits 3 #b111))
+                             (fire-bits 3))
+                           (expect-bytes= codelen-lengths
+                                          (bytes 3 7 5 7 3 2 2 0 0 0 0 0 0 0 0 0 6 4 3)))
+                       
+                       #;(it ["should extract ~a codeword lengths from following compressed bits" (+ hlit hdist)] #:do
+                           (huffman-alphabet-canonicalize! codelen-alphabet codelen-lengths 0 uplencode)
+                           
+                           #;(expect-equal (vector-take length-codes (+ hlit hdist))
+                                         (list (cons 17 10) 6 (cons 18 21) 4 (cons 18 11) 6 (cons 18 28) 6 (cons 18 23) 5 (cons 16 3)
+                                               3 5 6 5 4 0 0 5 5 5 4 6 0 5 4 4 6 0 5 (cons 18 136) 6 0 5 (cons 17 5) 6 0 6 0 0 5 6
+                                               (cons 17 9) 1 2 2))
+
+                           (expect-bytes= (subbytes codeword-lengths (+ hlit hdist))
+                                          (bytes 0 0 0 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0
+                                                 0 6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0 0 0 0 0 0 0 0 0 0 0 0
+                                                 0 0 0 0 0 0 0 0 0 0 0 5 5 5 5 3 5 6 5 4 0 0 5 5 5 4 6 0 5 4 4 6 0 5 0 0 0 0 0 0 0 0 0
+                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+                                                 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6 0
+                                                 5 0 0 0 0 0 6 0 6 0 0 5 6 0 0 0 0 0 0 0 0 0 1 2 2)))
+                       
+                       #;(it "should be inflated and restored to its original text" #:do
+                           #:timeout/ms 200 #:do
+                           (expect-bytes (inflate deflated-twocities) #"Hello"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
