@@ -18,15 +18,19 @@
 (struct exn:fail:syntax:range exn:fail:syntax () #:extra-constructor-name make-exn:syntax:range)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define throw-impossible-error : (-> Input-Port Symbol Nothing)
-  (lambda [/dev/stdin src]
-    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src (list "[I have a bug report]!")))
+(define throw-impossible-error : (-> Input-Port Symbol Any * Nothing)
+  (lambda [/dev/stdin src . args]
+    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin)
+                                     (exn-src+args->message src (if (null? args) (list "[I have a bug report]!") args)))
                                    (current-continuation-marks)
                                    null))))
 
-(define throw-eof-error : (-> Input-Port Symbol Nothing)
-  (lambda [/dev/stdin src]
-    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src (list "unexpected end of file!")))
+(define throw-eof-error : (-> Input-Port Symbol Any * Nothing)
+  (lambda [/dev/stdin src . args]
+    (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin)
+                                     (exn-src+args->message src (cond [(pair? args) args]
+                                                                      [else (list "unexpected end of file[@~a]"
+                                                                                   (file-position /dev/stdin))])))
                                    (current-continuation-marks)
                                    null))))
 

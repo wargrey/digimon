@@ -81,9 +81,9 @@
               (displayln info /dev/zipout))))
 
         (cond [(not check?) (copy-port /dev/zipin /dev/hexout)]
-            [else (let ([errmsg (zip-entry-copy/trap /dev/zipin /dev/hexout rSize CRC32)])
-                    (when (string? errmsg)
-                      (eechof "~a~n" errmsg #:fgcolor 'red)))]))
+              [else (let ([errmsg (zip-entry-copy/trap /dev/zipin /dev/hexout rSize CRC32)])
+                      (when (string? errmsg)
+                        (eechof "~a~n" errmsg #:fgcolor 'red)))]))
 
       (cond [(void? idx) 1]
             [else (add1 idx)]))))

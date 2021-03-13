@@ -44,6 +44,7 @@
 (define window-obits : Positive-Byte 15)      ; bits of the window size that at most 32K for writing zip
 
 (define upbits : Positive-Byte 16)            ; maximum bit length of any code (16 for explode)
+(define upsymbits : Positive-Byte 32)         ; maximum bit length of any symbol plus its extra bits
 (define EOB : Index #;256 #x100)              ; end of (huffman) block
 (define EOBbits : Byte (unsafe-bytes-ref huffman-fixed-literal-lengths EOB))
 
@@ -97,8 +98,8 @@
 ;   since the `huffman-alphabet` is intentionally designed to allow client applications reusing memory.
 ; also note that, there is no `symbol-bwidth` paired with the `symbol-mask`, since `max-bwidth` is already
 ;   there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, whereas in
-;   practice for some reasons, always generating an optimal huffman codewords is somehow ideal, a symbol
-;   therefore in certain alphabet might have to be encoded with more bits than required.
+;   practice for some reasons, always generating optimal huffman codewords is somehow ideal, a symbol
+;   therefore in certain alphabet might have to be encoded with more bits than it should be.
 (define huffman-make-alphabet : (->* () (Index #:max-bitwidth Byte #:cheat-bitwidth Byte) Huffman-Alphabet)
   (lambda [[capacity uplitcode] #:max-bitwidth [max-bwidth upbits] #:cheat-bitwidth [cheat-bwidth (min 8 max-bwidth)]]
     (define symbol-mask : Index (- (unsafe-idxlshift 1 max-bwidth) 1))
@@ -400,13 +401,14 @@
 ; After this phase, all other pointers will be eventually in heap order.  
 (define huffman-minheapify! : (-> (Mutable-Vectorof Index) Index Void)
   (lambda [heap n]
-    (define bottom-idx : Index (unsafe-idx- n 1))
-    
-    (let heapify ([heapify-idx : Fixnum (huffman-minheap-parent bottom-idx)])
-      (when (>= heapify-idx 0)
-        (let* ([root-pointer (unsafe-vector*-ref heap heapify-idx)])
-          (huffman-minheap-siftup! heap heapify-idx root-pointer (huffman-minheap-key heap root-pointer) bottom-idx)
-          (heapify (- heapify-idx 1)))))))
+    (when (> n 1)
+      (define bottom-idx : Index (unsafe-idx- n 1))
+      
+      (let heapify ([heapify-idx : Fixnum (huffman-minheap-parent bottom-idx)])
+        (when (>= heapify-idx 0)
+          (let* ([root-pointer (unsafe-vector*-ref heap heapify-idx)])
+            (huffman-minheap-siftup! heap heapify-idx root-pointer (huffman-minheap-key heap root-pointer) bottom-idx)
+            (heapify (- heapify-idx 1))))))))
 
 ;; Phase 2: Shrinking
 ; To repeatedly decrease the size of the heap by 1
@@ -536,7 +538,7 @@
            [nextcodes ((inst make-vector Index) (add1 length-limit) 0)] [counts ((inst make-vector Index) (add1 (add1 length-limit)) 0)]]
     (let length-limit-huffman-canonicalize! ([peak : Index #xFFFF])
       (define heapsize : Index (huffman-refresh-minheap! frequencies tree upcode #:frequency-peak peak))
-    
+
       (huffman-minheapify! tree heapsize)
       (huffman-minheap-treefy! tree heapsize)
       

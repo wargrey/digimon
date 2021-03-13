@@ -206,23 +206,23 @@
 
     (let copy-entry/checksum ([total : Natural 0]
                               [crc32 : Index 0])
-      (define read-size : (U EOF Nonnegative-Integer) (read-bytes! pool /dev/zipin 0 pool-size))
+      (define read-size : (U EOF Nonnegative-Integer Procedure) (read-bytes-avail! pool /dev/zipin 0 pool-size))
       
-      (if (exact-positive-integer? read-size)
-          (begin (write-bytes pool /dev/zipout 0 read-size)
-                 (copy-entry/checksum (+ total read-size) (checksum-crc32* pool crc32 0 read-size)))
-          (begin (when (and flush-out?) (flush-output /dev/zipout))
-                 (when (and close-in?) (close-input-port /dev/zipin))
-                 (values total crc32))))))
+      (cond [(exact-positive-integer? read-size)
+             (write-bytes pool /dev/zipout 0 read-size)
+             (copy-entry/checksum (+ total read-size) (checksum-crc32* pool crc32 0 read-size))]
+            [(eof-object? read-size)
+             (when (and flush-out?) (flush-output /dev/zipout))
+             (when (and close-in?) (close-input-port /dev/zipin))
+             (values total crc32)]
+            [else ; deadcode. skip special values
+             (copy-entry/checksum total crc32)]))))
 
 (define zip-entry-copy/trap : (->* (Input-Port Output-Port Natural Index) ((U Bytes Index False)) (U String True))
   (lambda [/dev/zipin /dev/zipout rSize CRC32 [pool0 4096]]
-    (define /dev/subin (open-input-block /dev/zipin (* rSize 2 #| <= for debugging |#)))
-    
     (with-handlers ([exn:fail? exn-message])
-      (let-values ([(rsize crc32) (zip-entry-copy /dev/subin /dev/zipout pool0)])
-        (cond [(not (eof-object? (peek-byte /dev/zipin))) "malicious entry with infinite content"]
-              [(not (= rSize rsize)) (format "bad size ~a (should be ~a)" rsize rSize)]
+      (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout pool0)])
+        (cond [(not (= rSize rsize)) (format "bad size ~a (should be ~a)" rsize rSize)]
               [(not (= CRC32 crc32)) (format "bad checksum ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
               [else #true])))))
 

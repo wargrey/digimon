@@ -85,8 +85,8 @@
 (define-spec-boolean-expectation (<= [given : Real] [origin : Real]) (<= given origin))
 (define-spec-boolean-expectation (>= [given : Real] [origin : Real]) (>= given origin))
 
-(define-spec-boolean-expectation (bin= [given : Integer] [expected : Integer]) #:default-format spec-format/bin (= given expected))
-(define-spec-boolean-expectation (hex= [given : Integer] [expected : Integer]) #:default-format spec-format/hex (= given expected))
+(define-spec-boolean-expectation (0b= [given : Integer] [expected : Integer]) #:default-format spec-format/bin (= given expected))
+(define-spec-boolean-expectation (0x= [given : Integer] [expected : Integer]) #:default-format spec-format/hex (= given expected))
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 

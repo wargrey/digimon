@@ -289,6 +289,10 @@
           
           (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload))
 
+      (unless (not allow-dynamic?)
+        (vector-fill! literal-frequencies 0)
+        (vector-fill! distance-frequencies 0))
+
       (vector-fill! lz77-dists 0)
       (set! lz77-payload 0))
     
@@ -425,8 +429,6 @@
     (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
       (unless (FEED-BITS 14)
         (throw-eof-error /dev/blkin 'huffman-begin-dynamic-block!))
-
-      (displayln 'here)
       
       (define hlit  : Index (unsafe-idx+ (PEEK-BITS 5 #x1F) literal-nbase))
       (define hdist : Index (+ (PEEK-BITS 5 #x1F 5) distance-nbase))
@@ -442,26 +444,28 @@
       ; thus, we are not going to check their validity.
 
       ;; WARNING
-      ; After feeding and firing 3 + 14 bits, there are still 7 bits left in the bitstream before loading more,
+      ; After feeding and firing 3 + 14 bits, there are still 7 bits left in the bitstream before feeding more,
       ;   and the codelen codes will consume at most 19 * 3 = 57 bits, which seems safe in a 64-bit system.
       ;   However, Racket supports big integer as the first-class number by reserving the leading 1 or 3 bits
       ;   (depending on the variant) for distinguishing big integers and mechine integers (a.k.a fixnums).
       ; Operating bits one by one is usually inefficient, our bitstream facility is therefore in the charge of
-      ;   `racket/unsafe/ops`. That is to say, we have to keep in mind that the feeding bits shouldn't exceed
-      ;   the max fixnums, or the momery would be ruined clandestinely.
-      ; Thus, the loading of codelen codes must be separated into two steps. Yes, another alternative would be
-      ;   to do FEED-PEEK-FIRE operations on every codes, but that is less efficient as it sounds.
+      ;   `racket/unsafe/ops`. That is to say, we have to keep in mind that the feeding bits shouldn't cause
+      ;   the overflow of fixnum, or the momery would be ruined clandestinely.
+      ; Thus, the reading of codelen codes must be splitted into two (or more) steps. Yes, another alternative
+      ;   would be to do FEED-PEEK-FIRE operations on every code, but that is less efficient as it sounds.
       ; Lucky, the specification says the number of codelen codes must be at least 4, that's a reasonable hint.
       ;
-      ; NOTE that the above is discussed in a specific case, but a huffman block doesn't have to start at byte
-      ;   boundary. Nonetheless, requiring another 7 bits is always heuristic.
+      ;; NOTE
+      ; The above is discussed in a specific case, but a huffman block doesn't have to start at byte boundary.
+      ;   Nonetheless, feeding another more 7 bits is always heuristic.
 
       (when (< hclen uplencode) ; the omited codelen codes are 0s
         (bytes-fill! codelen-lengths 0))
       
       ; load the first 4 codelen codes, it would require at most 12 + 7 bits
       (let ([base-bits (unsafe-b* codelen-nbase 3)])
-        (unless (FEED-BITS base-bits) (throw-eof-error /dev/blkin 'read-codelen-lengths!))
+        (unless (FEED-BITS base-bits)
+          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
         
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
           (when (< idx codelen-nbase)
@@ -472,7 +476,8 @@
       
       ; load the rest, it would require at most 45 + 7 bits, which is always safe in a 64-bit system
       (let ([rest-bits (unsafe-b* hclen0 3)])
-        (unless (FEED-BITS rest-bits) (throw-eof-error /dev/blkin 'read-codelen-lengths!))
+        (unless (FEED-BITS rest-bits)
+          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
         
         (let read-codelen-lengths! ([idx : Nonnegative-Fixnum codelen-nbase]
                                     [skip : Byte 0])
@@ -581,7 +586,7 @@
         consumed))
 
     (define (read-huffman-symbol [table : Huffman-Alphabet] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
-      (FEED-BITS upbits)
+      (define far-away-from-eof? : Boolean (FEED-BITS upsymbits)) ; for dynamic huffman ecoding, the maximum bit length would be 15 + 13, which rounded to 32  
         
       (let-values ([(symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength)])
         (when (= code-length 0)
@@ -595,9 +600,16 @@
                              "~a[~a]: invalid ~a codeword: ~a"
                              btype (if (not BFINAL?) #b0 #b1) ctype
                              (~binstring symbol-code code-length)))
+
+        (when (not far-away-from-eof?)
+          ; Only to check if the current symbol is still before EOF. If not we have failed to touch the EOB,
+          ;   in which case we are encountering either a malicious source or an internal error on our own side.
+          ; NOTE that the length of EOB might vary among dynamic blocks.
+          (unless (FEED-BITS code-length) 
+            (throw-eof-error /dev/blkin 'read-huffman-symbol)))
         
         (FIRE-BITS code-length)
-        
+
         symbol-code))
 
     ; the next two functions are invoked as extra subroutines of the above one
@@ -616,7 +628,7 @@
       
       (when (> idx++ N)
         (throw-check-error /dev/blkin ename
-                           "dynamic[~a]: repeated codes overflow: ~a (~a left)"
+                           "dynamic[~a]: repeated codes are out of overstep the boundary: ~a (~a left)"
                            (if (not BFINAL?) #b0 #b1) n (- N idx)))
 
       (FIRE-BITS bitsize)

@@ -28,7 +28,7 @@
 
 (define-cmdlet-option zip-flags #: Zip-Flags
   #:program 'zip
-  #:args [file.zip . sources]
+  #:args [file.zip source . sources]
 
   #:once-each
   [[(#\s strategy)      #:=> zip-strategy#level strategy level #: (Pairof Symbol Byte)
@@ -55,7 +55,8 @@
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
-    (define-values (file.zip sources) (λargv))
+    (define-values (file.zip source rest) (λargv))
+    (define sources (cons source rest))
 
     (parameterize ([current-logger /dev/dtrace]
                    [date-display-format 'iso-8601])

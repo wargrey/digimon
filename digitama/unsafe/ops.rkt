@@ -1,55 +1,17 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide unsafe-b+ unsafe-b* unsafe-brshift)
 (provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder)
 (provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift unsafe-fxmax unsafe-fxmin)
-(provide unsafe-idx+ unsafe-idx- unsafe-idx* unsafe-idxxor unsafe-idxlshift unsafe-idxrshift)
 (provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
-; for debug...
-(provide unsafe-vector*-ref unsafe-vector*-set! unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!)
-#;(provide (rename-out [vector-ref unsafe-vector*-ref] [vector-set! unsafe-vector*-set!]
-                     [bytes-ref unsafe-bytes-ref] [bytes-set! unsafe-bytes-set!] [bytes-copy! unsafe-bytes-copy!]))
-
-(require racket/unsafe/ops)
 (require typed/racket/unsafe)
+(require (except-in racket/unsafe/ops
+                    unsafe-vector*-ref unsafe-vector*-set!
+                    unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!))
 
-(unsafe-require/typed
- racket/unsafe/ops
- [(unsafe-fx+ unsafe-b+) (-> Index Byte Byte)]
- [(unsafe-fx* unsafe-b*) (-> Index Byte Byte)]
- [(unsafe-fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])]
- 
- [(unsafe-fx* unsafe-idx*) (-> Natural Natural Index)]
- [(unsafe-fx+ unsafe-idx+) (-> Natural Natural Index)]
- [(unsafe-fx- unsafe-idx-) (case-> [Byte Byte -> Byte]
-                                   [Zero Negative-Fixnum -> Index]
-                                   [Natural Natural -> Index])]
- [(unsafe-fxxor unsafe-idxxor) (-> Integer Natural Index)]
- [(unsafe-fxlshift unsafe-idxlshift) (case-> [Positive-Integer Fixnum -> Positive-Index]
-                                             [Natural Fixnum -> Index])]
- [(unsafe-fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
-                                             [Natural Byte -> Index]
-                                             [Natural Natural -> Index])])
-
-#;(unsafe-require/typed
- racket/fixnum
- [(fx+ unsafe-b+) (-> Index Byte Byte)]
- [(fx* unsafe-b*) (-> Index Byte Byte)]
- [(fxrshift unsafe-brshift) (case-> [Index Byte -> Byte])]
- 
- [(fx* unsafe-idx*) (-> Natural Natural Index)]
- [(fx+ unsafe-idx+) (-> Natural Natural Index)]
- [(fx- unsafe-idx-) (case-> [Byte Byte -> Byte]
-                                   [Zero Negative-Fixnum -> Index]
-                                   [Natural Natural -> Index])]
- [(fxxor unsafe-idxxor) (-> Integer Natural Index)]
- [(fxlshift unsafe-idxlshift) (case-> [Positive-Integer Fixnum -> Positive-Index]
-                                             [Natural Fixnum -> Index])]
- [(fxrshift unsafe-idxrshift) (case-> [Byte Byte -> Byte]
-                                             [Natural Byte -> Index]
-                                             [Natural Natural -> Index])])
+(require "debug/ops.rkt")
+(provide (all-from-out "debug/ops.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.
