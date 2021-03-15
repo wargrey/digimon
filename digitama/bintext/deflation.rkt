@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 ;;; https://www.hanshq.net/zip.html
+;;; https://www.euccas.me/zlib
 ;;; https://pkware.cachefly.net/webdocs/APPNOTE/APPNOTE-6.2.0.txt
 ;;; https://www.rfc-editor.org/rfc/rfc1951.html
 ;;; illumos://gate/usr/src/contrib/zlib/deflate.c
@@ -35,42 +36,46 @@
     
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
-    ; For the sake of simplicity, we set three kinds of block
-    ; which are all controlled by `memory-level` and applied to all strategies
-    ;   raw block:  receives the written bytes from clients;
-    ;   lz77 block: receives the lz77 symbols transformed from the `raw block`,
-    ;                 slots of `lz77-dists` are always paired with the corresponding slots of the lz77 block;
-    ;   bits block: receives the final codes encoded from the `lz77 block`,
-    ;                 residing in the LSB bitstream.
+    ; For the sake of simplicity, we set three blocks, which are all controlled by `memory-level` and applied to all strategies
+    ;   raw block:  receives the data bytes from clients, when it is full, the lz77 deflating starts.
+    ;                 By design, the sliding window consists of exact several raw blocks, which are filled and deflated consecutively,
+    ;                 so that we can keep the history of the bytes that incompressible and therefore have to be stored directly, 
+    ;                 and save the cost of copying them into the sliding window. If the size of the sliding window is not the
+    ;                 multiple of that of the raw block, don't forget to update the `raw-block-flush`.
+    ;   lz77 block: receives the lz77 symbols transformed from the `raw block`, when it is full, the huffman encoding starts.
+    ;                 Slots of `lz77-dists` are always paired with the corresponding slots of the lz77 block;
+    ;   bits block: receives the huffman codewords encoded from the `lz77 block`, and in the charge of LSB bitstream facility.
 
     (define raw-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 5)))
     (define lz77-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 6)))
     (define bits-blocksize : Positive-Index raw-blocksize)
 
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
-    (define raw-block : Bytes (make-bytes raw-blocksize))
     (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
     (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
 
-    (define raw-payload : Index 0)
+    (define raw-payload-start : Index 0)
+    (define raw-payload-end : Index 0)
     (define lz77-payload : Index 0)
     
     ;; for LZ77
     (define hash-bits : Positive-Index (+ memory-level 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
-    (define window-size : Index (unsafe-idxlshift 1 winbits))
+    (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
+    (define window-size : Index (unsafe-idx* window-size/2 2))
+    (define window : Bytes (make-bytes window-size 0))
 
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression?))
-    (define hash-prevs : (Vectorof Index) (smart-make-vector raw-blocksize no-compression?))
+    (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 no-compression?))
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx) ; <=> (submit-huffman-symbol sym 0 d-idx)
+        [(sym) ; <=> (submit-huffman-symbol sym 0)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
          (when (= lz77-payload lz77-blocksize)
            (void (lz77-block-flush #false lz77-payload)))]
-        [(distance span d-idx)
+        [(distance span)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
@@ -99,15 +104,15 @@
     
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx) ; <=> (submit-huffman-symbol+frequency sym 0 d-idx)
+        [(sym) ; <=> (submit-huffman-symbol+frequency sym 0)
          (unsafe-vector*-set! literal-frequencies sym (unsafe-idx+ (unsafe-vector*-ref literal-frequencies sym) 1))
-         (submit-huffman-symbol sym d-idx)]
-        [(distance span d-idx)
+         (submit-huffman-symbol sym)]
+        [(distance span)
          (let ([hspan (backref-span->huffman-symbol span)]
                [hdist (backref-distance->huffman-distance span)])
            (unsafe-vector*-set! literal-frequencies hspan (unsafe-idx+ (unsafe-vector*-ref literal-frequencies hspan) 1))
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
-           (submit-huffman-symbol distance span d-idx))]))
+           (submit-huffman-symbol distance span))]))
 
     (define (construct-tree [freqs : (Vectorof Index)] [codes : (Mutable-Vectorof Index)] [lengths : Bytes] [upcode : Index] [limit : Byte]) : (Values Byte Index)
       (huffman-frequencies->tree! freqs codes lengths upcode minheap prefab-nextcodes prefab-counts #:length-limit limit))
@@ -183,7 +188,7 @@
 
       (let push-codelen-lengths ([idx : Nonnegative-Fixnum 0])
         (when (< idx hclen)
-          (PUSH-BITS (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)) 3 #b111)
+          (PUSH-BITS (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-codes-order idx)) 3 #b111)
           (push-codelen-lengths (+ idx 1))))
       
       (let ([N (unsafe-idx+ hlit hdist)])
@@ -235,30 +240,36 @@
         (huffman-write-block! l77src dists literals distances literal-lengths distance-lengths (+ start 1) end)))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (raw-block-flush [BFINAL : Boolean] [payload : Index] [flush-lz77? : Boolean]) : Void
+    (define (raw-block-flush [BFINAL : Boolean] [start : Index] [end : Index] [flush-lz77? : Boolean]) : Void
+      (define payload : Fixnum (unsafe-fx- end start))
+      
       (cond [(not no-compression?)
              (when (> payload 0)
                ;; NOTE
                ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
                ;   but which will never write the block with a FINAL flag depsite the value of `BFINAL`.
                ; Instead, another empty final block will be appended if there happens to be no more
-               ;   content after flushing last full lz77 block. 
+               ;   content after flushing last full lz77 block.
 
-               ;; TODO: slide the window
-               (vector-fill! hash-heads 0)
-               (vector-fill! hash-prevs 0)
-               (lz77-deflate raw-block #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
+               (lz77-deflate window #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
                              (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
-                             strategy 0 payload))
+                             strategy start end))
              
              (when (or BFINAL flush-lz77?)
                (cond [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload)]
                      [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
-            [(> payload 0) (huffman-write-stored-block! raw-block BFINAL 0 payload)]
+            [(> payload 0) (huffman-write-stored-block! window BFINAL start end)]
             [(and BFINAL) (huffman-write-empty-block! BFINAL)])
 
-      (when (> raw-payload 0)
-        (set! raw-payload 0)))
+      (when (not BFINAL)
+        ; the length of sliding window is asuumed multiple of length of the raw block, please update if the assumption is wrong
+        (cond [(< raw-payload-end window-size/2)
+               (set! raw-payload-start raw-payload-end)]
+              [else ; slide the window
+               (set! raw-payload-start 0)
+               (set! raw-payload-end 0)
+               (vector-fill! hash-heads 0)
+               (vector-fill! hash-prevs 0)])))
 
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
       ;;; NOTE
@@ -302,25 +313,27 @@
       (cond [(> received 0)
              (let write-raw ([recv : Natural received]
                              [start : Natural start]
-                             [available : Index (unsafe-idx- raw-blocksize raw-payload)])
+                             [available : Index (unsafe-idx- raw-blocksize (unsafe-idx- raw-payload-end raw-payload-start))])
               (if (>= recv available)
-                  (let ([start++ (unsafe-idx+ start available)])
-                    (unsafe-bytes-copy! raw-block raw-payload bs start start++)
-                    (raw-block-flush #false raw-blocksize #false)
+                  (let ([start++ (unsafe-idx+ start available)]
+                        [end++ (unsafe-idx+ raw-payload-end available)])
+                    (unsafe-bytes-copy! window raw-payload-end bs start start++)
+                    (set! raw-payload-end end++)
+                    (raw-block-flush #false raw-payload-start raw-payload-end #false)
                     (when (> recv available)
                       (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
-                  (begin
-                    (unsafe-bytes-copy! raw-block raw-payload bs start end)
-                    (set! raw-payload (unsafe-idx+ raw-payload recv)))))]
+                  (let ([end++ (unsafe-idx+ raw-payload-end recv)])
+                    (unsafe-bytes-copy! window raw-payload-end bs start end)
+                    (set! raw-payload-end end++))))]
 
             [(or non-block/buffered? #| non-block writing implies flushing |#
                  (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
-             (raw-block-flush #false raw-payload #true)])
+             (raw-block-flush #false raw-payload-start raw-payload-end #true)])
       
       (- end start))
 
     (define (block-close) : Void
-      (raw-block-flush #true raw-payload #true)
+      (raw-block-flush #true raw-payload-start raw-payload-end #true)
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
@@ -445,9 +458,10 @@
 
       ;; WARNING
       ; After feeding and firing 3 + 14 bits, there are still 7 bits left in the bitstream before feeding more,
-      ;   and the codelen codes will consume at most 19 * 3 = 57 bits, which seems safe in a 64-bit system.
-      ;   However, Racket supports big integer as the first-class number by reserving the leading 1 or 3 bits
-      ;   (depending on the variant) for distinguishing big integers and mechine integers (a.k.a fixnums).
+      ;   and the codelen codes will consume at most 19 * 3 = 57 bits, in which case the actual bits would be
+      ;   7 + roundup(57 - 7) = 63 bits, which seems safe in a 64-bit system. However, Racket supports big
+      ;   integer as the first-class number by reserving the leading 1 or 3 bits (depending on the variant)
+      ;   for distinguishing big integers and mechine integers (a.k.a fixnums).
       ; Operating bits one by one is usually inefficient, our bitstream facility is therefore in the charge of
       ;   `racket/unsafe/ops`. That is to say, we have to keep in mind that the feeding bits shouldn't cause
       ;   the overflow of fixnum, or the momery would be ruined clandestinely.
@@ -457,35 +471,11 @@
       ;
       ;; NOTE
       ; The above is discussed in a specific case, but a huffman block doesn't have to start at byte boundary.
-      ;   Nonetheless, feeding another more 7 bits is always heuristic.
+      ;   Nonetheless, feeding another 7 bits is always heuristic.
 
-      (when (< hclen uplencode) ; the omited codelen codes are 0s
-        (bytes-fill! codelen-lengths 0))
-      
-      ; load the first 4 codelen codes, it would require at most 12 + 7 bits
-      (let ([base-bits (unsafe-b* codelen-nbase 3)])
-        (unless (FEED-BITS base-bits)
-          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
-        
-        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum 0])
-          (when (< idx codelen-nbase)
-            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 (unsafe-b* idx 3)))
-            (read-codelen-lengths! (+ idx 1))))
-        
-        (FIRE-BITS base-bits))
-      
-      ; load the rest, it would require at most 45 + 7 bits, which is always safe in a 64-bit system
-      (let ([rest-bits (unsafe-b* hclen0 3)])
-        (unless (FEED-BITS rest-bits)
-          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
-        
-        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum codelen-nbase]
-                                    [skip : Byte 0])
-          (when (< idx hclen)
-            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx) (PEEK-BITS 3 #b111 skip))
-            (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
-        
-        (FIRE-BITS rest-bits))
+      (when (< hclen uplencode) (bytes-fill! codelen-lengths 0)) ; the omited codelen codes are 0s
+      (huffman-read-codelen-codes 0 codelen-nbase codelen-nbase) ; load the first 4 codelen codes, it would be at most 3 + roundup(12 - 3) = 18 bits
+      (huffman-read-codelen-codes codelen-nbase hclen hclen0)    ; load the rest, it would be at most 4 + roundup(45 - 4) = 52 bits
       
       ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
       ; the code length codes are just what encode those lengths.
@@ -527,6 +517,19 @@
         (set! distance-alphabet dynamic-distance-alphabet)
         (set! literal-maxlength upbits)
         (set! distance-maxlength upbits)))
+
+    (define (huffman-read-codelen-codes [start : Byte] [end : Index] [count : Byte]) : Void
+      (let ([nbits (unsafe-b* count 3)])
+        (unless (FEED-BITS nbits)
+          (throw-eof-error /dev/blkin 'read-codelen-lengths!))
+        
+        (let read-codelen-lengths! ([idx : Nonnegative-Fixnum start]
+                                    [skip : Byte 0])
+          (when (< idx end)
+            (unsafe-bytes-set! codelen-lengths (unsafe-bytes-ref codelen-codes-order idx) (PEEK-BITS 3 #b111 skip))
+            (read-codelen-lengths! (+ idx 1) (unsafe-b+ skip 3))))
+        
+        (FIRE-BITS nbits)))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (read-stored-block! [zipout : Bytes] [start : Index] [end : Index] [BFINAL? : Boolean] [type : Symbol]) : Index

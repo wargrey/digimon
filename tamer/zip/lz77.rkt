@@ -20,7 +20,7 @@
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte Positive-Byte Index Index Positive-Byte Void))
+(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte Index Index Positive-Byte Positive-Byte Void))
 
 (define lz77-strategy : (-> Symbol String String String (List Symbol Byte Index))
   (lambda [option str.name str.#0 str.#n]
@@ -35,15 +35,16 @@
   #:args [filename]
 
   #:once-each
-  [[(#\B)   #:=> cmdopt-string+>byte hash-Bits #: Positive-Byte    "use ~1 as the default hash bits"]
-   [(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte    "use ~1 as the default minimum match"]
-   [(#\F)   #:=> cmdopt-string->index farthest #: Index            "use ~1 as the distance limit for short matches"]
-   [(#\f)   #:=> cmdopt-string->index filtered #: Index            "use ~1 as the filtered threshold to throw away random distributed data"]
+  [[(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "use ~1 as the default minimum match"]
+   [(#\F)   #:=> cmdopt-string->index farthest #: Index         "use ~1 as the distance limit for short matches"]
+   [(#\f)   #:=> cmdopt-string->index filtered #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
+   
+   [(#\W)   #:=> cmdopt-string+>byte winbits   #: Positive-Byte "encoding with the slide window of ~1 bits"]
+   [(#\M)   #:=> cmdopt-string+>byte memlevel  #: Positive-Byte "encoding in memory level of ~1"]
 
-   [(#\b)   #:=> lz77-brief                                        "only display T or F as the test result of a test"]
-   [(#\v)   #:=> lz77-verbose                                      "run with verbose messages"]
-   [(#\d)   #:=> lz77-dynamic                                      "allow dynamic huffman encoding (deflating only)"]
-   [(#\M)   #:=> cmdopt-string+>byte memory-level #: Positive-Byte "encoding in memory level of ~1 (deflating only)"]]
+   [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
+   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]
+   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (huffman only)"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
@@ -55,29 +56,32 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-run : LZ77-Run
-  (lambda [txt strategies bits min-match farthest filtered memory-level]
+  (lambda [txt strategies min-match farthest filtered winbits memlevel]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
+    (define mgz-idx : Natural 0)
 
     (when (lz77-verbose)
-      (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-              bits min-match farthest filtered))
+      (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+              winbits memlevel (or min-match 'auto) farthest filtered))
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym dest-idx)
-         (vector-set! magazine dest-idx sym)]
-        [(distance size dest-idx)
-         (vector-set! magazine dest-idx (lz77-backref-pair distance size))]))
+        [(sym)
+         (vector-set! magazine mgz-idx sym)
+         (set! mgz-idx (+ mgz-idx 1))]
+        [(distance size)
+         (vector-set! magazine mgz-idx (lz77-backref-pair distance size))
+         (set! mgz-idx (+ mgz-idx 1))]))
 
     (define display-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym dest-idx)
-         (record-symbol sym dest-idx)
+        [(sym)
+         (record-symbol sym)
          (display (integer->char sym))
          (flush-output (current-output-port))]
-        [(pointer size dest-idx)
-         (record-symbol pointer size dest-idx)
+        [(pointer size)
+         (record-symbol pointer size)
          (display (cons pointer size))
          (flush-output (current-output-port))]))
 
@@ -87,12 +91,14 @@
 
     (for ([strategy (if (list? strategies) (in-list strategies) (in-value strategies))])
       (define desc : String (strategy->description strategy))
-        
+      
       (when (lz77-verbose) (printf ">>> [strategy: ~a]~n" desc))
 
       (define-values (csize memory cpu real gc)
-        (time-apply** (λ [] (lz77-deflate #:hash-bits bits #:min-match min-match #:farthest farthest
-                                         txt (if (lz77-verbose) display-symbol record-symbol) strategy))))
+        (time-apply** (λ [] (set! mgz-idx 0)
+                        (lz77-deflate* #:window-bits winbits #:memory-level memlevel #:min-match min-match #:farthest farthest
+                                       txt (if (lz77-verbose) display-symbol record-symbol) strategy)
+                        (assert mgz-idx index?))))
       
       (when (lz77-verbose) (newline))
       (define-values (?txt total) (lz77-inflate (in-vector magazine 0 csize)))
@@ -102,7 +108,7 @@
     (when (and (not (lz77-verbose)) (lz77-brief))
       (newline))))
 
-(define lz77-display-summary : (-> String Bytes Bytes Index Index (Listof Index) Integer Natural Natural Natural Void)
+(define lz77-display-summary : (-> String Bytes Bytes Natural Index (Listof Index) Integer Natural Natural Natural Void)
   (lambda [desc txt ?txt csize rsize widths memory cpu real gc]
     (let ([ok? (bytes=? txt ?txt)])
       (define summary : (Listof String)
@@ -137,10 +143,10 @@
     
     (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
          strategies
-         (or (lz77-flags-B options) lz77-default-hash-bits)
          (or (lz77-flags-m options) lz77-default-min-match)
          (or (lz77-flags-F options) lz77-default-farthest)
          (or (lz77-flags-f options) 0)
+         (or (lz77-flags-W options) 15)
          (or (lz77-flags-M options) 1))))
 
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)

@@ -41,9 +41,9 @@
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym d-idx)
+        [(sym)
          (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))]
-        [(distance span d-idx)
+        [(distance span)
          (let* ([sym (backref-span->huffman-symbol span)])
            (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1)))]))
 

@@ -63,8 +63,8 @@
 ;   encoding the lengths of "codewords" of the dynamic huffman codes,
 ;   and these codes themselves are encoded and stored in the block,
 ;   in the order:
-(define codelen-lengths-order : Bytes (bytes 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
-(define uplencode : Index (bytes-length codelen-lengths-order))
+(define codelen-codes-order : Bytes (bytes 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
+(define uplencode : Index (bytes-length codelen-codes-order))
 (define uplenbits : Positive-Byte #b111)
 
 (define codelen-copy:2 : Positive-Byte 16)
@@ -95,7 +95,7 @@
   #:type-name Huffman-Alphabet)
 
 ; note the keyword `#:max-bitwidth`, which means the actual `maxlength` might be smaller (but not larger)
-;   since the `huffman-alphabet` is intentionally designed to allow client applications reusing memory.
+;   since the `huffman-alphabet` is intentionally designed to allow client applications to reuse memory.
 ; also note that, there is no `symbol-bwidth` paired with the `symbol-mask`, since `max-bwidth` is already
 ;   there as a much safer choice. In theory, `log2.N` bits is adequate for an alphabet of N, whereas in
 ;   practice for some reasons, always generating optimal huffman codewords is somehow ideal, a symbol
@@ -621,5 +621,5 @@
 (define huffman-dynamic-codelen-effective-count : (-> Bytes Index)
   (lambda [codelen-lengths]
     (let countdown ([idx : Index (unsafe-idx- uplencode 1)])
-      (cond [(= (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-lengths-order idx)) 0) (countdown (unsafe-idx- idx 1))]
+      (cond [(= (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-codes-order idx)) 0) (countdown (unsafe-idx- idx 1))]
             [else #| always greater than 4, since EOB won't be in first 4 slots (16, 17, 18, 0) |# (unsafe-idx+ idx 1)]))))

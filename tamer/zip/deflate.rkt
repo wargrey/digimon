@@ -9,19 +9,19 @@
 
 (require digimon/digitama/bintext/zip)
 (require digimon/digitama/bintext/lz77)
-(require digimon/digitama/bintext/deflate)
+(require digimon/digitama/bintext/deflation)
 
 (require "lz77.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define deflation-run : LZ77-Run
-  (lambda [txt strategies bits min-match farthest filtered memory-level]
+  (lambda [txt strategies min-match farthest filtered winbits memlevel]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
     (when (lz77-verbose)
-      (printf "[hash Bits: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a] [memory level: ~a]~n"
-              bits (or min-match 'auto) farthest filtered memory-level))
+      (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+              winbits memlevel (or min-match 'auto) farthest filtered))
 
     (define widths : (Listof Index)
       (text-column-widths (list (list "T" "strategy-name" "000.000KB" "100.00%"
@@ -39,7 +39,8 @@
           (time-apply**
            (λ []
              (let ([&csize : (Boxof Natural) (box 0)])
-               (let ([/dev/zipout (open-output-deflated-block #:memory-level memory-level #:name desc #:allow-dynamic-block? (lz77-dynamic)
+               (let ([/dev/zipout (open-output-deflated-block #:window-bits winbits #:memory-level memlevel
+                                                              #:name desc #:allow-dynamic-block? (lz77-dynamic)
                                                               /dev/bsout strategy #false)])
                  (write-bytes-avail txt /dev/zipout)
                  (close-output-port /dev/zipout)

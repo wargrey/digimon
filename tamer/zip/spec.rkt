@@ -3,7 +3,7 @@
 (require racket/vector)
 
 (require digimon/digitama/bintext/huffman)
-(require digimon/digitama/bintext/deflate)
+(require digimon/digitama/bintext/deflation)
 (require digimon/digitama/bintext/zip)
 (require digimon/bitstream)
 (require digimon/format)
@@ -377,7 +377,7 @@
                        (it ["should extract ~a codelen codes from next ~a bits" hclen (* hclen 3)] #:do
                            (for ([idx (in-range hclen)])
                              (feed-bits 3)
-                             (bytes-set! codelen-lengths (bytes-ref codelen-lengths-order idx) (peek-bits 3 #b111))
+                             (bytes-set! codelen-lengths (bytes-ref codelen-codes-order idx) (peek-bits 3 #b111))
                              (fire-bits 3))
                            (expect-bytes= codelen-lengths
                                           (bytes 3 7 5 7 3 2 2 0 0 0 0 0 0 0 0 0 6 4 3)))

@@ -6,7 +6,7 @@
 
 (require "zipinfo.rkt")
 (require "zipconfig.rkt")
-(require "deflate.rkt")
+(require "deflation.rkt")
 (require "archive.rkt")
 
 (require "../ioexn.rkt")

@@ -146,7 +146,7 @@
     (~% #:precision (if (= precision 0) 0 `(= ,precision))
         (- 1 (if (= rsize 0) 1 (/ csize rsize))))))
 
-(define zip-size : (-> Index String)
+(define zip-size : (-> Natural String)
   (lambda [size]
     (~size size
            #:precision '(= 3)
