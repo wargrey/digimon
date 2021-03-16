@@ -61,8 +61,8 @@
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define mgz-idx : Natural 0)
 
-    (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-            winbits memlevel (or min-match 'auto) farthest filtered)
+    (printf "[window size: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+            (~size (arithmetic-shift 1 winbits)) memlevel (or min-match 'auto) farthest filtered)
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda

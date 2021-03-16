@@ -192,6 +192,7 @@
 
     (let deflate/slide ([src-idx : Index start]
                         [window-idx : Index window-size/2]
+                        [prev-remained : Index 0]
                         [hash : Index 0])
       (define rest : Fixnum (- end src-idx))
       
@@ -201,17 +202,20 @@
                (define-values (next-idx hash++)
                  (lz77-deflate #:hash-bits hash-bits #:hash-heads heads #:hash-chain prevs
                                #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
-                               window symbol-submit strategy window-idx (unsafe-idx+ window-idx window-size/2) hash #false nil))
+                               window symbol-submit strategy
+                               (unsafe-idx- window-idx prev-remained) (unsafe-idx+ window-idx window-size/2)
+                               hash #false nil))
                
-               (unsafe-bytes-copy! window 0 window window-size/2 next-idx)
+               (unsafe-bytes-copy! window 0 window window-size/2 window-size)
                (lz77-slide-hash heads prevs window-size/2 nil)
-               (deflate/slide (unsafe-idx+ src-idx (unsafe-idx- next-idx window-idx))
-                 (unsafe-idx- next-idx window-size/2) hash++))]
+               (deflate/slide (unsafe-idx+ src-idx window-size/2) window-size/2 (unsafe-idx- window-size next-idx) hash++))]
             [(> rest 0)
              (unsafe-bytes-copy! window window-idx src src-idx end)
              (lz77-deflate #:hash-bits hash-bits #:hash-heads heads #:hash-chain prevs
                            #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
-                           window symbol-submit strategy window-idx (unsafe-idx+ window-idx rest) hash #true nil)
+                           window symbol-submit strategy
+                           (unsafe-idx- window-idx prev-remained) (unsafe-idx+ window-idx rest)
+                           hash #true nil)
              (void)]))))
 
 (define lz77-inflate : (->* ((Sequenceof LZ77-Symbol)) ((Option Bytes) Index #:span-bits Positive-Byte) (Values Bytes Index))
@@ -495,8 +499,8 @@
                           [(>= self-span nice-span) (search p-idx self-span nil 0)]
                           [else #| normal case |#   (search p-idx self-span (unsafe-vector*-ref chains p-idx) (sub1 chsize))]))]))))
 
-(define lz77-slide-hash : (-> (Vectorof Index) (Vectorof Index) Index Index Void)
-  (lambda [heads prevs distance nil]
+(define lz77-slide-hash : (-> (Vectorof Index) (Option (Vectorof Index)) Index Index Void)
+  (lambda [heads ?prevs distance nil]
     (let ([n (vector-length heads)])
       (let slide-head ([idx : Nonnegative-Fixnum n])
         (when (< idx n)
@@ -507,15 +511,16 @@
           
           (slide-head (+ idx 1)))))
 
-    (let ([n (vector-length prevs)])
-      (let slide-prev ([idx : Nonnegative-Fixnum n])
-        (when (< idx n)
-          (define pos : Index (unsafe-vector*-ref prevs idx))
-          
-          (cond [(< pos distance) (unsafe-vector*-set! prevs idx nil)]
-                [(< pos nil) (unsafe-vector*-set! prevs idx (unsafe-idx- pos distance))])
-          
-          (slide-prev (+ idx 1)))))))
+    (unless (not ?prevs)
+      (let ([n (vector-length ?prevs)])
+        (let slide-prev ([idx : Nonnegative-Fixnum n])
+          (when (< idx n)
+            (define pos : Index (unsafe-vector*-ref ?prevs idx))
+            
+            (cond [(< pos distance) (unsafe-vector*-set! ?prevs idx nil)]
+                  [(< pos nil) (unsafe-vector*-set! ?prevs idx (unsafe-idx- pos distance))])
+            
+            (slide-prev (+ idx 1))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-backward-span : (-> Bytes Index Index Index Index Index)

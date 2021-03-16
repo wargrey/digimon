@@ -20,8 +20,8 @@
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
     (when (lz77-verbose)
-      (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-              winbits memlevel (or min-match 'auto) farthest filtered))
+      (printf "[window size: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+              (~size (arithmetic-shift 1 winbits)) memlevel (or min-match 'auto) farthest filtered))
 
     (define widths : (Listof Index)
       (text-column-widths (list (list "T" "strategy-name" "000.000KB" "100.00%"

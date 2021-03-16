@@ -21,8 +21,6 @@
 
 (require "../unsafe/ops.rkt")
 
-(require (for-syntax racket/base))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
@@ -42,6 +40,7 @@
     ;                 so that we can keep the history of the bytes that incompressible and therefore have to be stored directly, 
     ;                 and save the cost of copying them into the sliding window. If the size of the sliding window is not the
     ;                 multiple of that of the raw block, don't forget to update the `raw-block-flush`.
+    ;                 and save the cost of copying them into the sliding window.
     ;   lz77 block: receives the lz77 symbols transformed from the `raw block`, when it is full, the huffman encoding starts.
     ;                 Slots of `lz77-dists` are always paired with the corresponding slots of the lz77 block;
     ;   bits block: receives the huffman codewords encoded from the `lz77 block`, and in the charge of LSB bitstream facility.
@@ -53,21 +52,23 @@
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
     (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
     (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
-
-    (define raw-payload-start : Index 0)
-    (define raw-payload-end : Index 0)
     (define lz77-payload : Index 0)
     
-    ;; for LZ77
     (define hash-bits : Positive-Index (+ memory-level 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
     (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
 
+    (define raw-payload-start : Index window-size/2)
+    (define raw-payload-end : Index window-size/2)
+
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression?))
     (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 no-compression?))
-
+    (define hash-nil : Index (bytes-length window))
+    (define prev-remained : Index 0)
+    (define prev-hash : Index 0)
+    
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
         [(sym) ; <=> (submit-huffman-symbol sym 0)
@@ -240,36 +241,43 @@
         (huffman-write-block! l77src dists literals distances literal-lengths distance-lengths (+ start 1) end)))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (raw-block-flush [BFINAL : Boolean] [start : Index] [end : Index] [flush-lz77? : Boolean]) : Void
-      (define payload : Fixnum (unsafe-fx- end start))
+    (define (raw-block-flush [BFINAL : Boolean] [flush-lz77? : Boolean]) : (U Void Natural)
+      (define payload : Fixnum (unsafe-fx- raw-payload-end raw-payload-start))
       
       (cond [(not no-compression?)
-             (when (> payload 0)
+             (when (or (> payload 0) (> prev-remained 0))
                ;; NOTE
                ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
                ;   but which will never write the block with a FINAL flag depsite the value of `BFINAL`.
                ; Instead, another empty final block will be appended if there happens to be no more
                ;   content after flushing last full lz77 block.
 
-               (lz77-deflate window #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
-                             (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
-                             strategy start end))
+               (define-values (next-idx hash++)
+                 (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
+                               window (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
+                               strategy (unsafe-idx- raw-payload-start prev-remained) raw-payload-end prev-hash BFINAL hash-nil))
+
+               (set! prev-remained (unsafe-idx- raw-payload-end next-idx))
+               (set! prev-hash hash++)
+
+               ; the length of sliding window is asuumed exactly multiple of length of the raw block
+               (cond [(< raw-payload-end window-size)
+                      (set! raw-payload-start raw-payload-end)]
+                     [else ; slide the window
+                      (unsafe-bytes-copy! window 0 window window-size/2 window-size)
+                      (lz77-slide-hash hash-heads hash-prevs window-size/2 hash-nil)
+                      (set! raw-payload-start window-size/2)
+                      (set! raw-payload-end raw-payload-start)]))
              
              (when (or BFINAL flush-lz77?)
                (cond [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload)]
                      [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
-            [(> payload 0) (huffman-write-stored-block! window BFINAL start end)]
-            [(and BFINAL) (huffman-write-empty-block! BFINAL)])
-
-      (when (not BFINAL)
-        ; the length of sliding window is asuumed multiple of length of the raw block, please update if the assumption is wrong
-        (cond [(< raw-payload-end window-size/2)
-               (set! raw-payload-start raw-payload-end)]
-              [else ; slide the window
-               (set! raw-payload-start 0)
-               (set! raw-payload-end 0)
-               (vector-fill! hash-heads 0)
-               (vector-fill! hash-prevs 0)])))
+            [(> payload 0)
+             (huffman-write-stored-block! window BFINAL raw-payload-start raw-payload-end)
+             ; no need to maintain the history of the input for stored blocks,
+             ; simply reset the end cursor to where it starts.
+             (set! raw-payload-end raw-payload-start)]
+            [(and BFINAL) (huffman-write-empty-block! BFINAL)]))
 
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
       ;;; NOTE
@@ -277,7 +285,7 @@
       ;   thus, the only thing to do here is to figure out a good way to encode current
       ;   lz77 block and feed the bitstream resulting bits to output.
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
-      ;   reasonable data with a proper environment.
+      ;   reasonable data and slide the window when necessary.
 
       (or (and allow-dynamic?
                (let-values ([(dist-maxlength hdist) (construct-tree distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
@@ -315,11 +323,10 @@
                              [start : Natural start]
                              [available : Index (unsafe-idx- raw-blocksize (unsafe-idx- raw-payload-end raw-payload-start))])
               (if (>= recv available)
-                  (let ([start++ (unsafe-idx+ start available)]
-                        [end++ (unsafe-idx+ raw-payload-end available)])
+                  (let ([start++ (unsafe-idx+ start available)])
                     (unsafe-bytes-copy! window raw-payload-end bs start start++)
-                    (set! raw-payload-end end++)
-                    (raw-block-flush #false raw-payload-start raw-payload-end #false)
+                    (set! raw-payload-end (unsafe-idx+ raw-payload-end available))
+                    (raw-block-flush #false #false)
                     (when (> recv available)
                       (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
                   (let ([end++ (unsafe-idx+ raw-payload-end recv)])
@@ -328,12 +335,12 @@
 
             [(or non-block/buffered? #| non-block writing implies flushing |#
                  (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
-             (raw-block-flush #false raw-payload-start raw-payload-end #true)])
+             (raw-block-flush #false #true)])
       
       (- end start))
 
     (define (block-close) : Void
-      (raw-block-flush #true raw-payload-start raw-payload-end #true)
+      (raw-block-flush #true #true)
       
       (unless (not close-orig?)
         (close-output-port /dev/zipout)))
