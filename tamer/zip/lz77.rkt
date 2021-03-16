@@ -61,9 +61,8 @@
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define mgz-idx : Natural 0)
 
-    (when (lz77-verbose)
-      (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
-              winbits memlevel (or min-match 'auto) farthest filtered))
+    (printf "[window bits: ~a] [memory level: ~a] [minimum match: ~a] [farthest: ~a] [filtered: ~a]~n"
+            winbits memlevel (or min-match 'auto) farthest filtered)
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
@@ -146,7 +145,7 @@
          (or (lz77-flags-m options) lz77-default-min-match)
          (or (lz77-flags-F options) lz77-default-farthest)
          (or (lz77-flags-f options) 0)
-         (or (lz77-flags-W options) 15)
+         (or (lz77-flags-W options) 12)
          (or (lz77-flags-M options) 1))))
 
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)

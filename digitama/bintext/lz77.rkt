@@ -183,30 +183,30 @@
            src symbol-submit strategy [start 0] [end (bytes-length src)]]
     (define hash-bits : Positive-Index (+ memlevel 7))
     (define hash-size : Positive-Index (unsafe-idxlshift 1 (min hash-bits lz77-default-safe-hash-bits)))
-    (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
+    (define window-size/2 : Index (max (unsafe-idxlshift 1 winbits) min-match))
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
     (define heads : (Vectorof Index) (make-vector hash-size 0))
     (define prevs : (Vectorof Index) (make-vector window-size/2 0))
     (define nil : Index (bytes-length src))
 
-    (let deflate ([src-idx : Index start]
-                  [window-idx : Index 0]
-                  [hash : Index 0])
+    (let deflate/slide ([src-idx : Index start]
+                        [window-idx : Index window-size/2]
+                        [hash : Index 0])
       (define rest : Fixnum (- end src-idx))
       
-      (cond [(>= rest window-size/2)
+      (cond [(> rest window-size/2)
              (let ([src-end (unsafe-idx+ src-idx window-size/2)])
                (unsafe-bytes-copy! window window-idx src src-idx src-end)
                (define-values (next-idx hash++)
                  (lz77-deflate #:hash-bits hash-bits #:hash-heads heads #:hash-chain prevs
                                #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
-                               window symbol-submit strategy src-idx src-end hash #false nil))
-               (cond [(<= next-idx window-size/2) (deflate next-idx window-size/2 hash++)]
-                     [else (let ([slide-idx (unsafe-idx- next-idx window-size/2)])
-                             (unsafe-bytes-copy! window 0 window slide-idx src-end)
-                             (lz77-slide-hash heads prevs window-size/2 nil)
-                             (deflate (unsafe-idx- window-size/2 slide-idx) 0 hash++))]))]
+                               window symbol-submit strategy window-idx (unsafe-idx+ window-idx window-size/2) hash #false nil))
+               
+               (unsafe-bytes-copy! window 0 window window-size/2 next-idx)
+               (lz77-slide-hash heads prevs window-size/2 nil)
+               (deflate/slide (unsafe-idx+ src-idx (unsafe-idx- next-idx window-idx))
+                 (unsafe-idx- next-idx window-size/2) hash++))]
             [(> rest 0)
              (unsafe-bytes-copy! window window-idx src src-idx end)
              (lz77-deflate #:hash-bits hash-bits #:hash-heads heads #:hash-chain prevs
@@ -367,9 +367,11 @@
     (if (< m-idx reasonable-end)
         (let ([boundary (min (unsafe-idx+ m-idx max-match) end)])
           (define-values (hash++ pointer) (lz77-accumulative-hash heads hash src m-idx hash-span hash-shift hash-mask))
-          (define span : Index (if (= pointer nil) 0 (lz77-backref-span src pointer m-idx boundary)))
+          (define span : Index
+            (cond [(>= pointer m-idx) 0] ; `nil` is usually the length of source, which is also greater than `m-idx`
+                  [else (lz77-backref-span src pointer m-idx boundary)]))
           
-          ; keep the distance always closest to satisfy the huffman encoding
+          ; keep the distance always closest to benefit the huffman encoding
           (lz77-update-hash heads hash++ m-idx)
           
           (if (< span min-match)
@@ -486,7 +488,7 @@
                  [span : Index 0]
                  [p-idx : Index head-pointer]
                  [chsize : Index chain-size])
-      (cond [(or (= p-idx nil) (= chsize 0)) (values pointer span)]
+      (cond [(or (>= p-idx m-idx) (= chsize 0)) (values pointer span)] ; `nil` is usually the length of source, which is also greater than `m-idx`
             [else (let ([self-span (lz77-backref-span src p-idx m-idx end)])
                     (cond [(<= self-span span)      (search pointer span (unsafe-vector*-ref chains p-idx) (sub1 chsize))]
                           [(>= self-span good-span) (search p-idx self-span (unsafe-vector*-ref chains p-idx) (unsafe-idxrshift chsize 2))]
@@ -499,10 +501,9 @@
       (let slide-head ([idx : Nonnegative-Fixnum n])
         (when (< idx n)
           (define pos : Index (unsafe-vector*-ref heads idx))
-          
-          (if (>= pos distance)
-              (unsafe-vector*-set! heads idx (unsafe-idx- pos distance))
-              (unsafe-vector*-set! heads idx nil))
+
+          (cond [(< pos distance) (unsafe-vector*-set! heads idx nil)]
+                [(< pos nil)(unsafe-vector*-set! heads idx (unsafe-idx- pos distance))])
           
           (slide-head (+ idx 1)))))
 
@@ -511,9 +512,8 @@
         (when (< idx n)
           (define pos : Index (unsafe-vector*-ref prevs idx))
           
-          (if (>= pos distance)
-              (unsafe-vector*-set! prevs idx (unsafe-idx- pos distance))
-              (unsafe-vector*-set! prevs idx nil))
+          (cond [(< pos distance) (unsafe-vector*-set! prevs idx nil)]
+                [(< pos nil) (unsafe-vector*-set! prevs idx (unsafe-idx- pos distance))])
           
           (slide-prev (+ idx 1)))))))
 
