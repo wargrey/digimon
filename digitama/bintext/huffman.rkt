@@ -315,7 +315,7 @@
 ;; Extract one symbol from current bitstream
 ; NOTE that the `Huffman-Alphabet` is intentionally designed for clients to reuse memory,
 ;   hence the third optional argument, in case the actual payload of the alphabet is smaller than the capacity. 
-(define huffman-symbol-extract : (->* (Huffman-Alphabet Index) (Byte) (Values Index Byte))
+(define huffman-symbol-lookup : (->* (Huffman-Alphabet Index) (Byte) (Values Index Byte))
   (lambda [alphabet codeword+more [codeword-bwidth (huffman-alphabet-max-bwidth alphabet)]]
     (define cheatsheet : (Mutable-Vectorof Index) (huffman-alphabet-cheatsheet alphabet))
     (define cheat-idx : Index ; no special transform for LSB-first codes
@@ -422,7 +422,7 @@
 ;   all internal trees are accommodated in the head portion of the heap.
 (define huffman-minheap-treefy! : (-> (Mutable-Vectorof Index) Index Void)
   (lambda [heap n]
-    (cond [(>= n 2)
+    (cond [(> n 1)
            (let treefy ([bottom-idx : Index (unsafe-idx- n 1)])
              (when (> bottom-idx 0)
                (define b-idx-- : Index (unsafe-idx- bottom-idx 1))
@@ -476,18 +476,20 @@
            [code-start (unsafe-idx- code-end upcode)])
       (bytes-fill! lengths 0)
       (let update-lengths ([idx : Nonnegative-Fixnum code-start]
-                           [effective-idx : Index 0]
+                           [effective-idx : (Option Index) #false]
                            [maxlength : Byte 0])
         ; WARNING: despite the subtrees, each leaf of the `heap` corresponds to a valid symbol index.
         (cond [(< idx code-end)
                (let ([parent-idx (unsafe-vector*-ref heap idx)]
                      [idx++ (+ idx 1)])
-                 (cond [(= parent-idx 0) (update-lengths idx++ effective-idx maxlength)]
-                       [else (let ([length (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1)]
-                                   [self-idx (unsafe-idx- idx code-start)])
-                               (unsafe-bytes-set! lengths self-idx length)
-                               (update-lengths idx++ self-idx (unsafe-fxmax maxlength length)))]))]
-              [(= effective-idx 0) (values lengths maxlength effective-idx)]
+                 (if (= parent-idx 0)
+                     (update-lengths idx++ effective-idx maxlength)
+
+                     (let ([length (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1)]
+                           [self-idx (unsafe-idx- idx code-start)])
+                       (unsafe-bytes-set! lengths self-idx length)
+                       (update-lengths idx++ self-idx (unsafe-fxmax maxlength length)))))]
+              [(not effective-idx) (values lengths maxlength 0)]
               [else (values lengths maxlength (unsafe-idx+ effective-idx 1))])))))
 
 ; the name "siftup" is a little confusing,
@@ -505,7 +507,7 @@
                     [r-idx (unsafe-idx+ l-idx 1)]
                     [right (unsafe-vector*-ref heap r-idx)]
                     [r-key (huffman-minheap-key heap right)])
-               (if (< l-key r-key)
+               (if (<= l-key r-key) ; `=` is necessary by convention, and it might affect the resulting huffman codes
                    (values left l-key l-idx)
                    (values right r-key r-idx)))]
             [(= l-idx bottom-idx)
@@ -531,7 +533,8 @@
 ;;; Miscellaneous
 
 (define huffman-frequencies->tree! : (->* ((Vectorof Index) (Mutable-Vectorof Index) Bytes)
-                                          (#:length-limit Byte Index (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index))
+                                          (Index (Mutable-Vectorof Index) (Mutable-Vectorof Index) (Mutable-Vectorof Index)
+                                                 #:length-limit Byte)
                                           (Values Byte Index))
   (lambda [#:length-limit [length-limit codeword-length-limit]
            frequencies codewords lengths [upcode (vector-length frequencies)] [tree ((inst make-vector Index) (* upcode 2))]

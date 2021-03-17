@@ -18,9 +18,12 @@
                 (set!-values (mgz-payload mgz-start) (values 0 0))
                 (set!-values (payload pwidth eof-width) (values 0 0 0)))
 
+              (define (tell-padding-size) : Byte
+                (unsafe-fxremainder pwidth 8))
+
               (define align-bits : (-> Index)
                 (lambda []
-                  (define skip (unsafe-fxremainder pwidth 8))
+                  (define skip (tell-padding-size))
 
                   (feed-bits skip)
                   (begin0 (peek-bits skip)
@@ -50,6 +53,7 @@
                     [(align) (align-bits)]
                     [(final-commit) (final-commit-bits) total-committed]
                     [(aggregate) (+ total-committed (final-size))]
+                    [(tellp) (tell-padding-size)]
                     [else 0])))))]
     
     [(_ id (#:-> OutShell Status)
@@ -60,19 +64,22 @@
        (begin (define (reset) : Void
                 (set!-values (payload pwidth) (values 0 0)))
 
-              (define (align-bits) : Void
-                (push-bits 0 (unsafe-idx- 8 (unsafe-fxremainder pwidth 8)) #b0))
+              (define (tell-padding-size) : Byte
+                (unsafe-idx- 8 (unsafe-fxremainder pwidth 8)))
+
+              (define (align-bits) : Byte
+                (let ([ps (tell-padding-size)])
+                  (push-bits 0 ps #b0)
+                  ps))
 
               (define id : (-> OutShell Status)
                 (lambda [cmd]
                   (case cmd
                     [(align) (align-bits)]
-                    [(drop) (reset)])
-
-                  ;;; NOTE
-                  ; this intentionally works for 'aggregate, and is meaningless for other operations;
-                  ; maybe in the future, other operations that return a natural result would be defined.
-                  total-sent))))]))
+                    [(drop) (reset) 0]
+                    [(aggregate) total-sent]
+                    [(tellp) (tell-padding-size)]
+                    [else 0])))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mask-bits : (Immutable-Vectorof Index)

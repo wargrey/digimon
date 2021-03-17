@@ -87,7 +87,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define huffman-symbol-extract/length : (->* (Huffman-Alphabet Index) (Byte) Byte)
   (lambda [alphabet codeword+more [bwidth (huffman-alphabet-max-bwidth alphabet)]]
-    (define-values (symbol length) (huffman-symbol-extract alphabet 0))
+    (define-values (symbol length) (huffman-symbol-lookup alphabet 0))
     length))
 
 (define huffman-frequencies->length-limited-tree : (-> (Vectorof Index) (Mutable-Vectorof Index) Bytes Byte Void)
@@ -109,7 +109,7 @@
   (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
     #:it ["should extract symbol '~a' from codeword '~a' [LSB: 0x~a] [MSB: 0x~a]"
           symbol-code (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
-    (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
+    (let-values ([(symbol length) (huffman-symbol-lookup alphabet lsb-code)])
       (expect-0b= symbol symbol-code)
       (expect-= length symbol-bits))))
 
@@ -117,7 +117,7 @@
   (let ([lsb-code (bits-reverse-uint16 msb-code symbol-bits)])
     #:it ["shouldn't extract any symbol from codeword '~a' [LSB: 0x~a] [MSB: 0x~a]"
           (~binstring lsb-code symbol-bits) (~hexstring lsb-code) (~hexstring msb-code)] #:do
-    (let-values ([(symbol length) (huffman-symbol-extract alphabet lsb-code)])
+    (let-values ([(symbol length) (huffman-symbol-lookup alphabet lsb-code)])
       (expect-= length 0))))
 
 (define-behavior (it-check-length ls idx v)
@@ -129,7 +129,7 @@
   (expect-0b= (vector-ref cds idx) v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-feature huffman #:do
+(define-feature deflation #:do
   (describe "canonical huffman codes" #:do
             (describe "lengths and codewords" #:do
                       (context ["when provided with frequencies ~a" basic-freqs] #:do
@@ -153,7 +153,7 @@
                                (it-check-length t:lengths 16 6)
                                (it-check-length t:lengths 17 5)
                                (it-check-length t:lengths 18 3)
-                              
+                               
                                (it-check-codeword t:codewords 5  #x0)
                                (it-check-codeword t:codewords 6  #x2)
                                (it-check-codeword t:codewords 0  #x1)
@@ -210,7 +210,7 @@
                                      (expect-member (bytes-ref t:lengths idx) (list 8 9))))))
             (describe "alphabet" #:do
                       (context ["when provided with lengths ~a" basic-lengths] #:do
-                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes basic-lengths))) #:do
+                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes basic-lengths))) #:do
                                (it-will-extract-symbol-from t:alphabet  #b000     0  3)
                                (it-will-extract-symbol-from t:alphabet  #b011     3  3)
                                (it-will-extract-symbol-from t:alphabet  #b11110   17 5)
@@ -218,7 +218,7 @@
                                (it-will-extract-nothing-from t:alphabet #b1111111    7))
                      
                       (context ["when provided with lengths ~a" rfc1951-lengths] #:do
-                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes rfc1951-lengths))) #:do
+                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes rfc1951-lengths))) #:do
                                (it-will-extract-symbol-from t:alphabet #b010  0 3)
                                (it-will-extract-symbol-from t:alphabet #b011  1 3)
                                (it-will-extract-symbol-from t:alphabet #b100  2 3)
@@ -229,7 +229,7 @@
                                (it-will-extract-symbol-from t:alphabet #b1111 7 4))
                      
                       (context ["when provided with long lengths ~a" extreme-lengths] #:do
-                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (apply bytes extreme-lengths))) #:do
+                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes extreme-lengths))) #:do
                                (it-will-extract-symbol-from t:alphabet 0 0 3)
                                (it-will-extract-symbol-from t:alphabet 1 1 3)
                                (it-will-extract-symbol-from t:alphabet 2 2 3)
@@ -242,7 +242,7 @@
                                (it "should throw an exception due to sentinel bits overflow" #:do
                                    (expect-throw exn:fail?
                                                  (λ [] (huffman-alphabet-canonicalize!
-                                                        t:alphabet (apply bytes evil-lengths))))))
+                                                        t:alphabet (list->bytes evil-lengths))))))
 
                       (context "when provided with an empty lengths" #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet #"")) #:do
@@ -293,7 +293,7 @@
               (context "with the certain 2-byte bitstream, no lookahead" #:do
                        (it "should be okay to accept feeding request for 48 bits, but return `#false` to indicate that it has exhausted" #:do
                            (expect-false (feed-bits 48)))
-                       (it "should skip 5 bits to align to the next byte boundary after firing 3 bits" #:do
+                       (it "should skip 5 bits to the next byte boundary after firing 3 bits" #:do
                            (fire-bits 3)
                            (expect-0b= ($ 'align) #b11101)
                            (expect-0b= (begin0 (peek-bits 8) (fire-bits 8)) #b10001101))
@@ -397,4 +397,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (void (spec-prove huffman)))
+  (void (spec-prove deflation)))

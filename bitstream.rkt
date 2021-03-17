@@ -20,8 +20,8 @@
 ;   Say, the bitstream is employed to implement an input port,
 ;   in which case operations are meaningless after closing the port,
 ;   where there is the only way to trigger the committing.
-(define-type BitStream-Input-Shell (U 'align 'aggregate 'final-commit))
-(define-type BitStream-Output-Shell (U 'align 'aggregate 'drop))
+(define-type BitStream-Input-Shell (U 'align 'aggregate 'tellp 'final-commit))
+(define-type BitStream-Output-Shell (U 'align 'aggregate 'tellp 'drop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-input-lsb-bitstream : (->* (Input-Port) ((U Integer Bytes) #:lookahead Byte #:limited (Option Natural) #:padding-byte Byte)

@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) describe:it it:$!))
+(provide (except-out (all-defined-out) describe:it describe:for describe:for* it:$!))
 (provide (rename-out [define-scenario define-feature]))
 (provide (rename-out [describe context]))
 
@@ -15,6 +15,14 @@
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax-parameter for/spec
+  (lambda [stx]
+    (raise-syntax-error 'for/spec "should be inside `describe` or `context`" stx)))
+
+(define-syntax-parameter for*/spec
+  (lambda [stx]
+    (raise-syntax-error 'for*/spec "should be inside `describe` or `context`" stx)))
+
 (define-syntax-parameter it
   (lambda [stx]
     (raise-syntax-error 'it "should be inside `describe` or `context`" stx)))
@@ -39,8 +47,10 @@
                    [teardown (or (attribute teardown) #'void)])
        (syntax/loc stx
          (make-spec-feature brief
-                            (syntax-parameterize ([it (make-rename-transformer #'describe:it)])
-                              (list (λ [] (spec-expand expr)) #| the simplest way to do lazy evaluation |# ...))
+                            (syntax-parameterize ([it (make-rename-transformer #'describe:it)]
+                                                  [for/spec (make-rename-transformer #'describe:for)]
+                                                  [for*/spec (make-rename-transformer #'describe:for*)])
+                              (list (λ [] expr) #| the simplest way to do lazy evaluation |# ...))
                             #:before setup #:after teardown)))]))
 
 (define-syntax (describe:it stx)
@@ -66,6 +76,18 @@
                                  #:before setup #:after teardown
                                  #:timeout timeout))))]))
 
+(define-syntax (describe:for stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (for/list : (Listof (U Spec-Feature Spec-Behavior)) (clauses ...) body ...))]))
+
+(define-syntax (describe:for* stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (for*/list : (Listof (U Spec-Feature Spec-Behavior)) (clauses ...) body ...))]))
+
 (define-syntax (define-behavior stx)
   (syntax-parse stx
     [(_ [id pstx ...] (local ... #:it brief #:do body ...))
@@ -90,12 +112,6 @@
                        (it brief #:do
                            (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
                              body ...)))))])))]))
-
-(define-syntax (spec-expand stx)
-  (syntax-case stx [for for*]
-    [(_ (for (clause ...) body ...)) (syntax/loc stx (for/list : (Listof (U Spec-Feature Spec-Behavior)) (clause ...) body ...))]
-    [(_ (for* (clause ...) body ...)) (syntax/loc stx (for*/list : (Listof (U Spec-Feature Spec-Behavior)) (clause ...) body ...))]
-    [(_ expr ...) (syntax/loc stx (begin expr ...))]))
 
 (define-syntax (it:$! stx)
   (syntax-parse stx

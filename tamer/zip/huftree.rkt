@@ -41,14 +41,14 @@
 
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym)
+        [(sym final?)
          (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1))]
-        [(distance span)
+        [(distance span final?)
          (let* ([sym (backref-span->huffman-symbol span)])
            (unsafe-vector*-set! frequencies sym (unsafe-idx+ (unsafe-vector*-ref frequencies sym) 1)))]))
 
     (lz77-deflate txt submit-huffman-symbol (assert (zip-name->maybe-strategy 'identity)))
-        
+    
     (define heapsize : Index
       (time** #:title 'heapify
               (let ([heapsize (huffman-refresh-minheap! frequencies huffman-tree)])

@@ -23,10 +23,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:allow-dynamic-block? Boolean
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:fixed-only? Boolean
                                                    #:min-match Positive-Byte #:name Any)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:allow-dynamic-block? [allow-dynamic? #true]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:fixed-only? [static-only? #true]
            #:min-match [min-match lz77-default-min-match] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
     (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
@@ -60,68 +60,73 @@
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
 
-    (define raw-payload-start : Index window-size/2)
-    (define raw-payload-end : Index window-size/2)
-
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression?))
     (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 no-compression?))
     (define hash-nil : Index (bytes-length window))
     (define prev-remained : Index 0)
     (define prev-hash : Index 0)
+
+    (define raw-start : Index window-size/2)
+    (define raw-end : Index window-size/2)
+    (define stored-start : Fixnum window-size/2)
+    (define stored-count : Index 0)
     
     (define submit-huffman-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym) ; <=> (submit-huffman-symbol sym 0)
+        [(sym BFINAL) ; <=> (submit-huffman-symbol sym 0 BFINAL)
          (unsafe-vector*-set! lz77-block lz77-payload sym)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (set! stored-count (unsafe-idx+ stored-count 1))
          (when (= lz77-payload lz77-blocksize)
-           (void (lz77-block-flush #false lz77-payload)))]
-        [(distance span)
+           (void (lz77-block-flush BFINAL lz77-payload)))]
+        [(distance span BFINAL)
          (unsafe-vector*-set! lz77-block lz77-payload span)
          (unsafe-vector*-set! lz77-dists lz77-payload distance)
          (set! lz77-payload (unsafe-idx+ lz77-payload 1))
+         (set! stored-count (unsafe-idx+ stored-count span))
          (when (= lz77-payload lz77-blocksize)
-           (void (lz77-block-flush #false lz77-payload)))]))
+           (void (lz77-block-flush BFINAL lz77-payload)))]))
 
     ;; for (dynamic) huffman tree
-    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
-    (define literal-codewords : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
-    (define literal-lengths : Bytes (smart-make-bytes uplitcode (or no-compression? (not allow-dynamic?))))
+    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
+    (define literal-codewords : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
+    (define literal-lengths : Bytes (smart-make-bytes uplitcode (or no-compression? static-only?)))
 
-    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcode (or no-compression? (not allow-dynamic?))))
-    (define distance-codewords : (Mutable-Vectorof Index) (smart-make-vector updistcode (or no-compression? (not allow-dynamic?))))
-    (define distance-lengths : Bytes (smart-make-bytes updistcode (or no-compression? (not allow-dynamic?))))
+    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcode (or no-compression? static-only?)))
+    (define distance-codewords : (Mutable-Vectorof Index) (smart-make-vector updistcode (or no-compression? static-only?)))
+    (define distance-lengths : Bytes (smart-make-bytes updistcode (or no-compression? static-only?)))
 
-    (define codeword-lengths : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
-    (define codelen-symbols : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
-    (define codelen-repeats : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? (not allow-dynamic?))))
-    (define codelen-lengths : Bytes (smart-make-bytes uplencode (or no-compression? (not allow-dynamic?))))
-    (define codelen-frequencies : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? (not allow-dynamic?))))
-    (define codelen-codewords : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? (not allow-dynamic?))))
+    (define codeword-lengths : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
+    (define codelen-symbols : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
+    (define codelen-repeats : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
+    (define codelen-lengths : Bytes (smart-make-bytes uplencode (or no-compression? static-only?)))
+    (define codelen-frequencies : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? static-only?)))
+    (define codelen-codewords : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? static-only?)))
     
-    (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) (or no-compression? (not allow-dynamic?))))
-    (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
-    (define prefab-nextcodes : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? (not allow-dynamic?))))
+    (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) (or no-compression? static-only?)))
+    (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
+    (define prefab-nextcodes : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
     
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
-        [(sym) ; <=> (submit-huffman-symbol+frequency sym 0)
+        [(sym BFINAL) ; <=> (submit-huffman-symbol+frequency sym 0 BFINAL)
          (unsafe-vector*-set! literal-frequencies sym (unsafe-idx+ (unsafe-vector*-ref literal-frequencies sym) 1))
-         (submit-huffman-symbol sym)]
-        [(distance span)
+         (submit-huffman-symbol sym BFINAL)]
+        [(distance span BFINAL)
          (let ([hspan (backref-span->huffman-symbol span)]
                [hdist (backref-distance->huffman-distance span)])
            (unsafe-vector*-set! literal-frequencies hspan (unsafe-idx+ (unsafe-vector*-ref literal-frequencies hspan) 1))
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
-           (submit-huffman-symbol distance span))]))
+           (submit-huffman-symbol distance span BFINAL))]))
 
     (define (construct-tree [freqs : (Vectorof Index)] [codes : (Mutable-Vectorof Index)] [lengths : Bytes] [upcode : Index] [limit : Byte]) : (Values Byte Index)
       (huffman-frequencies->tree! freqs codes lengths upcode minheap prefab-nextcodes prefab-counts #:length-limit limit))
     
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-calculate-stored-block-length [start : Index] [end : Index]) : Nonnegative-Fixnum       
-      (+ 43 #| 3 + 8 + 16 * 2 |# ; TODO: work with precise align padding instead of 8
-         (unsafe-idxlshift (unsafe-idx- end start) 3)))
+    (define (huffman-calculate-stored-block-length) : Natural
+      (+ ($SHELL 'tellp)
+         (+ 35 #| 3 + 16 * 2 |#
+            (unsafe-idxlshift stored-count 3))))
 
     (define (huffman-calculate-static-block-length) : Nonnegative-Fixnum
       (unsafe-fx+ 3
@@ -242,41 +247,34 @@
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (raw-block-flush [BFINAL : Boolean] [flush-lz77? : Boolean]) : (U Void Natural)
-      (define payload : Fixnum (unsafe-fx- raw-payload-end raw-payload-start))
-      
       (cond [(not no-compression?)
-             (when (or (> payload 0) (> prev-remained 0))
-               ;; NOTE
-               ; `lz77-deflate` will invoke `lz77-block-flush` whenever the lz77 block is full,
-               ;   but which will never write the block with a FINAL flag depsite the value of `BFINAL`.
-               ; Instead, another empty final block will be appended if there happens to be no more
-               ;   content after flushing last full lz77 block.
-
+             (when (or (> raw-end raw-start) (> prev-remained 0))
                (define-values (next-idx hash++)
                  (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
-                               window (if (not allow-dynamic?) submit-huffman-symbol submit-huffman-symbol+frequency)
-                               strategy (unsafe-idx- raw-payload-start prev-remained) raw-payload-end prev-hash BFINAL hash-nil))
+                               window (if (not static-only?) submit-huffman-symbol+frequency submit-huffman-symbol)
+                               strategy (unsafe-idx- raw-start prev-remained) raw-end prev-hash BFINAL hash-nil))
 
-               (set! prev-remained (unsafe-idx- raw-payload-end next-idx))
+               (set! prev-remained (unsafe-idx- raw-end next-idx))
                (set! prev-hash hash++)
 
-               ; the length of sliding window is asuumed exactly multiple of length of the raw block
-               (cond [(< raw-payload-end window-size)
-                      (set! raw-payload-start raw-payload-end)]
+               ; the length of sliding window is assumed exactly multiple of length of the raw block
+               (cond [(< raw-end window-size)
+                      (set! raw-start raw-end)]
                      [else ; slide the window
                       (unsafe-bytes-copy! window 0 window window-size/2 window-size)
-                      (lz77-slide-hash hash-heads hash-prevs window-size/2 hash-nil)
-                      (set! raw-payload-start window-size/2)
-                      (set! raw-payload-end raw-payload-start)]))
-             
+                      (lz77-slide-hash hash-heads hash-prevs window-size/2 hash-nil strategy)
+                      (set! raw-start window-size/2)
+                      (set! raw-end raw-start)
+                      (set! stored-start (unsafe-fx- stored-start window-size/2))]))
+
              (when (or BFINAL flush-lz77?)
                (cond [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload)]
                      [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
-            [(> payload 0)
-             (huffman-write-stored-block! window BFINAL raw-payload-start raw-payload-end)
+            [(> raw-end raw-start)
+             (huffman-write-stored-block! window BFINAL raw-start raw-end)
              ; no need to maintain the history of the input for stored blocks,
              ; simply reset the end cursor to where it starts.
-             (set! raw-payload-end raw-payload-start)]
+             (set! raw-end raw-start)]
             [(and BFINAL) (huffman-write-empty-block! BFINAL)]))
 
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
@@ -287,13 +285,22 @@
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
       ;   reasonable data and slide the window when necessary.
 
-      (or (and allow-dynamic?
+      (define-values (?stored-start non-dynamic-bits)
+        (cond [(and static-only?) (values #false 0)] ; in which case no frequencies are gathered, `non-dynamic-bits` is meaningless
+              [(< stored-start 0) (values #false (huffman-calculate-static-block-length))]
+              [else (let ([static-bits (huffman-calculate-static-block-length)]
+                          [stored-bits (huffman-calculate-stored-block-length)])
+                      (if (< static-bits stored-bits)
+                          (values #false static-bits)
+                          (values stored-start stored-bits)))]))
+      
+      (or (and (not static-only?)
                (let-values ([(dist-maxlength hdist) (construct-tree distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
                  (and (>= hdist distance-nbase) ; it's impossible to compress a block with zero back references
-                      (< dist-maxlength codelen-copy:2)
+                      (<= dist-maxlength codeword-length-limit)
                       (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)`
                       (let-values ([(lit-maxlength hlit) (construct-tree literal-frequencies literal-codewords literal-lengths uplitcode codeword-length-limit)])
-                        (and (< lit-maxlength codelen-copy:2)
+                        (and (<= lit-maxlength codeword-length-limit)
                              ; combine literal alphebet and distance alphabet for better compressed codelen codes
                              (let ([N (unsafe-idx+ hlit hdist)])
                                (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
@@ -301,43 +308,46 @@
                                (huffman-dynamic-lengths-deflate! codeword-lengths N codelen-symbols codelen-repeats codelen-frequencies)
                                (let*-values ([(who cares) (construct-tree codelen-frequencies codelen-codewords codelen-lengths uplencode uplenbits)]
                                              [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
-                                             [(static-length) (huffman-calculate-static-block-length)]
                                              [(dynamic-length) (huffman-calculate-dynamic-block-length hclen)])
-                                 (and (< dynamic-length static-length)
+                                 (and (< dynamic-length non-dynamic-bits)
                                       (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen)))))))))
           
-          (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload))
+          (if (index? ?stored-start)
+              (huffman-write-stored-block! window BFINAL ?stored-start (unsafe-idx+ ?stored-start stored-count))
+              (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)))
 
-      (unless (not allow-dynamic?)
+      (when (not static-only?)
         (vector-fill! literal-frequencies 0)
         (vector-fill! distance-frequencies 0))
 
       (vector-fill! lz77-dists 0)
-      (set! lz77-payload 0))
+      (set! lz77-payload 0)
+      (set! stored-count 0)
+      (set! stored-start (unsafe-fx+ stored-start stored-count)))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define received : Integer (- end start))
       
-      (cond [(> received 0)
-             (let write-raw ([recv : Natural received]
-                             [start : Natural start]
-                             [available : Index (unsafe-idx- raw-blocksize (unsafe-idx- raw-payload-end raw-payload-start))])
-              (if (>= recv available)
-                  (let ([start++ (unsafe-idx+ start available)])
-                    (unsafe-bytes-copy! window raw-payload-end bs start start++)
-                    (set! raw-payload-end (unsafe-idx+ raw-payload-end available))
-                    (raw-block-flush #false #false)
-                    (when (> recv available)
-                      (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
-                  (let ([end++ (unsafe-idx+ raw-payload-end recv)])
-                    (unsafe-bytes-copy! window raw-payload-end bs start end)
-                    (set! raw-payload-end end++))))]
+      (when (> received 0)
+        (let write-raw ([recv : Natural received]
+                        [start : Natural start]
+                        [available : Index (unsafe-idx- raw-blocksize (unsafe-idx- raw-end raw-start))])
+          (if (>= recv available)
+              (let ([start++ (unsafe-idx+ start available)])
+                (unsafe-bytes-copy! window raw-end bs start start++)
+                (set! raw-end (unsafe-idx+ raw-end available))
+                (raw-block-flush #false #false)
+                (when (> recv available)
+                  (write-raw (unsafe-idx- recv available) start++ raw-blocksize)))
+              (let ([end++ (unsafe-idx+ raw-end recv)])
+                (unsafe-bytes-copy! window raw-end bs start end)
+                (set! raw-end end++)))))
 
-            [(or non-block/buffered? #| non-block writing implies flushing |#
-                 (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
-             (raw-block-flush #false #true)])
+      (when (or non-block/buffered? #| non-block writing implies flushing |#
+                (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
+        (raw-block-flush #false #true))
       
-      (- end start))
+      received)
 
     (define (block-close) : Void
       (raw-block-flush #true #true)
@@ -352,7 +362,7 @@
                       #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-input-deflated-block : (->* (Input-Port Natural)
+(define open-input-deflated-block : (->* (Input-Port (Option Natural))
                                          (Boolean #:window-bits Positive-Byte #:name (Option String) #:error-name Symbol #:commit? Boolean)
                                          Input-Port)
   (lambda [#:window-bits [winbits window-ibits] #:name [name #false] #:error-name [ename 'zip] #:commit? [commit? #false]
@@ -596,9 +606,9 @@
         consumed))
 
     (define (read-huffman-symbol [table : Huffman-Alphabet] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
-      (define far-away-from-eof? : Boolean (FEED-BITS upsymbits)) ; for dynamic huffman ecoding, the maximum bit length would be 15 + 13, which rounded to 32  
+      (define far-away-from-eof? : Boolean (FEED-BITS upsymbits)) ; for dynamic huffman ecoding, the maximum bit length would be 15 + 13, which rounded up to 32  
         
-      (let-values ([(symbol-code code-length) (huffman-symbol-extract table (PEEK-BITS) maxlength)])
+      (let-values ([(symbol-code code-length) (huffman-symbol-lookup table (PEEK-BITS) maxlength)])
         (when (= code-length 0)
           (let ([s (PEEK-BITS maxlength)])
             (throw-check-error /dev/blkin ename "~a[~a]: invalid ~a codeword: ~a (prefix free: ~a)"

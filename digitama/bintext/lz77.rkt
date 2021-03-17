@@ -17,8 +17,8 @@
 (define-type LZ77-Symbol (U Index (Pairof Index Index)))
 
 (define-type LZ77-Submit-Symbol
-  (case-> [Index -> Void]
-          [Index Index -> Void]))
+  (case-> [Index Boolean -> Void]
+          [Index Index Boolean -> Void]))
 
 (define lz77-default-safe-hash-bits : Positive-Byte 24)
 (define lz77-default-hash-bits : Positive-Byte 15)
@@ -83,7 +83,7 @@
 
 (define-syntax (define-lz77-deflate/hash stx)
   (syntax-case stx [:]
-    [(_ (lz77-deflate src symbol-submit start end min-match max-match farthest filtered nil)
+    [(_ (lz77-deflate src symbol-submit start end min-match max-match farthest filtered final? nil)
         #:args [(var : Type) ...]
         #:with [hash0 hash-size hash-shift hash-mask]
         #:chain [heads prevs]
@@ -102,7 +102,7 @@
            (define first-run? : Boolean (or (not hs) (eq? (unsafe-vector*-ref hs 0) 0)))
            (define offset : Index (if (not first-run?) start (unsafe-idx+ start min-match-1)))
 
-           (cond [(>= offset end) (values (lz77-deflate/identity src symbol-submit start end) 0)]
+           (cond [(>= offset end) (values (lz77-deflate/identity src symbol-submit start end final?) 0)]
                  [else (let* ([safe-bits (min hash-bits lz77-default-safe-hash-bits)]
                               [hash-size (unsafe-idxlshift 1 safe-bits)]
                               [hash-shift (quotient (+ safe-bits min-match-1) min-match)]
@@ -125,7 +125,7 @@
                                      [hash-span min-match-1])
                                  (define-values (m-idx next-hash) (begin body ...))
                                  (values (cond [(not final?) m-idx]
-                                               [else (lz77-deflate/identity src symbol-submit m-idx end)])
+                                               [else (lz77-deflate/identity src symbol-submit m-idx end final?)])
                                          next-hash)))))]))))]))
        
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -139,7 +139,7 @@
            #:farthest [farthest lz77-default-farthest] #:filtered [filtered 0]
            src symbol-submit strategy [start 0] [end (bytes-length src)] [hash0 0] [final? #true] [nil (bytes-length src)]]
     (cond [(zip-run-strategy? strategy) ; better for PNGs
-           (values (lz77-deflate/rle src symbol-submit strategy start end #:min-match min-match #:max-match max-match) hash0)]
+           (values (lz77-deflate/rle src symbol-submit strategy start end final? #:min-match min-match #:max-match max-match) hash0)]
           [(zip-backward-strategy? strategy) ; corresponds to the medium strategy of intel's `zlib-new`
            (let* ([level (zip-strategy-level strategy)]
                   [preference (zip-backward-strategy-config strategy)])
@@ -147,7 +147,7 @@
                     (lz77-deflate/backward #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                            #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
                                            src symbol-submit preference (zip-backward-strategy-insert-factor strategy) start end hash0 final? nil)]
-                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end) hash0)]))]
+                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end final?) hash0)]))]
           [(zip-normal-strategy? strategy)
            (let* ([level (zip-strategy-level strategy)]
                   [preference (zip-normal-strategy-config strategy)])
@@ -155,7 +155,7 @@
                     (lz77-deflate/normal #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                          #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
                                          src symbol-submit preference start end hash0 final? nil)]
-                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end) hash0)]))]
+                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end final?) hash0)]))]
           [(zip-lazy-strategy? strategy)
            (let* ([level (zip-strategy-level strategy)]
                   [preference (zip-lazy-strategy-config strategy)])
@@ -163,14 +163,14 @@
                     (lz77-deflate/lazy #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                        #:min-match min-match #:max-match max-match #:farthest farthest #:filtered filtered
                                        src symbol-submit preference start end hash0 final? nil)]
-                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end) hash0)]))]
+                   [else #| dead code for `zip-create` |# (values (lz77-deflate/identity src symbol-submit start end final?) hash0)]))]
           [else ; special strategies
            (case (zip-strategy-name strategy)
              [(plain)
               (lz77-deflate/plain #:hash-bits hash-bits #:hash-heads hs #:hash-chain ps
                                   #:min-match min-match #:max-match max-match
                                   src symbol-submit start end hash0 final? nil)]
-             [else #| identity, huffman-only, and the fallback |# (values (lz77-deflate/identity src symbol-submit start end) hash0)])])))
+             [else #| identity, huffman-only, and the fallback |# (values (lz77-deflate/identity src symbol-submit start end final?) hash0)])])))
 
 (define lz77-deflate* : (->* (Bytes LZ77-Submit-Symbol ZIP-Strategy)
                             (#:window-bits Positive-Byte #:memory-level Positive-Byte
@@ -207,7 +207,7 @@
                                hash #false nil))
                
                (unsafe-bytes-copy! window 0 window window-size/2 window-size)
-               (lz77-slide-hash heads prevs window-size/2 nil)
+               (lz77-slide-hash heads prevs window-size/2 nil strategy)
                (deflate/slide (unsafe-idx+ src-idx window-size/2) window-size/2 (unsafe-idx- window-size next-idx) hash++))]
             [(> rest 0)
              (unsafe-bytes-copy! window window-idx src src-idx end)
@@ -244,7 +244,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; corresponds to `zlib`'s fast strategy, no lazy match or filter
-(define-lz77-deflate/hash (lz77-deflate/normal src symbol-submit start end min-match max-match farthest filtered nil)
+(define-lz77-deflate/hash (lz77-deflate/normal src symbol-submit start end min-match max-match farthest filtered final? nil)
   #:args [(preference : ZIP-Deflation-Config)]
   #:with [hash0 hash-size hash-shift hash-mask]
   #:chain [heads prevs]
@@ -264,10 +264,10 @@
             
             (if (< span min-match)
                 (let ([m-idx++ (unsafe-idx+ m-idx 1)])
-                  (symbol-submit (unsafe-bytes-ref src m-idx))
+                  (symbol-submit (unsafe-bytes-ref src m-idx) final?)
                   (deflate/normal hash++ m-idx++))
                 (let ([distance (unsafe-idx- m-idx pointer)])
-                  (symbol-submit distance span)
+                  (symbol-submit distance span final?)
                   (cond [(> span insert-limit) (deflate/normal hash++ (unsafe-idx+ m-idx span))]
                         [else (let ([ins-start (unsafe-idx+ m-idx 1)]
                                     [ins-end (unsafe-idx+ m-idx span)])
@@ -277,7 +277,7 @@
           (values m-idx hash)))))
 
 ; corresponds to `zlib`'s slow strategy, choose the better one between matches at current position and the next position 
-(define-lz77-deflate/hash (lz77-deflate/lazy src symbol-submit start end min-match max-match farthest filtered nil)
+(define-lz77-deflate/hash (lz77-deflate/lazy src symbol-submit start end min-match max-match farthest filtered final? nil)
   #:args [[preference : ZIP-Deflation-Config]]
   #:with [hash0 hash-size hash-shift hash-mask]
   #:chain [heads prevs]
@@ -305,33 +305,33 @@
                (cond [(>= p-span self-span)
                       (let* ([p-idx (unsafe-idx- m-idx 1)]
                              [p-idx++ (unsafe-idx+ p-idx p-span)])
-                        (symbol-submit p-distance p-span)
+                        (symbol-submit p-distance p-span final?)
                         (lz77-insert-string heads prevs p-hash src p-idx p-idx++ reasonable-end hash-span hash-shift hash-mask nil)
                         (deflate/lazy p-hash p-idx++ invalid-span 0 hash))]
                      [(or (< self-span minimum/filtered-match)
                           (and (= self-span min-match) ; throw away short matches with long distances
                                (> (unsafe-idx- m-idx pointer) farthest)))
-                      (symbol-submit (unsafe-bytes-ref src m-idx))
+                      (symbol-submit (unsafe-bytes-ref src m-idx) final?)
                       (lz77-update-hash heads prevs hash++ ?pointer m-idx nil)
                       (deflate/lazy hash++ (unsafe-idx+ m-idx 1) invalid-span 0 hash)]
                      [(> self-span lazy-span)
                       (when (> p-span 0)
                         (let ([p-idx (unsafe-idx- m-idx 1)])
-                          (symbol-submit (unsafe-bytes-ref src p-idx))
+                          (symbol-submit (unsafe-bytes-ref src p-idx) final?)
                           (lz77-update-hash heads prevs p-hash p-idx nil)))
                       (let ([m-idx++ (unsafe-idx+ m-idx self-span)])
-                        (symbol-submit (unsafe-idx- m-idx pointer) self-span)
+                        (symbol-submit (unsafe-idx- m-idx pointer) self-span final?)
                         (lz77-insert-string heads prevs hash++ src m-idx m-idx++ reasonable-end hash-span hash-shift hash-mask nil)
                         (deflate/lazy hash++ m-idx++ invalid-span 0 hash))]
                      [(> p-span 0)
                       (let ([p-idx (unsafe-idx- m-idx 1)])
-                        (symbol-submit (unsafe-bytes-ref src p-idx))
+                        (symbol-submit (unsafe-bytes-ref src p-idx) final?)
                         (lz77-update-hash heads prevs p-hash p-idx nil)
                         (deflate/lazy hash++ (unsafe-idx+ m-idx 1) self-span (unsafe-idx- m-idx pointer) hash))]
                      [else (deflate/lazy hash++ (unsafe-idx+ m-idx 1) self-span (unsafe-idx- m-idx pointer) hash)]))]
             
             [(> p-span 0)
-             (symbol-submit p-distance p-span)
+             (symbol-submit p-distance p-span final?)
              (values (unsafe-idx+ (unsafe-idx- m-idx 1) p-span) hash)]
             
             [else (values m-idx hash)]))))
@@ -361,7 +361,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; corresponds to `zlib`'s fastest strategy, no lazy, chain, filter or preferences
-(define-lz77-deflate/hash (lz77-deflate/plain src symbol-submit start end min-match max-match farthest filtered nil)
+(define-lz77-deflate/hash (lz77-deflate/plain src symbol-submit start end min-match max-match farthest filtered final? nil)
   #:args []
   #:with [hash0 hash-size hash-shift hash-mask]
   #:chain [heads prevs]
@@ -380,16 +380,16 @@
           
           (if (< span min-match)
               (let ([m-idx++ (unsafe-idx+ m-idx 1)])
-                (symbol-submit (unsafe-bytes-ref src m-idx))
+                (symbol-submit (unsafe-bytes-ref src m-idx) final?)
                 (deflate/plain hash++ m-idx++))
               (let ([distance (unsafe-idx- m-idx pointer)])
-                (symbol-submit distance span)
+                (symbol-submit distance span final?)
                 (deflate/plain hash++ (unsafe-idx+ m-idx span)))))
         
         (values m-idx hash))))
 
 ; corresponds to the medium strategy of intel's `zlib-new`, match backward from the second one then adjust both
-(define-lz77-deflate/hash (lz77-deflate/backward src symbol-submit start end min-match max-match farthest filtered nil)
+(define-lz77-deflate/hash (lz77-deflate/backward src symbol-submit start end min-match max-match farthest filtered final? nil)
   #:args [[preference : ZIP-Deflation-Config] [factor : Positive-Byte]]
   #:with [hash0 hash-size hash-shift hash-mask]
   #:chain [heads prevs]
@@ -411,8 +411,8 @@
                           (and (= self-span min-match) ; throw away short matches with long distances
                                (> (unsafe-idx- m-idx pointer) farthest)))
                       (when (> p-span 0)
-                        (symbol-submit p-distance p-span))
-                      (symbol-submit (unsafe-bytes-ref src m-idx))
+                        (symbol-submit p-distance p-span final?))
+                      (symbol-submit (unsafe-bytes-ref src m-idx) final?)
                       (deflate/backward hash++ (unsafe-idx+ m-idx 1) 0 0)]
                      [(> p-span 0)
                       (define distance : Index (unsafe-idx- m-idx pointer)) ; despite the backward stepping, the distance remains the same
@@ -420,8 +420,8 @@
                       (define self-span++ : Index (unsafe-idx+ self-span back-span))
                       (define p-span-- : Index (unsafe-idx- p-span back-span))
                       
-                      (cond [(>= p-span-- min-match) (symbol-submit p-distance p-span--)]
-                            [(> p-span-- 0) (lz77-deflate/identity src symbol-submit (unsafe-idx- m-idx p-span) (unsafe-idx- m-idx back-span))]
+                      (cond [(>= p-span-- min-match) (symbol-submit p-distance p-span-- final?)]
+                            [(> p-span-- 0) (lz77-deflate/identity src symbol-submit (unsafe-idx- m-idx p-span) (unsafe-idx- m-idx back-span) final?)]
                             [else (void #| the previous match has been merged, see `lz77-backward-span` |#)])
                       
                       (if (> self-span insert-limit)
@@ -439,7 +439,7 @@
                      [else (deflate/backward hash++ (unsafe-idx+ m-idx self-span) self-span (unsafe-idx- m-idx pointer))]))]
             
             [(> p-span 0)
-             (symbol-submit p-distance p-span)
+             (symbol-submit p-distance p-span final?)
 
              ; NOTE: unlike the lazy one, no need to re-add the `p-span` here, as each round starts a new fresh matching process
              (values m-idx hash)]
@@ -447,15 +447,15 @@
             [else (values m-idx hash)]))))
 
 ; corresponds to `zlib`'s run length encoding strategy, good for PNGs
-(define lz77-deflate/rle : (->* (Bytes LZ77-Submit-Symbol ZIP-Run-Strategy) (Index Index #:min-match Positive-Byte #:max-match Index) Index)
+(define lz77-deflate/rle : (->* (Bytes LZ77-Submit-Symbol ZIP-Run-Strategy) (Index Index Boolean #:min-match Positive-Byte #:max-match Index) Index)
   (lambda [#:min-match [min-match lz77-default-min-match] #:max-match [max-match lz77-default-max-match]
-           src symbol-submit preference [start 0] [end (bytes-length src)]]
+           src symbol-submit preference [start 0] [end (bytes-length src)] [final? #true]]
     (define distance : Positive-Index (zip-run-strategy-length preference))
     (define offset : Index (min end (unsafe-idx+ start distance)))
     
     (let run-length ([idx : Index start])
       (cond [(< idx offset)
-             (symbol-submit (unsafe-bytes-ref src idx))
+             (symbol-submit (unsafe-bytes-ref src idx) final?)
              (run-length (unsafe-idx+ idx 1))]
             [else (let deflate/rle ([m-idx : Index idx])
                     (cond [(>= m-idx end) end]
@@ -463,17 +463,17 @@
                                        [boundary (min (unsafe-idx+ m-idx max-match) end)]
                                        [span (lz77-backref-span src pointer m-idx boundary)])
                                   (if (< span min-match)
-                                      (begin (symbol-submit (unsafe-bytes-ref src m-idx))
+                                      (begin (symbol-submit (unsafe-bytes-ref src m-idx) final?)
                                              (deflate/rle (unsafe-idx+ m-idx 1)))
-                                      (begin (symbol-submit distance span)
+                                      (begin (symbol-submit distance span final?)
                                              (deflate/rle (unsafe-idx+ m-idx span)))))]))]))))
 
 ; corresponds to `zlib`'s huffman-only strategy, also served as the fallback and helper
-(define lz77-deflate/identity : (->* (Bytes LZ77-Submit-Symbol) (Index Index) Index)
-  (lambda [src symbol-submit [start 0] [end (bytes-length src)]]
+(define lz77-deflate/identity : (->* (Bytes LZ77-Submit-Symbol) (Index Index Boolean) Index)
+  (lambda [src symbol-submit [start 0] [end (bytes-length src)] [final? #true]]
     (let deflate/id ([idx : Nonnegative-Fixnum start])
       (cond [(>= idx end) end]
-            [else (symbol-submit (unsafe-bytes-ref src idx))
+            [else (symbol-submit (unsafe-bytes-ref src idx) final?)
                   (deflate/id (+ idx 1))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -499,8 +499,8 @@
                           [(>= self-span nice-span) (search p-idx self-span nil 0)]
                           [else #| normal case |#   (search p-idx self-span (unsafe-vector*-ref chains p-idx) (sub1 chsize))]))]))))
 
-(define lz77-slide-hash : (-> (Vectorof Index) (Option (Vectorof Index)) Index Index Void)
-  (lambda [heads ?prevs distance nil]
+(define lz77-slide-hash : (->* ((Vectorof Index) (Vectorof Index) Index Index) ((Option ZIP-Strategy)) Void)
+  (lambda [heads prevs distance nil [strategy #false]]
     (let ([n (vector-length heads)])
       (let slide-head ([idx : Nonnegative-Fixnum n])
         (when (< idx n)
@@ -511,14 +511,16 @@
           
           (slide-head (+ idx 1)))))
 
-    (unless (not ?prevs)
-      (let ([n (vector-length ?prevs)])
+    (unless (or (zip-backward-strategy? strategy)
+                (zip-lazy-strategy? strategy)
+                (zip-normal-strategy? strategy))
+      (let ([n (vector-length prevs)])
         (let slide-prev ([idx : Nonnegative-Fixnum n])
           (when (< idx n)
-            (define pos : Index (unsafe-vector*-ref ?prevs idx))
+            (define pos : Index (unsafe-vector*-ref prevs idx))
             
-            (cond [(< pos distance) (unsafe-vector*-set! ?prevs idx nil)]
-                  [(< pos nil) (unsafe-vector*-set! ?prevs idx (unsafe-idx- pos distance))])
+            (cond [(< pos distance) (unsafe-vector*-set! prevs idx nil)]
+                  [(< pos nil) (unsafe-vector*-set! prevs idx (unsafe-idx- pos distance))])
             
             (slide-prev (+ idx 1))))))))
 

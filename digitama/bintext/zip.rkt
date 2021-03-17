@@ -79,12 +79,12 @@
              (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?))])
+             (let ([desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level fixed-only?)])
                (write-zip-data-descriptor desc /dev/zipout)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level (not fixed-only?) (+ position self-size))])
+                    [desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level fixed-only? (+ position self-size))])
                (file-position /dev/zipout position)
                (write-zip-entry (remake-zip-entry self-local
                                                   #:crc32 (zip-data-descriptor-crc32 desc)
@@ -106,7 +106,7 @@
 (define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean)
                                     ((Option Natural))
                                     ZIP-Data-Descriptor)
-  (lambda [pool /dev/stdout source entry-name method strategy memory-level allow-dynamic-block? [seek #false]]
+  (lambda [pool /dev/stdout source entry-name method strategy memory-level static-only? [seek #false]]
     (define anchor : Natural
       (cond [(not seek) (file-position /dev/stdout)]
             [else (file-position /dev/stdout seek) seek]))
@@ -114,7 +114,7 @@
     (define /dev/zipout : Output-Port
       (case method
         [(deflated)
-         (open-output-deflated-block /dev/stdout strategy #false #:allow-dynamic-block? allow-dynamic-block? #:memory-level memory-level #:name entry-name)]
+         (open-output-deflated-block /dev/stdout strategy #false #:fixed-only? static-only? #:memory-level memory-level #:name entry-name)]
         [else /dev/stdout]))
     
     (define-values (rsize crc32)

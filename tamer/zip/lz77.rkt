@@ -66,21 +66,21 @@
     
     (define record-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym)
+        [(sym final?)
          (vector-set! magazine mgz-idx sym)
          (set! mgz-idx (+ mgz-idx 1))]
-        [(distance size)
+        [(distance size final?)
          (vector-set! magazine mgz-idx (lz77-backref-pair distance size))
          (set! mgz-idx (+ mgz-idx 1))]))
 
     (define display-symbol : LZ77-Submit-Symbol
       (case-lambda
-        [(sym)
-         (record-symbol sym)
+        [(sym final?)
+         (record-symbol sym final?)
          (display (integer->char sym))
          (flush-output (current-output-port))]
-        [(pointer size)
-         (record-symbol pointer size)
+        [(pointer size final?)
+         (record-symbol pointer size final?)
          (display (cons pointer size))
          (flush-output (current-output-port))]))
 
