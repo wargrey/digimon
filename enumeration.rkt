@@ -11,6 +11,35 @@
 (require "digitama/ioexn.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-unnamed-enumeration stx)
+  (syntax-case stx [:]
+    [(_ id : BaseType #:with id-value [enum ...])
+     (syntax/loc stx
+       (begin (define-unnamed-enumeration id : BaseType [enum ...])
+              
+              (define id-value : (All (a) (case-> [BaseType -> (U False BaseType)]
+                                                  [BaseType (U BaseType (-> Symbol String BaseType a)) -> (U a BaseType)]))
+                (let ([expected (exn-constraint->string (list 'enum ...))])
+                  (case-lambda
+                    [(e throw) (or (id-value e) (if (procedure? throw) (throw 'id-value expected e) throw))]
+                    [(e) (cond [(eq? e 'enum) enum] ... [else #false])])))))]
+
+    [(_ [id ids] : BaseType [enum ...])
+     (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
+                   [_ (let ([enums (syntax->list #'[enum ...])])
+                        (for/list ([<enum> (in-value (check-duplicates enums eq? #:key syntax-e))])
+                          (when (syntax? <enum>)
+                            (raise-syntax-error 'define-unnamed-enumeration "duplicate value" <enum> #false
+                                                (filter (λ [<e>] (and (eq? (syntax-e <e>) (syntax-e <enum>))
+                                                                      (not (eq? <e> <enum>))))
+                                                        enums)))))])
+       (syntax/loc stx
+         (begin (define ids : (Pairof BaseType (Listof BaseType)) (list 'enum ...)))))]
+
+    [(_ id : BaseType [enum ...])
+     (with-syntax ([ids (format-id #'id "~as" (syntax-e #'id))])
+       (syntax/loc stx (define-unnamed-enumeration [id ids] : BaseType [enum ...])))]))
+
 (define-syntax (define-enumeration stx)
   (syntax-case stx [:]
     [(_ id : TypeU #:with kw->enum #:-> EnumType [enum value] ...)

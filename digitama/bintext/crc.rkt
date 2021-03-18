@@ -23,10 +23,12 @@
         (update (+ ulong 1))))
     table))
 
-(define update-crc32 : (-> Natural Bytes Index Natural Natural Index)
+(define update-crc32 : (-> Index Bytes Index Index Index Index)
   (lambda [crc0 raw n start stop]
     (define table : (Vectorof Nonnegative-Fixnum) (hash-ref! tables n (λ [] (make-crc32-table n))))
-    (for/fold ([c : Index (assert crc0 index?)])
-              ([b : Byte (in-bytes raw start stop)])
-      (unsafe-idxxor (unsafe-vector*-ref table (unsafe-fxremainder (bitwise-xor c b) n))
-                     (unsafe-idxrshift c 8)))))
+    (let crc32 ([idx : Nonnegative-Fixnum start]
+                [c : Index crc0])
+      (cond [(>= idx stop) c]
+            [else (crc32 (+ idx 1)
+                         (unsafe-idxxor (unsafe-vector*-ref table (unsafe-fxremainder (bitwise-xor c (unsafe-bytes-ref raw idx)) n))
+                                        (unsafe-idxrshift c 8)))]))))

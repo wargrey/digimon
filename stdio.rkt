@@ -36,8 +36,6 @@
     [(UInt64 MUInt64)            (list #'Natural 8 #'read-muint64 #'write-muintptr #'stdio-fixed-size)]
     [(LLong LInt64)              (list #'Integer 8 #'read-lsint64 #'write-lsintptr #'stdio-fixed-size)]
     [(LUInt64)                   (list #'Natural 8 #'read-luint64 #'write-luintptr #'stdio-fixed-size)]
-    [(Size MSize)                (list #'Index   8 #'read-msize   #'write-muintptr #'stdio-fixed-size)]
-    [(LSize)                     (list #'Index   8 #'read-lsize   #'write-luintptr #'stdio-fixed-size)]
     [else #false]))
 
 (define-for-syntax (stdio-float-type datatype)
@@ -65,13 +63,28 @@
 
     [else #false]))
 
-(define-for-syntax (stdio-datum-type <DataType>)
+(define-for-syntax (stdio-datum-type <DataType> <layout> <field>)
   (syntax-parse <DataType> #:datum-literals []
-    [(#:enum type datum->raw raw-datum (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*])))
+    [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'Symbol]))
+                                              (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*]))) ...)
      (let ([bintype (stdio-integer-type (syntax-e #'type))])
        (and (list? bintype)
-            (append (cons #'Symbol (cdr bintype))
-                    (list (list #'datum->raw #'enum) (list #'raw-datum #'enum)))))]
+            (append (cons #'Type (cdr bintype))
+                    (list (list #'datum->raw #'enum) (list #'raw->datum #'enum)))))]
+    [(#:enum type datum-identity (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*])))
+     (let ([bintype (stdio-integer-type (syntax-e #'type))])
+       (and (list? bintype)
+            (append bintype
+                    (list null (list #'datum-identity #'enum)))))]
+    [(#:subint type subint? (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'#false]))
+                                  (~optional (~seq #:throw throw) #:defaults ([throw #'throw-range-error]))) ...)
+     (let ([bintype (stdio-integer-type (syntax-e #'type))])
+       (and (list? bintype)
+            (append (if (syntax-e #'Type) (cons #'Type (cdr bintype)) bintype)
+                    (list null
+                          (list (list #'subint?)
+                                (format-id #'subint? "~a-~a" (syntax-e <layout>) (syntax-e <field>))
+                                #'throw)))))]
     [_ #false]))
 
 (define-for-syntax (stdio-expand-typeinfo typeinfo)
@@ -115,14 +128,15 @@
                        (stdio-field-metainfo <metainfo>))]
                     [([FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
-                       (for/list ([<DataType> (in-syntax #'(DataType ...))])
+                       (for/list ([<DataType> (in-syntax #'(DataType ...))]
+                                  [<field> (in-syntax #'(field ...))])
                          (define datatype (syntax-e <DataType>))
                          (stdio-expand-typeinfo
                           (or (stdio-integer-type datatype)
                               (stdio-float-type datatype)
                               (and (pair? datatype)
                                    (or (stdio-bytes-type datatype <fields>)
-                                       (stdio-datum-type <DataType>)))
+                                       (stdio-datum-type <DataType> #'layout <field>)))
                               (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>)))))]
                     [([sig-field magic-number] ...)
                      (filter list?

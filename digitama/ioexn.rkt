@@ -8,8 +8,8 @@
 (require racket/path)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Throw-Range-Error (-> (Option Input-Port) Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
-(define-type Throw-Range-Error* (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
+(define-type Throw-Range-Error (-> (Option Input-Port) (U Symbol Procedure) (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
+(define-type Throw-Range-Error* (-> (U Symbol Procedure) (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:fail:read:signature exn:fail:read () #:extra-constructor-name make-exn:read:signature)
@@ -64,7 +64,7 @@
                                   (current-continuation-marks)
                                   null))))
 
-(define throw-range-error : (-> (Option Input-Port) Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
+(define throw-range-error : Throw-Range-Error
   (lambda [/dev/stdin src constraint given . args]
     (define message : String (exn-args->message args "out of range"))
     (define expected : String (exn-constraint->string constraint))
@@ -74,7 +74,7 @@
                                   (current-continuation-marks)
                                   null))))
 
-(define throw-range-error* : (-> Symbol (U Procedure String (Pairof Real Real) (Listof Any)) Any Any * Nothing)
+(define throw-range-error* : Throw-Range-Error*
   (lambda [src constraint given . args]
     (apply throw-range-error #false src constraint given args)))
 
@@ -100,8 +100,10 @@
           [(string? (car args)) (apply format (car args) (cdr args))]
           [else (~s args)])))
 
-(define exn-src+args->message : (-> Symbol (Listof Any) String)
-  (lambda [src args]
+(define exn-src+args->message : (-> (U Symbol Procedure) (Listof Any) String)
+  (lambda [src0 args]
+    (define src (if (symbol? src0) src0 (assert (object-name src0) symbol?)))
+    
     (if (eq? src '||)
         (cond [(null? args) ""]
               [(string? (car args)) (apply format args)]

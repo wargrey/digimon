@@ -18,8 +18,8 @@
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port Natural -> Integer_t]
                                                [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
-                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error -> (∩ Integer_t a)]))
+                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin size) (do-bytes->integer (read-integer-bytes! /dev/stdin size) 0 size)]
            [(/dev/stdin size subinteger?) (assert (read-integer /dev/stdin size) subinteger?)]
@@ -29,8 +29,8 @@
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port -> Integer_t]
                                                [Input-Port (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
-                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error -> (∩ Integer_t a)]))
+                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin) (do-bytes->integer (read-integer-bytes! /dev/stdin bsize) 0 signed?)]
            [(/dev/stdin subinteger?) (assert (read-integer /dev/stdin) subinteger?)]
@@ -96,18 +96,19 @@
 
 (define-syntax (call-datum-reader stx)
   (syntax-parse stx #:datum-literals []
-    [(_ read-datum n:nat /dev/stdin self sizes #false)
-     (syntax/loc stx (read-datum /dev/stdin))]
-    [(_ read-datum n:nat /dev/stdin self sizes #true)
-     (syntax/loc stx (let ([v (read-datum /dev/stdin)]) (hash-set! sizes self v) v))]
+    [(_ read-datum n:nat /dev/stdin self sizes #false args ...)
+     (syntax/loc stx (read-datum /dev/stdin args ...))]
+    [(_ read-datum n:nat /dev/stdin self sizes #true args ...)
+     (syntax/loc stx (let ([v (read-datum /dev/stdin args ...)]) (hash-set! sizes self v) v))]
     [(_ read-datum field:id /dev/stdin self sizes fields ...)
      (syntax/loc stx (read-datum /dev/stdin (hash-ref sizes 'field)))]
     [(_ read-datum n:integer /dev/stdin self sizes fields ...)
      (syntax/loc stx (read-datum /dev/stdin (- n)))]))
 
 (define-syntax (call-datum-reader* stx)
-  (syntax-parse stx #:datum-literals []
+  (syntax-parse stx #:datum-literals [assert]
     [(_ signature [] read-datum ...) (syntax/loc stx (check-signature signature (call-datum-reader read-datum ...)))]
+    [(_ signature [[subint?] args ...] read-datum ...) (syntax/loc stx (check-signature signature (call-datum-reader read-datum ... subint? args ...)))]
     [(_ signature [raw->datum args ...] read-datum ...) (syntax/loc stx (raw->datum (check-signature signature (call-datum-reader read-datum ...)) args ...))]))
 
 (define-syntax (call-datum-writer stx)

@@ -8,7 +8,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define checksum-crc32 : (->* (Bytes) (Natural Natural) Index)
   (lambda [bs [start 0] [end (bytes-length bs)]]
-    (unsafe-idxxor (update-crc32 #xFFFFFFFF bs 256 start end) #xFFFFFFFF)))
+    (with-asserts ([start index?]
+                   [end index?])
+      (unsafe-idxxor (update-crc32 (assert #xFFFFFFFF index?) bs 256 start end) #xFFFFFFFF))))
 
 (define checksum-crc32* : (->* (Bytes) (Natural Natural Natural) Index)
   (lambda [bs [crc0 #x0] [start 0] [end (bytes-length bs)]]
@@ -18,4 +20,6 @@
 
     ; But the assumption above is meaningless, let's just leave it alone.
 
-    (unsafe-idxxor (update-crc32 (unsafe-idxxor crc0 #xFFFFFFFF) bs 256 start end) #xFFFFFFFF)))
+    (with-asserts ([start index?]
+                   [end index?])
+      (unsafe-idxxor (update-crc32 (unsafe-idxxor crc0 #xFFFFFFFF) bs 256 start end) #xFFFFFFFF))))
