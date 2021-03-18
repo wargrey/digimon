@@ -13,12 +13,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-unnamed-enumeration stx)
   (syntax-case stx [:]
-    [(_ id : BaseType #:with id-value [enum ...])
+    [(_ id : BaseType #:with id-value #:-> EnumType [enum ...])
      (syntax/loc stx
        (begin (define-unnamed-enumeration id : BaseType [enum ...])
               
-              (define id-value : (All (a) (case-> [BaseType -> (U False BaseType)]
-                                                  [BaseType (U BaseType (-> Symbol String BaseType a)) -> (U a BaseType)]))
+              (define id-value : (All (a) (case-> [BaseType -> (U False EnumType)]
+                                                  [BaseType (U EnumType (-> Symbol String BaseType a)) -> (U a EnumType)]))
                 (let ([expected (exn-constraint->string (list 'enum ...))])
                   (case-lambda
                     [(e throw) (or (id-value e) (if (procedure? throw) (throw 'id-value expected e) throw))]
