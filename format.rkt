@@ -76,7 +76,7 @@
 (define ~binstring : (->* (Any) (Integer) String)
   (lambda [val [width 0]]
     (cond [(integer? val) (if (<= width 0) (~r val #:base 2) (~r val #:base 2 #:min-width width #:pad-string "0"))]
-          [(bytes? val) (bytes->bin-string val #:separator " ")]
+          [(bytes? val) (bytes->binstring val #:separator " ")]
           [(boolean? val) (~binstring (if val 1 0))]
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
 
@@ -127,7 +127,7 @@
                    (byte->hexstring b))
                  sep)))
 
-(define bytes->bin-string : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
+(define bytes->binstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
   (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
     (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
                    (byte->binstring b))
