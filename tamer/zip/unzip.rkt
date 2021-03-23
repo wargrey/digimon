@@ -11,6 +11,8 @@
 (require digimon/debug)
 (require digimon/dtrace)
 
+(require (for-syntax racket/base))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option unzip-flags #: UnZip-Flags
   #:program 'unzip
@@ -19,9 +21,21 @@
   #:once-each
   [[(#\b)                                          "hexdump file content in binary mode"]
    [(#\w)   #:=> cmdopt-string+>byte width #: Byte "hexdump file content in ~1 bytes per line"]
-   [(#\v)   #:=> zip-verbose                       "run with verbose messages"]])
+   [(#\v)   #:=> zip-verbose                       "run with verbose messages"]
+   [(#\t)   #:=> zip-check                         "check only"]])
 
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
+(define zip-check : (Parameterof Boolean) (make-parameter #false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (do-unzip stx)
+  (syntax-case stx []
+    [(_ file.zip entries unzip-expr)
+     (syntax/loc stx
+       (let ([unzip unzip-expr])
+         (cond [(null? entries) (zip-extract file.zip unzip)]
+               [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries unzip)])
+                       (length unknowns))])))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
@@ -35,15 +49,16 @@
                    [date-display-format 'iso-8601])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
                      (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                       (define hexdump
-                         (make-archive-hexdump-reader
-                          #:binary? (unzip-flags-b options)
-                          #:width (or (unzip-flags-w options)
-                                      (if (unzip-flags-b options) 16 32))))
-                       
-                       (cond [(null? entries) (zip-extract file.zip hexdump)]
-                             [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])
-                                     (length unknowns))]))
+                       (if (zip-check)
+                           (do-unzip file.zip entries
+                                     (make-archive-verification-reader #:dtrace 'unzip))
+                           
+                           (do-unzip file.zip entries
+                                     (make-archive-hexdump-reader
+                                               #:binary? (unzip-flags-b options)
+                                               #:width (or (unzip-flags-w options)
+                                                           (if (unzip-flags-b options) 16 32))))))
+                     
                      (dtrace-datum-notice eof)
                      (thread-wait tracer)))))))
 
