@@ -126,6 +126,4 @@
 
   (let ([unzip (find-executable-path "unzip")])
     (cond [(path? unzip) (exit (system*/exit-code unzip "-t" pk.zip))]
-          [else (call-with-dtrace
-                    (λ [] (zip-extract pk.zip (make-archive-verification-reader #:dtrace '|unzip -t|)))
-                  'trace)])))
+          [else (exit (call-with-dtrace (λ [] (zip-verify pk.zip)) 'trace))])))
