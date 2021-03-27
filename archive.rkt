@@ -52,7 +52,7 @@
                                            (Archive-Entry-Readerof* Natural))
   (lambda [#:width [width 32] #:add-gap-line? [addline? #true] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:metainfo? [metainfo? #true]
            [/dev/zipout (current-output-port)] [check? #true]]
-    (λ [/dev/zipin entry directory? timestamp idx]
+    (λ [/dev/zipin entry folder? timestamp idx]
       (define /dev/hexout : Output-Port (open-output-hexdump /dev/zipout #:width width #:binary? binary? #:decimal-cursor? dec-cursor?))
       
       (unless (not addline?)
@@ -67,7 +67,7 @@
         
         (display (object-name /dev/zipin) /dev/zipout)
 
-        (cond [(or directory? (not cdir)) (newline /dev/zipout)]
+        (cond [(or folder? (not cdir)) (newline /dev/zipout)]
               [else (let*-values ([(cfactor) (- 1 (if (= rSize 0) 1 (/ csize rSize)))])
                       (fprintf /dev/zipout " [~a]~n" (~% cfactor #:precision `(= 2))))])
         
@@ -90,16 +90,16 @@
 
 (define make-archive-verification-reader : (->* () (Index #:dtrace-topic Any) (Archive-Entry-Readerof* (Listof (Pairof String (U True String)))))
   (lambda [[pool-size 4096] #:dtrace-topic [topic #false]]
-    (λ [/dev/zipin entry directory? timestamp result-set]
+    (λ [/dev/zipin entry folder? timestamp result-set]
       (define cdir (current-zip-entry))
       
-      (cond [(and cdir (not directory?))
+      (cond [(and cdir)
              (define-values (CRC32 rSize)
                (if (zip-directory? cdir)
                    (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))
                    (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
              
-             (let* ([result (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size))]
+             (let* ([result (or folder? (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size)))]
                     [entry-result (cons entry result)])
                (when (symbol? topic)
                  (if (string? result)
@@ -161,7 +161,7 @@
                     #false #| don't `touch` existing file |#]
                    [else #true]))))
     
-    (λ [/dev/zipin entry directory? timestamp0 _]
+    (λ [/dev/zipin entry folder? timestamp0 _]
       (when (absolute-path? entry)
         (throw-check-error /dev/zipin '|| "entry is an absolute path: ~a" entry))
 
@@ -174,7 +174,7 @@
         (let ([timestamp (if (not preserve-timestamps?) timestamp0 0)]
               [target (apply build-path rootdir subpaths)])
           (when (and (path? target)
-                     (cond [(not directory?) (redirect-file /dev/zipin entry target timestamp)]
+                     (cond [(not folder?) (redirect-file /dev/zipin entry target timestamp)]
                            [(and mkdir?) (make-directory* target)]
                            [else #false #| we don't know if certain directory already created because of its children |#]))
             (file-or-directory-modify-seconds target timestamp void)))))))
