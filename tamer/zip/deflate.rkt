@@ -1,7 +1,5 @@
 #lang typed/racket/base
 
-(require racket/port)
-
 (require digimon/checksum)
 (require digimon/dtrace)
 (require digimon/format)

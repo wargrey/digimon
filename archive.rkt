@@ -88,8 +88,8 @@
       (cond [(void? idx) 1]
             [else (add1 idx)]))))
 
-(define make-archive-verification-reader : (->* () (Index #:dtrace Any) (Archive-Entry-Readerof* (Listof (List String (U True String)))))
-  (lambda [[pool-size 4096] #:dtrace [topic #false]]
+(define make-archive-verification-reader : (->* () (Index #:dtrace-topic Any) (Archive-Entry-Readerof* (Listof (Pairof String (U True String)))))
+  (lambda [[pool-size 4096] #:dtrace-topic [topic #false]]
     (λ [/dev/zipin entry directory? timestamp result-set]
       (define cdir (current-zip-entry))
       
@@ -100,7 +100,7 @@
                    (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
              
              (let* ([result (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size))]
-                    [entry-result (list entry result)])
+                    [entry-result (cons entry result)])
                (when (symbol? topic)
                  (if (string? result)
                      (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
@@ -435,9 +435,88 @@
                                 [current-zip-entry cdir])
                    (dynamic-wind
                     void
-                    (λ [] (read-entry (open-input-zip-entry /dev/zipin cdir)
+                    (λ [] (read-entry (open-input-zip-entry /dev/zipin cdir #:verify? #false)
                                       (zip-directory-filename cdir)
                                       (zip-folder-entry? cdir)
                                       (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
                                       datum0))
                     (λ [] (custodian-shutdown-all (current-custodian)))))])]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (seed) zip-verify : (-> (U Input-Port Path-String) Natural)
+  (lambda [/dev/zipin]
+    (if (input-port? /dev/zipin)
+        (let ([maybe-sigoff (zip-seek-signature /dev/zipin)])
+          (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-extract "not a ZIP file")]
+                [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
+                             [cdir-offset (zip-end-of-central-directory-cdir-offset eocdr)])
+                        (let verify ([failures : Natural 0]
+                                     [pos : Natural (port-seek /dev/zipin cdir-offset)])
+                          (cond [(>= pos maybe-sigoff) failures]
+                                [else (let ([cdir (read-zip-directory /dev/zipin)]
+                                            [pos++ (file-position /dev/zipin)])
+                                        (verify (+ failures
+                                                   (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
+                                                     (zip-verify-entry /dev/zipin cdir)))
+                                                (port-seek /dev/zipin pos++)))])))]))
+        (call-with-input-file* /dev/zipin
+          (λ [[/dev/zipin : Input-Port]]
+            (zip-verify /dev/zipin))))))
+
+(define #:forall (seed) zip-verify* : (-> (U Input-Port Path-String) (U String (Listof String)) (Values Natural (Listof ZIP-Directory) (Listof String)))
+  (lambda [/dev/zipin entry]
+    (if (input-port? /dev/zipin)
+        (let-values ([(requested-dirs rest-dirs unknowns) (zip-directory-partition /dev/zipin entry)])
+          (values (zip-verify-directories /dev/zipin requested-dirs) rest-dirs unknowns))
+        (apply values
+               (call-with-input-file* /dev/zipin
+                 (λ [[/dev/zipin : Input-Port]]
+                   (let-values ([(datum rsts ??) (zip-verify* /dev/zipin entry)])
+                     (list datum rsts ??))))))))
+
+(define #:forall (seed) zip-verify-directories : (-> (U Input-Port Path-String) (Listof ZIP-Directory) Natural)
+  (lambda [/dev/zipin cdirs]
+    (if (input-port? /dev/zipin)
+        (for/fold ([failures : Natural 0])
+                  ([cdir (in-list (zip-list-directories /dev/zipin))])
+          (+ failures
+             (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
+               (zip-verify-entry /dev/zipin cdir))))
+        (call-with-input-file* /dev/zipin
+          (λ [[/dev/zipin : Input-Port]]
+            (zip-verify-directories /dev/zipin cdirs))))))
+
+(define #:forall (seed) zip-verify-directories* : (-> (U Input-Port Path-String) (Listof ZIP-Directory) (U String (Listof String))
+                                                      (Values Natural (Listof ZIP-Directory) (Listof String)))
+  (lambda [/dev/zipin cdirs entry]
+    (let-values ([(requested-dirs rest-dirs unknowns) (zip-directory-partition cdirs entry)])
+      (values (zip-verify-directories /dev/zipin requested-dirs) rest-dirs unknowns))))
+
+(define #:forall (a b) zip-verify-entry : (case-> [(U Input-Port Path-String) ZIP-Directory -> Natural]
+                                                  [(U Input-Port Path-String) (Listof ZIP-Directory) String -> Natural])
+  (case-lambda
+    [(/dev/zipin cdirs entry)
+     (let ([name (zip-path-normalize entry)])
+       (let search ([cdirs : (Listof ZIP-Directory) cdirs])
+         (cond [(null? cdirs) 0]
+               [else (let ([cdir (car cdirs)])
+                       (if (string=? (zip-directory-filename cdir) name)
+                           (zip-verify-entry /dev/zipin cdir)
+                           (search (cdr cdirs))))])))]
+    [(/dev/zipin cdir)
+     (if (input-port? /dev/zipin)
+         (let ([verify-entry (make-archive-verification-reader #:dtrace-topic 'zip-verify)])
+           (parameterize ([current-custodian (make-custodian)]
+                          [current-zip-entry cdir])
+             (dynamic-wind
+              void
+              (λ [] (let ([result (cdar (verify-entry (open-input-zip-entry /dev/zipin cdir #:verify? #true)
+                                                      (zip-directory-filename cdir)
+                                                      (zip-folder-entry? cdir)
+                                                      (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
+                                                      null))])
+                      (if (eq? result #true) 0 1)))
+              (λ [] (custodian-shutdown-all (current-custodian))))))
+         (call-with-input-file* /dev/zipin
+           (λ [[/dev/zipin : Input-Port]]
+             (zip-verify-entry /dev/zipin cdir))))]))

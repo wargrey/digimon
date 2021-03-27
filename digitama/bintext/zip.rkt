@@ -181,8 +181,8 @@
     (let ([fname (zip-directory-filename cdir)])
       (eq? (string-ref fname (sub1 (string-length fname))) #\/))))
 
-(define open-input-zip-entry : (-> Input-Port ZIP-Directory Input-Port)
-  (lambda [/dev/zipin cdir]
+(define open-input-zip-entry : (-> Input-Port ZIP-Directory #:verify? Boolean Input-Port)
+  (lambda [/dev/zipin cdir #:verify? verify?]
     (define ?zip (regexp-match #px"[^.]+$" (archive-port-name /dev/zipin)))
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
 

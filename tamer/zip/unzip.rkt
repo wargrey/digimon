@@ -28,16 +28,6 @@
 (define zip-check : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-syntax (do-unzip stx)
-  (syntax-case stx []
-    [(_ file.zip entries unzip-expr)
-     (syntax/loc stx
-       (let ([unzip unzip-expr])
-         (cond [(null? entries) (zip-extract file.zip unzip)]
-               [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries unzip)])
-                       (length unknowns))])))]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (define-values (options λargv) (parse-unzip-flags argument-list #:help-output-port (current-output-port)))
@@ -48,19 +38,22 @@
                    [current-command-line-arguments (vector)]
                    [date-display-format 'iso-8601])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
-                     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                       (if (zip-check)
-                           (do-unzip file.zip entries
-                                     (make-archive-verification-reader #:dtrace 'unzip))
-                           
-                           (do-unzip file.zip entries
-                                     (make-archive-hexdump-reader
-                                               #:binary? (unzip-flags-b options)
-                                               #:width (or (unzip-flags-w options)
-                                                           (if (unzip-flags-b options) 16 32))))))
-                     
-                     (dtrace-datum-notice eof)
-                     (thread-wait tracer)))))))
+                     (begin0 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
+                               (if (zip-check)
+                                   (cond [(null? entries) (zip-verify file.zip)]
+                                         [else (let-values ([(failures rest-entries unknowns) (zip-verify* file.zip entries)])
+                                                 (+ failures (length unknowns)))])
+                                   
+                                   (let ([hexdump (make-archive-hexdump-reader
+                                                   #:binary? (unzip-flags-b options)
+                                                   #:width (or (unzip-flags-w options)
+                                                               (if (unzip-flags-b options) 16 32)))])
+                                     (cond [(null? entries) (zip-extract file.zip hexdump)]
+                                           [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])
+                                                   (length unknowns))]))))
+                             
+                             (dtrace-datum-notice eof)
+                             (thread-wait tracer))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-zip-log-trace : (-> (-> Void))

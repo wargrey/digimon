@@ -137,7 +137,7 @@
         (echof #:fgcolor (~fgcolor type) "~a~a" headline (spec-issue-brief issue))
 
         (case type
-          [(pass) (echof #:fgcolor 'darkgrey " [~a, ~a real time, ~a gc time]~n" (~size memory) real gc)]
+          [(pass) (echof #:fgcolor 'darkgrey " [~a, ~a task time]~n" (~size memory) (~gctime (- real gc)))]
           [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
           [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
           [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
