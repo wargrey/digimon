@@ -59,11 +59,8 @@
         (unless (void? idx)
           (newline /dev/zipout)))
       
-      (let ([cdir (current-zip-entry)])
-        (define-values (CRC32 rSize csize)
-          (cond [(zip-directory? cdir) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir) (zip-directory-csize cdir))]
-                [(zip-entry? cdir) (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir) (zip-entry-csize cdir))]
-                [else (values 0 0 0)]))
+      (let ([cdir (assert (current-zip-entry))])
+        (define-values (CRC32 rSize csize) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir) (zip-directory-csize cdir)))
         
         (display (object-name /dev/zipin) /dev/zipout)
 
@@ -94,13 +91,9 @@
       (define cdir (current-zip-entry))
       
       (cond [(and cdir)
-             (define-values (CRC32 rSize)
-               (if (zip-directory? cdir)
-                   (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))
-                   (values (zip-entry-crc32 cdir) (zip-entry-rsize cdir))))
-             
-             (let* ([result (or folder? (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size)))]
-                    [entry-result (cons entry result)])
+             (let*-values ([(CRC32 rSize) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))]
+                           [(result) (or folder? (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size)))]
+                           [(entry-result) (cons entry result)])
                (when (symbol? topic)
                  (if (string? result)
                      (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
@@ -143,7 +136,7 @@
            (let ([/dev/zipout (open-output-file target #:exists (case operation [(error append) operation] [else 'truncate/replace]))])
              (cond [(not checksum?) (copy-port /dev/zipin /dev/zipout)]
                    [else (let ([cdir (assert (current-zip-entry))])      
-                           (define CRC32 : Index (if (zip-directory? cdir) (zip-directory-crc32 cdir) (zip-entry-crc32 cdir)))
+                           (define CRC32 : Index (zip-directory-crc32 cdir))
                            (define-values (rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout (max 1 pool-size)))
 
                            (unless (= CRC32 crc32)

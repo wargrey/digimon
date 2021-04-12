@@ -19,7 +19,13 @@
 (define #%zip-cdirr : Index #x02014b50)
 (define #%zip-eocdr : Index #x06054b50)
 
-(define current-zip-entry : (Parameterof (U False ZIP-Entry ZIP-Directory)) (make-parameter #false))
+(define #%zip-?data : Index #x08074b50)
+(define #%zip-digital : Index #x05054b50)
+
+(define #%zip64-eocdr : Index #x06064b50)
+(define #%zip64-eocdl : Index #x07064b50)
+
+(define current-zip-entry : (Parameterof (U False ZIP-Directory)) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-enumeration* zip-system #:+> ZIP-System
@@ -95,6 +101,12 @@
    [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]))
 
+(define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
+  ([signature : LUInt32 #:signature #%zip-?data]
+   [crc32 : LUInt32]
+   [csize : LUInt32]
+   [rsize : LUInt32]))
+
 (define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
    [create-version : Byte]
@@ -128,11 +140,6 @@
    [cdir-size : LUInt32]                  ; Size in bytes of the central directory
    [cdir-offset : LUInt32]                ; Offset of the central directory section
    [comment : (LNString 2)]))
-
-(define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
-  ([crc32 : LUInt32]
-   [csize : LUInt32]
-   [rsize : LUInt32]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensible data fields, 0x0 - 0x31 are reserved by PKWARE

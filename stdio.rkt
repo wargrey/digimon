@@ -63,6 +63,23 @@
 
     [else #false]))
 
+(define-for-syntax (stdio-integer-type/read->peek <read-int>)
+  (case (syntax-e <read-int>)
+    [(read-luint8)  #'peek-luint8]
+    [(read-msint16) #'peek-msint16]
+    [(read-muint16) #'peek-muint16]
+    [(read-lsint16) #'peek-lsint16]
+    [(read-luint16) #'peek-luint16]
+    [(read-msint32) #'peek-msint32]
+    [(read-muint32) #'peek-muint32]
+    [(read-lsint32) #'peek-lsint32]
+    [(read-luint32) #'peek-luint32]
+    [(read-msint64) #'peek-msint64]
+    [(read-muint64) #'peek-muint64]
+    [(read-lsint64) #'peek-lsint64]
+    [(read-luint64) #'peek-luint64]
+    [else <read-int>]))
+
 (define-for-syntax (stdio-datum-type <DataType> <layout> <field>)
   (syntax-parse <DataType> #:datum-literals []
     [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'Symbol]))
@@ -87,7 +104,7 @@
                                 #'throw)))))]
     [_ #false]))
 
-(define-for-syntax (stdio-expand-typeinfo typeinfo)
+(define-for-syntax (stdio-typeinfo-standardize typeinfo)
   (case (length typeinfo)
     [(5) (append typeinfo (list null null))]
     [else typeinfo]))
@@ -105,13 +122,13 @@
          [(Stringof Localeof) (list (cadr datatype) <field> #'string-utf-8-length)]
          [else #false])))
 
-(define-for-syntax (stdio-field-metainfo <meta>)
+(define-for-syntax (stdio-field-metainfo <read> <meta>)
   (syntax-case <meta> []
-    ;[(#:signature defval #:omittable?) (list (list #'defval) #'#true)]
-    [(#:signature defval) (list (list #'defval) #'#true)]
-    [(#:default defval) (list (list #'defval) #'#false)]
+    [(#:signature defval) (list (list #'defval) #'#true #'#false <read>)]
+    [(#:omittable-signature defval) (list (list #'defval) #'#true #'#true (stdio-integer-type/read->peek <read>))]
+    [(#:default defval) (list (list #'defval) #'#false #'#false <read>)]
     [(meta0 metan ...) (raise-syntax-error 'define-binary-struct "unrecognized field info" #'meta0 #false (syntax->list #'(metan ...)))]
-    [_ (list null #'#false)]))
+    [_ (list null #'#false #'#false <read>)]))
 
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
@@ -123,21 +140,22 @@
                     [sizeof-layout (format-id #'layout "sizeof-~a" (syntax-e #'layout))]
                     [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
                     [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
-                    [([[defval ...] signature?] ...)
-                     (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))])
-                       (stdio-field-metainfo <metainfo>))]
                     [([FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))]
                                   [<field> (in-syntax #'(field ...))])
                          (define datatype (syntax-e <DataType>))
-                         (stdio-expand-typeinfo
+                         (stdio-typeinfo-standardize
                           (or (stdio-integer-type datatype)
                               (stdio-float-type datatype)
                               (and (pair? datatype)
                                    (or (stdio-bytes-type datatype <fields>)
                                        (stdio-datum-type <DataType> #'layout <field>)))
                               (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>)))))]
+                    [([[defval ...] signature? omittable? peek-field] ...)
+                     (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))]
+                                [<read> (in-syntax #'(read-field ...))])
+                       (stdio-field-metainfo <read> <metainfo>))]
                     [([sig-field magic-number] ...)
                      (filter list?
                              (for/list ([<field> (in-syntax #'(field ...))]
@@ -161,7 +179,6 @@
                                     (for/fold ([args null] [reargs null] [sdleif null])
                                               ([<field> (in-syntax #'(field ...))]
                                                [<ref> (in-syntax #'(field-ref ...))]
-                                               [<signature?> (in-syntax #'(signature? ...))]
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
@@ -203,17 +220,17 @@
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (call-datum-reader* [signature? /dev/stdin read-layout defval ...]
+                      (let* ([field (call-datum-reader* [signature? omittable? peek-field /dev/stdin read-layout defval ...]
                                                         [raw->datum ...]
                                                         read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
-                (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
-                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
+                (define write-layout : (->* (Layout) (Output-Port (Option Natural) #:force-omittable? Boolean) Natural)
+                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false] #:force-omittable? [force? #false]]
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
 
-                    (+ (call-datum-writer [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
+                    (+ (call-datum-writer* omittable? force? [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
                        ...))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

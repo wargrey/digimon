@@ -107,9 +107,12 @@
 
 (define-syntax (call-datum-reader* stx)
   (syntax-parse stx #:datum-literals [assert]
-    [(_ signature [] read-datum ...) (syntax/loc stx (check-signature signature (call-datum-reader read-datum ...)))]
-    [(_ signature [[subint?] args ...] read-datum ...) (syntax/loc stx (check-signature signature (call-datum-reader read-datum ... subint? args ...)))]
-    [(_ signature [raw->datum args ...] read-datum ...) (syntax/loc stx (raw->datum (check-signature signature (call-datum-reader read-datum ...)) args ...))]))
+    [(_ signature [] read-datum ...)
+     (syntax/loc stx (check-signature signature (call-datum-reader read-datum ...)))]
+    [(_ signature [[subint?] args ...] read-datum ...)
+     (syntax/loc stx (check-signature signature (call-datum-reader read-datum ... subint? args ...)))]
+    [(_ signature [raw->datum args ...] read-datum ...)
+     (syntax/loc stx (raw->datum (check-signature signature (call-datum-reader read-datum ...)) args ...))]))
 
 (define-syntax (call-datum-writer stx)
   (syntax-parse stx #:datum-literals []
@@ -117,6 +120,11 @@
      (syntax/loc stx (write-datum field-value (integer-size-for-writer n) /dev/stdout))]
     [(_ [datum->raw args ...] write-datum field-value n /dev/stdout)
      (syntax/loc stx (write-datum (datum->raw field-value args ...) (integer-size-for-writer n) /dev/stdout))]))
+
+(define-syntax (call-datum-writer* stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ #false force? s-expr ...) (syntax/loc stx (call-datum-writer s-expr ...))]
+    [(_ #true force? s-expr ...) (syntax/loc stx (if (not force?) 0 (call-datum-writer s-expr ...)))]))
 
 (define-syntax (integer-size-for-writer stx)
   (syntax-parse stx #:datum-literals []
@@ -126,8 +134,9 @@
 
 (define-syntax (check-signature stx)
   (syntax-parse stx #:datum-literals []
-    [(_ [#false who-cares ...] datum) #'datum]
-    [(_ [#true /dev/stdin src magic-number] datum) (syntax/loc stx (stdio-signature-filter /dev/stdin datum magic-number 'src))]))
+    [(_ [#false who-cares ...] datum-expr) #'datum-expr]
+    [(_ [#true #false peek-sig /dev/stdin src magic-number] datum-expr) (syntax/loc stx (stdio-signature-filter /dev/stdin datum-expr magic-number 'src))]
+    [(_ [#true #true  peek-sig /dev/stdin src magic-number] datum-expr) (syntax/loc stx (if (eq? magic-number (peek-sig /dev/stdin)) datum-expr magic-number))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-integer-bytes! : (-> Input-Port Natural Bytes)

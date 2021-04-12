@@ -6,7 +6,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct stdio-entry : Stdio-Entry
-  ([signature : MUInt32 #:signature #%zip-entry]
+  ([signature : MUInt32 #:omittable-signature #%zip-?data]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [filename-length : LUInt16]
    [comment : (MNBytes 2)]
