@@ -20,8 +20,8 @@
 
 (define pkzip-compression-methods : (Listof ZIP-Compression-Method) (list 'stored 'deflated))
 (define pkzip-digimon-version : Byte 62)
-(define pkzip-extract-system : ZIP-System 'FAT)
-(define pkzip-extract-version : Byte 20)
+(define pkzip-extraction-system : ZIP-System 'FAT)
+(define pkzip-extraction-version : Byte 20)
 
 (define pkzip-host-system : ZIP-System
   (case (system-type 'os)
@@ -70,7 +70,7 @@
 
     (define position : Natural (file-position /dev/zipout))
     (define self-local : ZIP-Entry
-      (make-zip-entry #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
+      (make-zip-entry #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version
                       #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
 
     (define sizes : ZIP-Data-Descriptor
@@ -80,7 +80,7 @@
             [(not seekable?)
              (write-zip-entry self-local /dev/zipout)
              (let ([desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level fixed-only?)])
-               (write-zip-data-descriptor desc /dev/zipout)
+               (write-zip-data-descriptor desc /dev/zipout #:write-all-fields? #false)
                desc)]
             [else
              (let* ([self-size (sizeof-zip-entry self-local)]
@@ -94,8 +94,8 @@
                (file-position /dev/zipout (+ position self-size (zip-data-descriptor-csize desc)))
                desc)]))
 
-    (make-zip-directory #:create-system pkzip-host-system #:create-version pkzip-digimon-version
-                        #:extract-system pkzip-extract-system #:extract-version pkzip-extract-version
+    (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version
+                        #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version
                         #:filename entry-name #:relative-offset (assert position index?)
                         #:crc32 (zip-data-descriptor-crc32 sizes) #:csize (zip-data-descriptor-csize sizes) #:rsize (zip-data-descriptor-rsize sizes)
                         #:gpflag flag #:compression method #:mdate mdate #:mtime mtime

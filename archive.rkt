@@ -178,24 +178,23 @@
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
     (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-directory-list "not a ZIP file")]
-          [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
-                       [cdir-offset (zip-end-of-central-directory-cdir-offset eocdr)])
+          [else (let-values ([(cdir-offset cdir-end _) (read-zip-central-directory-info /dev/zipin maybe-sigoff)])
                   (let ls ([sridc : (Listof ZIP-Directory) null]
-                           [pos : Natural (port-seek /dev/zipin cdir-offset)])
-                    (cond [(>= pos maybe-sigoff) (reverse sridc)]
+                           [cdir-pos : Natural (port-seek /dev/zipin cdir-offset)])
+                    (cond [(>= cdir-pos cdir-end) (reverse sridc)]
                           [else (let ([cdir (read-zip-directory /dev/zipin)])
                                   (ls (cons cdir sridc)
-                                      (file-position /dev/zipin)))])))])))
+                                      (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
 
 (define-file-reader zip-list-entries #:+ (Listof ZIP-Entry) #:binary
   (lambda [/dev/zipin src]
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
     (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-entry-list "not a ZIP file")]
-          [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)])
+          [else (let-values ([(cdir-offset cdir-end _) (read-zip-central-directory-info /dev/zipin maybe-sigoff)])
                   (let ls ([seirtne : (Listof ZIP-Entry) null]
-                           [cdir-pos : Natural (zip-end-of-central-directory-cdir-offset eocdr)])
-                    (cond [(>= cdir-pos maybe-sigoff) (reverse seirtne)]
+                           [cdir-pos : Natural cdir-offset])
+                    (cond [(>= cdir-pos cdir-end) (reverse seirtne)]
                           [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
                                   (ls (cons (read-zip-entry* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
                                       (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
@@ -218,11 +217,10 @@
     (define maybe-sigoff (zip-seek-signature /dev/zipin))
 
     (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-entry-list "not a ZIP file")]
-          [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
-                       [zcomment (zip-end-of-central-directory-comment eocdr)])
+          [else (let-values ([(cdir-offset cdir-end zcomment) (read-zip-central-directory-info /dev/zipin maybe-sigoff)])
                   (let ls ([seirtne : (Listof (Pairof String String)) null]
-                           [cdir-pos : Natural (zip-end-of-central-directory-cdir-offset eocdr)])
-                    (cond [(>= cdir-pos maybe-sigoff) (cons zcomment (reverse seirtne))]
+                           [cdir-pos : Natural cdir-offset])
+                    (cond [(>= cdir-pos cdir-end) (cons zcomment (reverse seirtne))]
                           [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
                                   (ls (cons (cons (zip-directory-filename cdir) (zip-directory-comment cdir)) seirtne)
                                       (+ cdir-pos (sizeof-zip-directory cdir))))])))])))
@@ -330,17 +328,15 @@
      (if (input-port? /dev/zipin)
          (let ([maybe-sigoff (zip-seek-signature /dev/zipin)])
            (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-extract "not a ZIP file")]
-                 [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
-                              [cdir-offset (zip-end-of-central-directory-cdir-offset eocdr)])
+                 [else (let-values ([(cdir-offset cdir-end _) (read-zip-central-directory-info /dev/zipin maybe-sigoff)])
                          (let extract ([datum : seed datum0]
-                                       [pos : Natural (port-seek /dev/zipin cdir-offset)])
-                           (cond [(>= pos maybe-sigoff) datum]
-                                 [else (let ([cdir (read-zip-directory /dev/zipin)]
-                                             [pos++ (file-position /dev/zipin)])
+                                       [cdir-pos : Natural cdir-offset])
+                           (cond [(>= cdir-pos cdir-end) datum]
+                                 [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
                                          (extract (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
                                                         (zip-extract-entry /dev/zipin cdir read-entry datum))
                                                       datum)
-                                                  (port-seek /dev/zipin pos++)))])))]))
+                                                  (+ cdir-pos (sizeof-zip-directory cdir))))])))]))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]
              (zip-extract /dev/zipin read-entry datum0))))]))
@@ -441,17 +437,15 @@
     (if (input-port? /dev/zipin)
         (let ([maybe-sigoff (zip-seek-signature /dev/zipin)])
           (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin 'zip-extract "not a ZIP file")]
-                [else (let* ([eocdr (read-zip-end-of-central-directory /dev/zipin)]
-                             [cdir-offset (zip-end-of-central-directory-cdir-offset eocdr)])
+                [else (let-values ([(cdir-offset cdir-end _) (read-zip-central-directory-info /dev/zipin maybe-sigoff)])
                         (let verify ([failures : Natural 0]
-                                     [pos : Natural (port-seek /dev/zipin cdir-offset)])
-                          (cond [(>= pos maybe-sigoff) failures]
-                                [else (let ([cdir (read-zip-directory /dev/zipin)]
-                                            [pos++ (file-position /dev/zipin)])
+                                     [cdir-pos : Natural cdir-offset])
+                          (cond [(>= cdir-pos cdir-end) failures]
+                                [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
                                         (verify (+ failures
                                                    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
                                                      (zip-verify-entry /dev/zipin cdir)))
-                                                (port-seek /dev/zipin pos++)))])))]))
+                                                (+ cdir-pos (sizeof-zip-directory cdir))))])))]))
         (call-with-input-file* /dev/zipin
           (λ [[/dev/zipin : Input-Port]]
             (zip-verify /dev/zipin))))))

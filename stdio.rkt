@@ -225,8 +225,8 @@
                                                         read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
-                (define write-layout : (->* (Layout) (Output-Port (Option Natural) #:force-omittable? Boolean) Natural)
-                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false] #:force-omittable? [force? #false]]
+                (define write-layout : (->* (Layout) (Output-Port (Option Natural) #:write-all-fields? Boolean) Natural)
+                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false] #:write-all-fields? [force? #true]]
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
 
