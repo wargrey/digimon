@@ -22,6 +22,7 @@
 (define pkzip-digimon-version : Byte 62)
 (define pkzip-extraction-system : ZIP-System 'FAT)
 (define pkzip-extraction-version : Byte 20)
+(define pkzip-extraction-version64 : Byte 45)
 
 (define pkzip-host-system : ZIP-System
   (case (system-type 'os)
@@ -150,9 +151,9 @@
 
 (define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Void)
   (lambda [/dev/zipout comment cdirs]
-    (define offset : Natural (file-position /dev/zipout))
+    (define cdoffset : Natural (file-position /dev/zipout))
     
-    (define-values (cdirsize count)
+    (define-values (cdsize count)
       (let write-directories : (Values Natural Natural)
         ([cdirs : (Rec zds (Listof (U ZIP-Directory False zds))) (reverse cdirs)]
          [size0 : Natural 0]
@@ -164,13 +165,22 @@
 
     #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
 
-    (define eocdr : zip-end-of-central-directory
-      (with-asserts ([offset index?]
-                     [cdirsize index?]
-                     [count index?])
-        (make-zip-end-of-central-directory #:cdir-offset offset #:cdir-size cdirsize
-                                           #:entry-count count #:entry-total count
-                                           #:comment (or comment ""))))
+    (define eocdr : ZIP-End-Of-Central-Directory
+      (let ([count32 (assert (min count #xFFFF) index?)])
+        (make-zip-end-of-central-directory #:cdir-offset (assert (min cdoffset #xFFFFFFFF) index?) #:cdir-size (assert (min cdsize #xFFFFFFFF) index?)
+                                           #:cdir-count count32 #:cdir-total count32 #:comment (or comment ""))))
+
+    (when (or (>= cdoffset #xFFFFFFFF) (>= cdsize #xFFFFFFFF) (>= count #xFFFF))
+      (define eocdr64 : ZIP64-End-Of-Central-Directory
+        (make-zip64-end-of-central-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version
+                                             #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version64
+                                             #:cdir-offset cdoffset #:cdir-size cdsize #:cdir-count count #:cdir-total count))
+      
+      (define eocdl : ZIP64-End-Of-Central-Directory-Locator
+        (make-zip64-end-of-central-directory-locator #:target-offset (file-position /dev/zipout)))
+
+      (write-zip64-end-of-central-directory eocdr64 /dev/zipout)
+      (write-zip64-end-of-central-directory-locator eocdl /dev/zipout))
 
     (write-zip-end-of-central-directory eocdr /dev/zipout)
     (flush-output /dev/zipout)))
