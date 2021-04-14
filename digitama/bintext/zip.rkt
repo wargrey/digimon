@@ -166,11 +166,16 @@
     #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
 
     (define eocdr : ZIP-End-Of-Central-Directory
-      (let ([count32 (assert (min count #xFFFF) index?)])
-        (make-zip-end-of-central-directory #:cdir-offset (assert (min cdoffset #xFFFFFFFF) index?) #:cdir-size (assert (min cdsize #xFFFFFFFF) index?)
-                                           #:cdir-count count32 #:cdir-total count32 #:comment (or comment ""))))
+      (let ([offset32 (assert (min cdoffset #xFFFFFFFF) index?)]
+            [cdsize32 (assert (min cdsize #xFFFFFFFF) index?)]
+            [count32 (assert (min count #xFFFF) index?)])
+        (make-zip-end-of-central-directory #:cdir-offset offset32 #:cdir-size cdsize32
+                                           #:cdir-count count32 #:cdir-total count32
+                                           #:comment (or comment ""))))
 
-    (when (or (>= cdoffset #xFFFFFFFF) (>= cdsize #xFFFFFFFF) (>= count #xFFFF))
+    (when (or (>= (zip-end-of-central-directory-cdir-offset eocdr) #xFFFFFFFF)
+              (>= (zip-end-of-central-directory-cdir-size eocdr) #xFFFFFFFF)
+              (>= (zip-end-of-central-directory-cdir-count eocdr) #xFFFF))
       (define eocdr64 : ZIP64-End-Of-Central-Directory
         (make-zip64-end-of-central-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version
                                              #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version64
