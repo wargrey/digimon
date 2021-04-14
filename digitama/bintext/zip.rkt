@@ -202,7 +202,12 @@
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
 
     (file-position /dev/zipin (zip-directory-relative-offset cdir))
-    (read-zip-entry /dev/zipin) ; for the sake of efficiency, no further validity check for entries here.
+
+    (let ([entry (read-zip-entry /dev/zipin)])
+      (when (and verify?)
+        (unless (string=? (zip-entry-filename entry) (zip-directory-filename cdir))
+          (throw-check-error /dev/zipin 'open-input-zip-entry "entry name mismatch: ~a ~a"
+                             (zip-entry-filename entry) (zip-directory-filename cdir)))))
 
     (when (zip-encrypted? (zip-directory-gpflag cdir))
       (throw-unsupported-error /dev/zipin 'open-input-zip-entry "encryped entry: ~a" (zip-directory-filename cdir)))

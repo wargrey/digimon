@@ -6,7 +6,6 @@
 (require racket/list)
 
 (require digimon/archive)
-(require digimon/format)
 
 (require digimon/digitama/bintext/lz77)
 (require digimon/digitama/bintext/huffman)

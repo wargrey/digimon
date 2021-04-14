@@ -214,6 +214,7 @@
                         ;[(#x0023) (read-zip-smartcrypt-policy-key-record /dev/zipin)]
                         ;[(#x0065) (read-zip-ibm-attributes/raw /dev/zipin)]
                         ;[(#x0066) (read-zip-ibm-attributes/compressed /dev/zipin)]
+                        ;[(#xA220) (read-moxml-growth-hint /dev/zipin)]
                         ;[(#x4690) (read-zip-poszip-info /dev/zipin)]
                         [else (port-seek /dev/zipin idx++)]))
 
