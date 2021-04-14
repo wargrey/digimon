@@ -112,12 +112,16 @@
                      /dev/srcin #| initial position |#)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define open-output-hexdump : (->* () (Output-Port Boolean #:width Byte #:cursor-width Byte #:binary? Boolean #:decimal-cursor? Boolean #:name Any) Output-Port)
-  (lambda [#:width [width 32] #:cursor-width [cwidth 8] #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:name [name #false]
+(define open-output-hexdump : (->* ()
+                                   (#:width Byte #:cursor-initial Natural #:cursor-width Byte #:binary? Boolean #:decimal-cursor? Boolean #:name Any
+                                    Output-Port Boolean)
+                                   Output-Port)
+  (lambda [#:width [width 32] #:cursor-initial [initial 0] #:cursor-width [cwidth 8]
+           #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:name [name #false]
            [/dev/hexout (current-output-port)] [close-origin? #false]]
     (define magazine : Bytes (make-bytes width 0))
     (define payload : Natural 0)
-    (define cursor : Natural 0)
+    (define cursor : Natural initial)
 
     (define-values (q r) (quotient/remainder width 2))
     

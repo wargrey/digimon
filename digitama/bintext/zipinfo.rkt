@@ -12,6 +12,7 @@
 (require "../../format.rkt")
 (require "../../enumeration.rkt")
 
+(require "../ioexn.rkt")
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -19,7 +20,13 @@
 (define #%zip-cdirr : Index #x02014b50)
 (define #%zip-eocdr : Index #x06054b50)
 
-(define current-zip-entry : (Parameterof (U False ZIP-Entry ZIP-Directory)) (make-parameter #false))
+(define #%zip-?data : Index #x08074b50)
+(define #%zip-digital : Index #x05054b50)
+
+(define #%zip64-eocdr : Index #x06064b50)
+(define #%zip64-eocdl : Index #x07064b50)
+
+(define current-zip-entry : (Parameterof (U False ZIP-Directory)) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-enumeration* zip-system #:+> ZIP-System
@@ -81,8 +88,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct zip-entry : ZIP-Entry
   ([signature : LUInt32 #:signature #%zip-entry]
-   [extract-version : Byte] ; version = major * 10 + minor
-   [extract-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [eversion : Byte] ; version = major * 10 + minor
+   [esystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [mtime : LUInt16]
@@ -95,12 +102,24 @@
    [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]))
 
+(define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
+  ([signature : LUInt32 #:signature #%zip-?data]
+   [crc32 : LUInt32]
+   [csize : LUInt32]
+   [rsize : LUInt32]))
+
+(define-binary-struct zip64-data-descriptor : ZIP64-Data-Descriptor
+  ([signature : LUInt32 #:signature #%zip-?data]
+   [crc32 : LUInt32]
+   [csize : LUInt64]
+   [rsize : LUInt64]))
+
 (define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
-   [create-version : Byte]
-   [create-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
-   [extract-version : Byte]
-   [extract-system : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [cversion : Byte]
+   [csystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [eversion : Byte]
+   [esystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [gpflag : LUInt16]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [mtime : LUInt16]
@@ -119,20 +138,36 @@
    [metainfo : (Bytesof metainfo-length) #:default #""]
    [comment : (Stringof comment-length)]))
 
+(define-binary-struct zip64-end-of-central-directory : ZIP64-End-Of-Central-Directory
+  ([signature : LUInt32 #:signature #%zip64-eocdr]
+   [self-size : LUInt64 #:default (sizeof-zip64-end-of-central-directory)]
+   [cversion : Byte]
+   [csystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [eversion : Byte]
+   [esystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
+   [disk-idx : LUInt32 #:default 0]         ; Number of this disk (for multi-file-zip which is rarely used these days).
+   [cdir0-disk-idx : LUInt32 #:default 0]   ; Number of the disk in which the central directory starts
+   [cdir-count : LUInt64]                   ; Number of entries on this disk
+   [cdir-total : LUInt64]                   ; Number of all entries
+   [cdir-size : LUInt64]                    ; Size in bytes of the central directory
+   [cdir-offset : LUInt64]                  ; Offset of the central directory section
+   #;[reserved : (Stringof self-size)]))
+
+(define-binary-struct zip64-end-of-central-directory-locator : ZIP64-End-Of-Central-Directory-Locator
+  ([signature : LUInt32 #:signature #%zip64-eocdl]
+   [eocdir0-disk-idx : LUInt32 #:default 0] ; Number of the disk in which the zip64 end of central directory starts
+   [target-offset : LUInt64]                ; Offset of the zip64 end of central directory
+   [disk-total : LUInt32 #:default 1]))     ; Number of all disks
+
 (define-binary-struct zip-end-of-central-directory : ZIP-End-Of-Central-Directory
   ([signature : LUInt32 #:signature #%zip-eocdr]
-   [disk-idx : LUInt16 #:default 0]       ; Number of this disk (for multi-file-zip which is rarely used these days).
-   [cdir0-disk-idx : LUInt16 #:default 0] ; Number of the disk in which the central directory starts
-   [entry-count : LUInt16]                ; Number of entries on this disk
-   [entry-total : LUInt16]                ; Number of all entries
-   [cdir-size : LUInt32]                  ; Size in bytes of the central directory
-   [cdir-offset : LUInt32]                ; Offset of the central directory section
+   [disk-idx : LUInt16 #:default 0]         ; Number of this disk (for multi-file-zip which is rarely used these days).
+   [cdir0-disk-idx : LUInt16 #:default 0]   ; Number of the disk in which the central directory starts
+   [cdir-count : LUInt16]                   ; Number of entries on this disk
+   [cdir-total : LUInt16]                   ; Number of all entries
+   [cdir-size : LUInt32]                    ; Size in bytes of the central directory
+   [cdir-offset : LUInt32]                  ; Offset of the central directory section
    [comment : (LNString 2)]))
-
-(define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
-  ([crc32 : LUInt32]
-   [csize : LUInt32]
-   [rsize : LUInt32]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensible data fields, 0x0 - 0x31 are reserved by PKWARE
@@ -203,6 +238,33 @@
     (let seek ([pos : Natural start])
       (cond [(eq? (peek-luint32 /dev/zipin) #%zip-eocdr) pos]
             [else (and (> pos end) (seek (port-seek /dev/zipin (- pos 1))))]))))
+
+(define zip-seek-signature* : (->* (Input-Port (U Symbol Procedure)) ((Option Natural)) Natural)
+  (lambda [/dev/zipin source [comment-maxsize #false]]
+    (define maybe-sigoff : (Option Natural) (zip-seek-signature /dev/zipin comment-maxsize))
+
+    (cond [(not maybe-sigoff) (throw-signature-error /dev/zipin source "not a ZIP file")]
+          [else maybe-sigoff])))
+
+(define zip-seek-central-directory-section : (->* (Input-Port (U Symbol Procedure)) ((Option Natural)) (Values Natural Natural String))
+  (lambda [/dev/zipin source [comment-maxsize #false]]
+    (define eocdir-idx : Natural (zip-seek-signature* /dev/zipin source comment-maxsize))
+    (define eocdir : ZIP-End-Of-Central-Directory (read-zip-end-of-central-directory /dev/zipin))
+    (define offset : Natural (zip-end-of-central-directory-cdir-offset eocdir))
+    (define cdsize : Index (zip-end-of-central-directory-cdir-size eocdir))
+    (define count : Index (zip-end-of-central-directory-cdir-count eocdir))
+    (define comment : String (zip-end-of-central-directory-comment eocdir))
+
+    (if (or (>= offset #xFFFFFFFF) (>= cdsize #xFFFFFFFF) (>= count #xFFFF))
+        (let ([locator-pos (- eocdir-idx (sizeof-zip64-end-of-central-directory-locator))])
+          (when (< locator-pos 0)
+            (throw-signature-error /dev/zipin source "invalid ZIP64 file"))
+
+          (let* ([locator (read-zip64-end-of-central-directory-locator /dev/zipin locator-pos)]
+                 [eocdir64 (read-zip64-end-of-central-directory /dev/zipin (zip64-end-of-central-directory-locator-target-offset locator))]
+                 [offset64 (zip64-end-of-central-directory-cdir-offset eocdir64)])
+            (values offset64 (+ offset64 (zip64-end-of-central-directory-cdir-size eocdir64)) comment)))
+        (values offset (+ offset cdsize) comment))))
 
 (define read-zip-entry* : (->* (Input-Port) ((Option Index)) ZIP-Entry)
   (lambda [/dev/zipin [posoff #false]]

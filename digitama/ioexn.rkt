@@ -18,14 +18,14 @@
 (struct exn:fail:syntax:range exn:fail:syntax () #:extra-constructor-name make-exn:syntax:range)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define throw-impossible-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-impossible-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin)
                                      (exn-src+args->message src (if (null? args) (list "[I have a bug report]!") args)))
                                    (current-continuation-marks)
                                    null))))
 
-(define throw-eof-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-eof-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:read:eof (format "~a: ~a" (port-name /dev/stdin)
                                      (exn-src+args->message src (cond [(pair? args) args]
@@ -34,31 +34,31 @@
                                    (current-continuation-marks)
                                    null))))
 
-(define throw-unsupported-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-unsupported-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:read:unsupported (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
                                       (current-continuation-marks)
                                       null))))
 
-(define throw-read-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-read-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:read (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
                                (current-continuation-marks)
                                null))))
 
-(define throw-signature-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-signature-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:read:signature (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
                                     (current-continuation-marks)
                                     null))))
 
-(define throw-syntax-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-syntax-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:fail:syntax (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
                                  (current-continuation-marks)
                                  null))))
 
-(define throw-check-error : (-> Input-Port Symbol Any * Nothing)
+(define throw-check-error : (-> Input-Port (U Symbol Procedure) Any * Nothing)
   (lambda [/dev/stdin src . args]
     (raise (make-exn:syntax:check (format "~a: ~a" (port-name /dev/stdin) (exn-src+args->message src args))
                                   (current-continuation-marks)

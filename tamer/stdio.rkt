@@ -6,7 +6,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct stdio-entry : Stdio-Entry
-  ([signature : MUInt32 #:signature #%zip-entry]
+  ([signature : MUInt32 #:omittable-signature #%zip-?data]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [filename-length : LUInt16]
    [comment : (MNBytes 2)]
@@ -19,6 +19,6 @@
   (define entry (make-stdio-entry #:os 'Macintosh #:compression 'stored #:filename "二进制文件.zip" #:comment #"read and write binary files"))
 
   (let ([_ (thread (λ []
-                     (write-stdio-entry entry stdout)
+                     (write-stdio-entry entry stdout #:write-all-fields? #false)
                      (close-output-port stdout)))])
     (read-stdio-entry stdin)))
