@@ -21,4 +21,10 @@
   (let ([_ (thread (λ []
                      (write-stdio-entry entry stdout #:write-all-fields? #false)
                      (close-output-port stdout)))])
-    (read-stdio-entry stdin)))
+    (read-stdio-entry stdin))
+
+  (sizeof-stdio-entry entry)
+  (for/list : (Listof Any) ([field (list 'signature 'compression 'filename-length 'comment 'filename 'os 'total)])
+    (list field
+          (offsetof-stdio-entry field)
+          (offsetof-stdio-entry entry field))))

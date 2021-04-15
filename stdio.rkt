@@ -4,6 +4,8 @@
 (provide (rename-out [write-muintptr write-msize]
                      [write-luintptr write-lsize]))
 
+(require racket/list)
+
 (require "port.rkt")
 
 (require "digitama/ioexn.rkt")
@@ -46,6 +48,9 @@
     ;[(LDouble)                   (list #'flonum 8)]
     [else #false]))
 
+;; TODO
+; what if the size of bytes field is counted on by another field which indicates the size of the entire layout,
+; like `zip64-end-of-central-directory` (see digimon/digitama/bintext/zipinfo).
 (define-for-syntax (stdio-bytes-type datatype <fields>)
   (case (syntax-e (car datatype))
     [(Bytesof)          (list #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes      #'write-nbytes     #'bytes-length)]
@@ -138,6 +143,7 @@
                     [make-layout (format-id #'layout "make-~a" (syntax-e #'layout))]
                     [remake-layout (format-id #'layout "remake-~a" (syntax-e #'layout))]
                     [sizeof-layout (format-id #'layout "sizeof-~a" (syntax-e #'layout))]
+                    [offsetof-layout (format-id #'layout "offsetof-~a" (syntax-e #'layout))]
                     [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
                     [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
                     [([FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
@@ -187,7 +193,17 @@
                                                     (values (cons <kw-name> (cons <Argument> args))
                                                             (cons <kw-name> (cons <ReArgument> reargs))
                                                             (cons (list <field> <ref>) sdleif)))]))])
-                       (list args reargs (reverse sdleif)))])
+                       (list args reargs (reverse sdleif)))]
+                    [(size0 [offset field-n] ...)
+                     (let-values ([(size0 stesffo)
+                                   (for/fold ([size0 0] [stesffo null])
+                                             ([size (in-list (map syntax-e (syntax->list #'(integer-size ...))))]
+                                              [n (in-naturals 0)])
+                                     (values (cond [(not (exact-integer? size)) size0]
+                                                   [(>= size 0) (+ size0 size)]
+                                                   [else (- size0 size)])
+                                             (cons (list size0 n) stesffo)))])
+                       (cons size0 (reverse stesffo)))])
        (syntax/loc stx
          (begin (struct layout super ... ([field : FieldType] ...)
                   #:constructor-name constructor
@@ -206,13 +222,18 @@
                          [auto-field (field->value target-field)] ...)
                     (constructor field ...)))
 
-                (define sizeof-layout : (->* () ((Option Layout)) Natural)
-                  (let ([size0 (apply + (map abs (filter exact-integer? '(integer-size ...))))])
-                    (lambda [[instance #false]]
-                      (cond [(not instance) size0]
-                            [else (apply + size0
-                                         (list (field-size (field-ref instance))
-                                               ...))]))))
+                (define sizeof-layout : (case-> [-> Index]
+                                                [Layout -> Natural])
+                  (case-lambda
+                    [() size0]
+                    [(instance) (apply + size0 (list (field-size (field-ref instance)) ...))]))
+
+                (define offsetof-layout : (case-> [Symbol -> Index]
+                                                  [Layout Symbol -> Natural])
+                  (case-lambda
+                    [(fieldname) (case fieldname [(field) offset] ... [else size0])]
+                    [(instance fieldname) (case fieldname [(field) (apply + offset (take (list (field-size (field-ref instance)) ...) field-n))]
+                                            ... [else (sizeof-layout instance)])]))
 
                 (define read-layout : (->* () (Input-Port (Option Integer)) Layout)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
