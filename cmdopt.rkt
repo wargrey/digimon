@@ -135,6 +135,10 @@
 (define cmdopt-string->port (make-cmdopt-string->integer index? (cons 0 65535) "port number"))
 (define cmdopt-string+>port (make-cmdopt-string->integer positive-index? (cons 1 65535) "port number"))
 
+(define cmdopt-string-identity : (-> Symbol String String)
+  (lambda [option argument]
+    argument))
+
 (define cmdopt-string->path : (-> Symbol String Path)
   (lambda [option file]
     (simple-form-path file)))
