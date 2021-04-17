@@ -3,6 +3,7 @@
 (provide main)
 
 (require digimon/archive)
+(require digimon/stdio)
 
 (require digimon/cmdopt)
 (require digimon/format)
@@ -19,10 +20,11 @@
   #:args [file.zip . entry]
 
   #:once-each
-  [[(#\b)                                          "hexdump file content in binary mode"]
-   [(#\w)   #:=> cmdopt-string+>byte width #: Byte "hexdump file content in ~1 bytes per line"]
-   [(#\v)   #:=> zip-verbose                       "run with verbose messages"]
-   [(#\t)   #:=> zip-check                         "check only"]])
+  [[(#\b)                                                "hexdump file content in binary mode"]
+   [(#\w)   #:=> cmdopt-string+>byte width     #: Byte   "hexdump file content in ~1 bytes per line"]
+   [(#\v)   #:=> zip-verbose                             "run with verbose messages"]
+   [(#\t)   #:=> zip-check                               "check only"]
+   [(#\l)   #:=> cmdopt-string-identity locale #: String "set default locale to ~1"]])
 
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
 (define zip-check : (Parameterof Boolean) (make-parameter #false))
@@ -36,7 +38,8 @@
     (parameterize ([current-logger /dev/dtrace]
                    [pretty-print-columns 160]
                    [current-command-line-arguments (vector)]
-                   [date-display-format 'iso-8601])
+                   [date-display-format 'iso-8601]
+                   [default-stdin-locale (or (unzip-flags-l options) 'utf-8)])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
                      (begin0 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                                (if (zip-check)
