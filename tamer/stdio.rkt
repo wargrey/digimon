@@ -6,7 +6,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-binary-struct stdio-entry : Stdio-Entry
-  ([signature : MUInt32 #:omittable-signature #%zip-?data]
+  ([signature : MUInt32 #:signature #%zip-?data #:omittable]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [filename-length : LUInt16]
    [comment : (MNBytes 2)]
@@ -24,7 +24,7 @@
     (read-stdio-entry stdin))
 
   (sizeof-stdio-entry entry)
-  (for/list : (Listof Any) ([field (list 'signature 'compression 'filename-length 'comment 'filename 'os 'total)])
+  (for/list : (Listof Any) ([field (list 'signature 'compression 'filename-length 'comment 'filename 'os)])
     (list field
           (offsetof-stdio-entry field)
           (offsetof-stdio-entry entry field))))
