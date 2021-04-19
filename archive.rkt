@@ -60,7 +60,7 @@
           (newline /dev/zipout)))
       
       (let ([cdir (assert (current-zip-entry))])
-        (define-values (CRC32 rSize csize) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir) (zip-directory-csize cdir)))
+        (define-values (_ CRC32 rSize csize) (zip-directory-data-descriptor cdir))
         
         (display (object-name /dev/zipin) /dev/zipout)
 
@@ -91,7 +91,7 @@
       (define cdir (current-zip-entry))
       
       (cond [(and cdir)
-             (let*-values ([(CRC32 rSize) (values (zip-directory-crc32 cdir) (zip-directory-rsize cdir))]
+             (let*-values ([(_ CRC32 rSize cSize) (zip-directory-data-descriptor cdir)]
                            [(result) (or folder? (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size)))]
                            [(entry-result) (cons entry result)])
                (when (symbol? topic)
@@ -223,7 +223,7 @@
     (for/list ([lst (in-list (zip-list* /dev/zipin))])
       (car lst))))
 
-(define zip-list* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Listof (List String Index Index)))
+(define zip-list* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Listof (List String Natural Natural)))
   (lambda [/dev/zipin]
     (define entries : (Listof (U ZIP-Directory ZIP-Entry))
       (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
@@ -231,11 +231,8 @@
             [else /dev/zipin]))
     
     (for/list ([e (in-list entries)])
-      (if (zip-directory? e)
-          (list (zip-directory-filename e)
-                (zip-directory-csize e) (zip-directory-rsize e))
-          (list (zip-entry-filename e)
-                (zip-entry-csize e) (zip-entry-rsize e))))))
+      (define-values (fname rsize csize) (zip-entry-metrics e))
+      (list fname csize rsize))))
 
 (define zip-content-size : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) Natural)
   (lambda [/dev/zipin]
@@ -251,17 +248,17 @@
     
     (for/fold ([csize : Natural 0] [rsize : Natural 0])
               ([e (in-list entries)])
-      (if (zip-directory? e)
-          (values (+ csize (zip-directory-csize e)) (+ rsize (zip-directory-rsize e)))
-          (values (+ csize (zip-entry-csize e)) (+ rsize (zip-entry-rsize e)))))))
+      (let-values ([(_ r c) (zip-entry-metrics e)])
+        (values (+ csize c) (+ rsize r))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-create : (->* ((U Path-String Output-Port) Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)
-                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte String)
+                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
+                           String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
-           #:strategy [strategy #false] #:memory-level [memlevel 8]
+           #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
            out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)])
       (define /dev/zipout : Output-Port
@@ -270,7 +267,7 @@
                            (open-output-file out.zip #:exists 'truncate/replace))]))
       
       (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
-      (define seekable? : Boolean (port-random-access? /dev/zipout))
+      (define seekable? : Boolean (if (not disable-seeking?) (port-random-access? /dev/zipout) #false))
       (define crc-pool : Bytes (make-bytes 4096))
 
       (define (write-entries [entries : (Rec aes (Listof (U Archive-Entry aes)))]) : (Rec zds (Listof (U ZIP-Directory False zds)))
@@ -279,11 +276,11 @@
           (cons (cond [(list? entry) (write-entries entry)]
                       [else (zip-write-entry /dev/zipout entry
                                              root zip-root px:suffix seekable?
-                                             strategy memlevel crc-pool)])
+                                             strategy memlevel force-zip64? crc-pool)])
                 cdirs)))
 
       (dynamic-wind void
-                    (λ [] (zip-write-directories /dev/zipout comment (write-entries entries)))
+                    (λ [] (zip-write-directories /dev/zipout comment (write-entries entries) force-zip64?))
                     (λ [] (custodian-shutdown-all (current-custodian)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -5,7 +5,6 @@
                      [write-luintptr write-lsize]))
 
 (require racket/list)
-(require racket/format)
 
 (require "port.rkt")
 
@@ -167,6 +166,7 @@
                     [offsetof-layout (format-id #'layout "offsetof-~a" (syntax-e #'layout))]
                     [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
                     [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
+                    [display-layout (format-id #'layout "display-~a" (syntax-e #'layout))]
                     [(#s[bintype FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))]
@@ -230,26 +230,16 @@
                   #:type-name Layout
                   #:property prop:custom-write
                   (λ [[self : Layout] [/dev/stdout : Output-Port] [mode : (U Zero One Boolean)]]
-                    (define write-datum : (-> Any Output-Port Void)
-                      (case mode
-                        [(#true) write]
-                        [(#false) display]
-                        [else (λ [[datum : Any] [/dev/stdout : Output-Port]] (print datum /dev/stdout mode))]))
-                    (write-char #\( /dev/stdout)
+                    (define write-datum : (-> Any Output-Port Void) (stdio-select-writer mode))
+                    (display (if (eq? mode 0) "(struct:" "#<") /dev/stdout)
                     (display 'layout /dev/stdout)
                     (for ([datum (in-list (list (field-ref self) ...))]
                           [width (in-list (list 'integer-size ...))]
                           [radix (in-list (list display-radix ...))])
                       (display #\space /dev/stdout)
-                      (or (and (exact-nonnegative-integer? datum)
-                               (exact-nonnegative-integer? width)
-                               (case radix
-                                 [(2) (fprintf /dev/stdout "0b~a" (~r datum #:base radix #:min-width (* width 8)))]
-                                 [(8) (fprintf /dev/stdout "0~a" (number->string datum radix))]
-                                 [(16) (fprintf /dev/stdout "0x~a" (~r datum #:base radix #:min-width width))]
-                                 [else #false]))
-                          (write-datum datum /dev/stdout)))
-                    (write-char #\) /dev/stdout))
+                      (stdio-write-field datum width radix write-datum /dev/stdout))
+                    (write-char (if (eq? mode 0) #\) #\>) /dev/stdout)
+                    (flush-output /dev/stdout))
                   #:transparent
                   options ...)
 
@@ -299,7 +289,26 @@
                       (file-position /dev/stdout posoff))
 
                     (+ (call-datum-writer* omittable? force? [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
-                       ...))))))]))
+                       ...)))
+
+                (define display-layout : (->* (Layout) (Output-Port #:mode (U Zero One Boolean)) Void)
+                  (lambda [self [/dev/stdout (current-output-port)] #:mode [mode 1]]
+                    (define write-datum : (-> Any Output-Port Void) (stdio-select-writer mode))
+                    (displayln (stdio-field->name 'layout) /dev/stdout)
+                    (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
+                          [datum (in-list (list (field-ref self) ...))]
+                          [width (in-list (list 'integer-size ...))]
+                          [radix (in-list (list display-radix ...))])
+                      (display "    " /dev/stdout)
+                      (display fname /dev/stdout)
+                      (display ": " /dev/stdout)
+                      (stdio-write-field datum width radix write-datum /dev/stdout)
+                      (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
+                        (display #\( /dev/stdout)
+                        (write-datum datum /dev/stdout)
+                        (display #\) /dev/stdout))
+                      (display #\newline /dev/stdout))
+                    (flush-output /dev/stdout))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define try-read-signature : (-> Input-Port Bytes Boolean)

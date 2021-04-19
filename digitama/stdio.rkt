@@ -3,6 +3,10 @@
 (provide (all-defined-out))
 (provide (for-syntax (all-defined-out)))
 
+(require racket/format)
+(require racket/string)
+(require racket/symbol)
+
 (require "../debug.rkt")
 (require "ioexn.rkt")
 
@@ -54,7 +58,7 @@
 
 (define-syntax (define-write-integer* stx)
   (syntax-case stx [:]
-    [(_ do-write msb? [bsize write-integer write-natural] ...)
+    [(_ do-write msb? [bsize [write-integer] [write-natural]] ...)
      (syntax/loc stx
        (begin (define-write-integer write-integer do-write #true  msb? bsize) ...
               (define-write-integer write-natural do-write #false msb? bsize) ...))]))
@@ -173,3 +177,26 @@
       (throw-signature-error /dev/stdin src "signature mismatched"))
 
     given))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define stdio-field->name : (-> Symbol String)
+  (lambda [field]
+    (string-trim (string-replace (symbol->immutable-string field) #px"[-_]+" " "))))
+
+(define stdio-select-writer : (-> (U Zero One Boolean) (-> Any Output-Port Void))
+  (lambda [mode]
+    (case mode
+      [(#true) write]
+      [(#false) display]
+      [else (λ [[datum : Any] [/dev/stdout : Output-Port]] (print datum /dev/stdout mode))])))
+
+(define stdio-write-field : (->* (Any Any Integer) ((-> Any Output-Port Void) Output-Port) Void)
+  (lambda [datum size radix [write-datum display] [/dev/stdout (current-output-port)]]
+    (or (and (exact-nonnegative-integer? datum)
+             (exact-nonnegative-integer? size)
+             (case radix
+               [(2)  (fprintf /dev/stdout "#b~a" (~r datum #:base radix #:min-width (* size 8) #:pad-string "0"))]
+               [(8)  (fprintf /dev/stdout "#o~a" (~r datum #:base radix #:min-width (quotient (* size 8) 3) #:pad-string "0"))]
+               [(16) (fprintf /dev/stdout "#x~a" (~r datum #:base (list 'up radix) #:min-width (* size 2) #:pad-string "0"))]
+               [else #false]))
+        (write-datum datum /dev/stdout))))

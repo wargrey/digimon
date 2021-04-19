@@ -151,6 +151,11 @@
   (lambda [mpbin]
     (string->symbol (string-append "0b" (number->string mpbin 2)))))
 
+(define natural->string : (->* (Natural) ((U Integer (List 'up Integer)) Positive-Integer) String)
+  (lambda [n [radix (list 'up 16)] [width 1]]
+    (string-append (case radix [(2) "#b"] [(8) "#o"] [(16) "#x"] [else ""])
+                   (~r n #:base radix #:min-width width #:pad-string "0"))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define text-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Index))
   (lambda [entries]

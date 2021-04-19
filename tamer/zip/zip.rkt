@@ -35,10 +35,13 @@
                         "run with the strategy ~1 and compression level ~2"]
    [(#\r recurse-paths) "travel the directory recursively"]
    [(#\t temporary)     "create temporarily"]
+   [(64)                #:=> zip-64bit
+                        "force building zip64 file"]
    [(#\v)               #:=> zip-verbose
                         "run with verbose messages"]])
 
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
+(define zip-64bit : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-exec : (-> Symbol Path-String * Void)
@@ -84,7 +87,7 @@
                 (define target_zip : Path (path-add-extension target.zip #".zip"))
                 
                 (time** #:title 'λsh
-                        (zip-create target.zip entries #:strategy strategy))
+                        (zip-create target.zip entries #:strategy strategy #:force-zip64? (zip-64bit)))
 
                 (for ([e (in-list (zip-list-directories* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))

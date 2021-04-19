@@ -26,6 +26,8 @@
 (define #%zip64-eocdr : Index #x06064b50)
 (define #%zip64-eocdl : Index #x07064b50)
 
+(define #%zip64-id : Index #x0001)
+
 (define current-zip-entry : (Parameterof (U False ZIP-Directory)) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -86,33 +88,33 @@
     (msdos-datetime->utc-seconds mdate mtime #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-binary-struct zip-entry : ZIP-Entry
+(define-binary-struct zip-entry : ZIP-Entry ; the size of an zip entry should not exceed 64K
   ([signature : LUInt32 #:signature #%zip-entry]
    [eversion : Byte] ; version = major * 10 + minor
    [esystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
-   [gpflag : LUInt16]
+   [gpflag : LUInt16 #:radix 2]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [mtime : LUInt16]
    [mdate : LUInt16]
-   [crc32 : LUInt32 #:default 0]
-   [csize : LUInt32 #:default 0]
-   [rsize : LUInt32 #:default 0]
+   [crc32 : LUInt32 #:default 0 #:radix 16]
+   [csize : LUInt32 #:default 0 #:radix 16]
+   [rsize : LUInt32 #:default 0 #:radix 16]
    [filename-length : LUInt16]
    [metainfo-length : LUInt16]
    [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]))
 
 (define-binary-struct zip-data-descriptor : ZIP-Data-Descriptor
-  ([signature : LUInt32 #:signature #%zip-?data]
-   [crc32 : LUInt32]
-   [csize : LUInt32]
-   [rsize : LUInt32]))
+  ([signature : LUInt32 #:signature #%zip-?data #:omittable]
+   [crc32 : LUInt32 #:radix 16]
+   [csize : LUInt32 #:radix 16]
+   [rsize : LUInt32 #:radix 16]))
 
 (define-binary-struct zip64-data-descriptor : ZIP64-Data-Descriptor
-  ([signature : LUInt32 #:signature #%zip-?data]
-   [crc32 : LUInt32]
-   [csize : LUInt64]
-   [rsize : LUInt64]))
+  ([signature : LUInt32 #:signature #%zip-?data #:omittable]
+   [crc32 : LUInt32 #:radix 16]
+   [csize : LUInt64 #:radix 16]
+   [rsize : LUInt64 #:radix 16]))
 
 (define-binary-struct zip-directory : ZIP-Directory
   ([signature : LUInt32 #:signature #%zip-cdirr]
@@ -120,20 +122,20 @@
    [csystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [eversion : Byte]
    [esystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
-   [gpflag : LUInt16]
+   [gpflag : LUInt16 #:radix 2]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [mtime : LUInt16]
    [mdate : LUInt16]
-   [crc32 : LUInt32]
-   [csize : LUInt32]
-   [rsize : LUInt32]
+   [crc32 : LUInt32 #:radix 16]
+   [csize : LUInt32 #:radix 16]
+   [rsize : LUInt32 #:radix 16]
    [filename-length : LUInt16]
    [metainfo-length : LUInt16]
    [comment-length : LUInt16]
    [disk-number : LUInt16 #:default 0]
    [internal-attributes : LUInt16]
    [external-attributes : LUInt32]
-   [relative-offset : LUInt32]
+   [relative-offset : LUInt32 #:radix 16]
    [filename : (Localeof filename-length)]
    [metainfo : (Bytesof metainfo-length) #:default #""]
    [comment : (Stringof comment-length)]))
@@ -151,7 +153,7 @@
    [cdir-total : LUInt64]                   ; Number of all entries
    [cdir-size : LUInt64]                    ; Size in bytes of the central directory
    [cdir-offset : LUInt64]                  ; Offset of the central directory section
-   #;[reserved : (Stringof self-size)]))
+   #;[reserved : (Stringof self-size #| a new feature is required to implement this |#)]))
 
 (define-binary-struct zip64-end-of-central-directory-locator : ZIP64-End-Of-Central-Directory-Locator
   ([signature : LUInt32 #:signature #%zip64-eocdl]
@@ -161,7 +163,7 @@
 
 (define-binary-struct zip-end-of-central-directory : ZIP-End-Of-Central-Directory
   ([signature : LUInt32 #:signature #%zip-eocdr]
-   [disk-idx : LUInt16 #:default 0]         ; Number of this disk (for multi-file-zip which is rarely used these days).
+   [disk-idx : LUInt16 #:default 0]         ; Number of this disk (for multi-file zip which is rarely used these days)
    [cdir0-disk-idx : LUInt16 #:default 0]   ; Number of the disk in which the central directory starts
    [cdir-count : LUInt16]                   ; Number of entries on this disk
    [cdir-total : LUInt16]                   ; Number of all entries
@@ -172,53 +174,85 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Extensible data fields, 0x0 - 0x31 are reserved by PKWARE
 
-(struct zip-metainfo () #:type-name ZIP-Metainfo)
+(struct zip-metainfo () #:type-name ZIP-Metainfo #:transparent)
 
-(define-binary-struct zip-metainfo-header : ZIP-Metainfo-Header
-  ([id : LUInt16]
-   [size : LUInt16]))
+(define-binary-struct [zip64-extended-info zip-metainfo] : ZIP64-Extended-Info
+  ([id : LUInt16 #:signature #%zip64-id]
+   [size : LUInt16 #:default 28]
 
-(define read-zip-metainfos : (-> Bytes (Listof ZIP-Metainfo))
+   [rsize : LUInt64 #:radix 16]
+   [csize : LUInt64 #:radix 16]
+   
+   ; for central directories
+   [relative-offset : LUInt64 #:default 0 #:radix 16]
+   [disk-idx : LUInt32 #:default 0]))
+
+(define read-zip-metainfos : (-> Bytes (Listof (Pairof Index ZIP-Metainfo)))
   (lambda [block]
     (define total : Index (bytes-length block))
     (define /dev/zipin : Input-Port (open-input-bytes block))
     
-    (let read-metainfo ([sofni : (Listof ZIP-Metainfo) null]
+    (let read-metainfo ([sofni : (Listof (Pairof Index ZIP-Metainfo)) null]
                         [idx : Nonnegative-Fixnum 0])
-      (cond [(>= idx total) (reverse sofni)]
-            [else (let ([header (read-zip-metainfo-header /dev/zipin)])
-                    (define idx++ : Nonnegative-Fixnum
-                      (+ (unsafe-idx+ idx (sizeof-zip-metainfo-header))
-                         (zip-metainfo-header-size header)))
-                    
+      (define meta-id (peek-luint16 /dev/zipin))
+      (define meta-size (peek-luint16 /dev/zipin 2))
+      
+      (cond [(not (and meta-id meta-size)) (reverse sofni)]
+            [else (let ([idx++ (+ (unsafe-idx+ idx 4) meta-size)])
                     (define maybe-info
-                      (case (zip-metainfo-header-id header)
-                        ;[(#x0001) (read-zip64-extended-info /dev/zipin)]
-                        ;[(#x0007) (read-zip-av-info /dev/zipin)]
-                        ;[(#x0008) (read-zip-language-info /dev/zipin)]
-                        ;[(#x0009) (read-zip-os/2-info /dev/zipin)]
-                        ;[(#x000A) (read-zip-ntfs-info /dev/zipin)]
-                        ;[(#x000C) (read-zip-openvms-info /dev/zipin)]
-                        ;[(#x000D) (read-zip-unix-info /dev/zipin)]
-                        ;[(#x000E) (read-zip-fork-descriptor /dev/zipin)]
-                        ;[(#x000F) (read-zip-patch-descriptor /dev/zipin)]
-                        ;[(#x0014) (read-zip-pkcs#7-info /dev/zipin)]
-                        ;[(#x0015) (read-zip-file-x509-info /dev/zipin)]
-                        ;[(#x0016) (read-zip-directory-x509-info /dev/zipin)]
-                        ;[(#x0017) (read-zip-strong-encryption-header /dev/zipin)]
-                        ;[(#x0018) (read-zip-record-management-controls /dev/zipin)]
-                        ;[(#x0019) (read-zip-pkcs#7-list /dev/zipin)]
-                        ;[(#x0020) (read-zip-timestamp-record /dev/zipin)]
-                        ;[(#x0021) (read-zip-policy-decryption-key-record /dev/zipin)]
-                        ;[(#x0022) (read-zip-smartcrypt-key-provider-record /dev/zipin)]
-                        ;[(#x0023) (read-zip-smartcrypt-policy-key-record /dev/zipin)]
-                        ;[(#x0065) (read-zip-ibm-attributes/raw /dev/zipin)]
-                        ;[(#x0066) (read-zip-ibm-attributes/compressed /dev/zipin)]
-                        ;[(#xA220) (read-moxml-growth-hint /dev/zipin)]
-                        ;[(#x4690) (read-zip-poszip-info /dev/zipin)]
-                        [else (port-seek /dev/zipin idx++)]))
+                      (or (zip-load-metainfo /dev/zipin meta-id)
+                          (port-seek /dev/zipin idx++)))
 
-                    (read-metainfo (if (zip-metainfo? maybe-info) (cons maybe-info sofni) sofni) idx++))]))))
+                    (read-metainfo (if (zip-metainfo? maybe-info)
+                                       (cons (cons meta-id maybe-info) sofni)
+                                       sofni)
+                                   idx++))]))))
+
+(define read-zip-metainfo : (-> Bytes Index (Option ZIP-Metainfo))
+  (lambda [block id]
+    (define total : Index (bytes-length block))
+    (define /dev/zipin : Input-Port (open-input-bytes block))
+    
+    (let read-metainfo ([idx : Nonnegative-Fixnum 0])
+      (define meta-id (peek-luint16 /dev/zipin))
+      (define meta-size (peek-luint16 /dev/zipin 2))
+      
+      (cond [(not (and meta-id meta-size)) #false]
+            [else (let ([idx++ (+ (unsafe-idx+ idx 4) meta-size)])
+                    (define maybe-info
+                      (or (zip-load-metainfo /dev/zipin meta-id)
+                          (port-seek /dev/zipin idx++)))
+
+                    (cond [(zip-metainfo? maybe-info) maybe-info]
+                          [else (read-metainfo idx++)]))]))))
+
+(define zip-load-metainfo : (-> Input-Port Index (Option ZIP-Metainfo))
+  (lambda [/dev/zipin id]
+    (case id
+      [(#x0001) (read-zip64-extended-info /dev/zipin)]
+      ;[(#x0007) (read-zip-av-info /dev/zipin)]
+      ;[(#x0008) (read-zip-language-info /dev/zipin)]
+      ;[(#x0009) (read-zip-os/2-info /dev/zipin)]
+      ;[(#x000A) (read-zip-ntfs-info /dev/zipin)]
+      ;[(#x000C) (read-zip-openvms-info /dev/zipin)]
+      ;[(#x000D) (read-zip-unix-info /dev/zipin)]
+      ;[(#x000E) (read-zip-fork-descriptor /dev/zipin)]
+      ;[(#x000F) (read-zip-patch-descriptor /dev/zipin)]
+      ;[(#x0014) (read-zip-pkcs#7-info /dev/zipin)]
+      ;[(#x0015) (read-zip-file-x509-info /dev/zipin)]
+      ;[(#x0016) (read-zip-directory-x509-info /dev/zipin)]
+      ;[(#x0017) (read-zip-strong-encryption-header /dev/zipin)]
+      ;[(#x0018) (read-zip-record-management-controls /dev/zipin)]
+      ;[(#x0019) (read-zip-pkcs#7-list /dev/zipin)]
+      ;[(#x0020) (read-zip-timestamp-record /dev/zipin)]
+      ;[(#x0021) (read-zip-policy-decryption-key-record /dev/zipin)]
+      ;[(#x0022) (read-zip-smartcrypt-key-provider-record /dev/zipin)]
+      ;[(#x0023) (read-zip-smartcrypt-policy-key-record /dev/zipin)]
+      ;[(#x0065) (read-zip-ibm-attributes/raw /dev/zipin)]
+      ;[(#x0066) (read-zip-ibm-attributes/compressed /dev/zipin)]
+      ;[(#xA220) (read-moxml-growth-hint /dev/zipin)]
+      ;[(#x4690) (read-zip-poszip-info /dev/zipin)]
+      [else #false])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-seek-local-file-signature : (-> Input-Port (Option Natural))
@@ -255,16 +289,55 @@
     (define count : Index (zip-end-of-central-directory-cdir-count eocdir))
     (define comment : String (zip-end-of-central-directory-comment eocdir))
 
-    (if (or (>= offset #xFFFFFFFF) (>= cdsize #xFFFFFFFF) (>= count #xFFFF))
+    (if (or (>= offset 0xFF32) (>= cdsize 0xFF32) (>= count 0xFF16))
         (let ([locator-pos (- eocdir-idx (sizeof-zip64-end-of-central-directory-locator))])
           (when (< locator-pos 0)
-            (throw-signature-error /dev/zipin source "invalid ZIP64 file"))
+            (throw-check-error /dev/zipin source "invalid ZIP64 file"))
 
           (let* ([locator (read-zip64-end-of-central-directory-locator /dev/zipin locator-pos)]
                  [eocdir64 (read-zip64-end-of-central-directory /dev/zipin (zip64-end-of-central-directory-locator-target-offset locator))]
-                 [offset64 (zip64-end-of-central-directory-cdir-offset eocdir64)])
-            (values offset64 (+ offset64 (zip64-end-of-central-directory-cdir-size eocdir64)) comment)))
+                 [offset64 (if (>= offset 0xFF32) (zip64-end-of-central-directory-cdir-offset eocdir64) offset)])
+            (values offset64 (+ offset64 (if (>= cdsize 0xFF32) (zip64-end-of-central-directory-cdir-size eocdir64) cdsize)) comment)))
         (values offset (+ offset cdsize) comment))))
+
+(define zip-directory-data-descriptor : (-> ZIP-Directory (Values Natural Index Natural Natural))
+  (lambda [cdir]
+    (define offset : Natural (zip-directory-relative-offset cdir))
+    (define crc32 : Index (zip-directory-crc32 cdir))
+    (define rsize : Index (zip-directory-rsize cdir))
+    (define csize : Index (zip-directory-csize cdir))
+    
+    (if (or (>= offset 0xFF32) (>= rsize 0xFF32) (>= csize 0xFF32))
+        (let ([zip64-info (read-zip-metainfo (zip-directory-metainfo cdir) #%zip64-id)])
+          (if (zip64-extended-info? zip64-info)
+              (values (if (>= offset 0xFF32) (zip64-extended-info-relative-offset zip64-info) offset) crc32
+                      (if (>= rsize 0xFF32) (zip64-extended-info-rsize zip64-info) rsize)
+                      (if (>= csize 0xFF32) (zip64-extended-info-csize zip64-info) csize))
+              (values offset crc32 rsize csize)))
+        (values offset crc32 rsize csize))))
+
+(define zip-entry-data-descriptor : (-> ZIP-Entry (Values Index Natural Natural))
+  (lambda [e]
+    (define crc32 : Index (zip-entry-crc32 e))
+    (define rsize : Index (zip-entry-rsize e))
+    (define csize : Index (zip-entry-csize e))
+
+    (if (or (>= rsize 0xFF32) (>= csize 0xFF32))
+        (let ([zip64-info (read-zip-metainfo (zip-entry-metainfo e) #%zip64-id)])
+          (if (zip64-extended-info? zip64-info)
+              (values crc32
+                      (if (>= rsize 0xFF32) (zip64-extended-info-rsize zip64-info) rsize)
+                      (if (>= csize 0xFF32) (zip64-extended-info-csize zip64-info) csize))
+              (values crc32 rsize csize)))
+        (values crc32 rsize csize))))
+
+(define zip-entry-metrics : (-> (U ZIP-Directory ZIP-Entry) (Values String Natural Natural))
+  (lambda [e]
+    (if (zip-directory? e)
+        (let-values ([(_ __ rsize csize) (zip-directory-data-descriptor e)])
+          (values (zip-directory-filename e) rsize csize))
+        (let-values ([(_ rsize csize) (zip-entry-data-descriptor e)])
+          (values (zip-entry-filename e) rsize csize)))))
 
 (define read-zip-entry* : (->* (Input-Port) ((Option Index)) ZIP-Entry)
   (lambda [/dev/zipin [posoff #false]]

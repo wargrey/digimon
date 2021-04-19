@@ -23,7 +23,9 @@
                      (close-output-port stdout)))])
     (read-stdio-entry stdin))
 
+  (display-stdio-entry entry)
   (sizeof-stdio-entry entry)
+  
   (for/list : (Listof Any) ([field (list 'signature 'compression 'filename-length 'comment 'filename 'os)])
     (list field
           (offsetof-stdio-entry field)

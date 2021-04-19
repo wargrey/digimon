@@ -14,7 +14,7 @@
   (time** (call-with-output-file* pk.zip #:exists 'replace
             (λ [[/dev/zipout : Output-Port]]
               (write pk.zip /dev/zipout)
-              (zip-create #:zip-root "pkunzip" #:memory-level memlevel
+              (zip-create #:zip-root "pkunzip" #:memory-level memlevel #:force-zip64? #true #:disable-seeking? #false
                           /dev/zipout entries))))
 
   (printf "Archive: ~a~n" pk.zip)

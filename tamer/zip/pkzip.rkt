@@ -106,7 +106,7 @@
    
    (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
    
-   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0))
+   #;(list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0))
          (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1))
          (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9)))))
 
@@ -120,7 +120,7 @@
   (time** (call-with-output-file* pk.zip #:exists 'replace
             (λ [[/dev/zipout : Output-Port]]
               (write pk.zip /dev/zipout)
-              (zip-create #:root pktest #:zip-root "pkzip" #:memory-level memlevel
+              (zip-create #:root pktest #:zip-root "pkzip" #:memory-level memlevel #:force-zip64? #true #:disable-seeking? #false
                           /dev/zipout entries))))
 
   (let ([unzip (find-executable-path "unzip")])

@@ -12,6 +12,7 @@
 (require "../ioexn.rkt")
 
 (require "../../port.rkt")
+(require "../../stdio.rkt")
 (require "../../format.rkt")
 (require "../../checksum.rkt")
 
@@ -34,9 +35,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp
-                              Boolean PKZIP-Strategy Positive-Byte Bytes
+                              Boolean PKZIP-Strategy Positive-Byte Boolean Bytes
                               (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memory-level pool]
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool]
     (define entry-source : (U Bytes Path) (archive-entry-source entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
     (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-name entry) root zip-root 'stdin) regular-file?))
@@ -70,44 +71,67 @@
         [else 0]))
 
     (define position : Natural (file-position /dev/zipout))
+    
+    (define rsize : Natural
+      (cond [(not regular-file?) 0]
+            [(bytes? entry-source) (bytes-length entry-source)]
+            [else (file-size entry-source)]))
+
+    (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (>= rsize 0xFF32)))
+    (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
+
+    ; please keep the zip64 extended info as the first extra fields,
+    ; so that we can easily modify the compressed size
+    (when (or zip64-format?)
+      (write-zip64-extended-info (make-zip64-extended-info #:rsize rsize #:csize 0 #:relative-offset position) /dev/zmiout))
+
+    (define extraction-version : Byte (if (not zip64-format?) pkzip-extraction-version pkzip-extraction-version64))
+    
     (define self-local : ZIP-Entry
-      (make-zip-entry #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version
-                      #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime))
+      (make-zip-entry #:esystem pkzip-extraction-system #:eversion extraction-version
+                      #:filename entry-name #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
+                      #:metainfo (get-output-bytes /dev/zmiout #false)))
 
-    (define sizes : ZIP-Data-Descriptor
-      (cond [(not regular-file?)
-             (write-zip-entry self-local /dev/zipout)
-             (make-zip-data-descriptor #:crc32 0 #:csize 0 #:rsize 0)]
-            [(not seekable?)
-             (write-zip-entry self-local /dev/zipout)
-             (let ([desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level fixed-only?)])
-               (write-zip-data-descriptor desc /dev/zipout #:write-all-fields? #false)
-               desc)]
-            [else
-             (let* ([self-size (sizeof-zip-entry self-local)]
-                    [desc (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memory-level fixed-only? (+ position self-size))])
-               (file-position /dev/zipout position)
-               (write-zip-entry (remake-zip-entry self-local
-                                                  #:crc32 (zip-data-descriptor-crc32 desc)
-                                                  #:csize (zip-data-descriptor-csize desc)
-                                                  #:rsize (zip-data-descriptor-rsize desc))
-                                /dev/zipout)
-               (file-position /dev/zipout (+ position self-size (zip-data-descriptor-csize desc)))
-               desc)]))
+    ; at this point, the `crc32`, `rsize`, and `csize` are all 0s
+    ; which case works for folders and non-seekable output ports
+    (write-zip-entry self-local /dev/zipout)
 
-    (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version
-                        #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version
-                        #:filename entry-name #:relative-offset (assert position index?)
-                        #:crc32 (zip-data-descriptor-crc32 sizes) #:csize (zip-data-descriptor-csize sizes) #:rsize (zip-data-descriptor-rsize sizes)
+    (define-values (#{crc32 : Index} #{csize : Natural})
+      (cond [(not regular-file?) (values 0 0) #| blank files should not be skipped here, they might be filled with an empty compressed block |#]
+            [else (let-values ([(crc32 csize) (zip-write-entry-body pool /dev/zipout entry-source entry-name method strategy memlevel fixed-only?)])
+                    (if (not seekable?)
+                        (if (and zip64-format?)
+                            (let ([ds (make-zip64-data-descriptor #:crc32 crc32 #:rsize rsize #:csize csize)])
+                              (write-zip64-data-descriptor ds /dev/zipout #:write-all-fields? #false)
+                              (zip-update-csize64 /dev/zmiout csize (offsetof-zip64-extended-info 'csize)))
+                            (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize (assert rsize index?) #:csize (assert csize index?))])
+                              (write-zip-data-descriptor ds /dev/zipout #:write-all-fields? #false)))
+                        (let ([end-of-content-position (file-position /dev/zipout)])
+                          (file-position /dev/zipout (+ position (offsetof-zip-entry #| self-local |# 'crc32)))
+                          (if (and zip64-format?)
+                              (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize 0xFF32 #:csize 0xFF32)]
+                                    [csize64-offset (offsetof-zip64-extended-info 'csize)])
+                                (write-zip-data-descriptor ds /dev/zipout #:write-all-fields? #false)
+                                (zip-update-csize64 /dev/zipout csize (+ position (offsetof-zip-entry self-local 'metainfo) csize64-offset))
+                                (zip-update-csize64 /dev/zmiout csize csize64-offset))
+                              (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize (assert rsize index?) #:csize (assert csize index?))])
+                                (write-zip-data-descriptor ds /dev/zipout #:write-all-fields? #false)))
+                          (file-position /dev/zipout end-of-content-position)))
+                    (values crc32 csize))]))
+
+    (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version
+                        #:filename entry-name #:relative-offset (assert (if (not zip64-format?) position 0xFF32) index?)
+                        #:crc32 crc32 #:rsize (assert (if (not zip64-format?) rsize 0xFF32) index?) #:csize (assert (if (not zip64-format?) csize 0xFF32) index?)
                         #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
                         #:internal-attributes (if (archive-entry-ascii? entry) #b1 #b0)
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
+                        #:metainfo (get-output-bytes /dev/zmiout #false)
                         #:comment (or (archive-entry-comment entry) ""))))
 
 (define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean)
                                     ((Option Natural))
-                                    ZIP-Data-Descriptor)
-  (lambda [pool /dev/stdout source entry-name method strategy memory-level static-only? [seek #false]]
+                                    (Values Index Natural))
+  (lambda [pool /dev/stdout source entry-name method strategy memlevel static-only? [seek #false]]
     (define anchor : Natural
       (cond [(not seek) (file-position /dev/stdout)]
             [else (file-position /dev/stdout seek) seek]))
@@ -115,7 +139,7 @@
     (define /dev/zipout : Output-Port
       (case method
         [(deflated)
-         (open-output-deflated-block /dev/stdout strategy #false #:fixed-only? static-only? #:memory-level memory-level #:name entry-name)]
+         (open-output-deflated-block /dev/stdout strategy #false #:fixed-only? static-only? #:memory-level memlevel #:name entry-name)]
         [else /dev/stdout]))
     
     (define-values (rsize crc32)
@@ -144,13 +168,12 @@
         (flush-output /dev/zipout)
         (close-output-port /dev/zipout))
     
-    (let ([csize (- (file-position /dev/stdout) anchor)])
-      (make-zip-data-descriptor #:crc32 (assert crc32 index?)
-                                #:csize (assert csize index?)
-                                #:rsize (assert rsize index?)))))
+    (values crc32
+            (max 0 (- (file-position /dev/stdout)
+                      anchor)))))
 
-(define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Void)
-  (lambda [/dev/zipout comment cdirs]
+(define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Boolean Void)
+  (lambda [/dev/zipout comment cdirs force-zip64?]
     (define cdoffset : Natural (file-position /dev/zipout))
     
     (define-values (cdsize count)
@@ -166,16 +189,16 @@
     #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
 
     (define eocdr : ZIP-End-Of-Central-Directory
-      (let ([offset32 (assert (min cdoffset #xFFFFFFFF) index?)]
-            [cdsize32 (assert (min cdsize #xFFFFFFFF) index?)]
-            [count32 (assert (min count #xFFFF) index?)])
+      (let ([offset32 (assert (if (not force-zip64?) (min cdoffset 0xFF32) 0xFF32) index?)]
+            [cdsize32 (assert (min cdsize 0xFF32) index?)]
+            [count32 (assert (min count 0xFF16) index?)])
         (make-zip-end-of-central-directory #:cdir-offset offset32 #:cdir-size cdsize32
                                            #:cdir-count count32 #:cdir-total count32
                                            #:comment (or comment ""))))
 
-    (when (or (>= (zip-end-of-central-directory-cdir-offset eocdr) #xFFFFFFFF)
-              (>= (zip-end-of-central-directory-cdir-size eocdr) #xFFFFFFFF)
-              (>= (zip-end-of-central-directory-cdir-count eocdr) #xFFFF))
+    (when (or (>= (zip-end-of-central-directory-cdir-offset eocdr) 0xFF32)
+              (>= (zip-end-of-central-directory-cdir-size eocdr) 0xFF32)
+              (>= (zip-end-of-central-directory-cdir-count eocdr) 0xFF16))
       (define eocdr64 : ZIP64-End-Of-Central-Directory
         (make-zip64-end-of-central-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version
                                              #:esystem pkzip-extraction-system #:eversion pkzip-extraction-version64
@@ -198,23 +221,28 @@
 
 (define open-input-zip-entry : (-> Input-Port ZIP-Directory #:verify? Boolean Input-Port)
   (lambda [/dev/zipin cdir #:verify? verify?]
+    (define-values (offset crc32 rsize csize) (zip-directory-data-descriptor cdir))
     (define ?zip (regexp-match #px"[^.]+$" (archive-port-name /dev/zipin)))
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
 
-    (file-position /dev/zipin (zip-directory-relative-offset cdir))
+    (file-position /dev/zipin offset)
 
     (let ([entry (read-zip-entry /dev/zipin)])
-      (when (and verify?)
+      (when (and verify?) ; TODO
         (unless (string=? (zip-entry-filename entry) (zip-directory-filename cdir))
           (throw-check-error /dev/zipin 'open-input-zip-entry "entry name mismatch: ~a ~a"
-                             (zip-entry-filename entry) (zip-directory-filename cdir)))))
+                             (zip-entry-filename entry) (zip-directory-filename cdir)))
+
+        (unless (= (zip-entry-crc32 entry) (zip-directory-crc32 cdir))
+          (throw-check-error /dev/zipin 'open-input-zip-entry "checksum mismatch: ~a ~a"
+                             (number->string (zip-entry-crc32 entry) 16) (number->string (zip-directory-crc32 cdir) 16)))))
 
     (when (zip-encrypted? (zip-directory-gpflag cdir))
       (throw-unsupported-error /dev/zipin 'open-input-zip-entry "encryped entry: ~a" (zip-directory-filename cdir)))
     
     (case (zip-directory-compression cdir)
-      [(deflated) (open-input-deflated-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name #:error-name 'zip:deflated)]
-      [else (open-input-block /dev/zipin (zip-directory-csize cdir) #false #:name port-name)])))
+      [(deflated) (open-input-deflated-block /dev/zipin csize #false #:name port-name #:error-name 'zip:deflated)]
+      [else (open-input-block /dev/zipin csize #false #:name port-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-entry-copy : (->* (Input-Port Output-Port) ((U Bytes Index False) #:close-input-port? Boolean #:flush-output-port? Boolean) (Values Natural Index))
@@ -260,3 +288,9 @@
        (cond [(not regular-file?) (zip-path-normalize (path->directory-path filename))]
              [(string? filename) (zip-path-normalize (string-trim filename #rx"(/|\\\\)$" #:left? #false #:right? #true #:repeat? #false))]
              [else (zip-path-normalize (path->string filename) regular-file?)])])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-update-csize64 : (-> Output-Port Natural Natural Byte)
+  (lambda [/dev/zipout csize offset64]
+    (file-position /dev/zipout offset64)
+    (write-luint64 csize /dev/zipout)))
