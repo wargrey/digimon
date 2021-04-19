@@ -304,7 +304,7 @@
                       (display ": " /dev/stdout)
                       (stdio-write-field datum width radix write-datum /dev/stdout)
                       (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
-                        (display #\( /dev/stdout)
+                        (display " (" /dev/stdout)
                         (write-datum datum /dev/stdout)
                         (display #\) /dev/stdout))
                       (display #\newline /dev/stdout))

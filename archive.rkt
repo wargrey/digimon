@@ -284,29 +284,34 @@
                     (λ [] (custodian-shutdown-all (current-custodian)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String (Listof Path-String))
+(define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String Regexp (Listof (U Path-String Regexp)))
                                       (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof String)))
   (lambda [/dev/zipin entries]
     (define cdirectories : (Listof ZIP-Directory)
       (cond [(list? /dev/zipin) /dev/zipin]
             [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
             [else (zip-list-directories* /dev/zipin)]))
-    (define targets : (Listof String)
-      (cond [(list? entries) (map zip-path-normalize entries)]
+    (define targets : (Listof (U String Regexp))
+      (cond [(list? entries) (for/list ([e (in-list entries)]) (if (regexp? e) e (zip-path-normalize e)))]
+            [(regexp? entries) (list entries)]
             [else (list (zip-path-normalize entries))]))
 
     (let partition ([cdirectories : (Listof ZIP-Directory) cdirectories]
-                    [paths : (Listof String) targets]
+                    [paths : (Listof (U String Regexp)) targets]
                     [seirotceridc : (Listof ZIP-Directory) null]
                     [shtap : (Listof String) null])
       (cond [(null? paths) (values (reverse seirotceridc) cdirectories (reverse shtap))]
             [else (let-values ([(self-path rest-path) (values (car paths) (cdr paths))])
                     (let search ([cdirs : (Listof ZIP-Directory) cdirectories]
                                  [sridc : (Listof ZIP-Directory) null])
-                      (cond [(null? cdirs) (partition cdirectories rest-path seirotceridc (cons self-path shtap))]
+                      (cond [(null? cdirs) (partition cdirectories rest-path seirotceridc (if (string? self-path) (cons self-path shtap) shtap))]
                             [else (let-values ([(self-cdir rest-cdirs) (values (car cdirs) (cdr cdirs))])
-                                    (cond [(not (string=? self-path (zip-directory-filename self-cdir))) (search rest-cdirs (cons self-cdir sridc))]
-                                          [else (partition (append (reverse sridc) rest-cdirs) rest-path (cons self-cdir seirotceridc) shtap)]))])))]))))
+                                    (if (let ([entry-name (zip-directory-filename self-cdir)])
+                                          (if (string? self-path)
+                                              (string=? self-path entry-name)
+                                              (regexp-match? self-path entry-name)))
+                                        (partition (append (reverse sridc) rest-cdirs) rest-path (cons self-cdir seirotceridc) shtap)
+                                        (search rest-cdirs (cons self-cdir sridc))))])))]))))
 
 (define #:forall (seed) zip-extract : (case-> [(U Input-Port Path-String) -> Void]
                                               [(U Input-Port Path-String) (Archive-Entry-Readerof* seed) -> Void]
@@ -355,7 +360,7 @@
     [(/dev/zipin cdirs read-entry datum0)
      (if (input-port? /dev/zipin)
          (for/fold ([datum : seed datum0])
-                   ([cdir (in-list (zip-list-directories /dev/zipin))])
+                   ([cdir (in-list cdirs)])
            (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
                  (zip-extract-entry /dev/zipin cdir read-entry datum))
                datum))
@@ -451,7 +456,7 @@
   (lambda [/dev/zipin cdirs]
     (if (input-port? /dev/zipin)
         (for/fold ([failures : Natural 0])
-                  ([cdir (in-list (zip-list-directories /dev/zipin))])
+                  ([cdir (in-list cdirs)])
           (+ failures
              (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
                (zip-verify-entry /dev/zipin cdir))))

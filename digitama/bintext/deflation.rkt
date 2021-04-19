@@ -505,7 +505,7 @@
         ;   but indicators for repeating previous or zero lengths, and the repetition might run
         ;   across the boundary of lengths of literals and distances.
         ; thus, lengths of literals and distances have to be read in one batch.
-        (bytes-fill! codeword-lengths 0) ; for values 17, 18, in which case tons of 0s are copied.
+        (bytes-fill! codeword-lengths 0) ; for values 17, 18, in which cases tons of 0s are copied.
         (let read-lit+dist-lengths ([code-idx : Nonnegative-Fixnum 0]
                                     [prev-len : Index 0])
           (when (< code-idx N)

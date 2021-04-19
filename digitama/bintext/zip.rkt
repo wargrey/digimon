@@ -224,7 +224,7 @@
     (define-values (offset crc32 rsize csize) (zip-directory-data-descriptor cdir))
     (define ?zip (regexp-match #px"[^.]+$" (archive-port-name /dev/zipin)))
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
-
+    
     (file-position /dev/zipin offset)
 
     (let ([entry (read-zip-entry /dev/zipin)])
