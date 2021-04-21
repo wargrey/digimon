@@ -77,7 +77,7 @@
             [(bytes? entry-source) (bytes-length entry-source)]
             [else (file-size entry-source)]))
 
-    (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (>= rsize 0xFF32)))
+    (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (not (index? rsize #| just in case `csize` will be greater then `rsize` |#))))
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
 
     ; please keep the zip64 extended info as the first extra fields,
