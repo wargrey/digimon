@@ -111,6 +111,32 @@
 
                      /dev/srcin #| initial position |#)))
 
+(define open-input-memory : (->* (Bytes) (Natural Natural #:name Any) Input-Port)
+  (lambda [memory [memory-start 0] [memory-end (bytes-length memory)] #:name [name #false]]
+    (define cursor : Natural memory-start)
+    
+    (define (do-read [str : Bytes]) : Port-Reader-Datum
+      (define count : Integer (min (- memory-end cursor) (bytes-length str)))
+      
+      (cond [(<= count 0) eof]
+            [else (let ([next-cursor (+ cursor count)])
+                    (bytes-copy! str 0 memory cursor next-cursor)
+                    (set! cursor next-cursor)
+                    count)]))
+    
+    (define (do-peek [str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]) : (Option Port-Reader-Datum)
+      (define count : Integer (min (- memory-end cursor skip) (bytes-length str)))
+      
+      (cond [(<= count 0) (if (and progress-evt (sync/timeout 0 progress-evt)) #false eof)]
+            [else (let ([cp-pos (+ cursor skip)])
+                    (bytes-copy! str 0 memory cp-pos (+ cp-pos count))
+                    count)]))
+
+    (make-input-port (or name '/dev/mmyin)
+                     do-read do-peek
+                     void #false #false #false
+                     void (λ [] (+ cursor 1)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-hexdump : (->* ()
                                    (#:width Byte #:cursor-initial Natural #:cursor-width Byte #:binary? Boolean #:decimal-cursor? Boolean #:name Any
@@ -191,7 +217,7 @@
         ; usually implies flush, and can return #false if failed.
         (hexdump-flush payload))
       
-      (- end start))
+      src-size)
 
     (define (hexdump-close) : Void
       (hexdump-flush payload)
@@ -201,6 +227,29 @@
     
     (make-output-port (or name (object-name /dev/hexout))
                       always-evt hexdump-write hexdump-close
+                      #false port-always-write-evt #false
+                      #false void (λ [] (+ cursor 1)) #false)))
+
+(define open-output-memory : (->* (Bytes) (Natural Natural #:name Any) Output-Port)
+  (lambda [memory [memory-start 0] [memory-end (bytes-length memory)] #:name [name #false]]
+    (define cursor : Natural memory-start)
+    
+    (define (memory-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
+      (define src-size : Integer (- end start))
+
+      (cond [(<= src-size 0) (set! cursor memory-start) 0]
+            [(<= memory-end cursor) (error 'memory-write "out of memory")]
+            [else (let ([available (- memory-end cursor)])
+                    (if (>= available src-size)
+                        (begin (bytes-copy! memory cursor bs start end)
+                               (set! cursor (+ cursor src-size))
+                               src-size)
+                        (begin (bytes-copy! memory cursor bs start (+ start available))
+                               (set! cursor memory-end)
+                               available)))]))
+
+    (make-output-port (or name '/dev/mmyout)
+                      always-evt memory-write void
                       #false port-always-write-evt #false
                       #false void (λ [] (+ cursor 1)) #false)))
 
