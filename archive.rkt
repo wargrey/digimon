@@ -19,6 +19,7 @@
 (require "filesystem.rkt")
 (require "dtrace.rkt")
 (require "format.rkt")
+(require "stdio.rkt")
 (require "echo.rkt")
 (require "port.rkt")
 
@@ -195,17 +196,18 @@
                     (ls (cons (read-zip-entry* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define-file-reader zip-list-local-entries #:+ (Listof ZIP-Entry) #:binary
+(define-file-reader zip-list-local-entries #:+ (Listof (Pairof ZIP-Entry Natural)) #:binary
   (lambda [/dev/zipin src]
     (zip-seek-signature* /dev/zipin zip-list-local-entries)
     (port-seek /dev/zipin 0)
 
-    (let ls ([seirtne : (Listof ZIP-Entry) null])
-      (cond [(not (zip-seek-local-file-signature /dev/zipin)) (reverse seirtne)]
+    (let ls ([seirtne : (Listof (Pairof ZIP-Entry Natural)) null])
+      (define maybe-pos : (Option Natural) (zip-seek-local-file-signature /dev/zipin))
+      (cond [(not maybe-pos) (reverse seirtne)]
             [else (let-values ([(lfheader dr-size) (read-zip-entry** /dev/zipin)])
                     (when (= dr-size 0)
                       (port-skip /dev/zipin (zip-entry-csize lfheader)))
-                    (ls (cons lfheader seirtne)))]))))
+                    (ls (cons (cons lfheader maybe-pos) seirtne)))]))))
 
 (define-file-reader zip-list-comments #:+ (Pairof String (Listof (Pairof String String)))
   (lambda [/dev/zipin src]
@@ -260,7 +262,8 @@
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
            out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
-    (parameterize ([current-custodian (make-custodian)])
+    (parameterize ([current-custodian (make-custodian)]
+                   [default-stdout-all-fields? #false])
       (define /dev/zipout : Output-Port
         (cond [(output-port? out.zip) out.zip]
               [else (begin (make-parent-directory* out.zip)
@@ -282,6 +285,20 @@
       (dynamic-wind void
                     (λ [] (zip-write-directories /dev/zipout comment (write-entries entries) force-zip64?))
                     (λ [] (custodian-shutdown-all (current-custodian)))))))
+
+(define zip-update : (->* (Path-String Archive-Entries)
+                          (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:freshen? Boolean
+                           #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
+                           String)
+                          Void)
+  (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
+           #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
+           src.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+    (if (file-exists? src.zip)
+        (void)
+        (zip-create #:root root #:zip-root zip-root #:suffixes suffixes
+                    #:strategy strategy #:memory-level memlevel #:force-zip64? force-zip64? #:disable-seeking? disable-seeking?
+                    src.zip entries))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String Regexp (Listof (U Path-String Regexp)))

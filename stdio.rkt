@@ -31,6 +31,23 @@
   (struct bintype (type int-size read-int write-int fixed-size datum->raw raw->datum) #:prefab)
   (struct fieldinfo (default signature? omittable? peek-int name radix) #:prefab)
 
+  (define (stdio-integer-type/read->peek <read-int>)
+    (case (syntax-e <read-int>)
+      [(read-luint8)  #'peek-luint8]
+      [(read-msint16) #'peek-msint16]
+      [(read-muint16) #'peek-muint16]
+      [(read-lsint16) #'peek-lsint16]
+      [(read-luint16) #'peek-luint16]
+      [(read-msint32) #'peek-msint32]
+      [(read-muint32) #'peek-muint32]
+      [(read-lsint32) #'peek-lsint32]
+      [(read-luint32) #'peek-luint32]
+      [(read-msint64) #'peek-msint64]
+      [(read-muint64) #'peek-muint64]
+      [(read-lsint64) #'peek-lsint64]
+      [(read-luint64) #'peek-luint64]
+      [else <read-int>]))
+
   (define (make-bintype type int-size read-int write-int fixed-size [datum->raw null] [raw->datum null])
     (bintype type int-size read-int write-int fixed-size datum->raw raw->datum))
 
@@ -85,23 +102,6 @@
     [(LNLocale)         (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-ln:lcstring #'write-ln:bstring #'string-utf-8-length)]
 
     [else #false]))
-
-(define-for-syntax (stdio-integer-type/read->peek <read-int>)
-  (case (syntax-e <read-int>)
-    [(read-luint8)  #'peek-luint8]
-    [(read-msint16) #'peek-msint16]
-    [(read-muint16) #'peek-muint16]
-    [(read-lsint16) #'peek-lsint16]
-    [(read-luint16) #'peek-luint16]
-    [(read-msint32) #'peek-msint32]
-    [(read-muint32) #'peek-muint32]
-    [(read-lsint32) #'peek-lsint32]
-    [(read-luint32) #'peek-luint32]
-    [(read-msint64) #'peek-msint64]
-    [(read-muint64) #'peek-muint64]
-    [(read-lsint64) #'peek-lsint64]
-    [(read-luint64) #'peek-luint64]
-    [else <read-int>]))
 
 (define-for-syntax (stdio-datum-type <DataType> <layout> <field>)
   (syntax-parse <DataType> #:datum-literals []
@@ -166,6 +166,8 @@
                     [offsetof-layout (format-id #'layout "offsetof-~a" (syntax-e #'layout))]
                     [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
                     [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
+                    [bytes->layout (format-id #'layout "bytes->~a" (syntax-e #'layout))]
+                    [layout->bytes (format-id #'layout "~a->bytes" (syntax-e #'layout))]
                     [display-layout (format-id #'layout "display-~a" (syntax-e #'layout))]
                     [(#s[bintype FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
@@ -283,14 +285,29 @@
                                                         read-field integer-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
-                (define write-layout : (->* (Layout) (Output-Port (Option Natural) #:write-all-fields? Boolean) Natural)
-                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false] #:write-all-fields? [force? #true]]
+                (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
+                  (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
 
-                    (+ (call-datum-writer* omittable? force? [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
+                    (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
                        ...)))
 
+                (define bytes->layout : (->* (Bytes) (Natural) Layout)
+                  (lambda [bs [posoff 0]]
+                    (let ([/dev/stdin (open-input-memory bs posoff)])
+                      (begin0 (read-layout /dev/stdin)
+                              (close-input-port /dev/stdin)))))
+                
+                (define layout->bytes : (case-> [-> Layout Bytes] [->* (Layout Bytes) (Natural) Natural])
+                  (case-lambda
+                    [(src) (let ([bs (make-bytes (sizeof-layout src))]) (layout->bytes src bs 0) bs)]
+                    [(src bs) (layout->bytes src bs 0)]
+                    [(src bs off)
+                     (let ([/dev/stdout (open-output-memory bs off)])
+                       (begin0 (+ off (write-layout src /dev/stdout))
+                               (close-output-port /dev/stdout)))]))
+                
                 (define display-layout : (->* (Layout) (Output-Port #:mode (U Zero One Boolean)) Void)
                   (lambda [self [/dev/stdout (current-output-port)] #:mode [mode 1]]
                     (define write-datum : (-> Any Output-Port Void) (stdio-select-writer mode))
@@ -381,6 +398,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-stdin-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
+(define default-stdout-all-fields? : (Parameterof Boolean) (make-parameter #true))
 
 (define read-bytes* : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]

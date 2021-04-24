@@ -15,13 +15,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (define-values (stdin stdout) (make-pipe))
   (define entry (make-stdio-entry #:os 'Macintosh #:compression 'stored #:filename "二进制文件.zip" #:comment #"read and write binary files"))
 
-  (let ([_ (thread (λ []
-                     (write-stdio-entry entry stdout #:write-all-fields? #false)
-                     (close-output-port stdout)))])
-    (read-stdio-entry stdin))
+  (default-stdout-all-fields? #false)
+  
+  (bytes->stdio-entry (stdio-entry->bytes entry))
 
   (display-stdio-entry entry)
   (sizeof-stdio-entry entry)

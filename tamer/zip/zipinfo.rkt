@@ -90,12 +90,14 @@
 (define zipinfo : (-> ZipInfo-Flags String Any)
   (lambda [opts file.zip]
     (define zip-entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
-      (cond [(zipinfo-flags-A opts) (zip-list-local-entries* file.zip)]
-            [else (zip-list-directories* file.zip)]))
+      (if (zipinfo-flags-A opts)
+          (map (inst car ZIP-Entry Natural) (zip-list-local-entries* file.zip))
+          (zip-list-directories* file.zip)))
 
     (define zip-comments : (Pairof String (Listof (Pairof String String)))
-      (cond [(zipinfo-flags-z opts) (zip-list-comments* file.zip)]
-            [else (cons "" null)]))
+      (if (zipinfo-flags-z opts)
+          (zip-list-comments* file.zip)
+          (cons "" null)))
     
     (when (zipinfo-flags-1 opts)
       (for-each displayln (zip-list zip-entries))

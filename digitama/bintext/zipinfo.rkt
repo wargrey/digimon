@@ -190,7 +190,7 @@
 (define read-zip-metainfos : (-> Bytes (Listof (Pairof Index ZIP-Metainfo)))
   (lambda [block]
     (define total : Index (bytes-length block))
-    (define /dev/zipin : Input-Port (open-input-bytes block))
+    (define /dev/zipin : Input-Port (open-input-memory block))
     
     (let read-metainfo ([sofni : (Listof (Pairof Index ZIP-Metainfo)) null]
                         [idx : Nonnegative-Fixnum 0])
@@ -211,7 +211,7 @@
 (define read-zip-metainfo : (-> Bytes Index (Option ZIP-Metainfo))
   (lambda [block id]
     (define total : Index (bytes-length block))
-    (define /dev/zipin : Input-Port (open-input-bytes block))
+    (define /dev/zipin : Input-Port (open-input-memory block))
     
     (let read-metainfo ([idx : Nonnegative-Fixnum 0])
       (define meta-id (peek-luint16 /dev/zipin))
