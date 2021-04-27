@@ -14,6 +14,7 @@
 (require "digitama/bintext/zipinfo.rkt")
 (require "digitama/bintext/zipconfig.rkt")
 (require "digitama/bintext/zip.rkt")
+(require "digitama/bintext/archive/zip.rkt")
 (require "digitama/ioexn.rkt")
 
 (require "filesystem.rkt")
@@ -174,9 +175,9 @@
             (file-or-directory-modify-seconds target timestamp void)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-reader zip-list-directories #:+ (Listof ZIP-Directory) #:binary
+(define-file-reader zip-directory-list #:+ (Listof ZIP-Directory) #:binary
   (lambda [/dev/zipin src]
-    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-list-directories))
+    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-directory-list))
 
     (let ls ([sridc : (Listof ZIP-Directory) null]
              [cdir-pos : Natural (port-seek /dev/zipin cdir-offset)])
@@ -185,9 +186,9 @@
                     (ls (cons cdir sridc)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define-file-reader zip-list-entries #:+ (Listof ZIP-Entry) #:binary
+(define-file-reader zip-entry-list #:+ (Listof ZIP-Entry) #:binary
   (lambda [/dev/zipin src]
-    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-list-entries))
+    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-entry-list))
 
     (let ls ([seirtne : (Listof ZIP-Entry) null]
              [cdir-pos : Natural cdir-offset])
@@ -196,9 +197,9 @@
                     (ls (cons (read-zip-entry* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define-file-reader zip-list-local-entries #:+ (Listof (Pairof ZIP-Entry Natural)) #:binary
+(define-file-reader zip-local-entry-list #:+ (Listof (Pairof ZIP-Entry Natural)) #:binary
   (lambda [/dev/zipin src]
-    (zip-seek-signature* /dev/zipin zip-list-local-entries)
+    (zip-seek-signature* /dev/zipin zip-local-entry-list)
     (port-seek /dev/zipin 0)
 
     (let ls ([seirtne : (Listof (Pairof ZIP-Entry Natural)) null])
@@ -209,9 +210,9 @@
                       (port-skip /dev/zipin (zip-entry-csize lfheader)))
                     (ls (cons (cons lfheader maybe-pos) seirtne)))]))))
 
-(define-file-reader zip-list-comments #:+ (Pairof String (Listof (Pairof String String)))
+(define-file-reader zip-comment-list #:+ (Pairof String (Listof (Pairof String String)))
   (lambda [/dev/zipin src]
-    (define-values (cdir-offset cdir-end zcomment) (zip-seek-central-directory-section /dev/zipin zip-list-comments))
+    (define-values (cdir-offset cdir-end zcomment) (zip-seek-central-directory-section /dev/zipin zip-comment-list))
 
     (let ls ([seirtne : (Listof (Pairof String String)) null]
              [cdir-pos : Natural cdir-offset])
@@ -228,8 +229,8 @@
 (define zip-list* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Listof (List String Natural Natural)))
   (lambda [/dev/zipin]
     (define entries : (Listof (U ZIP-Directory ZIP-Entry))
-      (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
-            [(not (list? /dev/zipin)) (zip-list-directories* /dev/zipin)]
+      (cond [(input-port? /dev/zipin) (zip-directory-list /dev/zipin)]
+            [(not (list? /dev/zipin)) (zip-directory-list* /dev/zipin)]
             [else /dev/zipin]))
     
     (for/list ([e (in-list entries)])
@@ -244,8 +245,8 @@
 (define zip-content-size* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Values Natural Natural))
   (lambda [/dev/zipin]
     (define entries : (Listof (U ZIP-Directory ZIP-Entry))
-      (cond [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
-            [(not (list? /dev/zipin)) (zip-list-directories* /dev/zipin)]
+      (cond [(input-port? /dev/zipin) (zip-directory-list /dev/zipin)]
+            [(not (list? /dev/zipin)) (zip-directory-list* /dev/zipin)]
             [else /dev/zipin]))
     
     (for/fold ([csize : Natural 0] [rsize : Natural 0])
@@ -295,10 +296,40 @@
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
            src.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
     (if (file-exists? src.zip)
-        (void)
+        (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
+                      [(existed-entries rest-entries new-entries) (zip-archive-entry-partition cdirectories entries root zip-root)])
+          (void)
+          (void))
         (zip-create #:root root #:zip-root zip-root #:suffixes suffixes
                     #:strategy strategy #:memory-level memlevel #:force-zip64? force-zip64? #:disable-seeking? disable-seeking?
                     src.zip entries))))
+
+(define zip-copy : (->* ((U Input-Port Path-String) (U Path-String Regexp (Listof (U Path-String Regexp))) Path-String)
+                        (#:root (Option Path-String) #:zip-root (Option Path-String) (Option String))
+                        Void)
+  (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false]
+           /dev/zipsrc entry-names dest.zip [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+    (if (input-port? /dev/zipsrc)
+        (parameterize ([current-custodian (make-custodian)])
+          (dynamic-wind
+           (λ [] (make-parent-directory* dest.zip))
+           (λ [] (let ([/dev/zipout (open-output-file dest.zip #:exists 'append)]
+                       [/dev/zipin (open-input-file dest.zip)])
+                   (let*-values ([(reqdirs restdirs _entries) (zip-directory-partition /dev/zipsrc entry-names)]
+                                 [(original-size) (file-size dest.zip)])
+                     (let zipcopy ([odestdirs : (Listof ZIP-Directory) (zip-directory-sort/filename (zip-directory-list /dev/zipin))]
+                                   [osrcdirs : (Listof ZIP-Directory) (zip-directory-sort/filename (if (null? entry-names) restdirs reqdirs))]
+                                   [final-dirs : (Listof ZIP-Directory) null]
+                                   [append-pos : Natural cdir-offset])
+                       (cond [(null? osrcdirs)
+                              (zip-write-directories /dev/zipout zcomment null #false)]
+                             [(null? odestdirs)
+                              (zip-write-directories /dev/zipout zcomment null #false)]
+                             [else (void)])))))
+           (λ [] (custodian-shutdown-all (current-custodian)))))
+        (call-with-input-file* /dev/zipsrc
+          (λ [[/dev/zipin : Input-Port]]
+            (zip-copy /dev/zipin entry-names dest.zip comment #:root root #:zip-root zip-root))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-directory-partition : (-> (U Input-Port Path-String (Listof ZIP-Directory)) (U Path-String Regexp (Listof (U Path-String Regexp)))
@@ -306,8 +337,8 @@
   (lambda [/dev/zipin entries]
     (define cdirectories : (Listof ZIP-Directory)
       (cond [(list? /dev/zipin) /dev/zipin]
-            [(input-port? /dev/zipin) (zip-list-directories /dev/zipin)]
-            [else (zip-list-directories* /dev/zipin)]))
+            [(input-port? /dev/zipin) (zip-directory-list /dev/zipin)]
+            [else (zip-directory-list* /dev/zipin)]))
     (define targets : (Listof (U String Regexp))
       (cond [(list? entries) (for/list ([e (in-list entries)]) (if (regexp? e) e (zip-path-normalize e)))]
             [(regexp? entries) (list entries)]
@@ -318,16 +349,16 @@
                     [seirotceridc : (Listof ZIP-Directory) null]
                     [shtap : (Listof String) null])
       (cond [(null? paths) (values (reverse seirotceridc) cdirectories (reverse shtap))]
-            [else (let-values ([(self-path rest-path) (values (car paths) (cdr paths))])
+            [else (let-values ([(self-path rest-paths) (values (car paths) (cdr paths))])
                     (let search ([cdirs : (Listof ZIP-Directory) cdirectories]
                                  [sridc : (Listof ZIP-Directory) null])
-                      (cond [(null? cdirs) (partition cdirectories rest-path seirotceridc (if (string? self-path) (cons self-path shtap) shtap))]
+                      (cond [(null? cdirs) (partition cdirectories rest-paths seirotceridc (if (string? self-path) (cons self-path shtap) shtap))]
                             [else (let-values ([(self-cdir rest-cdirs) (values (car cdirs) (cdr cdirs))])
                                     (if (let ([entry-name (zip-directory-filename self-cdir)])
                                           (if (string? self-path)
                                               (string=? self-path entry-name)
                                               (regexp-match? self-path entry-name)))
-                                        (partition (append (reverse sridc) rest-cdirs) rest-path (cons self-cdir seirotceridc) shtap)
+                                        (partition (append (reverse sridc) rest-cdirs) rest-paths (cons self-cdir seirotceridc) shtap)
                                         (search rest-cdirs (cons self-cdir sridc))))])))]))))
 
 (define #:forall (seed) zip-extract : (case-> [(U Input-Port Path-String) -> Void]

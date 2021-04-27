@@ -106,7 +106,7 @@
                               (zip-update-csize64 /dev/zmiout csize (offsetof-zip64-extended-info 'csize)))
                             (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize (assert rsize index?) #:csize (assert csize index?))])
                               (write-zip-data-descriptor ds /dev/zipout)))
-                        (let ([end-of-content-position (file-position /dev/zipout)])
+                        (let ([end-of-body-position (file-position /dev/zipout)])
                           (file-position /dev/zipout (+ position (offsetof-zip-entry #| self-local |# 'crc32)))
                           (if (and zip64-format?)
                               (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize 0xFF32 #:csize 0xFF32)]
@@ -116,7 +116,7 @@
                                 (zip-update-csize64 /dev/zmiout csize csize64-offset))
                               (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize (assert rsize index?) #:csize (assert csize index?))])
                                 (write-zip-data-descriptor ds /dev/zipout)))
-                          (file-position /dev/zipout end-of-content-position)))
+                          (file-position /dev/zipout end-of-body-position)))
                     (values crc32 csize))]))
 
     (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version

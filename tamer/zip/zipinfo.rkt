@@ -84,19 +84,19 @@
     (define-values (csize rsize) (zip-content-size* zip))
     
     (echof "~a, ~a uncompressed, ~a compressed: ~a~n" #:fgcolor fgc
-           (~n_w (length (zip-list-directories* zip)) "entry") (~size rsize) (~size csize)
+           (~n_w (length (zip-directory-list* zip)) "entry") (~size rsize) (~size csize)
            (zip-cfactor csize rsize 1))))
 
 (define zipinfo : (-> ZipInfo-Flags String Any)
   (lambda [opts file.zip]
     (define zip-entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
       (if (zipinfo-flags-A opts)
-          (map (inst car ZIP-Entry Natural) (zip-list-local-entries* file.zip))
-          (zip-list-directories* file.zip)))
+          (map (inst car ZIP-Entry Natural) (zip-local-entry-list* file.zip))
+          (zip-directory-list* file.zip)))
 
     (define zip-comments : (Pairof String (Listof (Pairof String String)))
       (if (zipinfo-flags-z opts)
-          (zip-list-comments* file.zip)
+          (zip-comment-list* file.zip)
           (cons "" null)))
     
     (when (zipinfo-flags-1 opts)

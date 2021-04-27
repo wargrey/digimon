@@ -89,7 +89,7 @@
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:strategy strategy #:force-zip64? (zip-64bit)))
 
-                (for ([e (in-list (zip-list-directories* target.zip))])
+                (for ([e (in-list (zip-directory-list* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
 
                 (time** #:title 'zip
@@ -99,7 +99,7 @@
                                (format "-~aq~a" (cdr strategy) (if (zip-flags-recurse-paths options) 'r ""))
                                target_zip sources))
                 
-                (for ([e (in-list (zip-list-directories* target_zip))])
+                (for ([e (in-list (zip-directory-list* target_zip))])
                   (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
 
                 (define all-entries : (Listof (Listof String))

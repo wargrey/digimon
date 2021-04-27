@@ -78,13 +78,19 @@
   [4 [lsb-int32->bytes] [lsb-uint32->bytes]]
   [8 [lsb-int64->bytes] [lsb-uint64->bytes]])
 
-(define msb-size->bytes : (->* (Integer Integer) ((Option Bytes) Natural) Bytes)
-  (lambda [n size [bs #false] [offset 0]]
-    (fixed-integer->bytes n size #false #true bs offset)))
+(define msb-size->bytes : (case-> [-> Integer Byte Bytes]
+                                  [->* (Integer Byte Bytes) (Natural) Natural])
+  (case-lambda
+    [(n size) (fixed-integer->bytes n size #false #true)]
+    [(n size bs) (fixed-integer->bytes n size #false #true bs 0)]
+    [(n size bs offset) (fixed-integer->bytes n size #false #true bs offset)]))
 
-(define lsb-size->bytes : (->* (Integer Integer) ((Option Bytes) Natural) Bytes)
-  (lambda [n size [bs #false] [offset 0]]
-    (fixed-integer->bytes n size #false #false bs offset)))
+(define lsb-size->bytes : (case-> [-> Integer Byte Bytes]
+                                  [->* (Integer Byte Bytes) (Natural) Natural])
+  (case-lambda
+    [(n size) (fixed-integer->bytes n size #false #false)]
+    [(n size bs) (fixed-integer->bytes n size #false #false bs 0)]
+    [(n size bs offset) (fixed-integer->bytes n size #false #false bs offset)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define integer->network-bytes : (->* (Integer) (Index (Option Bytes) Natural) Bytes)

@@ -44,9 +44,11 @@
   (syntax-case stx [:]
     [(_ integer->bytes do-integer->bytes signed? msb? bsize)
      (syntax/loc stx
-       (define integer->bytes : (->* (Integer) ((Option Bytes) Natural) Bytes)
-         (lambda [n [bs #false] [offset 0]]
-           (do-integer->bytes n bsize signed? msb? bs offset))))]))
+       (define integer->bytes : (case-> [-> Integer Bytes] [->* (Integer Bytes) (Natural) Natural])
+         (case-lambda
+           [(n) (do-integer->bytes n bsize signed? msb?)]
+           [(n bs) (do-integer->bytes n bsize signed? msb? bs 0)]
+           [(n bs offset) (do-integer->bytes n bsize signed? msb? bs offset)])))]))
 
 (define-syntax (define-integer->bytes* stx)
   (syntax-case stx [:]
@@ -136,10 +138,14 @@
              x)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fixed-integer->bytes : (->* (Integer Integer Boolean Boolean) ((Option Bytes) Natural) Bytes)
-  (lambda [n size signed? big-endian? [outbs #false] [offset0 0]]
-    (case size
-      [(1 2 4 8)
-       (let-values ([(bs offset) (if (not outbs) (values (make-bytes size) 0) (values outbs offset0))])
-         (integer->integer-bytes n size signed? big-endian? bs offset))]
-      [else (or outbs #"")])))
+(define fixed-integer->bytes : (case-> [Integer Byte Boolean Boolean -> Bytes]
+                                       [Integer Byte Boolean Boolean Bytes Natural -> Natural])
+  (case-lambda
+    [(n size signed? big-endian?)
+     (case size
+       [(1 2 4 8) (let ([bs (make-bytes size)]) (integer->integer-bytes n size signed? big-endian? bs 0) bs)]
+       [else #""])]
+    [(n size signed? big-endian? bs offset)
+     (case size
+       [(1 2 4 8) (integer->integer-bytes n size signed? big-endian? bs offset) (+ offset size)]
+       [else offset])]))
