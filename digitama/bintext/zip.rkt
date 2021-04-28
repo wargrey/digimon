@@ -172,9 +172,11 @@
             (max 0 (- (file-position /dev/stdout)
                       anchor)))))
 
-(define zip-write-directories : (-> Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Boolean Void)
-  (lambda [/dev/zipout comment cdirs force-zip64?]
-    (define cdoffset : Natural (file-position /dev/zipout))
+(define zip-write-directories : (->* (Output-Port (Option String) (Rec zds (Listof (U ZIP-Directory False zds))) Boolean) ((Option Natural)) Void)
+  (lambda [/dev/zipout comment cdirs force-zip64? [at-position #false]]
+    (define cdoffset : Natural
+      (cond [(not at-position) (file-position /dev/zipout)]
+            [else (file-position /dev/zipout at-position) at-position]))
     
     (define-values (cdsize count)
       (let write-directories : (Values Natural Natural)
@@ -221,7 +223,7 @@
 
 (define open-input-zip-entry : (-> Input-Port ZIP-Directory #:verify? Boolean Input-Port)
   (lambda [/dev/zipin cdir #:verify? verify?]
-    (define-values (offset crc32 rsize csize) (zip-directory-data-descriptor cdir))
+    (define-values (offset crc32 rsize csize zip64?) (zip-directory-data-descriptor cdir))
     (define ?zip (regexp-match #px"[^.]+$" (archive-port-name /dev/zipin)))
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
     

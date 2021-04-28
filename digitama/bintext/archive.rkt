@@ -14,6 +14,9 @@
 (define-type Archive-Entries (Rec aes (Listof (U Archive-Entry aes))))
 (define-type Archive-Path (U Bytes String Path))
 
+(define-type Archive-Fragment (Pairof Natural Natural))
+(define-type Archive-Fragments (Listof Archive-Fragment))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-stdin-permission : Nonnegative-Fixnum #o000)
 

@@ -300,7 +300,7 @@
             (values offset64 (+ offset64 (if (>= cdsize 0xFF32) (zip64-end-of-central-directory-cdir-size eocdir64) cdsize)) comment)))
         (values offset (+ offset cdsize) comment))))
 
-(define zip-directory-data-descriptor : (-> ZIP-Directory (Values Natural Index Natural Natural))
+(define zip-directory-data-descriptor : (-> ZIP-Directory (Values Natural Index Natural Natural Boolean))
   (lambda [cdir]
     (define offset : Natural (zip-directory-relative-offset cdir))
     (define crc32 : Index (zip-directory-crc32 cdir))
@@ -312,9 +312,23 @@
           (if (zip64-extended-info? zip64-info)
               (values (if (>= offset 0xFF32) (zip64-extended-info-relative-offset zip64-info) offset) crc32
                       (if (>= rsize 0xFF32) (zip64-extended-info-rsize zip64-info) rsize)
-                      (if (>= csize 0xFF32) (zip64-extended-info-csize zip64-info) csize))
-              (values offset crc32 rsize csize)))
-        (values offset crc32 rsize csize))))
+                      (if (>= csize 0xFF32) (zip64-extended-info-csize zip64-info) csize) #true)
+              (values offset crc32 rsize csize #false)))
+        (values offset crc32 rsize csize #false))))
+
+(define zip-directory-entry-section : (-> Input-Port ZIP-Directory (Values Natural Natural))
+  (lambda [/dev/zipin cdir]
+    (define-values (offset crc32 rsize csize zip64?) (zip-directory-data-descriptor cdir))
+
+    (file-position /dev/zipin offset)
+
+    (let ([file (read-zip-entry /dev/zipin)])
+      (file-position /dev/zipin (+ offset (sizeof-zip-entry file) csize))
+      (when (zip-has-data-descriptor? (zip-entry-gpflag file))
+        (if (not zip64?)
+            (read-zip-data-descriptor /dev/zipin)
+            (read-zip64-data-descriptor /dev/zipin)))
+      (values offset (file-position /dev/zipin)))))
 
 (define zip-entry-data-descriptor : (-> ZIP-Entry (Values Index Natural Natural))
   (lambda [e]
@@ -334,7 +348,7 @@
 (define zip-entry-metrics : (-> (U ZIP-Directory ZIP-Entry) (Values String Natural Natural))
   (lambda [e]
     (if (zip-directory? e)
-        (let-values ([(_ __ rsize csize) (zip-directory-data-descriptor e)])
+        (let-values ([(_ __ rsize csize _?) (zip-directory-data-descriptor e)])
           (values (zip-directory-filename e) rsize csize))
         (let-values ([(_ rsize csize) (zip-entry-data-descriptor e)])
           (values (zip-entry-filename e) rsize csize)))))
