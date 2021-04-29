@@ -62,6 +62,10 @@
   (lambda [flag]
     (bitwise-bit-set? flag 3)))
 
+(define zip-clear-data-descriptor-flag : (-> Index Index)
+  (lambda [flag]
+    (bitwise-and flag #b1111111111110111)))
+
 (define zip-deflation-option : (-> Index ZIP-Deflation-Option)
   (lambda [flag]
     (index->deflation-option (bitwise-bit-field flag 1 3) 'normal)))
@@ -329,6 +333,14 @@
             (read-zip-data-descriptor /dev/zipin)
             (read-zip64-data-descriptor /dev/zipin)))
       (values offset (file-position /dev/zipin)))))
+
+(define zip-directory->local-file-entry : (-> ZIP-Directory ZIP-Entry)
+  (lambda [cdir]
+    (make-zip-entry #:esystem (zip-directory-esystem cdir) #:eversion (zip-directory-eversion cdir)
+                    #:filename (zip-directory-filename cdir) #:gpflag (zip-directory-gpflag cdir) #:compression (zip-directory-compression cdir)
+                    #:mdate (zip-directory-mdate cdir) #:mtime (zip-directory-mtime cdir)
+                    #:crc32 (zip-directory-crc32 cdir) #:csize (zip-directory-csize cdir) #:rsize (zip-directory-rsize cdir)
+                    #:metainfo (zip-directory-metainfo cdir))))
 
 (define zip-entry-data-descriptor : (-> ZIP-Entry (Values Index Natural Natural))
   (lambda [e]
