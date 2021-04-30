@@ -51,15 +51,15 @@
                      void)))
 
 (define open-input-block : (->* (Input-Port Natural) (Boolean #:name Any) Input-Port)
-  (lambda [/dev/srcin size [close-orig? #true] #:name [name #false]]
+  (lambda [/dev/srcin size [close-orig? #false] #:name [name #false]]
     (define lock-semaphore : Semaphore (make-semaphore 1))
     (define consumed : Natural 0)
     
     (define (do-read [str : Bytes]) : Port-Reader-Datum
-      (define count : Integer (min (- size consumed) (bytes-length str)))
+      (define available : Integer (- size consumed))
       
-      (cond [(<= count 0) eof]
-            [else (let ([n (read-bytes-avail!* str /dev/srcin 0 count)])
+      (cond [(<= available 0) eof]
+            [else (let ([n (read-bytes-avail!* str /dev/srcin 0 (min available (bytes-length str)))])
                     (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
                           [(number? n) (set! consumed (+ consumed n)) n]
                           [(procedure? n) (set! consumed (add1 consumed)) n]
@@ -116,10 +116,11 @@
     (define cursor : Natural memory-start)
     
     (define (do-read [str : Bytes]) : Port-Reader-Datum
-      (define count : Integer (min (- memory-end cursor) (bytes-length str)))
+      (define available : Integer (- memory-end cursor))
       
-      (cond [(<= count 0) eof]
-            [else (let ([next-cursor (+ cursor count)])
+      (cond [(<= available 0) eof]
+            [else (let* ([count (min available (bytes-length str))]
+                         [next-cursor (+ cursor count)])
                     (bytes-copy! str 0 memory cursor next-cursor)
                     (set! cursor next-cursor)
                     count)]))
