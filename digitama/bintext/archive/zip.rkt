@@ -6,6 +6,7 @@
 (require "../archive.rkt")
 (require "../zip.rkt")
 
+(require "../../../port.rkt")
 (require "../../../stdio.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -25,7 +26,7 @@
           [(string<? lname rname) -1]
           [else                   01])))
 
-(define zip-directory-timestamp<? : (-> ZIP-Directory ZIP-Directory Boolean)
+(define zip-directory-timestamp<=? : (-> ZIP-Directory ZIP-Directory Boolean)
   (lambda [ldir rdir]
     (< (zip-entry-modify-seconds (zip-directory-mdate ldir) (zip-directory-mtime ldir))
        (zip-entry-modify-seconds (zip-directory-mdate rdir) (zip-directory-mtime rdir)))))
@@ -55,15 +56,42 @@
                     (cond [(<= fragment-size 0) (seek-fragment rest fragments offend)]
                           [else (seek-fragment rest (cons (cons last-end fragment-size) fragments) offend)]))]))))
 
-(define zip-copy-directory : (-> Input-Port ZIP-Directory Output-Port Archive-Fragments Archive-Fragments)
-  (lambda [/dev/zipin cdir /dev/zipout fragments]
-     fragments))
+(define zip-copy-directory : (-> Input-Port ZIP-Directory Output-Port Archive-Fragments (Values ZIP-Directory Archive-Fragments))
+  (lambda [/dev/zipin srcdir /dev/zipout fragments]
+    (define relative-offset : Natural (file-position /dev/zipout))
+    (define-values (offset _ __ csize _64?) (zip-directory-data-descriptor srcdir))
+    (define gpflag : Index (zip-directory-gpflag srcdir))
+    (define cdir : ZIP-Directory (if (zip-has-data-descriptor? gpflag) (remake-zip-directory srcdir #:gpflag (zip-clear-data-descriptor-flag gpflag)) srcdir))
+    (define self-entry : ZIP-File (zip-directory->local-file-entry cdir))
+    (define entry-total : Natural (+ (sizeof-zip-file self-entry) csize))
+    (define-values (self-fragment fragments++) (zip-select-fragment fragments entry-total))
+    ;(define updated-cdir : ZIP-Directory (remake-zip-directory cdir #:relative-offset (if (not self-fragment) relative-offset (car self-fragment))))
+    
+    (file-position /dev/zipin offset)
+    (read-zip-file /dev/zipin) ; useless because it is a good chance to remove the data descriptor following the content
 
-(define zip-copy-directories : (-> Input-Port (Listof ZIP-Directory) Output-Port Archive-Fragments Archive-Fragments)
-  (lambda [/dev/zipin cdirs /dev/zipout fragments]
-    (for/fold ([fragments++ : Archive-Fragments fragments])
-              ([cdir (in-list cdirs)])
-      (zip-copy-directory /dev/zipin cdir /dev/zipout fragments++))))
+    (let ([/dev/entin (open-input-block /dev/zipin csize #false)])
+      (displayln srcdir)
+      (displayln self-entry)
+      (write-zip-file self-entry /dev/zipout)
+      (copy-port /dev/entin /dev/zipout))
+
+    (values cdir fragments++)))
+
+(define zip-copy-directories : (-> Input-Port (Listof ZIP-Directory) Output-Port Archive-Fragments (Values (Listof ZIP-Directory) Archive-Fragments))
+  (lambda [/dev/zipin cdirs /dev/zipout fragment0]
+    (define-values (#{sridc++ : (Listof ZIP-Directory)} #{fragments : Archive-Fragments})
+      (for/fold ([updated-cdirs : (Listof ZIP-Directory) null] [fragments++ : Archive-Fragments fragment0])
+                ([cdir (in-list cdirs)])
+        (let-values ([(updirs frag++) (zip-copy-directory /dev/zipin cdir /dev/zipout fragments++)])
+          (values (cons updirs updated-cdirs) frag++))))
+    
+    (values (reverse sridc++) fragments)))
+
+(define zip-select-fragment : (-> Archive-Fragments Natural (Values (Option Archive-Fragment) Archive-Fragments))
+  (lambda [fragments request-size]
+    
+    (values #false fragments)))
 
 (define zip-archive-entry-partition : (-> (Listof ZIP-Directory) Archive-Entries (Option Path-String) (Option Path-String)
                                           (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof Archive-Entry)))
@@ -92,3 +120,22 @@
                                     (if (string=? (zip-directory-filename self-cdir) (car self-named-entry))
                                         (partition (append (reverse sridc) rest-cdirs) rest-named-entries (cons self-cdir seirotceridc) seirtne)
                                         (search rest-cdirs (cons self-cdir sridc))))])))]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-fragments-add-entry : (-> Archive-Fragments Input-Port ZIP-Directory Archive-Fragments)
+  (lambda [fragments /dev/zipin cdir]
+    (define-values (offset offend) (zip-directory-entry-section /dev/zipin cdir))
+    (define fragment-size : Integer (- offend offset))
+
+    (cond [(<= fragment-size 0) fragments]
+          [else (let merge ([fs : Archive-Fragments fragments]
+                            [sf : Archive-Fragments null])
+                  (cond [(null? fs) (cons (cons offset fragment-size) sf)]
+                        [else (let*-values ([(self rest) (values (car fs) (cdr fs))]
+                                            [(self-start self-size) (values (car self) (cdr self))]
+                                            [(self-end) (+ self-start self-size)])
+                                (merge rest
+                                       (cons (if (= self-end offset)
+                                                 (cons self-start (+ self-size fragment-size))
+                                                 self)
+                                             sf)))]))])))

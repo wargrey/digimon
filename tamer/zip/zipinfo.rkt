@@ -61,7 +61,7 @@
   (lambda []
     (make-dtrace-loop (if (zip-verbose) 'trace 'info))))
 
-(define zip-entry-info : (-> (U ZIP-Directory ZIP-Entry) ZipInfo-Flags (Listof String))
+(define zip-entry-info : (-> (U ZIP-Directory ZIP-File) ZipInfo-Flags (Listof String))
   (lambda [ze opts]
     (filter string?
             (if (zip-directory? ze)
@@ -72,12 +72,12 @@
                         (symbol->immutable-string (zip-directory-compression ze))
                         (zip-datetime (zip-directory-mdate ze) (zip-directory-mtime ze) (zipinfo-flags-T opts))
                         (zip-directory-filename ze)))
-                (let-values ([(csize rsize) (values (zip-entry-csize ze) (zip-entry-rsize ze))])
-                  (list (zip-version (zip-entry-eversion ze)) (symbol->immutable-string (zip-entry-esystem ze))
+                (let-values ([(csize rsize) (values (zip-file-csize ze) (zip-file-rsize ze))])
+                  (list (zip-version (zip-file-eversion ze)) (symbol->immutable-string (zip-file-esystem ze))
                         (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
-                        (symbol->immutable-string (zip-entry-compression ze))
-                        (zip-datetime (zip-entry-mdate ze) (zip-entry-mtime ze) (zipinfo-flags-T opts))
-                        (zip-entry-filename ze)))))))
+                        (symbol->immutable-string (zip-file-compression ze))
+                        (zip-datetime (zip-file-mdate ze) (zip-file-mtime ze) (zipinfo-flags-T opts))
+                        (zip-file-name ze)))))))
 
 (define zip-display-tail-info : (->* (Path-String) (Term-Color) Void)
   (lambda [zip [fgc #false]]
@@ -89,9 +89,9 @@
 
 (define zipinfo : (-> ZipInfo-Flags String Any)
   (lambda [opts file.zip]
-    (define zip-entries : (U (Listof ZIP-Directory) (Listof ZIP-Entry))
+    (define zip-entries : (U (Listof ZIP-Directory) (Listof ZIP-File))
       (if (zipinfo-flags-A opts)
-          (map (inst car ZIP-Entry Natural) (zip-local-entry-list* file.zip))
+          (map (inst car ZIP-File Natural) (zip-local-file-list* file.zip))
           (zip-directory-list* file.zip)))
 
     (define zip-comments : (Pairof String (Listof (Pairof String String)))

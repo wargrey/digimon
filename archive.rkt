@@ -7,8 +7,7 @@
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference zip-special-preference)
 (provide zip-identity-preference zip-plain-preference zip-backward-preference zip-run-preference)
-(provide ZIP-Entry zip-entry? sizeof-zip-entry)
-(provide ZIP-Directory zip-directory? sizeof-zip-directory)
+(provide ZIP-File zip-file? sizeof-zip-file ZIP-Directory zip-directory? sizeof-zip-directory)
 
 (require "digitama/bintext/archive.rkt")
 (require "digitama/bintext/zipinfo.rkt")
@@ -76,7 +75,7 @@
               (displayln comment /dev/zipout)))
 
           (unless (not metainfo?)
-            (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir)))])
+            (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir) cdir))])
               (displayln info /dev/zipout))))
 
         (cond [(not check?) (copy-port /dev/zipin /dev/hexout)]
@@ -186,28 +185,28 @@
                     (ls (cons cdir sridc)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define-file-reader zip-entry-list #:+ (Listof ZIP-Entry) #:binary
+(define-file-reader zip-file-list #:+ (Listof ZIP-File) #:binary
   (lambda [/dev/zipin src]
-    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-entry-list))
+    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-file-list))
 
-    (let ls ([seirtne : (Listof ZIP-Entry) null]
+    (let ls ([seirtne : (Listof ZIP-File) null]
              [cdir-pos : Natural cdir-offset])
       (cond [(>= cdir-pos cdir-end) (reverse seirtne)]
             [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
-                    (ls (cons (read-zip-entry* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
+                    (ls (cons (read-zip-file* /dev/zipin (zip-directory-relative-offset cdir)) seirtne)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define-file-reader zip-local-entry-list #:+ (Listof (Pairof ZIP-Entry Natural)) #:binary
+(define-file-reader zip-local-file-list #:+ (Listof (Pairof ZIP-File Natural)) #:binary
   (lambda [/dev/zipin src]
-    (zip-seek-signature* /dev/zipin zip-local-entry-list)
+    (zip-seek-signature* /dev/zipin zip-local-file-list)
     (port-seek /dev/zipin 0)
 
-    (let ls ([seirtne : (Listof (Pairof ZIP-Entry Natural)) null])
+    (let ls ([seirtne : (Listof (Pairof ZIP-File Natural)) null])
       (define maybe-pos : (Option Natural) (zip-seek-local-file-signature /dev/zipin))
       (cond [(not maybe-pos) (reverse seirtne)]
-            [else (let-values ([(lfheader dr-size) (read-zip-entry** /dev/zipin)])
+            [else (let-values ([(lfheader dr-size) (read-zip-file** /dev/zipin)])
                     (when (= dr-size 0)
-                      (port-skip /dev/zipin (zip-entry-csize lfheader)))
+                      (port-skip /dev/zipin (zip-file-csize lfheader)))
                     (ls (cons (cons lfheader maybe-pos) seirtne)))]))))
 
 (define-file-reader zip-comment-list #:+ (Pairof String (Listof (Pairof String String)))
@@ -221,14 +220,14 @@
                     (ls (cons (cons (zip-directory-filename cdir) (zip-directory-comment cdir)) seirtne)
                         (+ cdir-pos (sizeof-zip-directory cdir))))]))))
 
-(define zip-list : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Listof String))
+(define zip-list : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-File))) (Listof String))
   (lambda [/dev/zipin]
     (for/list ([lst (in-list (zip-list* /dev/zipin))])
       (car lst))))
 
-(define zip-list* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Listof (List String Natural Natural)))
+(define zip-list* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-File))) (Listof (List String Natural Natural)))
   (lambda [/dev/zipin]
-    (define entries : (Listof (U ZIP-Directory ZIP-Entry))
+    (define entries : (Listof (U ZIP-Directory ZIP-File))
       (cond [(input-port? /dev/zipin) (zip-directory-list /dev/zipin)]
             [(not (list? /dev/zipin)) (zip-directory-list* /dev/zipin)]
             [else /dev/zipin]))
@@ -237,14 +236,14 @@
       (define-values (fname rsize csize) (zip-entry-metrics e))
       (list fname csize rsize))))
 
-(define zip-content-size : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) Natural)
+(define zip-content-size : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-File))) Natural)
   (lambda [/dev/zipin]
     (define-values (csize rsize) (zip-content-size* /dev/zipin))
     rsize))
 
-(define zip-content-size* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-Entry))) (Values Natural Natural))
+(define zip-content-size* : (-> (U Input-Port Path-String (Listof (U ZIP-Directory ZIP-File))) (Values Natural Natural))
   (lambda [/dev/zipin]
-    (define entries : (Listof (U ZIP-Directory ZIP-Entry))
+    (define entries : (Listof (U ZIP-Directory ZIP-File))
       (cond [(input-port? /dev/zipin) (zip-directory-list /dev/zipin)]
             [(not (list? /dev/zipin)) (zip-directory-list* /dev/zipin)]
             [else /dev/zipin]))
@@ -323,23 +322,29 @@
 
                    (file-position /dev/zipout cdir-offset)
 
-                   (let zipcopy ([odestdirs : (Listof ZIP-Directory) ordered-destdirs]
-                                 [osrcdirs : (Listof ZIP-Directory) (zip-directory-sort/filename (if (null? entry-names) restdirs reqdirs))]
-                                 [final-dirs : (Listof ZIP-Directory) null]
-                                 [fragments : Archive-Fragments fragments])
+                   (let zipcopy : Void ([odestdirs : (Listof ZIP-Directory) ordered-destdirs]
+                                        [osrcdirs : (Listof ZIP-Directory) (zip-directory-sort/filename (if (null? entry-names) restdirs reqdirs))]
+                                        [final-dirs : (Listof ZIP-Directory) null]
+                                        [fragments : Archive-Fragments fragments])
                      (cond [(null? osrcdirs)
                             (zip-write-directories /dev/zipout zcomment (append (reverse final-dirs) odestdirs) #false)]
                            [(null? odestdirs)
-                            (zip-copy-directories /dev/zipsrc osrcdirs /dev/zipout fragments)
-                            (zip-write-directories /dev/zipout zcomment (append (reverse final-dirs) osrcdirs) #false)]
-                           [else (let-values ([(self-destdir self-srcdir) (values (car odestdirs) (car osrcdirs))])
-                                   (case (zip-directory-filename<=>? self-destdir self-srcdir)
-                                     [(-1) (zipcopy (cdr odestdirs) osrcdirs (cons self-destdir final-dirs) fragments)]
-                                     [(+1) ; add the new entry
-                                      (zipcopy odestdirs (cdr osrcdirs) (cons self-srcdir final-dirs)
-                                               (zip-copy-directory /dev/zipsrc self-srcdir /dev/zipout fragments))]
-                                     [else (void)]))]))
-                   (void)))
+                            (let-values ([(updated-srcdirs _) (zip-copy-directories /dev/zipsrc osrcdirs /dev/zipout fragments)])
+                              (zip-write-directories /dev/zipout zcomment (append (reverse final-dirs) updated-srcdirs) #false))]
+                           [else
+                            (let-values ([(self-destdir self-srcdir) (values (car odestdirs) (car osrcdirs))])
+                              (case (zip-directory-filename<=>? self-destdir self-srcdir)
+                                [(0) ; select the up-to-date entry
+                                 (if (zip-directory-timestamp<=? self-srcdir self-destdir)
+                                     (zipcopy (cdr odestdirs) (cdr osrcdirs) (cons self-destdir final-dirs) fragments)
+                                     (let*-values ([(frag++) (zip-fragments-add-entry fragments /dev/zipin self-destdir)]
+                                                   [(updated-srcdir frag++) (zip-copy-directory /dev/zipsrc self-srcdir /dev/zipout frag++)])
+                                       (zipcopy (cdr odestdirs) (cdr osrcdirs) (cons updated-srcdir final-dirs) frag++)))]
+                                [(1) ; insert the new entry
+                                 (let-values ([(updated-srcdir frag++) (zip-copy-directory /dev/zipsrc self-srcdir /dev/zipout fragments)])
+                                   (zipcopy odestdirs (cdr osrcdirs) (cons updated-srcdir final-dirs) frag++))]
+                                [else ; append existed entry
+                                 (zipcopy (cdr odestdirs) osrcdirs (cons self-destdir final-dirs) fragments)]))]))))
            (λ [] (custodian-shutdown-all (current-custodian)))))
         (call-with-input-file* /dev/zipsrc
           (λ [[/dev/zipin : Input-Port]]
