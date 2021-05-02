@@ -181,6 +181,11 @@
 
 (struct zip-metainfo () #:type-name ZIP-Metainfo #:transparent)
 
+(define-binary-struct zip-metadata : ZIP-Metadata
+  ([id : LUInt16 #:radix 16]
+   [size : LUInt16]
+   [body : (Bytesof size)]))
+
 (define-binary-struct [zip64-extended-info zip-metainfo] : ZIP64-Extended-Info
   ([id : LUInt16 #:signature #%zip64-id]
    [size : LUInt16 #:default 28]
@@ -192,9 +197,19 @@
    [relative-offset : LUInt64 #:default 0 #:radix 16]
    [disk-idx : LUInt32 #:default 0]))
 
-(define read-zip-metainfos : (-> Bytes ZIP-Directory (Listof (Pairof Index ZIP-Metainfo)))
+(define read-zip-metadatas : (-> Bytes ZIP-Directory (Listof ZIP-Metadata))
   (lambda [block cdir]
     (define total : Index (bytes-length block))
+    (define /dev/zipin : Input-Port (open-input-memory block))
+    
+    (let read-metadata ([satad : (Listof ZIP-Metadata) null]
+                        [idx : Nonnegative-Fixnum 0])
+      (cond [(>= idx total) (reverse satad)]
+            [else (let ([md (read-zip-metadata /dev/zipin)])
+                    (read-metadata (cons md satad) (+ idx 4 (zip-metadata-size md))))]))))
+
+(define read-zip-metainfos : (-> Bytes ZIP-Directory (Listof (Pairof Index ZIP-Metainfo)))
+  (lambda [block cdir]
     (define /dev/zipin : Input-Port (open-input-bytes block))
     
     (let read-metainfo ([sofni : (Listof (Pairof Index ZIP-Metainfo)) null]
@@ -334,6 +349,15 @@
                       (zip64-extended-info-rsize zip64-info) (zip64-extended-info-csize zip64-info) #true)
               (values offset crc32 rsize csize #false)))
         (values offset crc32 rsize csize #false))))
+
+(define zip-directory-relocate : (-> ZIP-Directory Natural ZIP-Directory)
+  (lambda [cdir pos]
+    (define offset : Natural (zip-directory-relative-offset cdir))
+
+    (cond [(and (< offset 0xFF32) (< pos 0xFF32)) (remake-zip-directory cdir #:relative-offset pos)]
+          [else (let ([zip64-?pos (seek-zip-metainfo (zip-directory-metainfo cdir) #%zip64-id cdir)])
+                  
+                  (remake-zip-directory cdir #:relative-offset 0))])))
 
 (define zip-directory-entry-section : (-> Input-Port ZIP-Directory (Values Natural Natural))
   (lambda [/dev/zipin cdir]
