@@ -261,7 +261,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           out.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+           out.zip entries [comment "created by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)]
                    [default-stdout-all-fields? #false])
       (define /dev/zipout : Output-Port
@@ -293,7 +293,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           src.zip entries [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+           src.zip entries [comment "updated by λsh - https://github.com/wargrey/lambda-shell"]]
     (if (file-exists? src.zip)
         (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
                       [(existed-entries rest-entries new-entries) (zip-archive-entry-partition cdirectories entries root zip-root)])
@@ -307,12 +307,12 @@
                         (#:root (Option Path-String) #:zip-root (Option Path-String) (Option String))
                         Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false]
-           /dev/zipsrc entry-names dest.zip [comment "packed by λsh - https://github.com/wargrey/lambda-shell"]]
+           /dev/zipsrc entry-names dest.zip [comment "copied by λsh - https://github.com/wargrey/lambda-shell"]]
     (if (input-port? /dev/zipsrc)
         (parameterize ([current-custodian (make-custodian)])
           (dynamic-wind
            (λ [] (make-parent-directory* dest.zip))
-           (λ [] (let ([/dev/zipout (open-output-file dest.zip #:exists 'append)]
+           (λ [] (let ([/dev/zipout (open-output-file dest.zip #:exists 'can-update)] ; 'append might cause incorrect signature position due to some mysteries
                        [/dev/zipin (open-input-file dest.zip)]
                        [original-size (file-size dest.zip)])
                    (define-values (_ __ zcomment) (if (= original-size 0) (values 0 0 comment) (zip-seek-central-directory-section /dev/zipin zip-copy)))
@@ -321,16 +321,16 @@
                    (define-values (fragments cdir-offset) (zip-archive-fragments /dev/zipin ordered-destdirs))
 
                    (file-position /dev/zipout cdir-offset)
-
+                   
                    (let zipcopy : Void ([odestdirs : (Listof ZIP-Directory) ordered-destdirs]
                                         [osrcdirs : (Listof ZIP-Directory) (zip-directory-sort/filename (if (null? entry-names) restdirs reqdirs))]
                                         [final-dirs : (Listof ZIP-Directory) null]
                                         [fragments : Archive-Fragments fragments])
                      (cond [(null? osrcdirs)
-                            (zip-write-directories /dev/zipout zcomment (append (reverse final-dirs) odestdirs) #false)]
+                            (zip-write-directories /dev/zipout zcomment (append final-dirs odestdirs) #false)]
                            [(null? odestdirs)
                             (let-values ([(updated-srcdirs _) (zip-copy-directories /dev/zipsrc osrcdirs /dev/zipout fragments)])
-                              (zip-write-directories /dev/zipout zcomment (append (reverse final-dirs) updated-srcdirs) #false))]
+                              (zip-write-directories /dev/zipout zcomment (append final-dirs updated-srcdirs) #false))]
                            [else
                             (let-values ([(self-destdir self-srcdir) (values (car odestdirs) (car osrcdirs))])
                               (case (zip-directory-filename<=>? self-destdir self-srcdir)
@@ -344,7 +344,11 @@
                                  (let-values ([(updated-srcdir frag++) (zip-copy-directory /dev/zipsrc self-srcdir /dev/zipout fragments)])
                                    (zipcopy odestdirs (cdr osrcdirs) (cons updated-srcdir final-dirs) frag++))]
                                 [else ; append existed entry
-                                 (zipcopy (cdr odestdirs) osrcdirs (cons self-destdir final-dirs) fragments)]))]))))
+                                 (zipcopy (cdr odestdirs) osrcdirs (cons self-destdir final-dirs) fragments)]))]))
+
+                   (let ([new-size (file-position /dev/zipout)])
+                     (when (< new-size original-size)
+                       (file-truncate /dev/zipout new-size)))))
            (λ [] (custodian-shutdown-all (current-custodian)))))
         (call-with-input-file* /dev/zipsrc
           (λ [[/dev/zipin : Input-Port]]

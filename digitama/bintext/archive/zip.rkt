@@ -28,8 +28,8 @@
 
 (define zip-directory-timestamp<=? : (-> ZIP-Directory ZIP-Directory Boolean)
   (lambda [ldir rdir]
-    (< (zip-entry-modify-seconds (zip-directory-mdate ldir) (zip-directory-mtime ldir))
-       (zip-entry-modify-seconds (zip-directory-mdate rdir) (zip-directory-mtime rdir)))))
+    (<= (zip-entry-modify-seconds (zip-directory-mdate ldir) (zip-directory-mtime ldir))
+        (zip-entry-modify-seconds (zip-directory-mdate rdir) (zip-directory-mtime rdir)))))
 
 (define zip-directory-sort : (All (a) (-> (Listof ZIP-Directory) (-> ZIP-Directory a) (-> a a Boolean) (Listof ZIP-Directory)))
   (lambda [cdirs field-ref <]
@@ -58,40 +58,43 @@
 
 (define zip-copy-directory : (-> Input-Port ZIP-Directory Output-Port Archive-Fragments (Values ZIP-Directory Archive-Fragments))
   (lambda [/dev/zipin srcdir /dev/zipout fragments]
-    (define relative-offset : Natural (file-position /dev/zipout))
-    (define-values (offset _ __ csize _64?) (zip-directory-data-descriptor srcdir))
-    (define gpflag : Index (zip-directory-gpflag srcdir))
-    (define cdir : ZIP-Directory (if (zip-has-data-descriptor? gpflag) (remake-zip-directory srcdir #:gpflag (zip-clear-data-descriptor-flag gpflag)) srcdir))
-    (define self-entry : ZIP-File (zip-directory->local-file-entry cdir))
-    (define entry-total : Natural (+ (sizeof-zip-file self-entry) csize))
-    (define-values (self-fragment fragments++) (zip-select-fragment fragments entry-total))
-    ;(define updated-cdir : ZIP-Directory (remake-zip-directory cdir #:relative-offset (if (not self-fragment) relative-offset (car self-fragment))))
+    (define here-position : Natural (file-position /dev/zipout))  
+    (define-values (here-cdir in-offset in-csize) (zip-directory-relocate srcdir here-position #:clear-data-descriptor-flag? #true))
+    (define here-file : ZIP-File (zip-directory->local-file-entry here-cdir))
+    (define ?fragment : (Option Archive-Fragment) (zip-select-fragment fragments (+ (sizeof-zip-file here-file) in-csize)))
     
-    (file-position /dev/zipin offset)
-    (read-zip-file /dev/zipin) ; useless because it is a good chance to remove the data descriptor following the content
+    (define-values (cdir self-file)
+      (cond [(not ?fragment) (values here-cdir here-file)]
+            [else (let*-values ([(frag-pos) (car ?fragment)]
+                                [(cdir _ __) (zip-directory-relocate srcdir frag-pos #:clear-data-descriptor-flag? #true)])
+                    (file-position /dev/zipout frag-pos)
+                    (values cdir (zip-directory->local-file-entry cdir)))]))
+    
+    (file-position /dev/zipin in-offset)
+    (read-zip-file /dev/zipin) ; useless because we need the chance to remove the data descriptor following the content
 
-    (let ([/dev/entin (open-input-block /dev/zipin csize #false)])
-      (displayln srcdir)
-      (displayln self-entry)
-      (write-zip-file self-entry /dev/zipout)
-      (copy-port /dev/entin /dev/zipout))
+    (let ([/dev/entin (open-input-block /dev/zipin in-csize #false)])
+      (write-zip-file self-file /dev/zipout)
+      (copy-port /dev/entin /dev/zipout)
+      (close-input-port /dev/entin)
+      (flush-output /dev/zipout))
 
-    (values cdir fragments++)))
+    (values cdir
+            (cond [(not ?fragment) fragments]
+                  [else (let ([subfrag-position (file-position /dev/zipout)])
+                          ; move to the current position of `/dev/zipout`
+                          (file-position /dev/zipout here-position)
+                          (zip-fragments-update fragments ?fragment subfrag-position))]))))
 
 (define zip-copy-directories : (-> Input-Port (Listof ZIP-Directory) Output-Port Archive-Fragments (Values (Listof ZIP-Directory) Archive-Fragments))
   (lambda [/dev/zipin cdirs /dev/zipout fragment0]
-    (define-values (#{sridc++ : (Listof ZIP-Directory)} #{fragments : Archive-Fragments})
+    (define-values (#{cdirs++ : (Listof ZIP-Directory)} #{fragments : Archive-Fragments})
       (for/fold ([updated-cdirs : (Listof ZIP-Directory) null] [fragments++ : Archive-Fragments fragment0])
                 ([cdir (in-list cdirs)])
         (let-values ([(updirs frag++) (zip-copy-directory /dev/zipin cdir /dev/zipout fragments++)])
           (values (cons updirs updated-cdirs) frag++))))
     
-    (values (reverse sridc++) fragments)))
-
-(define zip-select-fragment : (-> Archive-Fragments Natural (Values (Option Archive-Fragment) Archive-Fragments))
-  (lambda [fragments request-size]
-    
-    (values #false fragments)))
+    (values cdirs++ fragments)))
 
 (define zip-archive-entry-partition : (-> (Listof ZIP-Directory) Archive-Entries (Option Path-String) (Option Path-String)
                                           (Values (Listof ZIP-Directory) (Listof ZIP-Directory) (Listof Archive-Entry)))
@@ -122,6 +125,27 @@
                                         (search rest-cdirs (cons self-cdir sridc))))])))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-select-fragment : (-> Archive-Fragments Natural (Option Archive-Fragment))
+  (lambda [fragments request-size]
+    (define ordered-fragments ((inst sort Archive-Fragment) fragments > #:key cdr))
+
+    (and (pair? ordered-fragments)
+         (let ([fragment (car ordered-fragments)])
+           (and (>= (cdr fragment) request-size)
+                fragment)))))
+
+(define zip-fragments-update : (-> Archive-Fragments Archive-Fragment Natural Archive-Fragments)
+  (lambda [fragments fragment subfrag-start]
+    (let update ([fs : Archive-Fragments fragments]
+                 [sf : Archive-Fragments null])
+      (cond [(null? fs) (reverse sf)]
+            [else (let-values ([(self rest) (values (car fragments) (cdr fragments))])
+                    (cond [(not (= (car self) (car fragment))) (update fs (cons self sf))]
+                          [else (let ([size (- (+ (car self) (cdr self)) subfrag-start)])
+                                  (append (reverse fs)
+                                          (cond [(<= size 0) rest]
+                                                [else (cons (cons subfrag-start size) rest)])))]))]))))
+
 (define zip-fragments-add-entry : (-> Archive-Fragments Input-Port ZIP-Directory Archive-Fragments)
   (lambda [fragments /dev/zipin cdir]
     (define-values (offset offend) (zip-directory-entry-section /dev/zipin cdir))

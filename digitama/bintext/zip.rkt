@@ -81,7 +81,7 @@
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
 
     ; please keep the zip64 extended info as the first extra fields, so that we can easily modify the compressed size
-    ; TODO: some zip64 extended fields should only exist when necessary (a.k.a the bits of their corresponding fields are all set)
+    ; TODO: squeeze out every single byte based on the trick of zip64 extended data
     (when (or zip64-format?)
       (write-zip64-extended-info (make-zip64-extended-info #:rsize rsize #:csize 0 #:relative-offset position) /dev/zmiout))
 
@@ -189,7 +189,7 @@
                 [else (values (+ size (write-zip-directory cdir /dev/zipout)) (+ count 1))]))))
 
     #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
-
+    
     (define eocdr : ZIP-End-Of-Central-Directory
       (let ([offset32 (assert (if (not force-zip64?) (min cdoffset 0xFF32) 0xFF32) index?)]
             [cdsize32 (assert (min cdsize 0xFF32) index?)]
@@ -211,7 +211,7 @@
 
       (write-zip64-end-of-central-directory eocdr64 /dev/zipout)
       (write-zip64-end-of-central-directory-locator eocdl /dev/zipout))
-
+    
     (write-zip-end-of-central-directory eocdr /dev/zipout)
     (flush-output /dev/zipout)))
 
