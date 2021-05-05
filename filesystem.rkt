@@ -24,19 +24,20 @@
         (~or #:lambda #:λ) do-read)
      (quasisyntax/loc stx
        (define id : (-> Path-String [#:mode (U 'binary 'text)] [#:count-lines? Boolean] Type)
-         (let ([up-to-dates : (HashTable Path (Pairof Type Nonnegative-Fixnum)) (make-hash)])
+         (let ([up-to-dates : (HashTable Natural (Pairof Type Nonnegative-Fixnum)) (make-hash)])
            (lambda [#:mode [mode 'binary]
                     #:count-lines? [count-lines? #,(if (attribute text-flag) #'(port-count-lines-enabled) #'#false)]
                     src]
              (define mtime : Nonnegative-Fixnum (file-or-directory-modify-seconds src))
              (define file.src : Path (simplify-path src))
-             (define mdatum : (Option (Pairof Type Nonnegative-Fixnum)) (hash-ref up-to-dates file.src (λ [] #false)))
+             (define id : Natural (file-or-directory-identity file.src))
+             (define mdatum : (Option (Pairof Type Nonnegative-Fixnum)) (hash-ref up-to-dates id (λ [] #false)))
              (cond [(and mdatum (<= mtime (cdr mdatum))) (car mdatum)]
                    [else (let ([datum (parameterize ([port-count-lines-enabled count-lines?])
                                         (call-with-input-file* file.src #:mode mode
                                           (λ [[/dev/stdin : Input-Port]] : Type
                                             (do-read /dev/stdin file.src))))])
-                           (hash-set! up-to-dates file.src (cons datum mtime))
+                           (hash-set! up-to-dates id (cons datum mtime))
                            datum)])))))]
     [(_ id #:+ Type mode:keyword ((~or lambda λ) [/dev/stdin src] body ...))
      (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])
