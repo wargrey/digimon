@@ -85,7 +85,8 @@
                                             [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
                                         (parameterize ([current-directory pwd]
                                                        [current-namespace (make-base-namespace)]
-                                                       [exit-handler (λ _ (error the-name " typeset: [fatal] ~a needs a proper `exit-handler`!" ./TEXNAME.scrbl))])
+                                                       [exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
+                                                                                 the-name (current-make-phony-goal) ./TEXNAME.scrbl))])
                                           (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
                                           
                                           (when (file-exists? load.tex)
@@ -160,8 +161,9 @@
     (list (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
             (cond [(null? renderers)
                    (when (not silent)
-                     (dtrace-note "~a typeset: no suitable renderer is found, use `~a` instead"
-                                  the-name tex-fallback-renderer #:topic the-name #:prefix? #false))
+                     (dtrace-note #:topic the-name #:prefix? #false
+                                  "~a ~a: no suitable renderer is found, use `~a` instead"
+                                  the-name (current-make-phony-goal) tex-fallback-renderer))
                    tex-fallback-renderer]
                   [(memq (car renderers) candidates) (car renderers)]
                   [else (check (cdr renderers))]))

@@ -3,8 +3,6 @@
 (provide (all-defined-out))
 
 (require racket/list)
-(require racket/path)
-(require racket/string)
 
 (require "dist.rkt")
 
@@ -13,9 +11,6 @@
 (require "../racket.rkt")
 (require "../native.rkt")
 (require "../parameter.rkt")
-
-(require "../../../dtrace.rkt")
-(require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony
