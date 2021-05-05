@@ -61,8 +61,8 @@
     (define here-position : Natural (file-position /dev/zipout))  
     (define-values (here-cdir in-offset in-csize) (zip-directory-relocate srcdir here-position #:clear-data-descriptor-flag? #true))
     (define here-file : ZIP-File (zip-directory->local-file-entry here-cdir))
-    (define ?fragment : (Option Archive-Fragment) (zip-select-fragment fragments (+ (sizeof-zip-file here-file) in-csize)))
-    
+    (define-values (?fragment ordered-fragments) (zip-select-fragment fragments (+ (sizeof-zip-file here-file) in-csize)))
+
     (define-values (cdir self-file)
       (cond [(not ?fragment) (values here-cdir here-file)]
             [else (let*-values ([(frag-pos) (car ?fragment)]
@@ -72,19 +72,19 @@
     
     (file-position /dev/zipin in-offset)
     (read-zip-file /dev/zipin) ; useless because we need the chance to remove the data descriptor following the content
-
+    
     (let ([/dev/entin (open-input-block /dev/zipin in-csize #false)])
       (write-zip-file self-file /dev/zipout)
       (copy-port /dev/entin /dev/zipout)
       (close-input-port /dev/entin)
       (flush-output /dev/zipout))
-
+    
     (values cdir
-            (cond [(not ?fragment) fragments]
+            (cond [(not ?fragment) ordered-fragments]
                   [else (let ([subfrag-position (file-position /dev/zipout)])
                           ; move to the current position of `/dev/zipout`
                           (file-position /dev/zipout here-position)
-                          (zip-fragments-update fragments ?fragment subfrag-position))]))))
+                          (zip-fragments-update ordered-fragments ?fragment subfrag-position))]))))
 
 (define zip-copy-directories : (-> Input-Port (Listof ZIP-Directory) Output-Port Archive-Fragments (Values (Listof ZIP-Directory) Archive-Fragments))
   (lambda [/dev/zipin cdirs /dev/zipout fragment0]
@@ -125,24 +125,26 @@
                                         (search rest-cdirs (cons self-cdir sridc))))])))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-select-fragment : (-> Archive-Fragments Natural (Option Archive-Fragment))
+(define zip-select-fragment : (-> Archive-Fragments Natural (Values (Option Archive-Fragment) Archive-Fragments))
   (lambda [fragments request-size]
     (define ordered-fragments ((inst sort Archive-Fragment) fragments > #:key cdr))
 
-    (and (pair? ordered-fragments)
-         (let ([fragment (car ordered-fragments)])
-           (and (>= (cdr fragment) request-size)
-                fragment)))))
+    (values (and (pair? ordered-fragments)
+                 (let ([fragment (car ordered-fragments)])
+                   (and (<= request-size (cdr fragment))
+                        fragment)))
+            ordered-fragments)))
 
 (define zip-fragments-update : (-> Archive-Fragments Archive-Fragment Natural Archive-Fragments)
   (lambda [fragments fragment subfrag-start]
     (let update ([fs : Archive-Fragments fragments]
                  [sf : Archive-Fragments null])
       (cond [(null? fs) (reverse sf)]
-            [else (let-values ([(self rest) (values (car fragments) (cdr fragments))])
-                    (cond [(not (= (car self) (car fragment))) (update fs (cons self sf))]
+            [else (let-values ([(self rest) (values (car fs) (cdr fs))])
+                    (cond [(not (= (car self) (car fragment))) (update rest (cons self sf))]
                           [else (let ([size (- (+ (car self) (cdr self)) subfrag-start)])
-                                  (append (reverse fs)
+                                  
+                                  (append (reverse sf)
                                           (cond [(<= size 0) rest]
                                                 [else (cons (cons subfrag-start size) rest)])))]))]))))
 
@@ -152,14 +154,12 @@
     (define fragment-size : Integer (- offend offset))
 
     (cond [(<= fragment-size 0) fragments]
-          [else (let merge ([fs : Archive-Fragments fragments]
-                            [sf : Archive-Fragments null])
+          [else (let insert ([fs : Archive-Fragments fragments]
+                             [sf : Archive-Fragments null])
                   (cond [(null? fs) (cons (cons offset fragment-size) sf)]
                         [else (let*-values ([(self rest) (values (car fs) (cdr fs))]
                                             [(self-start self-size) (values (car self) (cdr self))]
                                             [(self-end) (+ self-start self-size)])
-                                (merge rest
-                                       (cons (if (= self-end offset)
-                                                 (cons self-start (+ self-size fragment-size))
-                                                 self)
-                                             sf)))]))])))
+                                (if (= self-end offset)
+                                    (append rest (cons (cons self-start (+ self-size fragment-size)) sf))
+                                    (insert rest (cons self sf))))]))])))

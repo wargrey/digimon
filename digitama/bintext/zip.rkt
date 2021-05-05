@@ -232,11 +232,11 @@
     (let ([entry (read-zip-file /dev/zipin)])
       (when (and verify?) ; TODO
         (unless (string=? (zip-file-name entry) (zip-directory-filename cdir))
-          (throw-check-error /dev/zipin 'open-input-zip-entry "entry name mismatch: ~a ~a"
+          (throw-check-error /dev/zipin 'open-input-zip-entry "entry name mismatch: [local]~a [central]~a"
                              (zip-file-name entry) (zip-directory-filename cdir)))
 
         (unless (= (zip-file-crc32 entry) (zip-directory-crc32 cdir))
-          (throw-check-error /dev/zipin 'open-input-zip-entry "checksum mismatch: ~a ~a"
+          (throw-check-error /dev/zipin 'open-input-zip-entry "checksum mismatch: [local]~a [central]~a"
                              (number->string (zip-file-crc32 entry) 16) (number->string (zip-directory-crc32 cdir) 16)))))
 
     (when (zip-encrypted? (zip-directory-gpflag cdir))
