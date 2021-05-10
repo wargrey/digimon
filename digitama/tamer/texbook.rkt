@@ -8,7 +8,6 @@
 (require racket/class)
 (require racket/format)
 
-(require "../tamer.rkt")
 (require "../../tongue.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

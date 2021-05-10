@@ -11,7 +11,6 @@
 (require scribble/decode)
 (require scribble/html-properties)
 (require scribble/latex-properties)
-(require setup/main-collects)
 
 (require "../tamer.rkt")
 
