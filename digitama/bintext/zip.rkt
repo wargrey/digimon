@@ -63,7 +63,7 @@
                   [else #false]))
           (zip-default-preference)))
 
-    (define fixed-only? : Boolean (and (memq 'fixed (archive-entry-options entry)) #true))
+    (define fixed-only? : Boolean (and (memq 'fixed (cons ?strategy (archive-entry-options entry))) #true))
 
     (define flag : Index
       (case method
