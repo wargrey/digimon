@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 (provide Archive-Entry Archive-Entries archive-entry?)
+(provide (rename-out [archive-entry-alias archive-entry-name]))
 (provide Archive-Directory-Configure Archive-Entry-Config make-archive-directory-entries)
 (provide make-archive-chained-configure make-archive-ignore-configure defualt-archive-ignore-configure)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
