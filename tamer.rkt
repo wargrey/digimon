@@ -38,6 +38,7 @@
 (require "echo.rkt")
 (require "emoji.rkt")
 (require "port.rkt")
+(require "dtrace.rkt")
 (require "tongue.rkt")
 (require "system.rkt")
 (require "format.rkt")
@@ -131,7 +132,9 @@
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
      (syntax/loc stx
-       (let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
+       (let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")]
+              [dtrace-agent (make-logger 'handbook (current-logger))]
+              [message "check additional resource: ~a [~a]"])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
          
@@ -140,8 +143,13 @@
                       #:style (make-style #false
                                           (foldl (λ [resrcs properties]
                                                    (append properties
-                                                           (map (car resrcs)
-                                                                (tamer-resource-files modname (cdr resrcs)))))
+                                                           (filter-map (λ [tamer.res]
+                                                                         (if (file-exists? tamer.res)
+                                                                             (begin (dtrace-debug #:topic dtrace-agent message tamer.res 'ok)
+                                                                                    ((car resrcs) tamer.res))
+                                                                             (begin (dtrace-debug #:topic dtrace-agent message tamer.res 'no)
+                                                                                    #false)))
+                                                                       (tamer-resource-files modname (cdr resrcs)))))
                                                  null
                                                  (list (cons make-css-addition "tamer.css")
                                                        (cons make-tex-addition "tamer.tex")
@@ -160,7 +168,11 @@
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ pre-contents ...)
-     (syntax/loc stx (handbook-title (#%info 'pkg-desc (const (current-digimon)))))]))
+     (syntax/loc stx (handbook-title
+                      (#%info 'pkg-desc
+                              (const (let ([alt-contents (list pre-contents ...)])
+                                       (cond [(null? alt-contents) (current-digimon)]
+                                             [else alt-contents]))))))]))
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
