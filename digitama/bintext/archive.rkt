@@ -137,7 +137,7 @@
           [(symbol? name) (symbol->immutable-string name)]
           [else (format "~a" name)])))
 
-(define archive-entry-name : (-> Archive-Entry Path-String)
+(define archive-entry-get-name : (-> Archive-Entry Path-String)
   (lambda [e]
     (or (archive-entry-alias e)
         (let ([src (archive-entry-source e)])

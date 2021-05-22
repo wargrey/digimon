@@ -46,6 +46,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
+(define #%handbook-properties (make-parameter null))
+
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
 (define placeholder-style (make-style #false null))
 (define subsub*toc-style (make-style #false '(toc)))
@@ -130,9 +132,11 @@
 
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
-    [(_ pre-contents ...)
+    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))) ...
+        pre-contents ...)
      (syntax/loc stx
-       (let* ([modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")]
+       (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
+              [modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")]
               [dtrace-agent (make-logger 'handbook (current-logger))]
               [message "check additional resource: ~a [~a]"])
          (enter-digimon-zone!)
@@ -150,7 +154,9 @@
                                                                              (begin (dtrace-debug #:topic dtrace-agent message tamer.res 'no)
                                                                                     #false)))
                                                                        (tamer-resource-files modname (cdr resrcs)))))
-                                                 null
+                                                 (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
+                                                       [(list? ext-properties) (if (list? props) (append props ext-properties) (cons props ext-properties))]
+                                                       [else (if (list? props) (append props (list ext-properties)) (list props ext-properties))])
                                                  (list (cons make-css-addition "tamer.css")
                                                        (cons make-tex-addition "tamer.tex")
                                                        (cons make-js-addition "tamer.js")
@@ -167,8 +173,9 @@
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
-    [(_ pre-contents ...)
-     (syntax/loc stx (handbook-title
+    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))) ...
+        pre-contents ...)
+     (syntax/loc stx (handbook-title #:properties props
                       (#%info 'pkg-desc
                               (const (let ([alt-contents (list pre-contents ...)])
                                        (cond [(null? alt-contents) (current-digimon)]

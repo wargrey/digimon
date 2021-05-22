@@ -40,7 +40,7 @@
   (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool]
     (define entry-source : (U Bytes Path) (archive-entry-source entry))
     (define regular-file? : Boolean (or (bytes? entry-source) (file-exists? entry-source)))
-    (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-name entry) root zip-root 'stdin) regular-file?))
+    (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-get-name entry) root zip-root 'stdin) regular-file?))
     (define-values (mdate mtime) (zip-entry-modify-datetime (or (archive-entry-utc-time entry) (current-seconds))))
 
     (define method : ZIP-Compression-Method

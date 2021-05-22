@@ -106,7 +106,7 @@
           (if (archive-entry? e)
               (let* ([entry-source (archive-entry-source e)]
                      [regular-file? (or (bytes? entry-source) (file-exists? entry-source))]
-                     [entry-name (zip-path-normalize (archive-entry-reroot (archive-entry-name e) root zip-root 'stdin) regular-file?)])
+                     [entry-name (zip-path-normalize (archive-entry-reroot (archive-entry-get-name e) root zip-root 'stdin) regular-file?)])
                 (cons (cons entry-name e) stegrat))
               (append (flatten-entry e) stegrat)))))
 
