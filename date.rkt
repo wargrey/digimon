@@ -40,3 +40,10 @@
 (define time-zone-utc-bias-seconds : (-> Integer)
   (lambda []
     (date-time-zone-offset (seconds->date (current-seconds) #true))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define strftime : (->* () ((Option Natural) #:time? Boolean #:locale? Boolean) String)
+  (lambda [[timepoint #false] #:time? [time? #true] #:locale? [locale? #true]]
+    (parameterize ([date-display-format 'iso-8601])
+      (date->string (seconds->date (or timepoint (* 0.001 (current-inexact-milliseconds))) locale?)
+                    time?))))
