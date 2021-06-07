@@ -6,6 +6,7 @@
 
 (require racket/symbol)
 (require racket/keyword)
+(require racket/string)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define datum-name : (-> Any Symbol)
@@ -24,6 +25,16 @@
   (lambda [lst]
     (string->symbol (list->string (reverse lst)))))
 
+(define symbol-list? : (-> Any Boolean : (Listof Symbol))
+  (lambda [a]
+    (and (list? a)
+         (andmap symbol? a))))
+
+(define keyword-list? : (-> Any Boolean : (Listof Keyword))
+  (lambda [a]
+    (and (list? a)
+         (andmap keyword? a))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define symbol->keyword : (-> Symbol Keyword)
   (lambda [s]
@@ -32,3 +43,14 @@
 (define keyword->symbol : (-> Keyword Symbol)
   (lambda [k]
     (string->symbol (keyword->immutable-string k))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define symbol-join : (->* ((Listof Symbol)) (String #:before-first String #:before-last String #:after-last String) String)
+  (lambda [symbols [sep " "] #:before-first [bf ""] #:before-last [bl sep] #:after-last [al ""]]
+    (string-join #:before-first bf #:before-last bl #:after-last al
+                 (map symbol->immutable-string symbols) sep)))
+
+(define keyword-join : (->* ((Listof Keyword)) (String #:before-first String #:before-last String #:after-last String) String)
+  (lambda [symbols [sep " "] #:before-first [bf ""] #:before-last [bl sep] #:after-last [al ""]]
+    (string-join #:before-first bf #:before-last bl #:after-last al
+                 (map keyword->immutable-string symbols) sep)))
