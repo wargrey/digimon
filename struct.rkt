@@ -25,12 +25,39 @@
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
        (syntax/loc stx
-         (begin (struct id ([field : FieldType] ...) #:transparent #:type-name ID)
+         (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
                 
                 (define (make-id kw-args ...) : ID
                   (id (or field (default-parameter)) ...)))))]))
+
+(define-syntax (define-struct stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [(field-ref ...)
+                     (for/list ([<field> (in-syntax #'(field ...))])
+                       (format-id <field> "~a-~a" (syntax-e #'id) (syntax-e <field>)))]
+                    [([kw-args ...] [kw-reargs ...])
+                     (let-values ([(args reargs)
+                                   (for/fold ([args null] [reargs null])
+                                             ([<field> (in-syntax #'(field ...))]
+                                              [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
+                                              [<ReArgument> (in-syntax #'([field : (U Void FieldType) (void)] ...))])
+                                     (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))])
+                                       (values (cons <kw-name> (cons <Argument> args))
+                                               (cons <kw-name> (cons <ReArgument> reargs)))))])
+                       (list args reargs))])
+       (syntax/loc stx
+         (begin (struct id ([field : FieldType] ...) #:type-name ID options ...)
+
+                (define (make-id kw-args ...) : ID
+                  (id field ...))
+
+                (define (remake-id [src : ID] kw-reargs ...) : ID
+                  (id (if (void? field) (field-ref src) field) ...)))))]))
 
 (define-syntax (define-object stx)
   (syntax-parse stx #:literals [:]
