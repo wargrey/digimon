@@ -94,7 +94,7 @@
                        (list (reverse sylppa) (reverse sdleif) (reverse sdleif-abs)))])
        (syntax/loc stx
          (begin (struct abs-id ([field : FieldType] ... [method : MethodType] ...) #:transparent #:type-name ABS-ID)
-                (struct id ([interface : abs-id]) #:type-name ID)
+                (struct id ([interface : ABS-ID]) #:type-name ID)
 
                 (define (make-id kw-args ...) : ID
                   (id (abs-id field ... method ...)))
