@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) describe:it describe:for describe:for* it:$!))
+(provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* it:$!))
 (provide (rename-out [define-scenario define-feature]))
 (provide (rename-out [describe context]))
 
@@ -22,6 +22,22 @@
 (define-syntax-parameter for*/spec
   (lambda [stx]
     (raise-syntax-error 'for*/spec "should be inside `describe` or `context`" stx)))
+
+(define-syntax-parameter let/spec
+  (lambda [stx]
+    (raise-syntax-error 'let/spec "should be inside `describe` or `context`" stx)))
+
+(define-syntax-parameter let*/spec
+  (lambda [stx]
+    (raise-syntax-error 'let*/spec "should be inside `describe` or `context`" stx)))
+
+(define-syntax-parameter let-values/spec
+  (lambda [stx]
+    (raise-syntax-error 'let-values/spec "should be inside `describe` or `context`" stx)))
+
+(define-syntax-parameter let*-values/spec
+  (lambda [stx]
+    (raise-syntax-error 'let*-values/spec "should be inside `describe` or `context`" stx)))
 
 (define-syntax-parameter it
   (lambda [stx]
@@ -48,6 +64,10 @@
        (syntax/loc stx
          (make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'describe:it)]
+                                                  [let/spec (make-rename-transformer #'describe:let)]
+                                                  [let*/spec (make-rename-transformer #'describe:let*)]
+                                                  [let-values/spec (make-rename-transformer #'describe:let-values)]
+                                                  [let*-values/spec (make-rename-transformer #'describe:let*-values)]
                                                   [for/spec (make-rename-transformer #'describe:for)]
                                                   [for*/spec (make-rename-transformer #'describe:for*)])
                               (list (λ [] expr) #| the simplest way to do lazy evaluation |# ...))
@@ -87,6 +107,31 @@
     [(_ (clauses ...) body ...)
      (syntax/loc stx
        (for*/list : (Listof (U Spec-Feature Spec-Behavior)) (clauses ...) body ...))]))
+
+(define-syntax (describe:let stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (let (clauses ...) (list body ...)))]))
+
+(define-syntax (describe:let* stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (let* (clauses ...) (list body ...)))]))
+
+(define-syntax (describe:let-values stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (let-values (clauses ...) (list body ...)))]))
+
+(define-syntax (describe:let*-values stx)
+  (syntax-parse stx
+    [(_ (clauses ...) body ...)
+     (syntax/loc stx
+       (let*-values (clauses ...) (list body ...)))]))
+
 
 (define-syntax (define-behavior stx)
   (syntax-parse stx
