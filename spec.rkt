@@ -4,7 +4,7 @@
 (provide (rename-out [spec-begin example-begin]))
 (provide Spec-Summary Spec-Behavior Spec-Feature)
 (provide spec-feature? spec-behavior? spec-feature-brief default-spec-issue-handler)
-(provide make-spec-behavior make-spec-feature spec-behaviors-fold)
+(provide make-spec-behavior make-spec-feature spec-behaviors-fold spec-misbehave)
 (provide define-feature define-scenario define-behavior describe context for/spec for*/spec it $!)
 (provide collapse ignore pending make-it)
 
