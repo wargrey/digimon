@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* it:$!))
+(provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* it:$! spec-format spec-conditional-format))
 (provide (rename-out [define-scenario define-feature]))
 (provide (rename-out [describe context]))
 
@@ -75,8 +75,14 @@
 
 (define-syntax (describe:it stx)
   (syntax-parse stx
-    [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (describe:it (format fmt brief ...) rest ...))]
-    [(_ brief (~optional (~seq #:do
+    [(_ (~seq cbrief0 (~and (~or #:when #:unless) kw-cond0) condition0) ... #:do rest ...) (raise-syntax-error 'describe:it "need an unconditional description" stx)]
+    [(_ (~seq cbrief0 (~and (~or #:when #:unless) kw-cond0) condition0) (~seq cbrief (~and (~or #:when #:unless) kw-cond) condition) ... brief rest ...)
+     (syntax/loc stx
+       (describe:it (or (spec-conditional-format cbrief0 kw-cond0 condition0)
+                        (spec-conditional-format cbrief kw-cond condition) ...
+                        (spec-format brief))
+                    rest ...))]
+    [(_it brief (~optional (~seq #:do
                                (~alt (~optional (~seq #:before setup))
                                      (~optional (~seq #:after teardown))
                                      (~optional (~seq (~or #:timeout/ms #:millisecond) timeout))) ...))
@@ -87,10 +93,10 @@
                    [empty? (null? (syntax->list #'(expr ...)))])
        (syntax/loc stx
          (if (and empty?)
-             (make-spec-behavior brief
-                                 (λ [] (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'brief))])
+             (make-spec-behavior (spec-format brief)
+                                 (λ [] (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'_it))])
                                          (spec-misbehave 'todo))))
-             (make-spec-behavior brief
+             (make-spec-behavior (spec-format brief)
                                  (syntax-parameterize ([$! (make-rename-transformer #'it:$!)])
                                    (λ [] expr ... (void))) ; this is lazy by nature
                                  #:before setup #:after teardown
@@ -132,10 +138,9 @@
      (syntax/loc stx
        (let*-values (clauses ...) (list body ...)))]))
 
-
 (define-syntax (define-behavior stx)
   (syntax-parse stx
-    [(_ [id pstx ...] (local ... #:it brief #:do body ...))
+    [(_ [id pstx ...] (local ... #:it brief ... #:do body ...))
      (syntax/loc stx
        (define-syntax (id b-stx)
          (syntax-parse b-stx
@@ -143,10 +148,10 @@
             (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
               (syntax/loc b-stx
                 (local ...
-                  (it brief #:do
+                  (it brief ... #:do
                       (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
                         body ...)))))])))]
-    [(_ [id pstx ...] definition ... #:it brief #:do body ...)
+    [(_ [id pstx ...] definition ... #:it brief ... #:do body ...)
      (syntax/loc stx
        (define-syntax (id b-stx)
          (syntax-parse b-stx
@@ -154,7 +159,7 @@
             (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
               (syntax/loc b-stx
                 (begin definition ...
-                       (it brief #:do
+                       (it brief ... #:do
                            (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
                              body ...)))))])))]))
 
@@ -196,3 +201,15 @@
     [(_ argl ...)
      (syntax/loc stx
        #true)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (spec-format stx)
+  (syntax-parse stx
+    [(_ [fmt:str brief ...]) (syntax/loc stx (format fmt brief ...))]
+    [(_ brief) (syntax/loc stx brief)]))
+
+(define-syntax (spec-conditional-format stx)
+  (syntax-parse stx
+    [(_ brief #:when condition) (syntax/loc stx (and condition (spec-format brief)))]
+    [(_ brief #:unless condition) (syntax/loc stx (and (not condition) (spec-format brief)))]
+    [(_ brief) (syntax/loc stx (spec-format brief))]))
