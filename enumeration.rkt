@@ -66,7 +66,7 @@
        (syntax/loc stx
          (begin (define-type TypeU (U 'enum ...))
                 (define ids : (Pairof TypeU (Listof TypeU)) (list 'enum ...))
-                (define id? : (-> Any Boolean : #:+ TypeU) (λ [v] (or (eq? v 'enum) ...))))))]
+                (define id? : (-> Any Boolean : TypeU) (λ [v] (or (eq? v 'enum) ...))))))]
 
     [(_ id : TypeU [enum ...])
      (with-syntax ([ids (format-id #'id "~as" (syntax-e #'id))])
