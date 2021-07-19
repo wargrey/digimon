@@ -21,19 +21,28 @@
   ([brief : String]
    [evaluate : (All (s) (-> (Spec-Feature-Downfold s) (Spec-Feature-Upfold s) (Spec-Feature-Herefold s) s s))]
    [before : (-> Any)]
-   [after : (-> Any)])
+   [after : (-> Any)]
+   [parameterize : (Option (-> Void))])
   #:type-name Spec-Feature
   #:transparent)
 
-(define make-spec-behavior : (-> (U String Symbol Procedure) (-> Void) [#:before (-> Any)] [#:after (-> Any)] [#:timeout Natural] Spec-Behavior)
-  (lambda [name evaluation #:before [setup void] #:after [teardown void] #:timeout [ms 0]]
+(define make-spec-behavior : (-> (U String Symbol Procedure) (-> Void)
+                                 [#:before (-> Any)] [#:after (-> Any)] [#:parameterize (Option (-> Void))] [#:timeout Natural]
+                                 Spec-Behavior)
+  (lambda [name evaluation #:before [setup void] #:after [teardown void] #:parameterize [parameterize #false] #:timeout [ms 0]]
+    (define evaluate : (-> Void)
+      (cond [(and (eq? setup void) (eq? teardown void)) evaluation]
+            [else (λ [] (dynamic-wind setup evaluation teardown))]))
+    
     (spec-behavior (spec-name->brief name)
-                   (cond [(and (eq? setup void) (eq? teardown void)) evaluation]
-                         [else (λ [] (dynamic-wind setup evaluation teardown))])
+                   (cond [(not parameterize) evaluate]
+                         [else (λ [] (call-in-nested-thread
+                                      (λ [] (parameterize) (evaluate))))])
                    ms)))
 
-(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (-> Described-Behaviors)) [#:before (-> Any)] [#:after (-> Any)] Spec-Feature)
-  (lambda [name make-behaviors #:before [setup void] #:after [teardown void]]
+(define make-spec-feature : (-> (U String Symbol Procedure) (Listof (-> Described-Behaviors))
+                                [#:before (-> Any)] [#:after (-> Any)] [#:parameterize (Option (-> Void))] Spec-Feature)
+  (lambda [name make-behaviors #:before [setup void] #:after [teardown void] #:parameterize [parameterize #false]]
     (define #:forall (s) (evaluate [downfold : (Spec-Feature-Downfold s)] [upfold : (Spec-Feature-Upfold s)] [herefold : (Spec-Feature-Herefold s)] [seed : s]) : s
       ; please keep the order of evaluation exactly as that defining the features and behaviors
       ;   since the evaluation implicitly occurs inside its closure, which might depend on some
@@ -48,7 +57,7 @@
                   [(list? behavior) (flatten-eval seed behavior)]
                   [else (eval-behavior (behavior))])))))
     
-    (spec-feature (spec-name->brief name) evaluate setup teardown)))
+    (spec-feature (spec-name->brief name) evaluate setup teardown parameterize)))
 
 (define spec-behaviors-fold : (All (s) (-> (Spec-Feature-Downfold s) (Spec-Feature-Upfold s) (Spec-Feature-Herefold s) s (U Spec-Feature Spec-Behavior) s))
   (lambda [downfold upfold herefold seed feature]
@@ -62,11 +71,16 @@
     (let* ([brief (spec-feature-brief feature)]
            [before (spec-feature-before feature)]
            [after (spec-feature-after feature)]
+           [parameterize (spec-feature-parameterize feature)]
            [maybe-kid-seed (downfold brief before after seed)])
-      (cond [(not maybe-kid-seed) seed]
-            [else (upfold brief before after seed
-                          ((spec-feature-evaluate feature)
-                           downfold upfold herefold maybe-kid-seed))]))))
+      (define (evaluate) : s
+        (cond [(not maybe-kid-seed) seed]
+              [else (upfold brief before after seed
+                            ((spec-feature-evaluate feature)
+                             downfold upfold herefold maybe-kid-seed))]))
+      (cond [(not parameterize) (evaluate)]
+            [else (call-in-nested-thread
+                      (λ [] (parameterize) (evaluate)))]))))
 
 (define spec-name->brief : (-> (U String Symbol Procedure) String)
   (lambda [name]

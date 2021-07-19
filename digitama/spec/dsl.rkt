@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* it:$! spec-format spec-conditional-format))
+(provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* 
+                     it:$! spec-format spec-conditional-format spec-parameterize))
 (provide (rename-out [define-scenario define-feature]))
 (provide (rename-out [describe context]))
 
@@ -57,10 +58,12 @@
     [(_ [fmt:str brief ...] rest ...) (syntax/loc stx (describe (format fmt brief ...) rest ...))]
     [(_ brief (~optional (~seq #:do
                                (~alt (~optional (~seq #:before setup))
-                                     (~optional (~seq #:after teardown))) ...))
+                                     (~optional (~seq #:after teardown))
+                                     (~optional (~seq #:parameterize clause))) ...))
         (~seq #:do expr ...))
      (with-syntax ([setup (or (attribute setup) #'void)]
-                   [teardown (or (attribute teardown) #'void)])
+                   [teardown (or (attribute teardown) #'void)]
+                   [pclause (or (attribute clause) #'[])])
        (syntax/loc stx
          (make-spec-feature brief
                             (syntax-parameterize ([it (make-rename-transformer #'describe:it)]
@@ -71,7 +74,7 @@
                                                   [for/spec (make-rename-transformer #'describe:for)]
                                                   [for*/spec (make-rename-transformer #'describe:for*)])
                               (list (λ [] expr) #| the simplest way to do lazy evaluation |# ...))
-                            #:before setup #:after teardown)))]))
+                            #:before setup #:after teardown #:parameterize (spec-parameterize pclause))))]))
 
 (define-syntax (describe:it stx)
   (syntax-parse stx
@@ -83,12 +86,14 @@
                         (spec-format brief))
                     rest ...))]
     [(_it brief (~optional (~seq #:do
-                               (~alt (~optional (~seq #:before setup))
-                                     (~optional (~seq #:after teardown))
-                                     (~optional (~seq (~or #:timeout/ms #:millisecond) timeout))) ...))
+                                 (~alt (~optional (~seq #:before setup))
+                                       (~optional (~seq #:after teardown))
+                                       (~optional (~seq #:parameterize clause))
+                                       (~optional (~seq (~or #:timeout/ms #:millisecond) timeout))) ...))
         (~seq #:do expr ...))
      (with-syntax ([setup (or (attribute setup) #'void)]
                    [teardown (or (attribute teardown) #'void)]
+                   [pclause (or (attribute clause) #'[])]
                    [timeout (or (attribute timeout) #'0)]
                    [empty? (null? (syntax->list #'(expr ...)))])
        (syntax/loc stx
@@ -99,7 +104,7 @@
              (make-spec-behavior (spec-format brief)
                                  (syntax-parameterize ([$! (make-rename-transformer #'it:$!)])
                                    (λ [] expr ... (void))) ; this is lazy by nature
-                                 #:before setup #:after teardown
+                                 #:before setup #:after teardown #:parameterize (spec-parameterize pclause)
                                  #:timeout timeout))))]))
 
 (define-syntax (describe:for stx)
@@ -213,3 +218,8 @@
     [(_ brief #:when condition) (syntax/loc stx (and condition (spec-format brief)))]
     [(_ brief #:unless condition) (syntax/loc stx (and (not condition) (spec-format brief)))]
     [(_ brief) (syntax/loc stx (spec-format brief))]))
+
+(define-syntax (spec-parameterize stx)
+  (syntax-parse stx
+    [(_ []) (syntax/loc stx #false)]
+    [(_ ([p0 v0] [p v] ...)) (syntax/loc stx (λ [] (p0 v0) (p v) ... (void)))]))

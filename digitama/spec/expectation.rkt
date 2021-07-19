@@ -128,6 +128,10 @@
   (or (predicate given)
       (spec-misbehave)))
 
+(define-spec-expectation (satisfy-all [predicate : (-> Any Boolean)] [givens : (Listof Any)])
+  (or (andmap predicate givens)
+      (spec-misbehave)))
+
 (define-spec-expectation (regexp-match [px : (U Byte-Regexp Regexp Bytes String)] [given : (U Path-String Bytes Input-Port)])
   (or (cond [(input-port? given) (regexp-match-peek px given)]
             [else (regexp-match? px given)])
