@@ -98,6 +98,9 @@
 (define-spec-boolean-expectation (string= [given : String] [expected : String]) (string=? given expected))
 (define-spec-boolean-expectation (string-ci= [given : String] [expected : String]) (string-ci=? given expected))
 
+(define-spec-boolean-expectation (char= [given : Char] [expected : Char]) (char=? given expected))
+(define-spec-boolean-expectation (char-ci= [given : Char] [expected : Char]) (char-ci=? given expected))
+
 (define-spec-boolean-expectation (eof [given : Any])
   (cond [(input-port? given) (eof-object? (peek-byte given))]
         [else (eof-object? given)]))
