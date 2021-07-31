@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out) Spec-Match-Datum))
 
 (require racket/list)
 (require racket/symbol)
@@ -106,7 +106,56 @@
         [else (eof-object? given)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-expectation (throw [exception : (U (-> Any Boolean) (U Byte-Regexp Regexp Bytes String))] [routine : (-> Any)])
+(define-type Spec-Match-Datum (U Byte-Regexp Regexp Bytes String))
+(define-type Spec-Log-Match-Datum
+  (U (-> Any Boolean) Spec-Match-Datum
+     (Vectorof (U (-> Any Boolean) True Spec-Match-Datum))
+     (Listof (U (-> Any Boolean) Spec-Match-Datum))))
+
+(define-spec-expectation (log-message [logsrc : Log-Receiver] [messages : Spec-Log-Match-Datum] [routine : (-> AnyValues)])
+  (define-values (/dev/syncin /dev/syncout) (make-pipe))
+  
+  (define (message-okay? [given : (Immutable-Vector Symbol String Any (Option Symbol))] [expected : (U (-> Any Boolean) Spec-Match-Datum True)]) : Boolean
+    (cond [(procedure? expected) (expected (vector-ref given 2))]
+          [(boolean? expected) #true]
+          [else (regexp-match? expected (vector-ref given 1))]))
+  
+  (define ghostcat
+    (thread
+     (λ []
+       (define sgol : (Listof (Immutable-Vector Symbol String Any (Option Symbol)))
+         (let collect ([sgol0 : (Listof (Immutable-Vector Symbol String Any (Option Symbol))) null])
+           (define which (sync logsrc /dev/syncin))
+           (cond [(input-port? which)
+                  (read-byte /dev/syncin)
+                  (let final-prove ([sgol : (Listof (Immutable-Vector Symbol String Any (Option Symbol))) sgol0])
+                    (define msg (sync/timeout 0 logsrc))
+                    (cond [(vector? msg) (final-prove (cons msg sgol))]
+                          [else sgol]))]
+                 [else (collect (cons which sgol0))])))
+       
+       (define okay? : Boolean
+         (cond [(list? messages)
+                (for/and ([log (in-list sgol)])
+                  (for/or : Boolean ([msg (in-list messages)])
+                    (message-okay? log msg)))]
+               [(vector? messages)
+                (and (eq? (length sgol) (vector-length messages))
+                     (for/and ([log (in-list (reverse sgol))]
+                               [msg (in-vector messages)])
+                       (message-okay? log msg)))]
+               [else (for/or ([log (in-list sgol)])
+                       (message-okay? log messages))]))
+
+       (write-byte (if okay? 1 0) /dev/syncout))))
+  
+  (routine)
+  (write-byte 0 /dev/syncout)
+  (thread-wait ghostcat)
+  (or (eq? (read-byte /dev/syncin) 1)
+      (spec-misbehave)))
+
+(define-spec-expectation (throw [exception : (U (-> Any Boolean) Spec-Match-Datum)] [routine : (-> Any)])
   (define maybe-e (with-handlers ([exn:fail? values]) (void (routine))))
   
   (let ([e? (if (procedure? exception) exception exn:fail?)])
@@ -135,7 +184,7 @@
   (or (andmap predicate givens)
       (spec-misbehave)))
 
-(define-spec-expectation (regexp-match [px : (U Byte-Regexp Regexp Bytes String)] [given : (U Path-String Bytes Input-Port)])
+(define-spec-expectation (regexp-match [px : Spec-Match-Datum] [given : (U Path-String Bytes Input-Port)])
   (or (cond [(input-port? given) (regexp-match-peek px given)]
             [else (regexp-match? px given)])
       (spec-misbehave)))
