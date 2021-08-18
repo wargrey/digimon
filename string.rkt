@@ -1,6 +1,9 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide (all-from-out racket/string))
+
+(require racket/string)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-uri? : (-> String Boolean)
