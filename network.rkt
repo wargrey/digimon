@@ -2,12 +2,12 @@
 
 (provide (all-defined-out))
 
-(require racket/fixnum)
 (require racket/future)
 (require racket/tcp)
 
 (require "system.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tcp-server : (-> Index (Input-Port Output-Port Index -> Any)
                          [#:max-allow-wait Natural] [#:localhost (Option String)]
                          [#:timeout (Option Fixnum)] [#:on-error (exn -> Any)] [#:custodian Custodian]
@@ -27,7 +27,7 @@
             (thread (λ [] ((inst dynamic-wind Any)
                            (λ [] (unless (not timeout)
                                    (timer-thread timeout (λ [server times] ; give the task a chance to live longer
-                                                           (if (fx= times 1) (break-thread server) (close-session))))))
+                                                           (if (= times 1) (break-thread server) (close-session))))))
                            (λ [] ((inst call-with-parameterization Any)
                                   saved-params-incaseof-transferring-continuation
                                   (λ [] (parameterize ([current-custodian (make-custodian)])
