@@ -59,7 +59,7 @@
       (let ([dir : Path (simple-form-path path)])
         (cond [(directory-exists? path) path]
               [else (path-only path)])))
-    (cond [(not dir) #| DEADCODE |# root]
+    (cond [(not dir) '#:DEADCODE root]
           [else (let-values ([(_b name _?) (split-path dir)])
                   (cond [(path? name) (path->string name)]
                         [else root]))])))
@@ -117,6 +117,17 @@
              (cond [(pair? es) (explode-path/cleanse (apply build-path es) #:strip 0)]
                    [else null]))]
           [else (explode-path (simplify-path path #false))])))
+
+(define build-requiring-path : (-> Any String Path)
+  (lambda [self.src uri]
+    (define require.src : Path-String
+      (cond [(absolute-path? uri) uri]
+            [else (let ([pwd (or (and (or (string? self.src)
+                                          (path? self.src))
+                                      (path-only self.src))
+                                 (current-directory))])
+                    (build-path pwd uri))]))
+    (simple-form-path require.src)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define path-exists? : (-> Path-String Boolean)
