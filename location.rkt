@@ -2,7 +2,8 @@
 
 (provide (all-defined-out))
 
-(require syntax/location)
+(require racket/path)
+(require racket/list)
 
 (require (for-syntax racket/base))
 
