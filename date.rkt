@@ -5,6 +5,13 @@
 
 (require typed/racket/date)
 
+(require racket/fixnum)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define current-microseconds : (-> Fixnum)
+  (lambda []
+    (fl->fx (real->double-flonum (* (current-inexact-milliseconds) 1000)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msdos-datetime->utc-seconds : (->* (Index Index) (Boolean) Natural)
   ; https://docs.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-dosdatetimetofiletime?redirectedfrom=MSDN

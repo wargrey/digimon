@@ -3,14 +3,12 @@
 (provide (all-defined-out) current-digimon current-digivice current-free-zone)
 (provide #%info digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
 
-(require racket/fixnum)
 (require racket/format)
 (require racket/match)
 (require racket/port)
 (require racket/place)
 
 (require "digitama/system.rkt")
-(require "digitama/sugar.rkt")
 (require "digitama/evt.rkt")
 
 (require "continuation.rkt")
@@ -55,26 +53,6 @@
           [(not defval) (raise-result-error 'hash-ref:+? (~a (object-name type?)) v)]
           [else (defval)])))
 
-(define current-microseconds : (-> Fixnum)
-  (lambda []
-    (fl->fx (real->double-flonum (* (current-inexact-milliseconds) 1000)))))
-
-(define timer-evt : (->* (Fixnum) (Fixnum) Timer-EvtSelf)
-  (lambda [interval [basetime (current-milliseconds)]]
-    (define alarm-time : Fixnum (fx+ basetime interval))
-    ((inst wrap-evt Any (Vector Timer-EvtSelf Fixnum Fixnum))
-     (alarm-evt alarm-time)
-     (λ [alarm] (vector (timer-evt interval alarm-time) interval alarm-time)))))
-
-(define timer-thread : (-> Fixnum (-> Thread Fixnum Any) [#:basetime Fixnum] Thread)
-  (lambda [interval on-timer #:basetime [basetime (current-milliseconds)]]
-    (define thdsrc : Thread (current-thread))
-    (thread (λ [] (let wait-dotask-loop ([evt (timer-evt interval basetime)])
-                    (match (sync/enable-break evt)
-                      [(vector (? evt? next-alarm) (? fixnum? interval) (? fixnum? alarm-time))
-                       (on-timer thdsrc (fxquotient (fx- alarm-time basetime) interval))
-                       (wait-dotask-loop next-alarm)]))))))
-
 (define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
   (lambda [e #:level [level 'error] #:detail [detail #false]]
     (vector level (exn-message e) detail (datum-name e)
@@ -88,8 +66,10 @@
               (λ [datum] (hint source-evt)
                 (cond [(not (place-message? datum)) datum]
                       [else (let ([stream : Any (place-message-stream datum)])
-                              (match/handlers (if (bytes? stream) (with-input-from-bytes stream read) (box stream))
-                                [(? exn:fail:read? e) (exn->message e #:level 'fatal #:detail stream)]))])))))
+                              (with-handlers ([exn:fail:read? (λ [[e : exn]] (exn->message e #:level 'fatal #:detail stream))])
+                                (if (bytes? stream)
+                                    (with-input-from-bytes stream read)
+                                    (box stream))))])))))
 
 (define place-channel-send : (-> Place-Channel Any Void)
   (lambda [dest datum]

@@ -1,13 +1,11 @@
 #lang typed/racket/gui
 
 (provide (all-defined-out))
-(provide (all-from-out "digitama/sugar.rkt"))
+(provide (all-from-out "digitama/gui/timer.rkt"))
 
-(require "digitama/sugar.rkt")
+(require "digitama/gui/timer.rkt")
 
-(define-type Snip (Instance Snip%))
-(define-type Editor-Snip (Instance Editor-Snip%))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (fill-box! stx)
   (syntax-case stx [<= =]
     [(_ (w h d a t b) <= bmp) (syntax/loc stx (fill-box! (w h d a t b) ((send bmp get-width) (send bmp get-height) 0 0 0 0)))]
@@ -29,6 +27,7 @@
 (define size-ne/sw.cur : (Instance Cursor%) (make-object cursor% 'size-ne/sw))
 (define size-nw/se.cur : (Instance Cursor%) (make-object cursor% 'size-nw/se))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define change-style : (->* ((Instance Style<%>))
                             (#:font (Option (Instance Font%))
                              #:color (Option (Instance Color%))

@@ -5,7 +5,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type EvtSelf (Rec Evt (Evtof Evt)))
 (define-type Place-EvtExit (Evtof (Pairof Place Integer)))
-(define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Fixnum Fixnum))))
+(define-type Timer-EvtSelf (Rec Timer-Evt (Evtof (Vector Timer-Evt Nonnegative-Fixnum Nonnegative-Fixnum))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-always-write-evt : (-> Bytes Natural Natural (Evtof Integer))

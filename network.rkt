@@ -5,12 +5,12 @@
 (require racket/future)
 (require racket/tcp)
 
-(require "system.rkt")
+(require "timer.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tcp-server : (-> Index (Input-Port Output-Port Index -> Any)
                          [#:max-allow-wait Natural] [#:localhost (Option String)]
-                         [#:timeout (Option Fixnum)] [#:on-error (exn -> Any)] [#:custodian Custodian]
+                         [#:timeout (Option Nonnegative-Fixnum)] [#:on-error (exn -> Any)] [#:custodian Custodian]
                          (Values (-> Void) Index))
   (lambda [port-hit on-connection #:max-allow-wait [maxwait (processor-count)] #:localhost [ip #false]
                     #:timeout [timeout #false] #:on-error [on-error void]
@@ -26,8 +26,8 @@
             (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break /dev/tcp))
             (thread (λ [] ((inst dynamic-wind Any)
                            (λ [] (unless (not timeout)
-                                   (timer-thread timeout (λ [server times] ; give the task a chance to live longer
-                                                           (if (= times 1) (break-thread server) (close-session))))))
+                                   (timer-thread timeout (λ [server interval uptime timepoint] ; give the task a chance to live longer
+                                                           (if (= interval uptime) (break-thread server) (close-session))))))
                            (λ [] ((inst call-with-parameterization Any)
                                   saved-params-incaseof-transferring-continuation
                                   (λ [] (parameterize ([current-custodian (make-custodian)])
