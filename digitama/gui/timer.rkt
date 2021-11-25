@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require typed/racket/gui)
 
 (require racket/fixnum)
@@ -32,8 +34,6 @@
       (on-elapse timer-interval uptime)
 
       (define elapsed : Fixnum (fl->fx (round (- (current-inexact-milliseconds) elapse0))))
-
-      (displayln (cons elapsed elapse0))
 
       (unless (eq? elapsed void)
         (on-elapsed timer-interval uptime elapsed))
