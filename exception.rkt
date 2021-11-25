@@ -4,6 +4,7 @@
 
 (require "dtrace.rkt")
 (require "format.rkt")
+(require "location.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
