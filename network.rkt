@@ -26,7 +26,7 @@
             (define-values (/dev/tcpin /dev/tcpout) (tcp-accept/enable-break /dev/tcp))
             (thread (λ [] ((inst dynamic-wind Any)
                            (λ [] (unless (not timeout)
-                                   (timer-thread timeout (λ [server interval uptime timepoint] ; give the task a chance to live longer
+                                   (timer-thread timeout (λ [server interval uptime] ; give the task a chance to live longer
                                                            (if (= interval uptime) (break-thread server) (close-session))))))
                            (λ [] ((inst call-with-parameterization Any)
                                   saved-params-incaseof-transferring-continuation
