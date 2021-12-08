@@ -27,19 +27,21 @@
     (ormap (λ [[compiler : Symbol]] (hash-ref cc-database compiler (λ [] #false)))
            (c-compiler-candidates compilers))))
 
-(define c-compile : (-> Path-String Path-String [#:include-dirs (Listof Path-String)] [#:modelines (Listof C-Modeline)] [#:compilers (Option (Listof Symbol))] Void)
-  (lambda [infile outfile #:include-dirs [includes null] #:modelines [modelines null] #:compilers [compilers #false]]
+(define c-compile : (->* (Path-String Path-String)
+                         (#:cpp? Boolean #:include-dirs (Listof Path-String) #:modelines (Listof C-Modeline) #:compilers (Option (Listof Symbol)))
+                         Void)
+  (lambda [infile outfile #:cpp? [cpp? #false] #:include-dirs [includes null] #:modelines [modelines null] #:compilers [compilers #false]]
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
     (if (cc? compiler)
-        (fg-recon-exec 'cc (toolchain-program compiler)
+        (fg-recon-exec 'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                        (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                          (case layout
-                           [(flags) ((cc-flags compiler) digimon-system)]
-                           [(macros) (append (cc-default-macros digimon-system) ((cc-macros compiler) digimon-system))]
-                           [(includes) ((cc-includes compiler) digimon-system)]
-                           [(infile) ((cc-infile compiler) infile digimon-system)]
-                           [(outfile) ((cc-outfile compiler) outfile digimon-system)]
+                           [(flags) ((cc-flags compiler) digimon-system cpp?)]
+                           [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?))]
+                           [(includes) ((cc-includes compiler) digimon-system cpp?)]
+                           [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
+                           [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
                            [else (if (string? layout) (list layout) null)]))
                        digimon-system)
         (error 'c-compile "no suitable C compiler is found: ~a"
@@ -51,22 +53,24 @@
     (ormap (λ [[linker : Symbol]] (hash-ref ld-database linker (λ [] #false)))
            (c-linker-candidates linkers))))
 
-(define c-link : (-> (U Path-String (Listof Path-String)) Path-String [#:modelines (Listof C-Modeline)] [#:linkers (Option (Listof Symbol))] Void)
-  (lambda [infiles outfile #:modelines [modelines null] #:linkers [linkers #false]]
+(define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
+                      (#:cpp? Boolean #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
+                      Void)
+  (lambda [infiles outfile #:cpp? [cpp? #false] #:modelines [modelines null] #:linkers [linkers #false]]
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (if (ld? linker)
-        (fg-recon-exec 'ld (toolchain-program linker)
+        (fg-recon-exec 'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
                        (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                          (case layout
-                           [(flags) ((ld-flags linker) digimon-system)]
-                           [(libpath) ((ld-libpaths linker) digimon-system)]
+                           [(flags) ((ld-flags linker) digimon-system cpp?)]
+                           [(libpath) ((ld-libpaths linker) digimon-system cpp?)]
                            [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
-                                                        ((ld-libraries linker) mdl digimon-system)))]
-                           [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system)]
+                                                        ((ld-libraries linker) mdl digimon-system cpp?)))]
+                           [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system cpp?)]
                                             [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
-                                                                  ((ld-infile linker) f digimon-system)))])]
-                           [(outfile) ((ld-outfile linker) outfile digimon-system)]
+                                                                  ((ld-infile linker) f digimon-system cpp?)))])]
+                           [(outfile) ((ld-outfile linker) outfile digimon-system cpp?)]
                            [else (if (string? layout) (list layout) null)]))
                        digimon-system)
         (error 'c-link "no suitable C linker is found: ~a"

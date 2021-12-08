@@ -12,15 +12,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-cpp-macros : CC-CPP-Macros
-  (lambda [system]
+  (lambda [system cpp?]
     (list "-DF_LAMBDA=__declspec(dllexport)")))
 
 (define msvc-compile-flags : CC-Flags
-  (lambda [system]
-    (list "/nologo" "/c" "/MT" "/O2")))
+  (lambda [system cpp?]
+    (list "/nologo"
+          "/c" ; compiling only, no link
+          "/MT" "/O2")))
 
 (define msvc-include-paths : CC-Includes
-  (lambda [system]
+  (lambda [system cpp?]
     (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
     (cond [(not root+arch) null]
           [else (list* (msvc-build-include-path (car root+arch) "include")
@@ -35,11 +37,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
-  (lambda [system]
+  (lambda [system cpp?]
     (list "/nologo" "/LD")))
 
 (define msvc-linker-libpaths : LD-Libpaths
-  (lambda [system]
+  (lambda [system cpp?]
     (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
     (cond [(not root+arch) null]
           [else (let ([arch (cdr root+arch)])
@@ -53,7 +55,7 @@
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
-  (lambda [modeline system]
+  (lambda [modeline system cpp?]
     (define kw : Symbol (or (c:mdl:ld-keyword modeline) system))
     (define ls : (Listof String) (c:mdl:ld-libraries modeline))
     
@@ -85,17 +87,16 @@
 
 (define msvc-make-outfile : (-> String LD-IO-File-Flag)
   (lambda [flag]
-    (λ [dest system]
+    (λ [dest system cpp?]
       (list (string-append "/" flag (if (path? dest) (path->string dest) dest))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(when (eq? (system-type 'os) 'windows)
-  (c-register-compiler 'msvc '(flags macros includes infile outfile) 
-                       #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
-                       #:outfile (msvc-make-outfile "Fo")
-                       #:basename msvc-basename)
-  
-  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
-                     #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
-                     #:outfile (msvc-make-outfile "Fe")
-                     #:basename msvc-basename))
+(c-register-compiler 'msvc '(flags macros includes infile outfile) 
+                     #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
+                     #:outfile (msvc-make-outfile "Fo")
+                     #:basename msvc-basename)
+
+(c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
+                   #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
+                   #:outfile (msvc-make-outfile "Fe")
+                   #:basename msvc-basename)

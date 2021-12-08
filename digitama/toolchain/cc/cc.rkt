@@ -25,6 +25,13 @@
           [(eq? os 'unix) '(gcc clang)]
           [else '(msvc)])))
 
+(define c-cpp-partner : (-> Symbol Symbol)
+  (lambda [cc]
+    (case cc
+      [(gcc) 'g++]
+      [(clang) 'clang++]
+      [else cc])))
+
 (define c-find-binary-path : (-> Symbol (Option Path))
   (lambda [basename]
     (find-executable-path (string-append (symbol->immutable-string basename) binary.ext) #false #false)))
