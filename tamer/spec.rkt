@@ -2,9 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "../spec.rkt")
-
-(require racket/port)
+(require digimon/spec)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/stdin : Input-Port (open-input-string "123 123x #123"))

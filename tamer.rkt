@@ -606,7 +606,7 @@
                                   (cons flow (vector-ref seed:info 1))))
                         
                         (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
-                          (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
+                          (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (map (λ [f] (λ [] f)) (reverse (hash-ref handbook-stories htag null))))
                                                                 (vector null null)
                                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
                                                                 #:selector (list '* '* example)))))
