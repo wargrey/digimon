@@ -23,13 +23,14 @@
   (lambda [info-ref]
     (define cs : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c$" file)) (current-directory)))
     (cond [(null? cs) null]
-          [else (let ([stone-dir (path->string (digimon-path 'stone))])
+          [else (let ([rootdir (path->string (digimon-path 'zone))]
+                      [stone-dir (path->string (digimon-path 'stone))])
                   (for/fold ([specs : Wisemon-Specification null])
                             ([c (in-list cs)])
                     (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
                     (define tobj : Path (assert (c-object-destination c contained-in-package?) path?))
                     (define target : Path (assert (c-library-destination c contained-in-package?) path?))
-                    (list* (wisemon-spec tobj #:^ (c-include-headers c) #:- (c-compile c tobj #:cpp? #false))
+                    (list* (wisemon-spec tobj #:^ (c-include-headers c) #:- (c-compile c tobj #:cpp? #false #:include-dirs (list rootdir)))
                            (wisemon-spec target #:^ (list tobj) #:- (c-link tobj target #:cpp? #false #:modelines (c-source-modelines c)))
                            specs)))])))
 

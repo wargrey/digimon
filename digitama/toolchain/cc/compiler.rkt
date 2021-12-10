@@ -10,7 +10,7 @@
 
 (define-type CC-CPP-Macros (-> Symbol Boolean (Listof String)))
 (define-type CC-Flags (-> Symbol Boolean (Listof String)))
-(define-type CC-Includes (-> Symbol Boolean (Listof String)))
+(define-type CC-Includes (-> (Listof Path-String) Symbol Boolean (Listof String)))
 
 (define-type CC-IO-File-Flag (-> Path-String Symbol Boolean (Listof String)))
 

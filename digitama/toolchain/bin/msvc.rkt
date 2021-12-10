@@ -22,18 +22,20 @@
           "/MT" "/O2")))
 
 (define msvc-include-paths : CC-Includes
-  (lambda [system cpp?]
+  (lambda [extra-dirs system cpp?]
     (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
-    (cond [(not root+arch) null]
-          [else (list* (msvc-build-include-path (car root+arch) "include")
-                       (let ([sdkroot (#%info 'msvc-sdk-root)]
-                             [sdk-lib (#%info 'msvc-sdk-library)])
-                         (or (and (path-string? sdkroot)
-                                  (path-string? sdk-lib)
-                                  (list (msvc-build-include-path sdkroot "Include" sdk-lib "shared")
-                                        (msvc-build-include-path sdkroot "Include" sdk-lib "um")
-                                        (msvc-build-include-path sdkroot "Include" sdk-lib "ucrt")))
-                             null)))])))
+
+    (append (map msvc-build-include-path extra-dirs)
+            (cond [(not root+arch) null]
+                  [else (list* (msvc-build-include-path (car root+arch) "include")
+                               (let ([sdkroot (#%info 'msvc-sdk-root)]
+                                     [sdk-lib (#%info 'msvc-sdk-library)])
+                                 (or (and (path-string? sdkroot)
+                                          (path-string? sdk-lib)
+                                          (list (msvc-build-include-path sdkroot "Include" sdk-lib "shared")
+                                                (msvc-build-include-path sdkroot "Include" sdk-lib "um")
+                                                (msvc-build-include-path sdkroot "Include" sdk-lib "ucrt")))
+                                     null)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
@@ -79,7 +81,10 @@
 
 (define msvc-build-include-path : (-> Path-String Path-String * String)
   (lambda [subpath . subpaths]
-    (string-append "/I" (path->string (apply build-path subpath subpaths)))))
+    (string-append "/I"
+                   (cond [(pair? subpaths) (path->string (apply build-path subpath subpaths))]
+                         [(string? subpath) subpath]
+                         [else (path->string subpath)]))))
 
 (define msvc-build-libpath : (-> Path-String Path-String * String)
   (lambda [subpath . subpaths]
@@ -91,12 +96,14 @@
       (list (string-append "/" flag (if (path? dest) (path->string dest) dest))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(c-register-compiler 'msvc '(flags macros includes infile outfile) 
-                     #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
-                     #:outfile (msvc-make-outfile "Fo")
-                     #:basename msvc-basename)
-
-(c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
-                   #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
-                   #:outfile (msvc-make-outfile "Fe")
-                   #:basename msvc-basename)
+(module+ register
+  (c-register-compiler 'msvc '(flags macros includes infile outfile) 
+                       #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
+                       #:outfile (msvc-make-outfile "Fo")
+                       #:basename msvc-basename)
+  
+  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
+                     #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
+                     #:outfile (msvc-make-outfile "Fe")
+                     #:basename msvc-basename))
+  

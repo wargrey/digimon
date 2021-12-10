@@ -18,9 +18,9 @@
 (require "digitama/system.rkt")
 
 ; register toolchains
-(require "digitama/toolchain/bin/clang.rkt")
-(require "digitama/toolchain/bin/gcc.rkt")
-(require "digitama/toolchain/bin/msvc.rkt")
+(require (submod "digitama/toolchain/bin/clang.rkt" register))
+(require (submod "digitama/toolchain/bin/gcc.rkt" register))
+(require (submod "digitama/toolchain/bin/msvc.rkt" register))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-compiler : (->* () ((Option (Listof Symbol))) (Option CC))
@@ -44,7 +44,7 @@
                      (case layout
                        [(flags) ((cc-flags compiler) digimon-system cpp?)]
                        [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?))]
-                       [(includes) ((cc-includes compiler) digimon-system cpp?)]
+                       [(includes) ((cc-includes compiler) includes digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
                        [else (if (string? layout) (list layout) null)]))
