@@ -1,7 +1,5 @@
 #lang typed/racket/base
 
-(require racket/list)
-
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 

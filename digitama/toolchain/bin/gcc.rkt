@@ -16,11 +16,13 @@
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp?]
-    (list* "-c" "-O2" "-fPIC" "-std=c11"
-           (case system
-             [(macosx) (list "-fno-common")]
-             [(illumos) (list "-m64")]
-             [else null]))))
+    (append (list "-c" "-O2" "-fPIC")
+            (cond [(not cpp?) (list "-std=c17")]
+                  [else (list "-std=c++17")])
+            (case system
+              [(macosx) (list "-fno-common")]
+              [(illumos) (list "-m64")]
+              [else null]))))
 
 (define gcc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
