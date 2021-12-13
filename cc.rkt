@@ -14,6 +14,7 @@
 
 (require "digitama/toolchain/toolchain.rkt")
 (require "digitama/exec.rkt")
+(require "digitama/path.rkt")
 
 (require "digitama/system.rkt")
 
@@ -82,28 +83,22 @@
                    digimon-system)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-object-destination : (->* (Path-String) (Boolean) (Option Path))
-  (lambda [c [contained-in-package? #true]]
-    (define dirname : (Option Path) (path-only c))
+(define c-object-destination : (-> Path-String (Option Path))
+  (lambda [c]
     (define basename : (Option Path) (file-name-from-path c))
 
-    (and (path? dirname) (path? basename)
-         (build-path dirname (car (use-compiled-file-paths))
-                     "native" (system-library-subpath #false)
+    (and (path? basename)
+         (build-path (native-rootdir/compiled c)
                      (path-replace-extension basename object.ext)))))
 
 (define c-library-destination : (-> Path-String Boolean (Option Path))
   (lambda [c contained-in-package?]
-    (define dirname : (Option Path) (path-only c))
     (define basename : (Option Path) (file-name-from-path c))
 
-    (and (path? dirname) (path? basename)
-         (if contained-in-package?
-             (build-path dirname (system-library-subpath #false)
-                         (path-replace-extension basename (system-type 'so-suffix)))
-             (build-path dirname (car (use-compiled-file-paths))
-                         "native" (system-library-subpath #false)
-                         (path-replace-extension basename (system-type 'so-suffix)))))))
+    (and (path? basename)
+         (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])
+           (cond [(and contained-in-package?) (build-path (native-rootdir c) libname.so)]
+                 [else (build-path (native-rootdir/compiled c) libname.so)])))))
 
 (define c-include-headers : (-> Path-String (Listof Path))
   (lambda [c]
@@ -116,8 +111,8 @@
                            (cond [(or (not maybe-header) (null? (cdr maybe-header)) (not (cadr maybe-header))) memory]
                                  [else (let ([subsrc (simplify-path (build-path dirname (bytes->string/utf-8 (cadr maybe-header))))])
                                          (cond [(member subsrc memory) memory]
-                                               [else (include.h subsrc memory)]))]))
-                         (append memory (list entry))
+                                               [else (include.h subsrc (append memory (list subsrc)))]))]))
+                         memory
                          (call-with-input-file* entry
                            (λ [[/dev/stdin : Input-Port]]
                              (regexp-match* #px"(?<=#include )[<\"].+?.h[\">]" /dev/stdin))))]))))

@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
+(require racket/list)
 
 (require typed/setup/getinfo)
 
@@ -12,38 +13,52 @@
 (require "../../cc.rkt")
 (require "../../digitama/system.rkt")
 
+;;; NOTE
+;     It is supposed that:
+;       1. header files are rarely used for FFI implementations
+;       2. internal header files of common functions are placed beside their source files
+;       3. a header file only has one implementing source file
+;
+;     But, even if those assumptions are not true, foreign code would also work just fine
+;       as long as the dependent symbols of a shared object are manually loaded into the process
+;       by `require`ing corresponding racket files that define the FFI symbols.
+;
+;     Some modeline rules in header files should be set to drop those assumptions
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-native-library-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
-    (append (make-c-library-specs info-ref)
-            (make-cpp-library-specs info-ref))))
+    (append (make-c-library-specs info-ref #px"\\.c$" #false)
+            (make-c-library-specs info-ref #px"\\.cpp$" #true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-c-library-specs : (-> Info-Ref Wisemon-Specification)
-  (lambda [info-ref]
-    (define cs : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c$" file)) (current-directory)))
+(define make-c-library-specs : (-> Info-Ref Regexp Boolean Wisemon-Specification)
+  (lambda [info-ref px.ext cpp?]
+    (define cs : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))
     (cond [(null? cs) null]
           [else (let ([rootdir (path->string (digimon-path 'zone))]
                       [stone-dir (path->string (digimon-path 'stone))])
                   (for/fold ([specs : Wisemon-Specification null])
                             ([c (in-list cs)])
                     (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
-                    (define tobj : Path (assert (c-object-destination c contained-in-package?) path?))
-                    (define target : Path (assert (c-library-destination c contained-in-package?) path?))
-                    (list* (wisemon-spec tobj #:^ (c-include-headers c) #:- (c-compile c tobj #:cpp? #false #:include-dirs (list rootdir)))
-                           (wisemon-spec target #:^ (list tobj) #:- (c-link tobj target #:cpp? #false #:modelines (c-source-modelines c)))
+                    (define deps.h : (Listof Path) (c-include-headers c))
+                    (define c.o : Path (assert (c-object-destination c) path?))
+                    (define c.so : Path (assert (c-library-destination c contained-in-package?) path?))
+                    (define objects : (Listof Path) (cons c.o (c-headers->shared-objects deps.h)))
+
+                    (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
+                           (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
                            specs)))])))
 
-(define make-cpp-library-specs : (-> Info-Ref Wisemon-Specification)
-  (lambda [info-ref]
-    (define cpps : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.cpp$" file)) (current-directory)))
-    (cond [(null? cpps) null]
-          [else (let ([stone-dir (path->string (digimon-path 'stone))])
-                  (for/fold ([specs : Wisemon-Specification null])
-                            ([cpp (in-list cpps)])
-                    (define contained-in-package?  : Boolean (string-prefix? (path->string cpp) stone-dir))
-                    (define tobj : Path (assert (c-object-destination cpp contained-in-package?) path?))
-                    (define target : Path (assert (c-library-destination cpp contained-in-package?) path?))
-                    (list* (wisemon-spec tobj #:^ (c-include-headers cpp) #:- (c-compile cpp tobj #:cpp? #true))
-                           (wisemon-spec target #:^ (list tobj) #:- (c-link tobj target #:cpp? #true #:modelines (c-source-modelines cpp)))
-                           specs)))])))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define c-header->maybe-source : (-> Path-String (Option Path))
+  (lambda [h]
+    (for/or : (Option Path) ([ext (in-list (list #".c" #".cpp"))])
+      (define h.c (path-replace-extension h ext))
+      
+      (and (file-exists? h.c)
+           (c-object-destination h.c)))))
+
+(define c-headers->shared-objects : (-> (Listof Path) (Listof Path))
+  (lambda [deps]
+    (remove-duplicates (filter-map c-header->maybe-source deps))))

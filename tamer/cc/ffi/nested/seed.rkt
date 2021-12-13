@@ -6,7 +6,7 @@
   (require digimon/ffi)
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define-ffi-definer define-nested (digimon-ffi-lib "nested"))
+  (define-ffi-definer define-nested (digimon-ffi-lib "seed"))
   
   (define-nested random_seed (_fun -> _int)))
 

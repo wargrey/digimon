@@ -12,6 +12,7 @@
 (require ffi/unsafe/alloc)
 
 (require "digitama/ffi.rkt")
+(require "digitama/path.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
@@ -27,9 +28,9 @@
              [libpath (system-library-subpath #false)])
          (if (not (path? modpath)) ; when distributed as a standalone executable
              (ffi-lib (build-path (ffi-distributed-library-path) libpath libname)
-                      #:global? ? #:fail (λ [] (ffi-lib (build-path libpath libname)
-                                                        #:global? ? #:fail on-fail)))
-             (let ([this-root (path-only modpath)])
-               (ffi-lib (build-path this-root "compiled" "native" libpath libname)
-                        #:global? ? #:fail (λ [] (ffi-lib (build-path this-root libpath libname)
-                                                          #:global? ? #:fail on-fail)))))))]))
+                      #:fail (λ [] (ffi-lib (build-path libpath libname) #:global? ? #:fail on-fail))
+                      #:global? ?)
+             (ffi-lib libname
+                      #:get-lib-dirs (λ [] (list (native-rootdir/compiled modpath) (native-rootdir modpath)))
+                      #:fail on-fail
+                      #:global? ?))))]))
