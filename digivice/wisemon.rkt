@@ -41,7 +41,8 @@
   (lambda [[retcode 0]]
     (define phonies : (Immutable-HashTable Symbol Wisemon-Phony) (wisemon-list-phony-goals))
     (define phony-helps : (Listof String)
-      (for/list ([p (in-list '(all prove typeset dist mostlyclean clean distclean maintainer-clean))]
+      (for/list ([p (in-list ; Watch here to add new phony goals
+                     '(all prove typeset cc dist mostlyclean clean distclean maintainer-clean))]
                  #:when (hash-has-key? phonies p))
         (format "    ~a : ~a" p (wisemon-phony-description (hash-ref phonies p)))))
     

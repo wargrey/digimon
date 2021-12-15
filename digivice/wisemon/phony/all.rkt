@@ -12,12 +12,15 @@
 (require "../native.rkt")
 (require "../parameter.rkt")
 
+(require "cc.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~all : Make-Phony
   (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
+    (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
 
-    (wisemon-make (make-native-library-specs info-ref))
+    (wisemon-make (make-native-library-specs info-ref natives))
     (wisemon-compile (current-directory) digimon info-ref)
     
     (for ([submake (in-list submakes)])
@@ -25,7 +28,7 @@
       (when (module-declared? modpath #true)
         (dynamic-require modpath #false)
         ;;; the next two lines should useless but who knows
-        (wisemon-make (make-native-library-specs info-ref))
+        (wisemon-make (make-native-library-specs info-ref natives))
         (wisemon-compile (current-directory) digimon info-ref)))
 
     (do-make (make-implicit-dist-specs info-ref))

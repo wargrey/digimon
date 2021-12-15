@@ -19,11 +19,13 @@
 (define find-digimon-handbooks : (-> Info-Ref (Listof Path))
   (lambda [info-ref]
     (define maybe-handbooks (info-ref 'scribblings (λ [] null)))
-    (cond [(not (list? maybe-handbooks)) (raise-user-error 'info.rkt "malformed `scribblings`: ~a" maybe-handbooks)]
-          [else (filter file-exists?
-                        (for/list : (Listof Path) ([handbook (in-list maybe-handbooks)])
-                          (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (car handbook))]
-                                [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))])))
+    (unless (list? maybe-handbooks)
+      (raise-user-error 'info.rkt "malformed `scribblings`: ~a" maybe-handbooks))
+    
+    (filter file-exists?
+            (for/list : (Listof Path) ([handbook (in-list maybe-handbooks)])
+              (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (car handbook))]
+                    [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))))
 
 (define make-prove-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]

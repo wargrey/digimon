@@ -26,14 +26,14 @@
 ;     Some modeline rules in header files should be set to drop those assumptions
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-native-library-specs : (-> Info-Ref Wisemon-Specification)
-  (lambda [info-ref]
-    (append (make-c-library-specs info-ref #px"\\.c$" #false)
-            (make-c-library-specs info-ref #px"\\.cpp$" #true))))
+(define make-native-library-specs : (->* (Info-Ref) ((Listof Path)) Wisemon-Specification)
+  (lambda [info-ref [ex-shared-objects null]]
+    (append (make-c-library-specs info-ref #px"\\.c$" #false ex-shared-objects)
+            (make-c-library-specs info-ref #px"\\.cpp$" #true ex-shared-objects))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-c-library-specs : (-> Info-Ref Regexp Boolean Wisemon-Specification)
-  (lambda [info-ref px.ext cpp?]
+(define make-c-library-specs : (-> Info-Ref Regexp Boolean (Listof Path) Wisemon-Specification)
+  (lambda [info-ref px.ext cpp? ex-shared-objects]
     (define cs : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))
     (cond [(null? cs) null]
           [else (let ([rootdir (path->string (digimon-path 'zone))]
@@ -42,13 +42,15 @@
                             ([c (in-list cs)])
                     (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
                     (define deps.h : (Listof Path) (c-include-headers c))
-                    (define c.o : Path (assert (c-object-destination c) path?))
-                    (define c.so : Path (assert (c-library-destination c contained-in-package?) path?))
-                    (define objects : (Listof Path) (cons c.o (c-headers->shared-objects deps.h)))
+                    (define c.o : Path (assert (c-source->object-file c) path?))
 
                     (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
-                           (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
-                           specs)))])))
+
+                           (cond [(member c ex-shared-objects) specs] ; those goals are probably executable ones
+                                 [else (let ([objects (cons c.o (c-headers->shared-objects deps.h))]
+                                             [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
+                                         (cons (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
+                                               specs))]))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-header->maybe-source : (-> Path-String (Option Path))
@@ -57,7 +59,7 @@
       (define h.c (path-replace-extension h ext))
       
       (and (file-exists? h.c)
-           (c-object-destination h.c)))))
+           (c-source->object-file h.c)))))
 
 (define c-headers->shared-objects : (-> (Listof Path) (Listof Path))
   (lambda [deps]

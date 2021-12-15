@@ -83,7 +83,7 @@
                    digimon-system)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-object-destination : (-> Path-String (Option Path))
+(define c-source->object-file : (-> Path-String (Option Path))
   (lambda [c]
     (define basename : (Option Path) (file-name-from-path c))
 
@@ -91,7 +91,7 @@
          (build-path (native-rootdir/compiled c)
                      (path-replace-extension basename object.ext)))))
 
-(define c-library-destination : (-> Path-String Boolean (Option Path))
+(define c-source->shared-object-file : (-> Path-String Boolean (Option Path))
   (lambda [c contained-in-package?]
     (define basename : (Option Path) (file-name-from-path c))
 
@@ -111,11 +111,13 @@
                            (cond [(or (not maybe-header) (null? (cdr maybe-header)) (not (cadr maybe-header))) memory]
                                  [else (let ([subsrc (simplify-path (build-path dirname (bytes->string/utf-8 (cadr maybe-header))))])
                                          (cond [(member subsrc memory) memory]
-                                               [else (include.h subsrc (append memory (list subsrc)))]))]))
+                                               [(file-exists? subsrc) (include.h subsrc (append memory (list subsrc)))]
+                                               [else #| the including files might already been commented out |# memory]))]))
                          memory
                          (call-with-input-file* entry
                            (λ [[/dev/stdin : Input-Port]]
-                             (regexp-match* #px"(?<=#include )[<\"].+?.h[\">]" /dev/stdin))))]))))
+                             ; TODO: implement a formal `#include` reader 
+                             (regexp-match* #px"(?<=#include)\\s+[<\"].+?.h(pp)?[\">]" /dev/stdin))))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-list-compilers : (-> (Listof Symbol))

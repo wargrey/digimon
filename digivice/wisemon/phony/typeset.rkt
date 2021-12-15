@@ -28,15 +28,17 @@
 (define find-digimon-typesettings : (->* (Info-Ref) (Boolean) (Listof Tex-Info))
   (lambda [info-ref [silent #false]]
     (define maybe-typesettings (info-ref 'typesettings (λ [] null)))
-    (cond [(not (list? maybe-typesettings)) (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings)]
-          [else ((inst filter-map Tex-Info Any)
-                 (λ [typesetting]
-                   (if (and (pair? typesetting) (path-string? (car typesetting)))
-                       (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
-                         (and (file-exists? setting.scrbl)
-                              (cons setting.scrbl (typeset-filter-renderer (cdr typesetting) silent))))
-                       (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
-                 maybe-typesettings)])))
+    (unless (list? maybe-typesettings)
+      (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings))
+    
+    ((inst filter-map Tex-Info Any)
+     (λ [typesetting]
+       (if (and (pair? typesetting) (path-string? (car typesetting)))
+           (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
+             (and (file-exists? setting.scrbl)
+                  (cons setting.scrbl (typeset-filter-renderer (cdr typesetting) silent))))
+           (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
+     maybe-typesettings)))
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
