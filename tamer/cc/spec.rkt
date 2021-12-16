@@ -4,7 +4,6 @@
 
 (require digimon/spec)
 
-(require "ffi/nested/seed.rkt")
 (require "ffi/filter.rkt")
 (require "ffi/seed.rkt")
 

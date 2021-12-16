@@ -9,7 +9,7 @@
 (require (rename-in "../../wisemon.rkt" [wisemon-make wisemon:make]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wisemon-make : (->* (Wisemon-Specification) ((Listof Path-String) Boolean) Void)
+(define wisemon-make : (->* (Wisemon-Specification) ((U (Listof Path-String) Regexp) Boolean) Void)
   (lambda [specs [targets null] [always-run (make-always-run)]]
     (wisemon:make #:name the-name #:jobs (parallel-workers)
                   #:keep-going? (make-keep-going) #:dry-run? (make-dry-run) #:always-run? always-run #:just-touch? (make-just-touch)

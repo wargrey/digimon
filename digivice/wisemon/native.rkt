@@ -34,23 +34,24 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-c-library-specs : (-> Info-Ref Regexp Boolean (Listof Path) Wisemon-Specification)
   (lambda [info-ref px.ext cpp? ex-shared-objects]
-    (define cs : (Listof Path) (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))
-    (cond [(null? cs) null]
-          [else (let ([rootdir (path->string (digimon-path 'zone))]
-                      [stone-dir (path->string (digimon-path 'stone))])
-                  (for/fold ([specs : Wisemon-Specification null])
-                            ([c (in-list cs)])
-                    (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
-                    (define deps.h : (Listof Path) (c-include-headers c))
-                    (define c.o : Path (assert (c-source->object-file c) path?))
+    (define rootdir (path->string (digimon-path 'zone)))
+    (define stone-dir (path->string (digimon-path 'stone)))
 
-                    (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
+    (for/fold ([specs : Wisemon-Specification null])
+              ([c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))])
+      (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
+      (define ffi? : Boolean (file-exists? (path-replace-extension c #".rkt")))
+      (define deps.h : (Listof Path) (c-include-headers c))
+      (define c.o : Path (assert (c-source->object-file c) path?))
+      
+      (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
 
-                           (cond [(member c ex-shared-objects) specs] ; those goals are probably executable ones
-                                 [else (let ([objects (cons c.o (c-headers->shared-objects deps.h))]
-                                             [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
-                                         (cons (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
-                                               specs))]))))])))
+             (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
+                    (let ([objects (cons c.o (c-headers->shared-objects deps.h))]
+                          [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
+                      (cons (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
+                            specs))]
+                   [else specs])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-header->maybe-source : (-> Path-String (Option Path))

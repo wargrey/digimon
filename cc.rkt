@@ -116,7 +116,7 @@
                          memory
                          (call-with-input-file* entry
                            (λ [[/dev/stdin : Input-Port]]
-                             ; TODO: implement a formal `#include` reader 
+                             ; TODO: implement a robust `#include` reader 
                              (regexp-match* #px"(?<=#include)\\s+[<\"].+?.h(pp)?[\">]" /dev/stdin))))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
