@@ -60,9 +60,9 @@
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
-                      (#:cpp? Boolean #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
+                      (#:cpp? Boolean #:shared-object? Boolean #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
                       Void)
-  (lambda [infiles outfile #:cpp? [cpp? #false] #:modelines [modelines null] #:linkers [linkers #false]]
+  (lambda [infiles outfile #:cpp? [cpp? #false] #:shared-object? [shared-object? #false] #:modelines [modelines null] #:linkers [linkers #false]]
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (unless (ld? linker)
@@ -73,7 +73,7 @@
     (fg-recon-exec 'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                      (case layout
-                       [(flags) ((ld-flags linker) digimon-system cpp?)]
+                       [(flags) ((ld-flags linker) digimon-system cpp? shared-object?)]
                        [(libpath) ((ld-libpaths linker) digimon-system cpp?)]
                        [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
                                                     ((ld-libraries linker) mdl digimon-system cpp?)))]
@@ -91,11 +91,9 @@
 
     (and (path? basename)
          (build-path (native-rootdir/compiled c)
-                     (path-replace-extension
-                      (cond [(not lang) basename]
-                            [else (string-append (path->string basename) "_"
-                                                 (string-downcase (symbol->immutable-string lang)))])
-                      object.ext)))))
+                     (cond [(not lang) (path-replace-extension basename object.ext)]
+                           [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
+                                   (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
 (define c-source->shared-object-file : (-> Path-String Boolean (Option Path))
   (lambda [c contained-in-package?]

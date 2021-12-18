@@ -31,7 +31,7 @@
 (define make-depcc-specs : (-> (Listof String) Wisemon-Specification)
   (lambda [incdirs]
     (for/fold ([specs : Wisemon-Specification null])
-              ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)$" file)) (current-directory)))])
+              ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)?$" file)) (current-directory)))])
       (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
       (define incs.h : (Listof Path) (c-include-headers dep.c))
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
@@ -59,7 +59,7 @@
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:include-dirs incdirs))
-             (wisemon-spec native #:^ objects #:- (c-link objects native #:cpp? cpp? #:modelines (c-source-modelines native.c)))
+             (wisemon-spec native #:^ objects #:- (c-link objects native #:cpp? cpp? #:shared-object? #false #:modelines (c-source-modelines native.c)))
              specs))))
     
 (define make~cc : Make-Phony

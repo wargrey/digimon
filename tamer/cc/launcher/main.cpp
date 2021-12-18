@@ -1,12 +1,10 @@
 #include <iostream>
 
-export "C" {
-    #include "../ffi/nested/seed.h"
-}
+#include "../ffi/nested/seed.h"
 
 /**************************************************************************************************/
-int main(int argc, char** argv[]) {
-    cout << "the seed is " << random_seed() << endl;
+int main(int argc, char* argv[]) {
+    std::cout << "the seed is " << random_seed() << std::endl;
     return 0;
 }
 

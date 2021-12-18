@@ -34,11 +34,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-linker-flags : LD-Flags
-  (lambda [system cpp?]
-    (case system
-      [(macosx) (list "-bundle" "-flat_namespace" "-undefined" "suppress")]
-      [(illumos) (list "-fPIC" "-shared" "-m64")]
-      [else (list "-fPIC" "-shared")])))
+  (lambda [system cpp? shared-object?]
+    (if (not shared-object?)
+        (case system
+          [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
+          [(illumos) (list "-m64")]
+          [else null])
+        (case system
+          [(macosx) (list #| MH_BUNDLE file type |# "-bundle" "-flat_namespace" "-undefined" "suppress")]
+          [(illumos) (list "-fPIC" "-shared" "-m64")]
+          [else (list "-fPIC" "-shared")]))))
 
 (define gcc-linker-libpaths : LD-Libpaths
   (lambda [system cpp?]

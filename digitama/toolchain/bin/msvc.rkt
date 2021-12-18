@@ -39,8 +39,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
-  (lambda [system cpp?]
-    (list "/nologo" "/LD")))
+  (lambda [system cpp? shared-object?]
+    (if (not shared-object?)
+        (list "/nologo")
+        (list "/nologo" "/LD"))))
 
 (define msvc-linker-libpaths : LD-Libpaths
   (lambda [system cpp?]

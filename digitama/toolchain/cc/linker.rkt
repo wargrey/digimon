@@ -9,7 +9,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LD-Options (U 'flags 'libpath 'libraries 'infiles 'outfile))
 
-(define-type LD-Flags (-> Symbol Boolean (Listof String)))
+(define-type LD-Flags (-> Symbol Boolean Boolean (Listof String)))
 (define-type LD-Libpaths (-> Symbol Boolean (Listof String)))
 (define-type LD-Libraries (-> C-LD-Modeline Symbol Boolean (Listof String)))
 
