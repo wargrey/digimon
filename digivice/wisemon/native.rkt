@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/list)
 
 (require typed/setup/getinfo)
 
@@ -42,26 +41,13 @@
       (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
       (define ffi? : Boolean (file-exists? (path-replace-extension c #".rkt")))
       (define deps.h : (Listof Path) (c-include-headers c))
-      (define c.o : Path (assert (c-source->object-file c) path?))
+      (define c.o : Path (assert (c-source->object-file c)))
       
       (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
-                    (let ([objects (cons c.o (c-headers->shared-objects deps.h))]
+                    (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:modelines (c-source-modelines c)))
                             specs))]
                    [else specs])))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-header->maybe-source : (-> Path-String (Option Path))
-  (lambda [h]
-    (for/or : (Option Path) ([ext (in-list (list #".c" #".cpp"))])
-      (define h.c (path-replace-extension h ext))
-      
-      (and (file-exists? h.c)
-           (c-source->object-file h.c)))))
-
-(define c-headers->shared-objects : (-> (Listof Path) (Listof Path))
-  (lambda [deps]
-    (remove-duplicates (filter-map c-header->maybe-source deps))))

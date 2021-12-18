@@ -19,5 +19,5 @@
 (define typesettings '(["tamer/tex/cjk.tex" "CJK"]
                        ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]))
 
-(define native-launcher-names '(["tamer/cc/launcher/main.c"]
-                                ["tamer/cc/launcher/main.cpp" C++]))
+(define native-launcher-names '(["tamer/cc/launcher/main.c" "cmain"]
+                                ["tamer/cc/launcher/main.cpp"]))

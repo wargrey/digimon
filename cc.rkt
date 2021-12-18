@@ -6,6 +6,8 @@
 
 (require racket/path)
 (require racket/file)
+(require racket/list)
+(require racket/symbol)
 
 (require "digitama/toolchain/cc/cc.rkt")
 (require "digitama/toolchain/cc/compiler.rkt")
@@ -83,13 +85,17 @@
                    digimon-system)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-source->object-file : (-> Path-String (Option Path))
-  (lambda [c]
+(define c-source->object-file : (->* (Path-String) ((Option Symbol)) (Option Path))
+  (lambda [c [lang #false]]
     (define basename : (Option Path) (file-name-from-path c))
 
     (and (path? basename)
          (build-path (native-rootdir/compiled c)
-                     (path-replace-extension basename object.ext)))))
+                     (path-replace-extension
+                      (cond [(not lang) basename]
+                            [else (string-append (path->string basename) "_"
+                                                 (string-downcase (symbol->immutable-string lang)))])
+                      object.ext)))))
 
 (define c-source->shared-object-file : (-> Path-String Boolean (Option Path))
   (lambda [c contained-in-package?]
@@ -99,6 +105,15 @@
          (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])
            (cond [(and contained-in-package?) (build-path (native-rootdir c) libname.so)]
                  [else (build-path (native-rootdir/compiled c) libname.so)])))))
+
+(define c-source->executable-file : (->* (Path-String Boolean) ((Option String)) (Option Path))
+  (lambda [c contained-in-package? [name #false]]
+    (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
+
+    (and (path? basename)
+         (let ([bname (path-replace-extension basename binary.ext)])
+           (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
+                 [else (build-path (native-rootdir/compiled c) bname)])))))
 
 (define c-include-headers : (-> Path-String (Listof Path))
   (lambda [c]
@@ -118,6 +133,21 @@
                            (λ [[/dev/stdin : Input-Port]]
                              ; TODO: implement a robust `#include` reader 
                              (regexp-match* #px"(?<=#include)\\s+[<\"].+?.h(pp)?[\">]" /dev/stdin))))]))))
+
+(define c-header->maybe-source : (->* (Path-String) ((Option (-> Path (Option Path)))) (Option Path))
+  (lambda [h [src->file #false]]
+    (for/or : (Option Path) ([ext (in-list (list #".c" #".cpp"))])
+      (define h.c (path-replace-extension h ext))
+      
+      (and (file-exists? h.c)
+           (cond [(not src->file) h.c]
+                 [else (src->file h.c)])))))
+
+(define c-headers->files : (->* ((Listof Path)) ((Option (-> Path (Option Path)))) (Listof Path))
+  (lambda [deps [src->file #false]]
+    (remove-duplicates
+     (filter-map (λ [[h : Path]] (c-header->maybe-source h src->file))
+                 deps))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-list-compilers : (-> (Listof Symbol))

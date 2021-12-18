@@ -19,7 +19,6 @@
   (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
     (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
-    (define px.so (pregexp (format "[.]~a$" (subbytes (system-type 'so-suffix) 1))))
 
     (wisemon-make (make-native-library-specs info-ref natives) px.so)
     (wisemon-compile (current-directory) digimon info-ref)
@@ -59,6 +58,8 @@
         (dynamic-require modpath #false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define px.so : Regexp (pregexp (format "[.]~a$" (subbytes (system-type 'so-suffix) 1))))
+
 (define do-make : (-> Wisemon-Specification Void)
   (lambda [specs]
     (unless (null? specs)
