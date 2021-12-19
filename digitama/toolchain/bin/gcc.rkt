@@ -16,7 +16,9 @@
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp?]
-    (append (list "-c" "-O2" "-fPIC")
+    (append (list "-c" "-O2" "-fPIC"
+                  #| without this `gcc` would complain about mismatched extensions |#
+                  "-x" (if cpp? "c++" "c"))
             (cond [(not cpp?) (list "-std=c17")]
                   [else (list "-std=c++17")])
             (case system
