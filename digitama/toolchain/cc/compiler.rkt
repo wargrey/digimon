@@ -27,7 +27,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-default-macros : CC-CPP-Macros
   (lambda [system cpp?]
-    (list (format "-D__~a__" system))))
+    (list (format "-D__~a__" system)
+          (format "-D__lambda__=~a" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
 
 (define cc-default-io-file : CC-IO-File-Flag
   (lambda [src system cpp?]

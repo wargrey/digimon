@@ -5,6 +5,7 @@
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 (require "../cc/modeline.rkt")
+(require "../cc/cc.rkt")
 
 (require "../../system.rkt")
 
@@ -13,13 +14,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-cpp-macros : CC-CPP-Macros
   (lambda [system cpp?]
-    (list "-DF_LAMBDA=__declspec(dllexport)")))
+    null))
 
 (define msvc-compile-flags : CC-Flags
   (lambda [system cpp?]
-    (list "/nologo"
-          "/c" ; compiling only, no link
-          "/MT" "/O2")))
+    (append (list "/nologo"
+                  "/c" ; compiling only, no link
+                  "/MT" "/O2")
+            (cond [(not cpp?) (list "/TC" "/std:c17")]
+                  [else (list "/TP" "/std:c++17")]))))
 
 (define msvc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
@@ -28,13 +31,14 @@
     (append (map msvc-build-include-path extra-dirs)
             (cond [(not root+arch) null]
                   [else (list* (msvc-build-include-path (car root+arch) "include")
-                               (let ([sdkroot (#%info 'msvc-sdk-root)]
-                                     [sdk-lib (#%info 'msvc-sdk-library)])
-                                 (or (and (path-string? sdkroot)
-                                          (path-string? sdk-lib)
-                                          (list (msvc-build-include-path sdkroot "Include" sdk-lib "shared")
-                                                (msvc-build-include-path sdkroot "Include" sdk-lib "um")
-                                                (msvc-build-include-path sdkroot "Include" sdk-lib "ucrt")))
+                               (let ([kitroot (#%info 'msvc-kits-rootdir)]
+                                     [version (#%info 'msvc-kits-version)])
+                                 (or (and (path-string? kitroot)
+                                          (path-string? version)
+                                          (let ([incdir (build-path kitroot "Include" version)])
+                                            (list (msvc-build-include-path incdir "shared")
+                                                  (msvc-build-include-path incdir "um")
+                                                  (msvc-build-include-path incdir "ucrt"))))
                                      null)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -47,15 +51,17 @@
 (define msvc-linker-libpaths : LD-Libpaths
   (lambda [system cpp?]
     (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
+
     (cond [(not root+arch) null]
           [else (let ([arch (cdr root+arch)])
                   (list* (msvc-build-libpath (car root+arch) "lib" arch)
-                         (let ([sdkroot (#%info 'msvc-sdk-root)]
-                               [sdk-lib (#%info 'msvc-sdk-library)])
-                           (or (and (path-string? sdkroot)
-                                    (path-string? sdk-lib)
-                                    (list (msvc-build-libpath sdkroot "Lib" sdk-lib "um" arch)
-                                          (msvc-build-libpath sdkroot "Lib" sdk-lib "ucrt" arch)))
+                         (let ([kitroot (#%info 'msvc-kits-rootdir)]
+                               [version (#%info 'msvc-kits-version)])
+                           (or (and (path-string? kitroot)
+                                    (path-string? version)
+                                    (let ([libdir (build-path kitroot "Lib" version)])
+                                      (list (msvc-build-libpath libdir "um" arch)
+                                            (msvc-build-libpath libdir "ucrt" arch))))
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
@@ -71,7 +77,7 @@
 
 (define msvc-root+arch : (-> (Option (Pairof Path Path)))
   (lambda []
-    (define cc : (Option Path) (find-executable-path (format "~a.exe" msvc-basename) #false))
+    (define cc : (Option Path) (c-find-binary-path msvc-basename))
     (and (path? cc)
          (let-values ([(parent arch dir?) (split-path (assert (path-only cc) path?))])
            (and (and (path? parent) (path? arch))

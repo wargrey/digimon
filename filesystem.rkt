@@ -93,6 +93,19 @@
                                                (call-with-output-file* target void))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string->path/system : (-> Path-String Path)
+  (lambda [path]
+    (define elements : (Listof (U 'up Path))
+      (for/list ([subpath (in-list (explode-path path))]
+                 #:when (or (path? subpath) (eq? subpath 'up)))
+        subpath))
+
+    (cond [(null? elements) (build-path 'same)]
+          [(relative-path? path) (apply build-path elements)]
+          [(not (eq? (system-type 'os) 'windows)) (apply build-path "/" (cdr elements))]
+          [(regexp-match? #px"^(/|\\\\)" path) (apply build-path (current-drive) (cdr elements))]
+          [else (apply build-path (string (string-ref (if (string? path) path (path->string path)) 0) #\:) (cdr elements))])))
+
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
   (lambda [path]
     (cond [(relative-path? path) (if (string? path) (string->path path) path)]

@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-int random_seed() {
+__lambda__ int random_seed() {
     srand(time(NULL) + clock());
 
     return rand() % 64;

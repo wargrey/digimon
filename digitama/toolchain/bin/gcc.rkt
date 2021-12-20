@@ -11,16 +11,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-cpp-macros : CC-CPP-Macros
   (lambda [system cpp?]
-    (list "-DF_LAMBDA="
-          "-D_POSIX_C_SOURCE=200809L")))
+    (list "-D_POSIX_C_SOURCE=200809L")))
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp?]
-    (append (list "-c" "-O2" "-fPIC"
-                  #| without this `gcc` would complain about mismatched extensions |#
-                  "-x" (if cpp? "c++" "c"))
-            (cond [(not cpp?) (list "-std=c17")]
-                  [else (list "-std=c++17")])
+    (append (list "-c" "-O2" "-fPIC")
+            (cond [(not cpp?) (list "-x" "c" "-std=c17")]
+                  [else (list "-x" "c++" "-std=c++17")])
             (case system
               [(macosx) (list "-fno-common")]
               [(illumos) (list "-m64")]

@@ -6,6 +6,8 @@
 (require racket/path)
 
 (require "../../../cc.rkt")
+
+(require "../../../filesystem.rkt")
 (require "../../../digitama/system.rkt")
 
 (require "../parameter.rkt")
@@ -59,7 +61,8 @@
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:include-dirs incdirs))
-             (wisemon-spec native #:^ objects #:- (c-link objects native #:cpp? cpp? #:shared-object? #false #:modelines (c-source-modelines native.c)))
+             (wisemon-spec native #:^ objects
+                           #:- (c-link objects native #:cpp? cpp? #:shared-object? #false #:modelines (c-source-modelines native.c)))
              specs))))
     
 (define make~cc : Make-Phony
@@ -78,8 +81,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-launcher-filter : (-> Any (Option CC-Launcher-Name))
   (lambda [native]
-    (if (and (pair? native) (path-string? (car native)))
-        (let ([native.cc (build-path (current-directory) (car native))])
+    (if (and (pair? native) (string? (car native)))
+        (let ([native.cc (build-path (current-directory) (string->path/system (car native)))])
           (and (file-exists? native.cc)
                (cons native.cc (cc-filter-name (cdr native)))))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))

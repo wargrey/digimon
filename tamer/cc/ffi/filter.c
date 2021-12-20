@@ -1,6 +1,6 @@
 #include "nested/seed.h"
 
-double random_filter() {
+__lambda__ double random_filter() {
     return random_seed() * 0.1;
 }
 

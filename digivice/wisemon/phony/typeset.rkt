@@ -8,6 +8,7 @@
 (require "../../../digitama/latex.rkt")
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/system.rkt")
+(require "../../../filesystem.rkt")
 (require "../../../dtrace.rkt")
 
 (require "../parameter.rkt")
@@ -16,6 +17,8 @@
 (require "../spec.rkt")
 (require "../path.rkt")
 (require "../racket.rkt")
+
+(require "cc.rkt")
 
 (require/typed
  "../../../digitama/tamer.rkt"
@@ -34,7 +37,7 @@
     ((inst filter-map Tex-Info Any)
      (λ [typesetting]
        (if (and (pair? typesetting) (path-string? (car typesetting)))
-           (let ([setting.scrbl (build-path (current-directory) (car typesetting))])
+           (let ([setting.scrbl (build-path (current-directory) (string->path/system (car typesetting)))])
              (and (file-exists? setting.scrbl)
                   (cons setting.scrbl (typeset-filter-renderer (cdr typesetting) silent))))
            (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
@@ -149,7 +152,9 @@
     
 (define make~typeset : Make-Phony
   (lambda [digimon info-ref]
-    (wisemon-make (make-native-library-specs info-ref))
+    (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
+    
+    (wisemon-make (make-native-library-specs info-ref natives))
     (wisemon-compile (current-directory) digimon info-ref)
 
     (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
