@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/list)
+(require racket/symbol)
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
@@ -14,8 +15,8 @@
     (list "-D_POSIX_C_SOURCE=200809L")))
 
 (define gcc-compile-flags : CC-Flags
-  (lambda [system cpp?]
-    (append (list "-c" "-O2" "-fPIC")
+  (lambda [system cpp? hints]
+    (append (list "-c" "-O2" "-fPIC" "-Wall")
             (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                   [else (list "-x" "c++" "-std=c++17")])
             (case system
@@ -33,16 +34,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-linker-flags : LD-Flags
-  (lambda [system cpp? shared-object?]
-    (if (not shared-object?)
-        (case system
-          [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
-          [(illumos) (list "-m64")]
-          [else null])
-        (case system
-          [(macosx) (list #| MH_BUNDLE file type |# "-bundle" "-flat_namespace" "-undefined" "suppress")]
-          [(illumos) (list "-fPIC" "-shared" "-m64")]
-          [else (list "-fPIC" "-shared")]))))
+  (lambda [system cpp? shared-object? hints]
+    (append (cond [(not shared-object?) null]
+                  [else (case system
+                          [(macosx) (list #| MH_BUNDLE file type |# "-bundle")]
+                          [else (list "-fPIC" "-shared")])])
+            (case system
+              [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
+              [(illumos) (list "-m64")]
+              [else null]))))
 
 (define gcc-linker-libpaths : LD-Libpaths
   (lambda [system cpp?]

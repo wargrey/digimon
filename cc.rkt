@@ -45,7 +45,7 @@
     (fg-recon-exec 'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
-                       [(flags) ((cc-flags compiler) digimon-system cpp?)]
+                       [(flags) ((cc-flags compiler) digimon-system cpp? null)]
                        [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?))]
                        [(includes) ((cc-includes compiler) includes digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
@@ -60,9 +60,9 @@
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
-                      (#:cpp? Boolean #:shared-object? Boolean #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
+                      (#:cpp? Boolean #:subsystem (Option Symbol) #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
                       Void)
-  (lambda [infiles outfile #:cpp? [cpp? #false] #:shared-object? [shared-object? #false] #:modelines [modelines null] #:linkers [linkers #false]]
+  (lambda [infiles outfile #:cpp? [cpp? #false] #:subsystem [?subsystem #false] #:modelines [modelines null] #:linkers [linkers #false]]
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (unless (ld? linker)
@@ -73,7 +73,8 @@
     (fg-recon-exec 'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                      (case layout
-                       [(flags) ((ld-flags linker) digimon-system cpp? shared-object?)]
+                       [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null)]
+                       [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem)]
                        [(libpath) ((ld-libpaths linker) digimon-system cpp?)]
                        [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
                                                     ((ld-libraries linker) mdl digimon-system cpp?)))]

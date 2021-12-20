@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (require racket/path)
+(require racket/symbol)
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
@@ -17,10 +18,10 @@
     null))
 
 (define msvc-compile-flags : CC-Flags
-  (lambda [system cpp?]
-    (append (list "/nologo"
-                  "/c" ; compiling only, no link
-                  "/MT" "/O2")
+  (lambda [system cpp? hints]
+    (append (list "/nologo" "/c" ; compiling only, no link
+                  "/O2" #;"/constexpr"
+                  "/W3" "/sdl" #;'| security features and warnings |)
             (cond [(not cpp?) (list "/TC" "/std:c17")]
                   [else (list "/TP" "/std:c++17")]))))
 
@@ -43,10 +44,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
-  (lambda [system cpp? shared-object?]
-    (if (not shared-object?)
-        (list "/nologo")
-        (list "/nologo" "/LD"))))
+  (lambda [system cpp? dll? hints]
+    (list* "/nologo"
+           (cond [(not dll?) (list "/MT")]
+                 [else (list "/MD" "/LD")]))))
+
+(define msvc-subsystem-flags : LD-Subsystem
+  (lambda [system cpp? ?subsystem]
+    (cond [(not ?subsystem) null]
+          [else (list (format "/SUBSYSTEM:~a"
+                        (string-upcase (symbol->immutable-string
+                                        ?subsystem))))])))
 
 (define msvc-linker-libpaths : LD-Libpaths
   (lambda [system cpp?]
@@ -110,8 +118,9 @@
                        #:outfile (msvc-make-outfile "Fo")
                        #:basename msvc-basename)
   
-  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath)
-                     #:flags msvc-linker-flags #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
+  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath subsystem)
+                     #:flags msvc-linker-flags #:subsystem msvc-subsystem-flags
+                     #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
                      #:outfile (msvc-make-outfile "Fe")
                      #:basename msvc-basename))
   

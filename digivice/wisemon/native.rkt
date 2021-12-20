@@ -48,6 +48,8 @@
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
                     (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
-                      (cons (wisemon-spec c.so #:^ objects #:- (c-link objects c.so #:cpp? cpp? #:shared-object? #true #:modelines (c-source-modelines c)))
+                      (cons (wisemon-spec c.so #:^ objects
+                                          #:- (c-link #:cpp? cpp? #:subsystem #false #:modelines (c-source-modelines c)
+                                                      objects c.so))
                             specs))]
                    [else specs])))))

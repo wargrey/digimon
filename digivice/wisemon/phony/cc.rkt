@@ -17,7 +17,7 @@
 (require "../racket.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type CC-Launcher-Info (List (Option Symbol) (Option String) (Listof Symbol)))
+(define-type CC-Launcher-Info (List (Option Symbol) (Option String) Symbol (Listof Symbol)))
 (define-type CC-Launcher-Name (Pairof Path CC-Launcher-Info))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -54,7 +54,8 @@
       (define lang : Symbol (or (cadr name) (cc-lang-from-extension native.c)))
       (define cpp? : Boolean (eq? lang 'cpp))
       (define native : Path (assert (c-source->executable-file native.c #false (caddr name))))
-      (define flags : (Listof Symbol) (cadddr name))
+      (define subsystem : Symbol (cadddr name))
+      (define flags : (Listof Symbol) (car (cddddr name)))
 
       (define native.o : Path (assert (c-source->object-file native.c lang)))
       (define deps.h : (Listof Path) (c-include-headers native.c))
@@ -62,7 +63,8 @@
 
       (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:include-dirs incdirs))
              (wisemon-spec native #:^ objects
-                           #:- (c-link objects native #:cpp? cpp? #:shared-object? #false #:modelines (c-source-modelines native.c)))
+                           #:- (c-link #:cpp? cpp? #:subsystem subsystem #:modelines (c-source-modelines native.c)
+                                       objects native))
              specs))))
     
 (define make~cc : Make-Phony
@@ -91,15 +93,17 @@
   (lambda [argv]
     (let partition ([lang : (Option Symbol) #false]
                     [name : (Option String) #false]
+                    [subsystem : Symbol 'CONSOLE]
                     [srehto : (Listof Symbol) null]
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
-      (cond [(null? options) (list lang name (reverse srehto))]
+      (cond [(null? options) (list lang name subsystem (reverse srehto))]
             [else (let-values ([(opt rest) (values (car options) (cdr options))])
-                    (cond [(memq opt '(C c)) (partition (or lang 'c) name srehto rest)]
-                          [(memq opt '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) name srehto rest)]
-                          [(string? opt) (partition lang (or name opt) srehto rest)]
-                          [(symbol? opt) (partition lang name (cons opt srehto) rest)]
-                          [else (partition lang name srehto rest)]))]))))
+                    (cond [(memq opt '(C c)) (partition (or lang 'c) name subsystem srehto rest)]
+                          [(memq opt '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) name subsystem srehto rest)]
+                          [(memq opt '(windows desktop)) (partition lang name 'WINDOWS srehto rest)]
+                          [(string? opt) (partition lang (or name opt) subsystem srehto rest)]
+                          [(symbol? opt) (partition lang name subsystem (cons opt srehto) rest)]
+                          [else (partition lang name subsystem srehto rest)]))]))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]
