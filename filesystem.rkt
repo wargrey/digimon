@@ -93,7 +93,7 @@
                                                (call-with-output-file* target void))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define string->path/system : (-> Path-String Path)
+(define path-normalize/system : (-> Path-String Path)
   (lambda [path]
     (define elements : (Listof (U 'up Path))
       (for/list ([subpath (in-list (explode-path path))]

@@ -3,15 +3,14 @@
 (provide (all-defined-out))
 
 (require "cc.rkt")
-(require "modeline.rkt")
 (require "../toolchain.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LD-Options (U 'flags 'libpath 'libraries 'subsystem 'infiles 'outfile))
 
 (define-type LD-Flags (-> Symbol Boolean Boolean (Listof Any) (Listof String)))
-(define-type LD-Libpaths (-> Symbol Boolean (Listof String)))
-(define-type LD-Libraries (-> C-LD-Modeline Symbol Boolean (Listof String)))
+(define-type LD-Libpaths (-> (Listof Path) Symbol Boolean (Listof String)))
+(define-type LD-Libraries (-> (Listof Symbol) (Option Keyword) Symbol Boolean (Listof String)))
 (define-type LD-Subsystem (-> Symbol Boolean (Option Symbol) (Listof String)))
 
 (define-type LD-IO-File-Flag (-> Path-String Symbol Boolean (Listof String)))

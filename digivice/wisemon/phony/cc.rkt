@@ -38,11 +38,11 @@
       (define incs.h : (Listof Path) (c-include-headers dep.c))
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
       
-      (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep++.o #:cpp? #true #:include-dirs incdirs))
+      (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep++.o #:cpp? #true #:includes incdirs))
              
              (cond [(not cpp-file?)
                     (let ([dep.o (assert (c-source->object-file dep.c 'c))])
-                      (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep.o #:cpp? #false #:include-dirs incdirs))
+                      (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep.o #:cpp? #false #:includes incdirs))
                             specs))]
                    [else specs])))))
 
@@ -61,9 +61,9 @@
       (define deps.h : (Listof Path) (c-include-headers native.c))
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
-      (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:include-dirs incdirs))
+      (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:includes incdirs))
              (wisemon-spec native #:^ objects
-                           #:- (c-link #:cpp? cpp? #:subsystem subsystem #:modelines (c-source-modelines native.c)
+                           #:- (c-link #:cpp? cpp? #:subsystem subsystem
                                        objects native))
              specs))))
     
@@ -84,7 +84,7 @@
 (define cc-launcher-filter : (-> Any (Option CC-Launcher-Name))
   (lambda [native]
     (if (and (pair? native) (string? (car native)))
-        (let ([native.cc (build-path (current-directory) (string->path/system (car native)))])
+        (let ([native.cc (build-path (current-directory) (path-normalize/system (car native)))])
           (and (file-exists? native.cc)
                (cons native.cc (cc-filter-name (cdr native)))))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))

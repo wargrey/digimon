@@ -7,7 +7,6 @@
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
-(require "../cc/modeline.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-cpp-macros : CC-CPP-Macros
@@ -16,7 +15,7 @@
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp? hints]
-    (append (list "-c" "-O2" "-fPIC" "-Wall")
+    (append (list "-c" "-O2" "-fPIC" "-Wall" #;"-Wno-unknown-pragmas")
             (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                   [else (list "-x" "c++" "-std=c++17")])
             (case system
@@ -26,11 +25,13 @@
 
 (define gcc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
-    (map gcc-include-path
-         (append extra-dirs
-                 (case system
-                   [(macosx) (list "/usr/local/include")]
-                   [else null])))))
+    (define system-dirs : (Listof String)
+      (case system
+        [(macosx) (list "/usr/local/include")]
+        [else null]))
+
+    (for/list : (Listof String) ([dir (in-list (append extra-dirs system-dirs))])
+      (gcc-search-path "-I" dir))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-linker-flags : LD-Flags
@@ -45,26 +46,28 @@
               [else null]))))
 
 (define gcc-linker-libpaths : LD-Libpaths
-  (lambda [system cpp?]
-    (case system
-      [(macosx) (list "-L/usr/local/lib")]
-      [else null])))
+  (lambda [extra-dirs system cpp?]
+    (define system-dirs : (Listof String)
+      (case system
+        [(macosx) (list "/usr/local/lib")]
+        [else null]))
+    
+    (for/list : (Listof String) ([dir (in-list (append extra-dirs system-dirs))])
+      (gcc-search-path "-L" dir))))
 
 (define gcc-linker-libraries : LD-Libraries
-  (lambda [modeline system cpp?]
-    (define kw : Symbol (or (c:mdl:ld-keyword modeline) system))
-    (define ls : (Listof String) (c:mdl:ld-libraries modeline))
-    (cond [(eq? system kw)
-           (map (λ [[l : String]] (string-append "-l" l)) ls)]  ; /* ld: (ssh2) or ld:illumos: (kstat) */
-          [(and (eq? system 'macosx) (eq? kw 'framework))       ; /* ld:framework: IOKit */
-           (let ([-fw "-framework"])
-             (cons -fw (add-between ls -fw)))]
-          [else null])))
+  (lambda [links type system cpp?]
+    (if (and (eq? type '#:framework) (eq? system 'macosx))
+        (let ([-fw "-framework"]
+              [ls (map symbol->immutable-string links)])
+          (cons -fw (add-between ls -fw)))
+        (for/list : (Listof String) ([l (in-list links)])
+          (string-append "-l" (symbol->immutable-string l))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define gcc-include-path : (-> Path-String String)
-  (lambda [dir]
-    (string-append "-I"
+(define gcc-search-path : (-> String Path-String String)
+  (lambda [-option dir]
+    (string-append -option
                    (cond [(string? dir) dir]
                          [else (path->string dir)]))))
 

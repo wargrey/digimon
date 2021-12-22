@@ -1,24 +1,22 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide c-source-modelines)
 (provide cc ld CC LD)
 
-(require racket/path)
-(require racket/file)
 (require racket/list)
 (require racket/symbol)
 
 (require "digitama/toolchain/cc/cc.rkt")
 (require "digitama/toolchain/cc/compiler.rkt")
 (require "digitama/toolchain/cc/linker.rkt")
-(require "digitama/toolchain/cc/modeline.rkt")
+(require "digitama/toolchain/cc/configuration.rkt")
 
 (require "digitama/toolchain/toolchain.rkt")
 (require "digitama/exec.rkt")
 (require "digitama/path.rkt")
 
 (require "digitama/system.rkt")
+(require "filesystem.rkt")
 
 ; register toolchains
 (require (submod "digitama/toolchain/bin/clang.rkt" register))
@@ -32,22 +30,24 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:cpp? Boolean #:include-dirs (Listof Path-String) #:modelines (Listof C-Modeline) #:compilers (Option (Listof Symbol)))
+                         (#:cpp? Boolean #:includes (Listof (U Path-String C-Include-Config)) #:macros (Listof (Pairof Symbol Any))
+                          #:compilers (Option (Listof Symbol)))
                          Void)
-  (lambda [infile outfile #:cpp? [cpp? #false] #:include-dirs [includes null] #:modelines [modelines null] #:compilers [compilers #false]]
+  (lambda [infile outfile #:cpp? [cpp? #false] #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]]
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
     (unless (cc? compiler)
       (error 'c-compile "no suitable C compiler is found: ~a"
              (c-compiler-candidates compilers)))
-
+    
     (make-parent-directory* outfile)
     (fg-recon-exec 'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
                        [(flags) ((cc-flags compiler) digimon-system cpp? null)]
-                       [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?))]
-                       [(includes) ((cc-includes compiler) includes digimon-system cpp?)]
+                       [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?)
+                                         (for/list : (Listof String) ([m (in-list macros)]) (format "-D~a=~a" (car m) (cdr m))))]
+                       [(includes) ((cc-includes compiler) (path-config-flatten includes digimon-system) digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
                        [else (if (string? layout) (list layout) null)]))
@@ -60,9 +60,11 @@
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
-                      (#:cpp? Boolean #:subsystem (Option Symbol) #:modelines (Listof C-Modeline) #:linkers (Option (Listof Symbol)))
+                      (#:cpp? Boolean #:subsystem (Option Symbol)
+                       #:libpaths (Listof (U Path-String C-Libpath-Config)) #:libraries (Listof (U C-Link-Library C-Link-Config))
+                       #:linkers (Option (Listof Symbol)))
                       Void)
-  (lambda [infiles outfile #:cpp? [cpp? #false] #:subsystem [?subsystem #false] #:modelines [modelines null] #:linkers [linkers #false]]
+  (lambda [infiles outfile #:cpp? [cpp? #false] #:subsystem [?subsystem #false] #:libpaths [libpaths null] #:libraries [libs null] #:linkers [linkers #false]]
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (unless (ld? linker)
@@ -75,9 +77,12 @@
                      (case layout
                        [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null)]
                        [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem)]
-                       [(libpath) ((ld-libpaths linker) digimon-system cpp?)]
-                       [(libraries) (apply append (for/list : (Listof (Listof String)) ([mdl (in-list modelines)] #:when (c:mdl:ld? mdl))
-                                                    ((ld-libraries linker) mdl digimon-system cpp?)))]
+                       [(libpath) ((ld-libpaths linker) (path-config-flatten libpaths digimon-system) digimon-system cpp?)]
+                       [(libraries) (let ([ld-lib (ld-libraries linker)])
+                                      (apply append
+                                             (for/list : (Listof (Listof String)) ([lib (in-list (link-config-flatten libs digimon-system))])
+                                               (cond [(symbol? lib) (ld-lib (list lib) #false digimon-system cpp?)]
+                                                     [else (ld-lib (cdr lib) (car lib) digimon-system cpp?)]))))]
                        [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system cpp?)]
                                         [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
                                                               ((ld-infile linker) f digimon-system cpp?)))])]

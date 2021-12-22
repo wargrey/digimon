@@ -43,13 +43,13 @@
       (define deps.h : (Listof Path) (c-include-headers c))
       (define c.o : Path (assert (c-source->object-file c)))
       
-      (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:include-dirs (list rootdir)))
+      (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:includes (list rootdir)))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
                     (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects
-                                          #:- (c-link #:cpp? cpp? #:subsystem #false #:modelines (c-source-modelines c)
+                                          #:- (c-link #:cpp? cpp? #:subsystem #false
                                                       objects c.so))
                             specs))]
                    [else specs])))))

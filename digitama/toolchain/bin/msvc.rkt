@@ -5,7 +5,6 @@
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
-(require "../cc/modeline.rkt")
 (require "../cc/cc.rkt")
 
 (require "../../system.rkt")
@@ -57,7 +56,7 @@
                                         ?subsystem))))])))
 
 (define msvc-linker-libpaths : LD-Libpaths
-  (lambda [system cpp?]
+  (lambda [extra-dirs system cpp?]
     (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
 
     (cond [(not root+arch) null]
@@ -73,12 +72,9 @@
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
-  (lambda [modeline system cpp?]
-    (define kw : Symbol (or (c:mdl:ld-keyword modeline) system))
-    (define ls : (Listof String) (c:mdl:ld-libraries modeline))
-    
-    (cond [(not (memq kw (list 'static system))) null]
-          [else (map (λ [[l : String]] (string-append l ".lib")) ls)])))
+  (lambda [links type system cpp?]
+    (for/list : (Listof String) ([l (in-list links)])
+      (string-append (symbol->immutable-string l) ".lib"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bindir-path : Path (build-path "bin"))
@@ -95,21 +91,25 @@
                          (cond [(and (path? name) (equal? name bindir-path)) (cons parent arch)]
                                [else (search-root parent)])))))))))
 
-(define msvc-build-include-path : (-> Path-String Path-String * String)
-  (lambda [subpath . subpaths]
-    (string-append "/I"
+(define msvc-search-path : (-> String Path-String (Listof Path-String) String)
+  (lambda [/option subpath subpaths]
+    (string-append /option
                    (cond [(pair? subpaths) (path->string (apply build-path subpath subpaths))]
                          [(string? subpath) subpath]
                          [else (path->string subpath)]))))
-
-(define msvc-build-libpath : (-> Path-String Path-String * String)
-  (lambda [subpath . subpaths]
-    (string-append "/LIBPATH:" (path->string (apply build-path subpath subpaths)))))
 
 (define msvc-make-outfile : (-> String LD-IO-File-Flag)
   (lambda [flag]
     (λ [dest system cpp?]
       (list (string-append "/" flag (if (path? dest) (path->string dest) dest))))))
+
+(define msvc-build-include-path : (-> Path-String Path-String * String)
+  (lambda [subpath . subpaths]
+    (msvc-search-path "/I" subpath subpaths)))
+
+(define msvc-build-libpath : (-> Path-String Path-String * String)
+  (lambda [subpath . subpaths]
+    (msvc-search-path "/LIBPATH:" subpath subpaths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register

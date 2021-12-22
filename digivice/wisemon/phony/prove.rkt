@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
-
 (require "../parameter.rkt")
 (require "../phony.rkt")
 
@@ -25,7 +23,7 @@
     
     (filter file-exists?
             (for/list : (Listof Path) ([handbook (in-list maybe-handbooks)])
-              (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (string->path/system (car handbook)))]
+              (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (path-normalize/system (car handbook)))]
                     [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))))
 
 (define make-prove-specs : (-> Info-Ref Wisemon-Specification)

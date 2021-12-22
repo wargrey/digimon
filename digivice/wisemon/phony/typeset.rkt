@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
 (require racket/list)
 
 (require "../../../digitama/latex.rkt")
@@ -37,7 +36,7 @@
     ((inst filter-map Tex-Info Any)
      (λ [typesetting]
        (if (and (pair? typesetting) (path-string? (car typesetting)))
-           (let ([setting.scrbl (build-path (current-directory) (string->path/system (car typesetting)))])
+           (let ([setting.scrbl (build-path (current-directory) (path-normalize/system (car typesetting)))])
              (and (file-exists? setting.scrbl)
                   (cons setting.scrbl (typeset-filter-renderer (cdr typesetting) silent))))
            (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
