@@ -15,7 +15,7 @@
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp? hints]
-    (append (list "-c" "-O2" "-fPIC" "-Wall" #;"-Wno-unknown-pragmas")
+    (append (list "-c" "-O2" "-fPIC" #;"-Wall" #;"-Wno-unknown-pragmas")
             (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                   [else (list "-x" "c++" "-std=c++17")])
             (case system
@@ -56,8 +56,8 @@
       (gcc-search-path "-L" dir))))
 
 (define gcc-linker-libraries : LD-Libraries
-  (lambda [links type system cpp?]
-    (if (and (eq? type '#:framework) (eq? system 'macosx))
+  (lambda [links tag system cpp?]
+    (if (and (eq? tag '#:framework) (eq? system 'macosx))
         (let ([-fw "-framework"]
               [ls (map symbol->immutable-string links)])
           (cons -fw (add-between ls -fw)))

@@ -72,7 +72,7 @@
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
-  (lambda [links type system cpp?]
+  (lambda [links tag system cpp?]
     (for/list : (Listof String) ([l (in-list links)])
       (string-append (symbol->immutable-string l) ".lib"))))
 

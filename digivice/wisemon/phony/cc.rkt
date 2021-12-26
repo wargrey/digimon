@@ -9,6 +9,7 @@
 
 (require "../../../filesystem.rkt")
 (require "../../../digitama/system.rkt")
+(require "../../../digitama/toolchain/cc/configuration.rkt")
 
 (require "../parameter.rkt")
 (require "../phony.rkt")
@@ -17,8 +18,17 @@
 (require "../racket.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type CC-Launcher-Info (List (Option Symbol) (Option String) Symbol (Listof Symbol)))
 (define-type CC-Launcher-Name (Pairof Path CC-Launcher-Info))
+
+(struct cc-launcher-info
+  ([lang : (Option Symbol)]
+   [name : (Option String)]
+   [subsystem : Symbol]
+   [includes : (Listof C-Toolchain-Path-String)]
+   [libpaths : (Listof C-Toolchain-Path-String)]
+   [libraries : (Listof C-Link-Library)])
+  #:type-name CC-Launcher-Info
+  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-native-launcher-names : (-> Info-Ref (Listof CC-Launcher-Name))
@@ -50,20 +60,21 @@
   (lambda [info-ref incdirs]
     (for/fold ([specs : Wisemon-Specification null])
               ([name (in-list (find-digimon-native-launcher-names info-ref))])
-      (define native.c : Path (car name))
-      (define lang : Symbol (or (cadr name) (cc-lang-from-extension native.c)))
+      (define-values (native.c info) (values (car name) (cdr name)))
+      (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define cpp? : Boolean (eq? lang 'cpp))
-      (define native : Path (assert (c-source->executable-file native.c #false (caddr name))))
-      (define subsystem : Symbol (cadddr name))
-      (define flags : (Listof Symbol) (car (cddddr name)))
+      (define native : Path (assert (c-source->executable-file native.c #false (cc-launcher-info-name info))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang)))
       (define deps.h : (Listof Path) (c-include-headers native.c))
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
-      (list* (wisemon-spec native.o #:^ (cons native.c deps.h) #:- (c-compile native.c native.o #:cpp? cpp? #:includes incdirs))
+      (list* (wisemon-spec native.o #:^ (cons native.c deps.h)
+                           #:- (c-compile #:cpp? cpp? #:includes (append incdirs (cc-launcher-info-includes info))
+                                          native.c native.o))
              (wisemon-spec native #:^ objects
-                           #:- (c-link #:cpp? cpp? #:subsystem subsystem
+                           #:- (c-link #:cpp? cpp? #:subsystem (cc-launcher-info-subsystem info)
+                                       #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                        objects native))
              specs))))
     
@@ -94,16 +105,17 @@
     (let partition ([lang : (Option Symbol) #false]
                     [name : (Option String) #false]
                     [subsystem : Symbol 'CONSOLE]
-                    [srehto : (Listof Symbol) null]
+                    [srehto : (Listof Any) null]
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
-      (cond [(null? options) (list lang name subsystem (reverse srehto))]
-            [else (let-values ([(opt rest) (values (car options) (cdr options))])
-                    (cond [(memq opt '(C c)) (partition (or lang 'c) name subsystem srehto rest)]
-                          [(memq opt '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) name subsystem srehto rest)]
-                          [(memq opt '(windows desktop)) (partition lang name 'WINDOWS srehto rest)]
-                          [(string? opt) (partition lang (or name opt) subsystem srehto rest)]
-                          [(symbol? opt) (partition lang name subsystem (cons opt srehto) rest)]
-                          [else (partition lang name subsystem srehto rest)]))]))))
+      (if (pair? options)
+          (let-values ([(opt rest) (values (car options) (cdr options))])
+            (cond [(memq opt '(C c)) (partition (or lang 'c) name subsystem srehto rest)]
+                  [(memq opt '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) name subsystem srehto rest)]
+                  [(memq opt '(windows desktop)) (partition lang name 'WINDOWS srehto rest)]
+                  [(string? opt) (partition lang (or name opt) subsystem srehto rest)]
+                  [else (partition lang name subsystem (cons opt srehto) rest)]))
+          (let-values ([(includes libpaths libraries) (c-configuration-filter srehto digimon-system)])
+            (cc-launcher-info lang name subsystem includes libpaths libraries))))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]

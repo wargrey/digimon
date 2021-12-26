@@ -149,6 +149,11 @@
         (file-exists? path)
         (directory-exists? path))))
 
+(define path-literal? : (-> Any Boolean : #:+ Path-String)
+  (lambda [maybe-path]
+    (or (path-string? maybe-path)
+        (path? maybe-path))))
+
 (define path-add-sequence : (->* (Path-String) (String #:start Natural #:step Natural) (Option Path))
   (lambda [path [seqfmt ":~a"] #:start [seq0 2] #:step [step 1]]
     (define-values (parent basename syntactically-dir?) (split-path (simplify-path path #false)))

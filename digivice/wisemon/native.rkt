@@ -11,6 +11,7 @@
 
 (require "../../cc.rkt")
 (require "../../digitama/system.rkt")
+(require "../../digitama/toolchain/cc/configuration.rkt")
 
 ;;; NOTE
 ;     It is supposed that:
@@ -35,6 +36,8 @@
   (lambda [info-ref px.ext cpp? ex-shared-objects]
     (define rootdir (path->string (digimon-path 'zone)))
     (define stone-dir (path->string (digimon-path 'stone)))
+    (define configs (#%info 'ffi-toolchain-config))
+    (define-values (includes libpaths libraries) (c-configuration-filter (if (list? configs) configs null) digimon-system))
 
     (for/fold ([specs : Wisemon-Specification null])
               ([c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))])
@@ -43,13 +46,14 @@
       (define deps.h : (Listof Path) (c-include-headers c))
       (define c.o : Path (assert (c-source->object-file c)))
       
-      (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:includes (list rootdir)))
+      (list* (wisemon-spec c.o #:^ (cons c deps.h) #:- (c-compile c c.o #:cpp? cpp? #:includes (cons rootdir includes)))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
                     (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects
                                           #:- (c-link #:cpp? cpp? #:subsystem #false
+                                                      #:libpaths libpaths #:libraries libraries
                                                       objects c.so))
                             specs))]
                    [else specs])))))

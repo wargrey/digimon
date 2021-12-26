@@ -22,5 +22,7 @@
 (define msvc-kits-rootdir "C:\\Program Files (x86)\\Windows Kits\\10")
 (define msvc-kits-version "10.0.19041.0")
 
+(define ffi-toolchain-config '())
+
 (define native-launcher-names '(["tamer/cc/launcher/main.c" "cmain"]
                                 ["tamer/cc/launcher/main.cpp"]))
