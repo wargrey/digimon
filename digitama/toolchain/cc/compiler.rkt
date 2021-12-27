@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/path)
+
 (require "cc.rkt")
 (require "../toolchain.rkt")
 
@@ -32,7 +34,7 @@
 
 (define cc-default-io-file : CC-IO-File-Flag
   (lambda [src system cpp?]
-    (list (if (path? src) (path->string src) src))))
+    (list (some-system-path->string (find-relative-path (current-directory) src)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-database : (HashTable Symbol CC) (make-hasheq))

@@ -30,7 +30,7 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:cpp? Boolean #:includes (Listof C-Toolchain-Path-String) #:macros (Listof (Pairof Symbol Any))
+                         (#:cpp? Boolean #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
                           #:compilers (Option (Listof Symbol)))
                          Void)
   (lambda [infile outfile #:cpp? [cpp? #false] #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]]
@@ -45,8 +45,7 @@
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
                        [(flags) ((cc-flags compiler) digimon-system cpp? null)]
-                       [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?)
-                                         (for/list : (Listof String) ([m (in-list macros)]) (format "-D~a=~a" (car m) (cdr m))))]
+                       [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?) (map c-macro->string macros))]
                        [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]

@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/path)
+
 (require "cc.rkt")
 (require "../toolchain.rkt")
 
@@ -29,7 +31,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ld-default-io-file : LD-IO-File-Flag
   (lambda [dest system cpp?]
-    (list (if (path? dest) (path->string dest) dest))))
+    (list (some-system-path->string (find-relative-path (current-directory) dest)))))
 
 (define ld-default-no-subsystem-flag : LD-Subsystem
   (lambda [system cpp? ?subsystem]

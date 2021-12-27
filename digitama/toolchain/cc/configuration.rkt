@@ -7,19 +7,25 @@
 (require "../../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type C-Macro-Datum (U Symbol (Pairof Symbol Any) (List Symbol Any)))
 (define-type (C-Config-Data a) (U a (Pairof Keyword (Listof a))))
 
 (define-type C-Toolchain-Path (C-Config-Data Path))
 (define-type C-Toolchain-Path-String (C-Config-Data Path-String))
+
+(define-type C-Compiler-Macro (C-Config-Data C-Macro-Datum))
 (define-type C-Link-Library (C-Config-Data Symbol))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-configuration-filter : (-> (Listof Any) Symbol (Values (Listof C-Toolchain-Path-String) (Listof C-Toolchain-Path-String) (Listof C-Link-Library)))
+(define c-configuration-filter : (-> (Listof Any) Symbol
+                                     (Values (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String)
+                                             (Listof C-Toolchain-Path-String) (Listof C-Link-Library)))
   (lambda [infos target]
-    (let*-values ([(includes rest) (c-include-filter infos target)]
+    (let*-values ([(macros rest) (c-macro-filter infos target)]
+                  [(includes rest) (c-include-filter rest target)]
                   [(libpaths rest) (c-libpath-filter rest target)]
                   [(libraries rest) (c-library-filter rest target)])
-      (values includes libpaths libraries))))
+      (values macros includes libpaths libraries))))
 
 (define c-path-flatten : (-> (Listof C-Toolchain-Path-String) (Listof Path))
   (lambda [dirs]
@@ -29,18 +35,35 @@
               (cond [(list? dir) (map path-normalize/system (cdr dir))]
                     [else (list (path-normalize/system dir))])))))
 
+(define c-macro->string : (-> C-Compiler-Macro String)
+  (lambda [D]
+    (cond [(symbol? D) (format "-D~a" D)]
+          [(list? D) (format "-D~a=~a" (car D) (cadr D))]
+          [else (let ([maybe-keyword (car D)]
+                      [maybe-macro (cdr D)])
+                  (cond [(keyword? maybe-keyword) (c-macro->string maybe-macro)]
+                        [else (format "-D~a=~a" maybe-keyword maybe-macro)]))])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define c-macro-filter : (-> (Listof Any) Symbol (Values (Listof C-Compiler-Macro) (Listof Any)))
+  (lambda [infos target]
+    (define-values (sorcam tser) (c-config-filter infos '(macro) target c-macro?))
+    (values (reverse sorcam) (reverse tser))))
+
 (define c-include-filter : (-> (Listof Any) Symbol (Values (Listof C-Toolchain-Path-String) (Listof Any)))
   (lambda [infos target]
-    (c-config-filter infos '(include) target path-literal?)))
+    (define-values (sedulcni tser) (c-config-filter infos '(include) target path-literal?))
+    (values (reverse sedulcni) (reverse tser))))
 
 (define c-libpath-filter : (-> (Listof Any) Symbol (Values (Listof C-Toolchain-Path-String) (Listof Any)))
   (lambda [infos target]
-    (c-config-filter infos '(libpath) target path-literal?)))
+    (define-values (shtapbil tser) (c-config-filter infos '(libpath) target path-literal?))
+    (values (reverse shtapbil) (reverse tser))))
 
 (define c-library-filter : (-> (Listof Any) Symbol (Values (Listof C-Link-Library) (Listof Any)))
   (lambda [infos target]
-    (c-config-filter infos '(lib library) target symbol?)))
+    (define-values (sbil tser) (c-config-filter infos '(lib library) target symbol?))
+    (values (reverse sbil) (reverse tser))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-config-filter : (All (a) (-> (Listof Any) (Listof Symbol) Symbol (-> Any Boolean : #:+ a) (Values (Listof (C-Config-Data a)) (Listof Any))))
@@ -79,6 +102,12 @@
                           [else stnemele]))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define c-macro? : (-> Any Boolean : C-Macro-Datum)
+  (lambda [datum]
+    (or (symbol? datum)
+        (and (pair? datum)
+             (symbol? (car datum))))))
+
 (define c-path-normalize : (-> C-Toolchain-Path-String C-Toolchain-Path)
   (lambda [path]
     (cond [(not (list? path)) (path-normalize/system path)]

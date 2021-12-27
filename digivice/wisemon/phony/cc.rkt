@@ -24,6 +24,7 @@
   ([lang : (Option Symbol)]
    [name : (Option String)]
    [subsystem : Symbol]
+   [macros : (Listof C-Compiler-Macro)]
    [includes : (Listof C-Toolchain-Path-String)]
    [libpaths : (Listof C-Toolchain-Path-String)]
    [libraries : (Listof C-Link-Library)])
@@ -40,27 +41,37 @@
 
     (filter-map cc-launcher-filter maybe-launchers)))
 
-(define make-depcc-specs : (-> (Listof String) Wisemon-Specification)
-  (lambda [incdirs]
+(define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Wisemon-Specification)
+  (lambda [launchers incdirs]
+    (define-values (macros includes)
+      (for/fold ([macros : (Listof C-Compiler-Macro) null]
+                 [includes : (Listof C-Toolchain-Path-String) incdirs])
+                ([launcher (in-list launchers)])
+        (let ([info (cdr launcher)])
+          (values (append macros (cc-launcher-info-macros info))
+                  (append includes (cc-launcher-info-includes info))))))
+    
     (for/fold ([specs : Wisemon-Specification null])
               ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)?$" file)) (current-directory)))])
       (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
       (define incs.h : (Listof Path) (c-include-headers dep.c))
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
       
-      (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep++.o #:cpp? #true #:includes incdirs))
+      (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h)
+                           #:- (c-compile dep.c dep++.o #:cpp? #true #:includes includes #:macros macros))
              
              (cond [(not cpp-file?)
                     (let ([dep.o (assert (c-source->object-file dep.c 'c))])
-                      (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h) #:- (c-compile dep.c dep.o #:cpp? #false #:includes incdirs))
+                      (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h)
+                                          #:- (c-compile dep.c dep.o #:cpp? #false #:includes includes #:macros macros))
                             specs))]
                    [else specs])))))
 
-(define make-cc-specs : (-> Info-Ref (Listof String) Wisemon-Specification)
-  (lambda [info-ref incdirs]
+(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Wisemon-Specification)
+  (lambda [launchers incdirs]
     (for/fold ([specs : Wisemon-Specification null])
-              ([name (in-list (find-digimon-native-launcher-names info-ref))])
-      (define-values (native.c info) (values (car name) (cdr name)))
+              ([launcher (in-list launchers)])
+      (define-values (native.c info) (values (car launcher) (cdr launcher)))
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define cpp? : Boolean (eq? lang 'cpp))
       (define native : Path (assert (c-source->executable-file native.c #false (cc-launcher-info-name info))))
@@ -70,7 +81,8 @@
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       (list* (wisemon-spec native.o #:^ (cons native.c deps.h)
-                           #:- (c-compile #:cpp? cpp? #:includes (append incdirs (cc-launcher-info-includes info))
+                           #:- (c-compile #:cpp? cpp? #:macros (cc-launcher-info-macros info)
+                                          #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
              (wisemon-spec native #:^ objects
                            #:- (c-link #:cpp? cpp? #:subsystem (cc-launcher-info-subsystem info)
@@ -81,8 +93,9 @@
 (define make~cc : Make-Phony
   (lambda [digimon info-ref]
     (define incdirs : (Listof String) (list (path->string (digimon-path 'zone))))
-    (define depcc-specs : Wisemon-Specification (make-depcc-specs incdirs))
-    (define cc-specs : Wisemon-Specification (make-cc-specs info-ref incdirs))
+    (define launchers : (Listof CC-Launcher-Name) (find-digimon-native-launcher-names info-ref))
+    (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs))
+    (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs))
     
     (wisemon-compile (current-directory) digimon info-ref)
     (wisemon-make (append depcc-specs cc-specs)
@@ -114,8 +127,8 @@
                   [(memq opt '(windows desktop)) (partition lang name 'WINDOWS srehto rest)]
                   [(string? opt) (partition lang (or name opt) subsystem srehto rest)]
                   [else (partition lang name subsystem (cons opt srehto) rest)]))
-          (let-values ([(includes libpaths libraries) (c-configuration-filter srehto digimon-system)])
-            (cc-launcher-info lang name subsystem includes libpaths libraries))))))
+          (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
+            (cc-launcher-info lang name subsystem macros includes libpaths libraries))))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]
