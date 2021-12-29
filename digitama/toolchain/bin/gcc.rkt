@@ -4,14 +4,20 @@
 
 (require racket/list)
 (require racket/symbol)
+(require racket/string)
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 
+(require "../../../filesystem.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-cpp-macros : CC-CPP-Macros
-  (lambda [system cpp?]
-    (list "-D_POSIX_C_SOURCE=200809L")))
+  (lambda [default-macros system cpp? extra-macros]
+    (map gcc-macro->string
+         (append default-macros
+                 (list (cons "_POSIX_C_SOURCE" "200809L"))
+                 extra-macros))))
 
 (define gcc-compile-flags : CC-Flags
   (lambda [system cpp? hints]
@@ -65,11 +71,17 @@
           (string-append "-l" (symbol->immutable-string l))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define gcc-macro->string : (-> (Pairof String (Option String)) String)
+  (lambda [macro]
+    (define-values (name body) (values (car macro) (cdr macro)))
+
+    (cond [(not body) (string-append "-D" name)]
+          [(or (string-contains? name "(") (string-contains? body " ")) (string-append "-D'" name "=" body "'")]
+          [else (string-append "-D" name "=" body)])))
+
 (define gcc-search-path : (-> String Path-String String)
   (lambda [-option dir]
-    (string-append -option
-                   (cond [(string? dir) dir]
-                         [else (path->string dir)]))))
+    (string-append -option (path->string/quote dir))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register

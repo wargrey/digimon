@@ -45,7 +45,8 @@
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
                        [(flags) ((cc-flags compiler) digimon-system cpp? null)]
-                       [(macros) (append (cc-default-macros digimon-system cpp?) ((cc-macros compiler) digimon-system cpp?) (map c-macro->string macros))]
+                       [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp?) digimon-system cpp?
+                                                       (apply append (map c-macro-normalize macros)))]
                        [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]

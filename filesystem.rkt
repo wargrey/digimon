@@ -6,6 +6,7 @@
 (require racket/path)
 (require racket/file)
 (require racket/list)
+(require racket/string)
 
 (require typed/racket/date)
 
@@ -93,6 +94,16 @@
                                                (call-with-output-file* target void))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define path->string/quote : (->* ((U Path-String Path-For-Some-System)) (Char (Option Char)) String)
+  (lambda [path [lmark #\"] [rmark #false]]
+    (define sp : String
+      (cond [(path? path) (path->string path)]
+            [(string? path) path]
+            [else (some-system-path->string path)]))
+
+    (cond [(not (string-contains? sp " ")) sp]
+          [else (string-append (string lmark) sp (string (or rmark lmark)))])))
+
 (define path-normalize/system : (-> Path-String Path)
   (lambda [path]
     (define elements : (Listof (U 'up Path))

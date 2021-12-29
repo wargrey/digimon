@@ -4,11 +4,13 @@
 
 (require racket/match)
 (require racket/symbol)
+(require racket/format)
 
+(require "../../system.rkt")
 (require "../../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type C-Macro-Datum (U Symbol (Pairof Symbol Any) (List Symbol Any)))
+(define-type C-Macro-Datum (U Symbol String (Pairof (U Symbol String) Any)))
 (define-type (C-Config-Data a) (U a (Pairof Keyword (Listof a))))
 
 (define-type C-Toolchain-Path (C-Config-Data Path))
@@ -36,35 +38,33 @@
               (cond [(list? dir) (map path-normalize/system (cdr dir))]
                     [else (list (path-normalize/system dir))])))))
 
-(define c-macro->string : (-> C-Compiler-Macro String)
+(define c-macro-normalize : (-> C-Compiler-Macro (Listof (Pairof String (Option String))))
   (lambda [D]
-    (cond [(symbol? D) (format "-D~a" D)]
-          [(list? D) (format "-D~a=~a" (car D) (cadr D))]
+    (cond [(symbol? D) (list (cons (symbol->immutable-string D) #false))]
+          [(string? D) (list (cons D #false))]
           [else (let ([maybe-keyword (car D)]
                       [maybe-macro (cdr D)])
-                  (cond [(keyword? maybe-keyword) (c-macro->string maybe-macro)]
-                        [else (format "-D~a=~a" maybe-keyword maybe-macro)]))])))
+                  (cond [(keyword? maybe-keyword) (apply append (map c-macro-normalize maybe-macro))]
+                        [else (list (cons (cond [(string? maybe-keyword) maybe-keyword]
+                                                [else (symbol->immutable-string maybe-keyword)])
+                                          (~a maybe-macro)))]))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-macro-filter : (-> (Listof Any) Symbol (Values (Listof C-Compiler-Macro) (Listof Any)))
   (lambda [infos target]
-    (define-values (sorcam tser) (c-config-filter infos '(macro) target c-macro?))
-    (values (reverse sorcam) (reverse tser))))
+    (c-config-filter infos '(macro) target c-macro?)))
 
 (define c-include-filter : (-> (Listof Any) Symbol (Values (Listof C-Toolchain-Path-String) (Listof Any)))
   (lambda [infos target]
-    (define-values (sedulcni tser) (c-config-filter infos '(include) target path-literal?))
-    (values (reverse sedulcni) (reverse tser))))
+    (c-config-filter infos '(include) target path-literal?)))
 
 (define c-libpath-filter : (-> (Listof Any) Symbol (Values (Listof C-Toolchain-Path-String) (Listof Any)))
   (lambda [infos target]
-    (define-values (shtapbil tser) (c-config-filter infos '(libpath) target path-literal?))
-    (values (reverse shtapbil) (reverse tser))))
+    (c-config-filter infos '(libpath) target path-literal?)))
 
 (define c-library-filter : (-> (Listof Any) Symbol (Values (Listof C-Link-Library) (Listof Any)))
   (lambda [infos target]
-    (define-values (sbil tser) (c-config-filter infos '(lib library) target symbol?))
-    (values (reverse sbil) (reverse tser))))
+    (c-config-filter infos '(lib library) target symbol?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-config-filter : (All (a) (-> (Listof Any) (Listof Symbol) Symbol (-> Any Boolean : #:+ a) (Values (Listof (C-Config-Data a)) (Listof Any))))
@@ -122,8 +122,11 @@
 (define c-macro? : (-> Any Boolean : C-Macro-Datum)
   (lambda [datum]
     (or (symbol? datum)
+        (string? datum)
         (and (pair? datum)
-             (symbol? (car datum))))))
+             (let ([name (car datum)])
+               (or (symbol? name)
+                   (string? name)))))))
 
 (define c-path-normalize : (-> C-Toolchain-Path-String C-Toolchain-Path)
   (lambda [path]
@@ -134,13 +137,9 @@
 
 (define c-load-config : (-> Symbol (Listof Any))
   (lambda [name]
-    (define rootdir : Path (collection-file-path "cc" "digimon" "stone"))
     (define name.rktl : (Option Path)
-      (let ([rktl (build-path rootdir (format "~a.rktl" name))])
-        (cond [(file-exists? rktl) rktl]
-              [else (let ([downcase.rktl (build-path rootdir (format "~a.rktl" (string-downcase (symbol->immutable-string name))))])
-                      (and (file-exists? downcase.rktl)
-                           downcase.rktl))])))
+      (or (c-find-path (digimon-path 'cc) name)
+          (c-find-path (collection-file-path "cc" "digimon" "stone") name)))
     
     (or (and name.rktl
              (dynamic-require name.rktl #false)
@@ -148,3 +147,12 @@
                (and (list? datum)
                     datum)))
         null)))
+
+(define c-find-path : (-> Path Symbol (Option Path))
+  (lambda [rootdir name]
+    (define name.rktl (build-path rootdir (format "~a.rktl" name)))
+    
+    (cond [(file-exists? name.rktl) name.rktl]
+          [else (let ([downcase.rktl (build-path rootdir (format "~a.rktl" (string-downcase (symbol->immutable-string name))))])
+                  (and (file-exists? downcase.rktl)
+                       downcase.rktl))])))

@@ -8,9 +8,10 @@
 (require "../toolchain.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type CC-Macros (Listof (Pairof String (Option String))))
 (define-type CC-Options (U 'flags 'macros 'includes 'infile 'outfile))
 
-(define-type CC-CPP-Macros (-> Symbol Boolean (Listof String)))
+(define-type CC-CPP-Macros (-> CC-Macros Symbol Boolean CC-Macros (Listof String)))
 (define-type CC-Flags (-> Symbol Boolean (Listof Any) (Listof String)))
 (define-type CC-Includes (-> (Listof Path) Symbol Boolean (Listof String)))
 
@@ -27,10 +28,10 @@
   #:type-name CC)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cc-default-macros : CC-CPP-Macros
+(define cc-default-macros : (-> Symbol Boolean (Listof (Pairof String (Option String))))
   (lambda [system cpp?]
-    (list (format "-D__~a__" system)
-          (format "-D__lambda__=~a" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
+    (list (cons (format "__~a__" system) #false)
+          (cons "__lambda__" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
 
 (define cc-default-io-file : CC-IO-File-Flag
   (lambda [src system cpp?]

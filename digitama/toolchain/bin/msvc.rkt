@@ -1,20 +1,23 @@
 #lang typed/racket/base
 
-(require racket/path)
 (require racket/symbol)
+(require racket/string)
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 (require "../cc/cc.rkt")
 
 (require "../../system.rkt")
+(require "../../../filesystem.rkt")
 
 (define msvc-basename : Symbol 'cl)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-cpp-macros : CC-CPP-Macros
-  (lambda [system cpp?]
-    null))
+  (lambda [default-macros system cpp? extra-macros]
+    (map msvc-macro->string
+         (append default-macros
+                 extra-macros))))
 
 (define msvc-compile-flags : CC-Flags
   (lambda [system cpp? hints]
@@ -36,9 +39,9 @@
                                  (or (and (path-string? kitroot)
                                           (path-string? version)
                                           (let ([incdir (build-path kitroot "Include" version)])
-                                            (list (msvc-build-include-path incdir "shared")
+                                            (list (msvc-build-include-path incdir "ucrt")
                                                   (msvc-build-include-path incdir "um")
-                                                  (msvc-build-include-path incdir "ucrt"))))
+                                                  (msvc-build-include-path incdir "shared"))))
                                      null)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -79,6 +82,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bindir-path : Path (build-path "bin"))
 
+(define msvc-macro->string : (-> (Pairof String (Option String)) String)
+  (lambda [macro]
+    (define-values (name body) (values (car macro) (cdr macro)))
+
+    (cond [(not body) (string-append "/D" name)]
+          [(or (string-contains? name "(") (string-contains? body " ")) (string-append "/D\"" name "=" body "\"")]
+          [else (string-append "/D" name "=" body)])))
+
 (define msvc-root+arch : (-> (Option (Pairof Path Path)))
   (lambda []
     (define cc : (Option Path) (c-find-binary-path msvc-basename))
@@ -94,14 +105,13 @@
 (define msvc-search-path : (-> String Path-String (Listof Path-String) String)
   (lambda [/option subpath subpaths]
     (string-append /option
-                   (cond [(pair? subpaths) (path->string (apply build-path subpath subpaths))]
-                         [(string? subpath) subpath]
-                         [else (path->string subpath)]))))
+                   (cond [(pair? subpaths) (path->string/quote (apply build-path subpath subpaths))]
+                         [else (path->string/quote subpath)]))))
 
 (define msvc-make-outfile : (-> String LD-IO-File-Flag)
   (lambda [flag]
     (λ [dest system cpp?]
-      (list (string-append "/" flag (if (path? dest) (path->string dest) dest))))))
+      (list (string-append "/" flag (path->string/quote dest))))))
 
 (define msvc-build-include-path : (-> Path-String Path-String * String)
   (lambda [subpath . subpaths]

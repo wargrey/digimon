@@ -2,10 +2,9 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
-
 (require "cc.rkt")
 (require "../toolchain.rkt")
+(require "../../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LD-Options (U 'flags 'libpath 'libraries 'subsystem 'infiles 'outfile))
@@ -31,7 +30,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ld-default-io-file : LD-IO-File-Flag
   (lambda [dest system cpp?]
-    (list (some-system-path->string (find-relative-path (current-directory) dest)))))
+    (list (path->string/quote (find-relative-path (current-directory) dest)))))
 
 (define ld-default-no-subsystem-flag : LD-Subsystem
   (lambda [system cpp? ?subsystem]
