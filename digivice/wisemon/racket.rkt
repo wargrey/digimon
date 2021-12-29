@@ -79,8 +79,10 @@
 (define compile-directory : (->* (Path-String Info-Ref) (Natural) Void)
   (lambda [pwd info-ref [round 1]]
     (define verbose? : Boolean (make-verbose))
-    (define px.in (pregexp (path->string (current-directory))))
+    (define px.in : Regexp (pregexp (regexp-quote (path->string (current-directory)))))
     (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
+
+    (displayln px.in)
     
     (set! again? #false)
 
