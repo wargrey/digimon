@@ -82,8 +82,6 @@
     (define px.in : Regexp (pregexp (regexp-quote (path->string (current-directory)))))
     (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
 
-    (displayln px.in)
-    
     (set! again? #false)
 
     (define (filter-verbose [info : String])
