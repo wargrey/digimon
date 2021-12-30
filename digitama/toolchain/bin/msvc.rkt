@@ -23,7 +23,7 @@
   (lambda [system cpp? hints]
     (append (list "/nologo" "/c" ; compiling only, no link
                   "/O2" #;"/constexpr"
-                  "/W3" "/sdl" #;'| security features and warnings |)
+                  "/EHsc" "/W3" "/sdl" #;'| security features and warnings |)
             (cond [(not cpp?) (list "/TC" "/std:c17")]
                   [else (list "/TP" "/std:c++17")]))))
 
@@ -34,14 +34,11 @@
     (append (map msvc-build-include-path extra-dirs)
             (cond [(not root+arch) null]
                   [else (list* (msvc-build-include-path (car root+arch) "include")
-                               (let ([kitroot (#%info 'msvc-kits-rootdir)]
-                                     [version (#%info 'msvc-kits-version)])
-                                 (or (and (path-string? kitroot)
-                                          (path-string? version)
-                                          (let ([incdir (build-path kitroot "Include" version)])
-                                            (list (msvc-build-include-path incdir "ucrt")
-                                                  (msvc-build-include-path incdir "um")
-                                                  (msvc-build-include-path incdir "shared"))))
+                               (let ([incdir (msvc-windows-kit-rootdir "Include")])
+                                 (or (and incdir (directory-exists? incdir)
+                                          (list (msvc-build-include-path incdir "ucrt")
+                                                (msvc-build-include-path incdir "um")
+                                                (msvc-build-include-path incdir "shared")))
                                      null)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -65,13 +62,10 @@
     (cond [(not root+arch) null]
           [else (let ([arch (cdr root+arch)])
                   (list* (msvc-build-libpath (car root+arch) "lib" arch)
-                         (let ([kitroot (#%info 'msvc-kits-rootdir)]
-                               [version (#%info 'msvc-kits-version)])
-                           (or (and (path-string? kitroot)
-                                    (path-string? version)
-                                    (let ([libdir (build-path kitroot "Lib" version)])
-                                      (list (msvc-build-libpath libdir "um" arch)
-                                            (msvc-build-libpath libdir "ucrt" arch))))
+                         (let ([libdir (msvc-windows-kit-rootdir "Lib")])
+                           (or (and libdir (directory-exists? libdir)
+                                    (list (msvc-build-libpath libdir "um" arch)
+                                          (msvc-build-libpath libdir "ucrt" arch)))
                                null))))])))
 
 (define msvc-linker-libraries : LD-Libraries
@@ -101,6 +95,16 @@
                     (and (path? parent)
                          (cond [(and (path? name) (equal? name bindir-path)) (cons parent arch)]
                                [else (search-root parent)])))))))))
+
+(define msvc-windows-kit-rootdir : (-> String (Option Path))
+  (lambda [type]
+    (define kitroots (#%info 'msvc-kits-rootdir))
+    (define versions (#%info 'msvc-kits-version))
+
+    (for/or : (Option Path) ([kitroot : Any (if (list? kitroots) (in-list kitroots) (in-value kitroots))])
+      (for/or : (Option Path) ([version : Any (if (list? versions) (in-list versions) (in-value versions))])
+        (and (path-string? kitroot) (path-string? version)
+             (build-path kitroot type version))))))
 
 (define msvc-search-path : (-> String Path-String (Listof Path-String) String)
   (lambda [/option subpath subpaths]
