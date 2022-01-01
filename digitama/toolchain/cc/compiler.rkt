@@ -44,18 +44,19 @@
                                   #:macros CC-CPP-Macros #:flags CC-Flags #:includes CC-Includes
                                   [#:infile CC-IO-File-Flag] [#:outfile CC-IO-File-Flag]
                                   [#:basename (Option Symbol)]
+                                  [#:env (U False Environment-Variables (-> Environment-Variables))]
                                   Void)
   (lambda [name layout
                 #:macros macros #:flags flags #:includes includes
                 #:infile [infile cc-default-io-file] #:outfile [outfile cc-default-io-file]
-                #:basename [basename #false]]
+                #:basename [basename #false] #:env [env #false]]
     (define cc : Symbol (or basename name))
     (define program : (Option Path) (c-find-binary-path cc))
     (define program++ : (Option Path) (c-find-binary-path (c-cpp-partner cc)))
 
     (when (path? program)
       (hash-set! cc-database name
-                 (make-cc program layout
+                 (make-cc program layout env
                           macros flags includes
                           infile outfile
                           (or program++ program))))))

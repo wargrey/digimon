@@ -8,7 +8,6 @@
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
 (require "../format.rkt")
-(require "../thread.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
@@ -24,9 +23,11 @@
 (define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol)
                              ((Option (-> Symbol Path Natural Void))
                               #:dtrace-silent Exec-Silent #:feeds (Listof Any)
-                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                              #:env (U False Environment-Variables (-> Environment-Variables)))
                              Void)
-  (lambda [#:dtrace-silent [silent 'none] #:feeds [feeds null] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+  (lambda [#:dtrace-silent [silent 'none] #:env [alt-env #false]
+           #:feeds [feeds null] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation program options system [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -36,22 +37,31 @@
       (define stdout-silent? : Boolean (or (eq? silent 'stdout) (eq? silent 'both)))
       (define stderr-silent? : Boolean (or (eq? silent 'stderr) (eq? silent 'both)))
 
+      (define subenv : (Option Environment-Variables)
+        (cond [(not alt-env) #false]
+              [(environment-variables? alt-env) alt-env]
+              [else (alt-env)]))
+
       (dtrace-info #:topic operation "~a ~a" program (string-join args))
 
       (define status : (U 'running Natural exn)
         (with-handlers ([exn? (λ [[e : exn]] e)])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (apply subprocess #false #false #false program args))
+            (cond [(not subenv) (apply subprocess #false #false #false program args)]
+                  [else (parameterize ([current-environment-variables subenv])
+                          (apply subprocess #false #false #false program args))]))
 
           (define ghostcat : Thread
-            (thread (λ [] (let wait-feed-loop ([rest : (Listof Any) feeds])
-                            (when (pair? rest)
-                              (define datum (car rest))
-                              (cond [(eof-object? datum) (close-output-port /dev/subout)]
-                                    [else (sync/enable-break /dev/subout)
-                                          (displayln datum /dev/subout)
-                                          (flush-output /dev/subout)
-                                          (wait-feed-loop (cdr rest))]))))))
+            (thread (λ [] (with-handlers ([exn:break? void])
+                            (let wait-feed-loop ([rest : (Listof Any) feeds])
+                              (when (pair? rest)
+                                (define datum (car rest))
+                                (cond [(eof-object? datum) (close-output-port /dev/subout)]
+                                      [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
+                                              (when (eq? e /dev/subout)
+                                                (displayln datum /dev/subout)
+                                                (flush-output /dev/subout)
+                                                (wait-feed-loop (cdr rest))))])))))))
           
           (let wait-dtrace-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])
@@ -71,9 +81,9 @@
                                  (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
                                        [else (displayln line /dev/byterr)])
                                  (wait-dtrace-loop outin-evt errin-evt)]))]))
-          
+
+          (thread-wait ghostcat)
           (subprocess-wait /usr/bin/$0)
-          (thread-safe-kill ghostcat)
           (subprocess-status /usr/bin/$0)))
 
       (cond [(exact-integer? status)

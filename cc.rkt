@@ -41,8 +41,8 @@
              (c-compiler-candidates compilers)))
     
     (make-parent-directory* outfile)
-
-    (fg-recon-exec 'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
+    (fg-recon-exec #:env (toolchain-env compiler)
+                   'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
                        [(flags) ((cc-flags compiler) digimon-system cpp? null)]
@@ -72,7 +72,8 @@
              (c-linker-candidates linkers)))
 
     (make-parent-directory* outfile)
-    (fg-recon-exec 'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
+    (fg-recon-exec #:env (toolchain-env linker)
+                   'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                      (case layout
                        [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null)]

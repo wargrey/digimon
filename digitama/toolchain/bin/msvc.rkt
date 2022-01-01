@@ -7,6 +7,7 @@
 (require "../cc/linker.rkt")
 (require "../cc/cc.rkt")
 
+(require "../../exec.rkt")
 (require "../../system.rkt")
 (require "../../../filesystem.rkt")
 
@@ -29,17 +30,16 @@
 
 (define msvc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
-    (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
-
-    (append (map msvc-build-include-path extra-dirs)
-            (cond [(not root+arch) null]
-                  [else (list* (msvc-build-include-path (car root+arch) "include")
-                               (let ([incdir (msvc-windows-kit-rootdir "Include")])
-                                 (or (and incdir (directory-exists? incdir)
-                                          (list (msvc-build-include-path incdir "ucrt")
-                                                (msvc-build-include-path incdir "um")
-                                                (msvc-build-include-path incdir "shared")))
-                                     null)))]))))
+    (append (map msvc-build-incpath extra-dirs)
+            #;(let ([root+arch (msvc-root+arch)])
+                (cond [(not root+arch) null]
+                      [else (list* (msvc-build-include-path (car root+arch) "include")
+                                   (let ([incdir (msvc-windows-kit-rootdir "Include")])
+                                     (or (and incdir (directory-exists? incdir)
+                                              (list (msvc-build-include-path incdir "ucrt")
+                                                    (msvc-build-include-path incdir "um")
+                                                    (msvc-build-include-path incdir "shared")))
+                                         null)))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
@@ -57,16 +57,16 @@
 
 (define msvc-linker-libpaths : LD-Libpaths
   (lambda [extra-dirs system cpp?]
-    (define root+arch : (Option (Pairof Path Path)) (msvc-root+arch))
-
-    (cond [(not root+arch) null]
-          [else (let ([arch (cdr root+arch)])
-                  (list* (msvc-build-libpath (car root+arch) "lib" arch)
-                         (let ([libdir (msvc-windows-kit-rootdir "Lib")])
-                           (or (and libdir (directory-exists? libdir)
-                                    (list (msvc-build-libpath libdir "um" arch)
-                                          (msvc-build-libpath libdir "ucrt" arch)))
-                               null))))])))
+    (append (map msvc-build-libpath extra-dirs)
+            #;(let ([root+arch (msvc-root+arch)])
+              (cond [(not root+arch) null]
+                    [else (let ([arch (cdr root+arch)])
+                            (list* (msvc-build-libpath (car root+arch) "lib" arch)
+                                   (let ([libdir (msvc-windows-kit-rootdir "Lib")])
+                                     (or (and libdir (directory-exists? libdir)
+                                              (list (msvc-build-libpath libdir "um" arch)
+                                                    (msvc-build-libpath libdir "ucrt" arch)))
+                                         null))))])))))
 
 (define msvc-linker-libraries : LD-Libraries
   (lambda [links tag system cpp?]
@@ -117,7 +117,7 @@
     (λ [dest system cpp?]
       (list (string-append "/" flag (path->string/quote dest))))))
 
-(define msvc-build-include-path : (-> Path-String Path-String * String)
+(define msvc-build-incpath : (-> Path-String Path-String * String)
   (lambda [subpath . subpaths]
     (msvc-search-path "/I" subpath subpaths)))
 
@@ -126,15 +126,70 @@
     (msvc-search-path "/LIBPATH:" subpath subpaths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define msvc-vcvarsall-path : (-> Path)
+  (let ([vars.bat : String "vcvarsall.bat"]
+        [info-var : Symbol 'msvc-devcmd-dir])
+    (lambda []
+      (define devcmd-dir (#%info info-var))
+      
+      (or (for/or : (Option Path) ([devcmd : Any (if (list? devcmd-dir) (in-list devcmd-dir) (in-value devcmd-dir))])
+            (and (path-string? devcmd)
+                 (let ([bat (build-path devcmd vars.bat)])
+                   (and (file-exists? bat) bat))))
+          (find-executable-path vars.bat)
+          (raise-user-error 'msvc-vcvarsall-path
+                            (string-append "Please, Microsoft makes it really annoying to work with command-line toolset.\n"
+                                           "I need the vcvarsall.bat to set environment variables to satisfy MSVC.\n"
+                                           "You can config it by either adding its path to PATH, "
+                                           (format "or defining it as '~a in the `info.rkt`" info-var)))))))
+  
+(define msvc-environment-variables : (-> Environment-Variables)
+  (let* ([env.rktl : String "msvc-env.rktl"]
+         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))]
+         [&msvc-env : (Boxof (Option Environment-Variables)) (box #false)])
+    (lambda []
+      (or (unbox &msvc-env)
+
+          (let ([msvc-env (make-environment-variables)])
+            (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
+
+            (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
+                           #:/dev/stdout /dev/envout
+                           #:dtrace-silent 'stdout
+                           #:feeds (list (format "~a x64" (path->string/quote (msvc-vcvarsall-path)))
+                                         (format "~a ~a"
+                                           (path->string/quote (or (find-executable-path "racket")
+                                                                   (find-system-path 'exec-file)))
+                                           (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice")))
+                                         "exit"))
+            
+            (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
+              (let filter-out ()
+                (define line (read-line /dev/envin))
+                (when (and (string? line) (not (regexp-match? rx:rktl line)))
+                  (filter-out)))
+              
+              (let load-env ()
+                (define var (read-line /dev/envin))
+                (define val (read-line /dev/envin))
+                
+                (when (and (string? var) (string? val))
+                  (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
+                  (load-env)))
+              
+              (set-box! &msvc-env msvc-env)
+              msvc-env))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
   (c-register-compiler 'msvc '(flags macros includes infile outfile) 
                        #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
                        #:outfile (msvc-make-outfile "Fo")
-                       #:basename msvc-basename)
+                       #:basename msvc-basename #:env msvc-environment-variables)
   
   (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath subsystem)
                      #:flags msvc-linker-flags #:subsystem msvc-subsystem-flags
                      #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
                      #:outfile (msvc-make-outfile "Fe")
-                     #:basename msvc-basename))
+                     #:basename msvc-basename #:env msvc-environment-variables))
   

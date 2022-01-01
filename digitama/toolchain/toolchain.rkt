@@ -7,7 +7,8 @@
 
 (struct toolchain
   ([program : Path]
-   [option-layout : (Listof (U Symbol String))])
+   [option-layout : (Listof (U Symbol String))]
+   [env : (U False Environment-Variables (-> Environment-Variables))])
   #:constructor-name abstract-toolchain
   #:type-name Tool-Chain
   #:transparent)
