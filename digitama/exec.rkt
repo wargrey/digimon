@@ -8,6 +8,7 @@
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
 (require "../format.rkt")
+(require "../thread.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
@@ -20,8 +21,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdout 'stderr 'both 'none))
 
-(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol) ((Option (-> Symbol Path Natural Void)) #:silent Exec-Silent) Void)
-  (lambda [operation program options system [on-error-do #false] #:silent [silent 'none]]
+(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol)
+                             ((Option (-> Symbol Path Natural Void))
+                              #:dtrace-silent Exec-Silent #:feeds (Listof Any)
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
+                             Void)
+  (lambda [#:dtrace-silent [silent 'none] #:feeds [feeds null] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+           operation program options system [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -34,8 +40,18 @@
 
       (define status : (U 'running Natural exn)
         (with-handlers ([exn? (λ [[e : exn]] e)])
-          (define-values (/usr/bin/$0 /dev/outin /dev/stdout /dev/errin)
+          (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
             (apply subprocess #false #false #false program args))
+
+          (define ghostcat : Thread
+            (thread (λ [] (let wait-feed-loop ([rest : (Listof Any) feeds])
+                            (when (pair? rest)
+                              (define datum (car rest))
+                              (cond [(eof-object? datum) (close-output-port /dev/subout)]
+                                    [else (sync/enable-break /dev/subout)
+                                          (displayln datum /dev/subout)
+                                          (flush-output /dev/subout)
+                                          (wait-feed-loop (cdr rest))]))))))
           
           (let wait-dtrace-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])
@@ -44,17 +60,20 @@
             (cond [(eq? e /dev/outin)
                    (let ([line (read-line /dev/outin)])
                      (cond [(eof-object? line) (wait-dtrace-loop never-evt errin-evt)]
-                           [else (when (not stdout-silent?) (dtrace-note line))
+                           [else (unless (not /dev/stdout) (displayln line /dev/stdout))
+                                 (when (not stdout-silent?) (dtrace-note line))
                                  (wait-dtrace-loop outin-evt errin-evt)]))]
                   
                   [(eq? e /dev/errin)
                    (let ([line (read-line /dev/errin)])
                      (cond [(eof-object? line) (wait-dtrace-loop outin-evt never-evt)]
-                           [else (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
+                           [else (unless (not /dev/stderr) (displayln line /dev/stderr))
+                                 (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
                                        [else (displayln line /dev/byterr)])
                                  (wait-dtrace-loop outin-evt errin-evt)]))]))
           
           (subprocess-wait /usr/bin/$0)
+          (thread-safe-kill ghostcat)
           (subprocess-status /usr/bin/$0)))
 
       (cond [(exact-integer? status)

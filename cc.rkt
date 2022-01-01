@@ -41,6 +41,7 @@
              (c-compiler-candidates compilers)))
     
     (make-parent-directory* outfile)
+
     (fg-recon-exec 'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout

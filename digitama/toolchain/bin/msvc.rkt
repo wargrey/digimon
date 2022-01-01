@@ -98,11 +98,11 @@
 
 (define msvc-windows-kit-rootdir : (-> String (Option Path))
   (lambda [type]
-    (define kitroots (#%info 'msvc-kits-rootdir))
-    (define versions (#%info 'msvc-kits-version))
+    (define kitroot (#%info 'msvc-kits-rootdir))
+    (define version (#%info 'msvc-kits-version))
 
-    (for/or : (Option Path) ([kitroot : Any (if (list? kitroots) (in-list kitroots) (in-value kitroots))])
-      (for/or : (Option Path) ([version : Any (if (list? versions) (in-list versions) (in-value versions))])
+    (for/or : (Option Path) ([kitroot : Any (if (list? kitroot) (in-list kitroot) (in-value kitroot))])
+      (for/or : (Option Path) ([version : Any (if (list? version) (in-list version) (in-value version))])
         (and (path-string? kitroot) (path-string? version)
              (build-path kitroot type version))))))
 
