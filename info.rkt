@@ -19,9 +19,6 @@
 (define typesettings '(["tamer/tex/cjk.tex" "CJK"]
                        ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]))
 
-(define msvc-kits-rootdir "C:\\Program Files (x86)\\Windows Kits\\10")
-(define msvc-kits-version "10.0.19041.0")
-
 (define ffi-toolchain-config '())
 
 (define native-launcher-names '(["tamer/cc/launcher/main.c" "cmain"]
