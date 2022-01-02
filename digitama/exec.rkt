@@ -22,12 +22,13 @@
 
 (define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol)
                              ((Option (-> Symbol Path Natural Void))
-                              #:silent (Listof Exec-Silent) #:feeds (Listof Any)
+                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
                               #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
                               #:env (U False Environment-Variables (-> Environment-Variables)))
                              Void)
   (lambda [#:silent [silents null] #:env [alt-env #false]
-           #:feeds [feeds null] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+           #:feeds [feeds null] #:feed-eof [feed-eof eof]
+           #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation program options system [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -55,16 +56,22 @@
           (define ghostcat : Thread
             (thread (λ [] (with-handlers ([exn:break? void])
                             (let wait-feed-loop ([rest : (Listof Any) feeds])
-                              (when (pair? rest)
-                                (define datum (car rest))
-                                (cond [(eof-object? datum) (close-output-port /dev/subout)]
-                                      [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
-                                              (when (eq? e /dev/subout)
-                                                (when (not stdin-silent?)
-                                                  (dtrace-note (format "~a" datum) #:topic operation))
-                                                (displayln datum /dev/subout)
-                                                (flush-output /dev/subout)
-                                                (wait-feed-loop (cdr rest))))])))))))
+                              (cond [(pair? rest)
+                                     (let ([datum (car rest)])
+                                       (cond [(eof-object? datum) (close-output-port /dev/subout)]
+                                             [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
+                                                     (when (eq? e /dev/subout)
+                                                       (when (not stdin-silent?)
+                                                         (dtrace-note (format "~a" datum) #:topic operation))
+                                                       (displayln datum /dev/subout)
+                                                       (flush-output /dev/subout)
+                                                       (wait-feed-loop (cdr rest))))]))]
+                                    [(string? feed-eof)
+                                     (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
+                                       (when (eq? e /dev/subout)
+                                         (displayln feed-eof /dev/subout)
+                                         (flush-output /dev/subout)))]
+                                    [else (close-output-port /dev/subout)]))))))
           
           (let wait-dtrace-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin])

@@ -162,8 +162,8 @@
                                          (format "~a ~a"
                                            (path->string/quote (or (find-executable-path "racket")
                                                                    (find-system-path 'exec-file)))
-                                           (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice")))
-                                         "exit"))
+                                           (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice"))))
+                           #:feed-eof "exit")
             
             (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
               (let filter-out ()
