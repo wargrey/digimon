@@ -3,4 +3,5 @@
 (require "../tex.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'lualatex #:filter #false)
+(module+ register
+  (tex-register-renderer 'lualatex #:filter #false))

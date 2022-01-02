@@ -20,14 +20,15 @@
                  extra-macros))))
 
 (define gcc-compile-flags : CC-Flags
-  (lambda [system cpp? hints]
+  (lambda [system cpp? hints verbose?]
     (append (list "-c" "-O2" "-fPIC" #;"-Wall" #;"-Wno-unknown-pragmas")
             (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                   [else (list "-x" "c++" "-std=c++17")])
             (case system
               [(macosx) (list "-fno-common")]
               [(illumos) (list "-m64")]
-              [else null]))))
+              [else null])
+            (if (not verbose?) null (list "-v")))))
 
 (define gcc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
@@ -41,7 +42,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gcc-linker-flags : LD-Flags
-  (lambda [system cpp? shared-object? hints]
+  (lambda [system cpp? shared-object? hints verbose? pass-to-linker?]
     (append (cond [(not shared-object?) null]
                   [else (case system
                           [(macosx) (list #| MH_BUNDLE file type |# "-bundle")]
@@ -49,7 +50,8 @@
             (case system
               [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
               [(illumos) (list "-m64")]
-              [else null]))))
+              [else null])
+            (if (not verbose?) null (list "-v")))))
 
 (define gcc-linker-libpaths : LD-Libpaths
   (lambda [extra-dirs system cpp?]

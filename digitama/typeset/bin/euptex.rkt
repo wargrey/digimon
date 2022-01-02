@@ -16,9 +16,11 @@
     
     (cond [(not /bin/dvipdf) (raise-user-error func-name "cannot find `~a`" dvipdf)]
           [else (parameterize ([current-directory (or (path-only TEXNAME.pdf) (current-directory))])
-                  (fg-recon-exec func-name /bin/dvipdf (list (list (path->string TEXNAME.dvi))) system #:dtrace-silent 'stderr))])
+                  (fg-recon-exec #:silent '(stderr)
+                                 func-name /bin/dvipdf (list (list (path->string TEXNAME.dvi))) system))])
 
     TEXNAME.pdf))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'uplatex #:post-exec euptex-post-exec)
+(module+ register
+  (tex-register-renderer 'uplatex #:post-exec euptex-post-exec))

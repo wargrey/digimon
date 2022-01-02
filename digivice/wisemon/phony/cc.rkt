@@ -58,12 +58,16 @@
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
       
       (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h)
-                           #:- (c-compile dep.c dep++.o #:cpp? #true #:includes includes #:macros macros))
+                           #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose)
+                                          #:includes includes #:macros macros
+                                          dep.c dep++.o))
              
              (cond [(not cpp-file?)
                     (let ([dep.o (assert (c-source->object-file dep.c 'c))])
                       (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h)
-                                          #:- (c-compile dep.c dep.o #:cpp? #false #:includes includes #:macros macros))
+                                          #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose)
+                                                         #:includes includes #:macros macros
+                                                         dep.c dep.o))
                             specs))]
                    [else specs])))))
 
@@ -81,11 +85,11 @@
       (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       (list* (wisemon-spec native.o #:^ (cons native.c deps.h)
-                           #:- (c-compile #:cpp? cpp? #:macros (cc-launcher-info-macros info)
+                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
              (wisemon-spec native #:^ objects
-                           #:- (c-link #:cpp? cpp? #:subsystem (cc-launcher-info-subsystem info)
+                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose) #:subsystem (cc-launcher-info-subsystem info)
                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                        objects native))
              specs))))

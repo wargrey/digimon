@@ -30,10 +30,13 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:cpp? Boolean #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
+                         (#:cpp? Boolean #:verbose? Boolean
+                          #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
                           #:compilers (Option (Listof Symbol)))
                          Void)
-  (lambda [infile outfile #:cpp? [cpp? #false] #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]]
+  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false]
+           #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]
+           infile outfile]
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
     (unless (cc? compiler)
@@ -45,7 +48,7 @@
                    'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
-                       [(flags) ((cc-flags compiler) digimon-system cpp? null)]
+                       [(flags) ((cc-flags compiler) digimon-system cpp? null verbose?)]
                        [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp?) digimon-system cpp?
                                                        (apply append (map c-macro-normalize macros)))]
                        [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
@@ -61,10 +64,13 @@
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
-                      (#:cpp? Boolean #:subsystem (Option Symbol) #:libpaths (Listof C-Toolchain-Path-String) #:libraries (Listof C-Link-Library)
+                      (#:cpp? Boolean #:verbose? Boolean #:subsystem (Option Symbol)
+                       #:libpaths (Listof C-Toolchain-Path-String) #:libraries (Listof C-Link-Library)
                        #:linkers (Option (Listof Symbol)))
                       Void)
-  (lambda [infiles outfile #:cpp? [cpp? #false] #:subsystem [?subsystem #false] #:libpaths [libpaths null] #:libraries [libs null] #:linkers [linkers #false]]
+  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:subsystem [?subsystem #false]
+           #:libpaths [libpaths null] #:libraries [libs null] #:linkers [linkers #false]
+           infiles outfile]
     (define linker : (Option LD) (c-pick-linker linkers))
 
     (unless (ld? linker)
@@ -76,7 +82,8 @@
                    'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
                      (case layout
-                       [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null)]
+                       [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
+                       [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
                        [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem)]
                        [(libpath) ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?)]
                        [(libraries) (let ([ld-lib (ld-libraries linker)])

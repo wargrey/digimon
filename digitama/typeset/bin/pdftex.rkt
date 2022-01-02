@@ -19,11 +19,12 @@
     (cond [(not /bin/dvips)  (raise-user-error func-name "cannot find `~a`" dvips)]
           [(not /bin/ps2pdf) (raise-user-error func-name "cannot find `~a`" ps2pdf)]
           [else (parameterize ([current-directory (or (path-only TEXNAME.pdf) (current-directory))])
-                  (fg-recon-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) system #:dtrace-silent 'stderr)
-                  (fg-recon-exec func-name /bin/ps2pdf (list (list (path->string TEXNAME.ps))) system #:dtrace-silent 'stderr))])
+                  (fg-recon-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) system #:silent '(stderr))
+                  (fg-recon-exec func-name /bin/ps2pdf (list (list (path->string TEXNAME.ps))) system #:silent '(stderr)))])
 
     TEXNAME.pdf))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(tex-register-renderer 'latex #:post-exec latex-post-exec)
-(tex-register-renderer 'pdflatex)
+(module+ register
+  (tex-register-renderer 'latex #:post-exec latex-post-exec)
+  (tex-register-renderer 'pdflatex))

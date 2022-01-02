@@ -16,10 +16,10 @@
 (require "../dtrace.rkt")
 
 ; register renders
-(require "typeset/bin/pdftex.rkt")
-(require "typeset/bin/xetex.rkt")
-(require "typeset/bin/euptex.rkt")
-(require "typeset/bin/luahbtex.rkt")
+(require (submod "typeset/bin/pdftex.rkt" register))
+(require (submod "typeset/bin/xetex.rkt" register))
+(require (submod "typeset/bin/euptex.rkt" register))
+(require (submod "typeset/bin/luahbtex.rkt" register))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-render : (->* (Symbol Path-String Path-String) (#:fallback Symbol #:retry Byte #:enable-filter Boolean) Path)

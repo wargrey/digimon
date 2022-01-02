@@ -8,6 +8,7 @@
 
 (require "path.rkt")
 (require "spec.rkt")
+(require "parameter.rkt")
 
 (require "../../cc.rkt")
 (require "../../digitama/system.rkt")
@@ -47,14 +48,15 @@
       (define c.o : Path (assert (c-source->object-file c)))
       
       (list* (wisemon-spec c.o #:^ (cons c deps.h)
-                           #:- (c-compile #:cpp? cpp? #:includes (cons rootdir includes) #:macros macros
+                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose)
+                                          #:includes (cons rootdir includes) #:macros macros
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
                     (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects
-                                          #:- (c-link #:cpp? cpp? #:subsystem #false
+                                          #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose) #:subsystem #false
                                                       #:libpaths libpaths #:libraries libraries
                                                       objects c.so))
                             specs))]

@@ -21,12 +21,12 @@
                  extra-macros))))
 
 (define msvc-compile-flags : CC-Flags
-  (lambda [system cpp? hints]
+  (lambda [system cpp? hints verbose?]
     (append (list "/nologo" "/c" ; compiling only, no link
                   "/O2" #;"/constexpr"
                   "/EHsc" "/W3" "/sdl" #;'| security features and warnings |)
-            (cond [(not cpp?) (list "/TC" "/std:c17")]
-                  [else (list "/TP" "/std:c++17")]))))
+            (if (not cpp?) (list "/TC" "/std:c17") (list "/TP" "/std:c++17"))
+            (if (not verbose?) null (list "/showIncludes")))))
 
 (define msvc-include-paths : CC-Includes
   (lambda [extra-dirs system cpp?]
@@ -43,10 +43,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
-  (lambda [system cpp? dll? hints]
-    (list* "/nologo"
-           (cond [(not dll?) (list "/MT")]
-                 [else (list "/MD" "/LD")]))))
+  (lambda [system cpp? dll? hints verbose? pass-to-linker?]
+    (if (not pass-to-linker?)
+        (append (list "/nologo")
+                (if (not dll?) (list "/MT") (list "/MD" "/LD")))
+        (append (if (not verbose?) null (list "/VERBOSE"))))))
 
 (define msvc-subsystem-flags : LD-Subsystem
   (lambda [system cpp? ?subsystem]
@@ -138,10 +139,10 @@
                    (and (file-exists? bat) bat))))
           (find-executable-path vars.bat)
           (raise-user-error 'msvc-vcvarsall-path
-                            (string-append "Please, Microsoft makes it really annoying to work with command-line toolset.\n"
-                                           "I need the vcvarsall.bat to set environment variables to satisfy MSVC.\n"
-                                           "You can config it by either adding its path to PATH, "
-                                           (format "or defining it as '~a in the `info.rkt`" info-var)))))))
+                            (string-append "Microsoft makes it really annoying to work with the tool chain from commandline.\n"
+                                           (format "I need the `~a` to set environment variables to satisfy MSVC.\n" vars.bat)
+                                           "Please configure it by either adding its path to PATH, "
+                                           (format "or defining it as `~a` in the `info.rkt`" info-var)))))))
   
 (define msvc-environment-variables : (-> Environment-Variables)
   (let* ([env.rktl : String "msvc-env.rktl"]
@@ -152,10 +153,11 @@
 
           (let ([msvc-env (make-environment-variables)])
             (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
-
+            (define vcvarsall.bat : Path (msvc-vcvarsall-path))
+            
             (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
                            #:/dev/stdout /dev/envout
-                           #:dtrace-silent 'stdout
+                           #:silent '(stdout)
                            #:feeds (list (format "~a x64" (path->string/quote (msvc-vcvarsall-path)))
                                          (format "~a ~a"
                                            (path->string/quote (or (find-executable-path "racket")
@@ -187,7 +189,7 @@
                        #:outfile (msvc-make-outfile "Fo")
                        #:basename msvc-basename #:env msvc-environment-variables)
   
-  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath subsystem)
+  (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath subsystem ldflags)
                      #:flags msvc-linker-flags #:subsystem msvc-subsystem-flags
                      #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
                      #:outfile (msvc-make-outfile "Fe")

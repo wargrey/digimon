@@ -18,15 +18,15 @@
                            (current-continuation-marks)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Exec-Silent (U 'stdout 'stderr 'both 'none))
+(define-type Exec-Silent (U 'stdin 'stdout 'stderr))
 
 (define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol)
                              ((Option (-> Symbol Path Natural Void))
-                              #:dtrace-silent Exec-Silent #:feeds (Listof Any)
+                              #:silent (Listof Exec-Silent) #:feeds (Listof Any)
                               #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
                               #:env (U False Environment-Variables (-> Environment-Variables)))
                              Void)
-  (lambda [#:dtrace-silent [silent 'none] #:env [alt-env #false]
+  (lambda [#:silent [silents null] #:env [alt-env #false]
            #:feeds [feeds null] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation program options system [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
@@ -34,8 +34,9 @@
                    [current-custodian (make-custodian)])
       (define args : (Listof String) (apply append options))
       (define /dev/byterr : Output-Port (open-output-bytes))
-      (define stdout-silent? : Boolean (or (eq? silent 'stdout) (eq? silent 'both)))
-      (define stderr-silent? : Boolean (or (eq? silent 'stderr) (eq? silent 'both)))
+      (define stdin-silent? : Boolean (and (memq 'stdin silents) #true))
+      (define stdout-silent? : Boolean (and (memq 'stdout silents) #true))
+      (define stderr-silent? : Boolean (and (memq 'stderr silents) #true))
 
       (define subenv : (Option Environment-Variables)
         (cond [(not alt-env) #false]
@@ -59,6 +60,8 @@
                                 (cond [(eof-object? datum) (close-output-port /dev/subout)]
                                       [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
                                               (when (eq? e /dev/subout)
+                                                (when (not stdin-silent?)
+                                                  (dtrace-note (format "~a" datum) #:topic operation))
                                                 (displayln datum /dev/subout)
                                                 (flush-output /dev/subout)
                                                 (wait-feed-loop (cdr rest))))])))))))
@@ -71,7 +74,7 @@
                    (let ([line (read-line /dev/outin)])
                      (cond [(eof-object? line) (wait-dtrace-loop never-evt errin-evt)]
                            [else (unless (not /dev/stdout) (displayln line /dev/stdout))
-                                 (when (not stdout-silent?) (dtrace-note line))
+                                 (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
                                  (wait-dtrace-loop outin-evt errin-evt)]))]
                   
                   [(eq? e /dev/errin)
