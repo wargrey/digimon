@@ -2,4 +2,5 @@
 
 (define cc-toolchain-config : (Listof (Pairof Symbol Any))
   '((macro _THREAD_SAFE)
-    (lib SDL2 SDL2main)))
+    (lib SDL2 SDL2main)
+    (lib [windows shell32])))
