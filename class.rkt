@@ -1,6 +1,9 @@
-#lang typed/racket
+#lang typed/racket/base
+
+(provide (all-from-out typed/racket/class))
 
 (require typed/racket/unsafe)
+(require typed/racket/class)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module untyped racket/base
