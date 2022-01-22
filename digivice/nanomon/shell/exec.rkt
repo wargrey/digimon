@@ -1,4 +1,4 @@
-#lang typed/racket/base
+#lang typed/racket/gui
 
 (provide (all-defined-out))
 
@@ -9,12 +9,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~exec : (-> Path Thread Any)
   (lambda [path env-thread]
-    (parameterize ([current-namespace (make-base-namespace)]
+    (parameterize ([current-namespace (make-gui-namespace)]
                    [global-port-print-handler pretty-print])
       (define main `(submod ,path main))
       
-      (cond [(module-declared? main #true) (dynamic-require main 0)]
-            [(dynamic-require path 0)]))
+      (if (module-declared? main #true)
+          (dynamic-require main 0)
+          (dynamic-require path 0)))
     
     (thread-send env-thread 0)))
 
