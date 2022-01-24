@@ -450,7 +450,7 @@
       (FIRE-BITS 32))
     
     (define (huffman-begin-static-block! [BFINAL? : Boolean]) : Any
-      (unless (or (eq? BTYPE 'static) (not BTYPE))
+      (unless (eq? BTYPE 'static)
         (set! literal-alphabet (force huffman-fixed-literal-alphabet))
         (set! distance-alphabet (force huffman-fixed-distance-alphabet))
         (set! literal-maxlength huffman-fixed-literal-maxlength)
@@ -606,7 +606,7 @@
         consumed))
 
     (define (read-huffman-symbol [table : Huffman-Alphabet] [maxlength : Byte] [upcodes : Index] [BFINAL? : Boolean] [btype : Any] [ctype : Any]) : Index
-      (define far-away-from-eof? : Boolean (FEED-BITS upsymbits)) ; for dynamic huffman ecoding, the maximum bit length would be 15 + 13, which rounded up to 32  
+      (define far-away-from-eof? : Boolean (FEED-BITS upsymbits)) ; for dynamic huffman ecoding, the maximum bit length would be 15 + 13, rounded up to 32  
         
       (let-values ([(symbol-code code-length) (huffman-symbol-lookup table (PEEK-BITS) maxlength)])
         (when (= code-length 0)
@@ -622,11 +622,14 @@
                              (~binstring symbol-code code-length)))
 
         (when (not far-away-from-eof?)
-          ; Only to check if the current symbol is still before EOF. If not we have failed to touch the EOB,
-          ;   in which case we are encountering either a malicious source or an internal error on our own side.
+          ; Only to check if the current symbol is still before EOF.
+          ;   If not we should have failed to touch the EOB, in which case
+          ;   we are encountering either a malicious source or an internal error on our own side.
           ; NOTE that the length of EOB might vary among dynamic blocks.
           (unless (FEED-BITS code-length) 
-            (throw-eof-error /dev/blkin 'read-huffman-symbol)))
+            (throw-eof-error /dev/blkin 'read-huffman-symbol
+                             "unexpected end of ~a huffman stream at ~a symbol '~a'[~a]"
+                             btype ctype (integer->char symbol-code) (~binstring symbol-code code-length))))
         
         (FIRE-BITS code-length)
 
