@@ -1,15 +1,11 @@
 #lang typed/racket/base
 
-(require racket/vector)
-
 (require digimon/digitama/bintext/huffman)
 (require digimon/digitama/bintext/deflation)
 (require digimon/digitama/bintext/zip)
 (require digimon/bitstream)
 (require digimon/format)
 (require digimon/spec)
-
-(require "huftree.rkt")
 
 (require (for-syntax racket/base))
 

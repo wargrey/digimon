@@ -4,7 +4,10 @@
 
 (require racket/file)
 (require racket/list)
+(require racket/port)
+(require racket/system)
 
+(require digimon/spec)
 (require digimon/archive)
 
 (require digimon/digitama/bintext/lz77)
@@ -106,23 +109,29 @@
    
    (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
    
-   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0 fixed))
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1 fixed))
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9 fixed)))))
+   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0))
+         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1))
+         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-feature pkzip #:do
+  (describe "create" #:do
+            #:before (λ [] (call-with-output-file* pk.zip #:exists 'replace
+                             (λ [[/dev/zipout : Output-Port]]
+                               (write pk.zip /dev/zipout)
+                               (zip-create #:root pktest #:zip-root "pkzip" #:memory-level memlevel #:force-zip64? #true #:disable-seeking? #false
+                                           /dev/zipout entries))))
+            #:do
+            (it "should create the test archive" #:do
+                (expect-file-exists pk.zip)))
+  (describe "verify" #:do
+            (for/spec ([entry (in-list (reverse (zip-extract pk.zip (make-archive-verification-reader) null)))])
+              (it ["should be OK for ~a" (car entry)] #:do
+                  (if (string? (cdr entry))
+                      (expect-true (cdr entry) (cdr entry))
+                      (expect-true (cdr entry))))))
+  (describe "extract" #:do))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (require racket/system)
-  
-  (require digimon/dtrace)
-  (require digimon/debug)
-  
-  (time** (call-with-output-file* pk.zip #:exists 'replace
-            (λ [[/dev/zipout : Output-Port]]
-              (write pk.zip /dev/zipout)
-              (zip-create #:root pktest #:zip-root "pkzip" #:memory-level memlevel #:force-zip64? #true #:disable-seeking? #false
-                          /dev/zipout entries))))
-
-  (let ([unzip (find-executable-path "unzip")])
-    (cond [(path? unzip) (exit (system*/exit-code unzip "-t" pk.zip))]
-          [else (exit (call-with-dtrace (λ [] (zip-verify pk.zip)) 'trace))])))
+  (void (spec-prove pkzip)))

@@ -16,18 +16,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-spec-expectation stx)
   (syntax-parse stx #:literals [:]
-    [(_ (id:id [arg:id : Type:expr] ...)
+    [(_ (~optional (~seq (~or #:forall #:∀) tvars) #:defaults ([tvars #'()]))
+        (id:id [arg:id : Type:expr] ...)
         (~alt (~optional (~seq #:default-format format) #:defaults ([format #'#false]))
               (~optional (~seq #:name alt-name) #:defaults ([alt-name #'#false]))) ...
         body ...)
-     (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))])
+     (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))]
+                   [(T ...) (syntax->list #'tvars)])
        (syntax/loc stx
          (begin (define argv : (Listof String) (list (symbol->immutable-string 'arg) ...))
                 (define argc : Index (length argv))
                 
-                (define make-expect : (-> Symbol Syntax (Listof Any) (->* (Type ...) (String) #:rest Any Void))
+                (define make-expect : (-> Symbol Syntax (Listof Any) (All (T ...) (->* (Type ...) (String) #:rest Any Void)))
                   (lambda [name loc exprs]
-                    (define (expect-id [arg : Type] ... . [argl : Any *]) : Void
+                    (define #:forall (T ...) (expect-id [arg : Type] ... . [argl : Any *]) : Void
                       (parameterize ([default-spec-issue-expectation (or alt-name name)]
                                      [default-spec-issue-message (spec-message argl)]
                                      [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
@@ -78,6 +80,9 @@
 (define-spec-boolean-expectation (true [given : Any]) (eq? given #true))
 (define-spec-boolean-expectation (false [given : Any]) (eq? given #false))
 (define-spec-boolean-expectation (not-false [given : Any]) (and given #true))
+
+(define-spec-boolean-expectation (file-exists [given : Path-String]) (file-exists? given))
+(define-spec-boolean-expectation (directory-exists [given : Path-String]) (directory-exists? given))
 
 (define-spec-boolean-expectation (= [given : Real] [expected : Real]) (= given expected))
 (define-spec-boolean-expectation (< [given : Real] [origin : Real]) (< given origin))
@@ -176,11 +181,11 @@
     (parameterize ([default-spec-issue-exception maybe-e])
       (spec-misbehave))))
 
-(define-spec-expectation (satisfy [predicate : (-> Any Boolean)] [given : Any])
+(define-spec-expectation #:forall (T) (satisfy [predicate : (-> T Boolean)] [given : T])
   (or (predicate given)
       (spec-misbehave)))
 
-(define-spec-expectation (satisfy-all [predicate : (-> Any Boolean)] [givens : (Listof Any)])
+(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
   (or (andmap predicate givens)
       (spec-misbehave)))
 
