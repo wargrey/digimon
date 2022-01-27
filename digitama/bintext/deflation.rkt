@@ -134,7 +134,7 @@
                   (huffman-calculate-length literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
 
     (define (huffman-calculate-dynamic-block-length [hclen : Index]) : Nonnegative-Fixnum
-      (unsafe-fx+ 17 #| 3 + 5 + 5 + 4 |#
+      (unsafe-fx+ #;(+ 3 5 5 4) 17
 
                   ; codelen codes lengths
                   (unsafe-idx+

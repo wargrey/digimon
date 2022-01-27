@@ -29,7 +29,9 @@
    [options : (Listof Any)]
    [utc-time : (Option Integer)]
    [permission : Nonnegative-Fixnum]
-   [comment : (Option String)])
+   [comment : (Option String)]
+   [regular-file? : Boolean]
+   [size : Natural])
   #:type-name Archive-Entry
   #:transparent)
 
@@ -40,10 +42,11 @@
                                        Archive-Entry)
   (lambda [src [name #false] #:ascii? [ascii? #false] #:methods [methods null] #:options [options null] #:comment [comment #false]]
     (define path : Path (archive-path->path src))
-
+    (define-values (regular-file? size) (if (file-exists? path) (values #true (file-size path)) (values #false 0)))
+    
     (archive-entry path name ascii? methods options
                    (file-or-directory-modify-seconds path) (file-or-directory-permissions path 'bits)
-                   comment)))
+                   comment regular-file? size)))
 
 ; TODO: deal with link files
 (define make-archive-directory-entries : (->* (Archive-Path)
@@ -88,10 +91,11 @@
                                         Archive-Entry)
   (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
            src [name #false]]
-    (archive-entry (if (string? src) (string->bytes/utf-8 src) src)
-                   (or name (symbol->immutable-string (gensym 'ascii)))
+    (define raw-bytes : Bytes (if (string? src) (string->bytes/utf-8 src) src))
+    
+    (archive-entry raw-bytes (or name (symbol->immutable-string (gensym 'ascii)))
                    #true methods options mtime permission
-                   comment)))
+                   comment #true (bytes-length raw-bytes))))
 
 (define make-archive-binary-entry : (->* ((U Bytes String))
                                          ((Option Path-String) #:methods (Listof Symbol) #:options (Listof Any)
@@ -99,10 +103,11 @@
                                          Archive-Entry)
   (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
            src [name #false]]
-    (archive-entry (if (string? src) (string->bytes/utf-8 src) src)
-                   (or name (symbol->immutable-string (gensym 'binary)))
+    (define raw-bytes : Bytes (if (string? src) (string->bytes/utf-8 src) src))
+    
+    (archive-entry raw-bytes (or name (symbol->immutable-string (gensym 'binary)))
                    #false methods options mtime permission
-                   comment)))
+                   comment #true (bytes-length raw-bytes))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-ignore-configure : (-> (U Regexp Byte-Regexp String Path (Listof (U Regexp Byte-Regexp String Path))) Archive-Directory-Configure)

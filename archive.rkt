@@ -4,6 +4,9 @@
 (provide Archive-Entry Archive-Entries archive-entry?)
 (provide (rename-out [archive-entry-alias archive-entry-name]))
 (provide Archive-Directory-Configure Archive-Entry-Config make-archive-directory-entries)
+(provide Archive-Progress-Handler Archive-Entry-Progress-Handler default-archive-progress-handler default-archive-entry-progress-handler)
+(provide default-archive-progress-topic-resolver archive-resolve-progress-topic)
+
 (provide make-archive-chained-configure make-archive-ignore-configure defualt-archive-ignore-configure)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference zip-special-preference)
@@ -15,6 +18,7 @@
 (require "digitama/bintext/zipconfig.rkt")
 (require "digitama/bintext/zip.rkt")
 (require "digitama/bintext/archive/zip.rkt")
+(require "digitama/bintext/archive/progress.rkt")
 (require "digitama/ioexn.rkt")
 
 (require "filesystem.rkt")
@@ -258,10 +262,12 @@
 (define zip-create : (->* ((U Path-String Output-Port) Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)
                            #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
+                           #:progress-topic (Option Symbol)
                            String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
+           #:progress-topic [maybe-topic #false]
            out.zip entries [comment "created by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)]
                    [default-stdout-all-fields? #false])
@@ -269,31 +275,46 @@
         (cond [(output-port? out.zip) out.zip]
               [else (begin (make-parent-directory* out.zip)
                            (open-output-file out.zip #:exists 'truncate/replace))]))
+
+      (define progress-handler : Archive-Progress-Handler (default-archive-progress-handler))
+      (define topic : Symbol (or maybe-topic ((default-archive-progress-topic-resolver) /dev/zipout)))
       
       (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
       (define seekable? : Boolean (if (not disable-seeking?) (port-random-access? /dev/zipout) #false))
       (define crc-pool : Bytes (make-bytes 4096))
 
-      (define (write-entries [entries : (Rec aes (Listof (U Archive-Entry aes)))]) : (Rec zds (Listof (U ZIP-Directory False zds)))
-        (for/fold ([cdirs : (Rec zds (Listof (U ZIP-Directory False zds))) null])
-                  ([entry : (Rec aes (U Archive-Entry (Listof aes))) (in-list entries)])
-          (cons (cond [(list? entry) (write-entries entry)]
-                      [else (zip-write-entry /dev/zipout entry
-                                             root zip-root px:suffix seekable?
-                                             strategy memlevel force-zip64? crc-pool)])
-                cdirs)))
+      (define-values (flat-entries total-size)
+        (let zip-flatten : (Values (Listof Archive-Entry) Natural)
+          ([seirtne : (Rec aes (Listof (U Archive-Entry aes))) (reverse entries)]
+           [entries0 : (Listof Archive-Entry) null]
+           [size0 : Natural 0])
+          (for/fold ([entries : (Listof Archive-Entry) entries0] [size : Natural size0])
+                    ([entry (in-list seirtne)])
+            (cond [(list? entry) (zip-flatten (reverse entry) entries size)]
+                  [else (values (cons entry entries) (+ size (archive-entry-size entry)))]))))
 
-      (dynamic-wind void
-                    (λ [] (zip-write-directories /dev/zipout comment (write-entries entries) force-zip64?))
-                    (λ [] (custodian-shutdown-all (current-custodian)))))))
+      (dynamic-wind
+       (λ [] (progress-handler topic 0 total-size))
+       (λ [] (let zip-write : Void ([entries : (Listof Archive-Entry) flat-entries]
+                                    [sridz : (Listof (Option ZIP-Directory)) null]
+                                    [zipped : Natural 0])
+                (cond [(null? entries) (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)]
+                      [else (let* ([self (car entries)]
+                                   [zipped++ : Natural (+ zipped (archive-entry-size self))]
+                                   [zdir (zip-write-entry /dev/zipout self root zip-root px:suffix seekable? strategy memlevel force-zip64? crc-pool topic)])
+                              (progress-handler topic zipped++ total-size)
+                              (zip-write (cdr entries) (cons zdir sridz) zipped++))])))
+       (λ [] (custodian-shutdown-all (current-custodian)))))))
 
 (define zip-update : (->* (Path-String Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:freshen? Boolean
                            #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
+                           #:progress-topic (Option Symbol)
                            String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
+           #:progress-topic [maybe-topic #false]
            src.zip entries [comment "updated by λsh - https://github.com/wargrey/lambda-shell"]]
     (if (file-exists? src.zip)
         (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
@@ -302,6 +323,7 @@
           (void))
         (zip-create #:root root #:zip-root zip-root #:suffixes suffixes
                     #:strategy strategy #:memory-level memlevel #:force-zip64? force-zip64? #:disable-seeking? disable-seeking?
+                    #:progress-topic maybe-topic
                     src.zip entries))))
 
 (define zip-delete : (->* (Path-String (U Path-String Regexp (Listof (U Path-String Regexp)))) ((Option String)) Void)

@@ -7,7 +7,7 @@
   
   (require typed/racket/date)
   
-  (require "pkzip.rkt")
+  (require "spec/pkzip.rkt")
 
   (date-display-format 'iso-8601)
   

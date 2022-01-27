@@ -4,8 +4,6 @@
 
 (require racket/file)
 (require racket/list)
-(require racket/port)
-(require racket/system)
 
 (require digimon/spec)
 (require digimon/archive)
@@ -20,7 +18,7 @@
 (define pk.zip : Path (build-path tempdir "pk.zip"))
 (define pktest : Path (build-path tempdir "pktest"))
 
-(define file:// : Path (collection-file-path "bintext" "digimon" "digitama"))
+(define rootdir : Path (simplify-path (collection-file-path "." "digimon")))
 (define tamer:// : Path (collection-file-path "zip" "digimon" "tamer"))
 
 (define memlevel : Positive-Byte 4)
@@ -98,7 +96,7 @@
   
 (define entries : Archive-Entries
   (list
-   (list (list (make-archive-file-entry (build-path tamer:// "pkzip.rkt") "stored/pkzip.rkt" #:methods '(stored))
+   (list (list (make-archive-file-entry (build-path tamer:// "spec/pkzip.rkt") "stored/pkzip.rkt" #:methods '(stored))
                (make-archive-ascii-entry #"stored ascii" "stored/ascii.txt" #:methods '(stored))
                (make-archive-ascii-entry #"" "stored/empty.txt" #:methods '(stored))
                (make-archive-binary-entry #"data from stdin will be renamed randomly to stop `unzip` from reusing another entry's name" "" #:methods '(stored)))
@@ -108,10 +106,7 @@
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options '(6 fixed))))
    
    (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
-   
-   (list (make-archive-file-entry (build-path file:// "zipconfig.rkt") "deflated/zipconfig#0.rkt" #:methods '(deflated) #:options '(0))
-         (make-archive-file-entry (build-path file:// "huffman.rkt") "deflated/huffman#1.rkt" #:methods '(deflated) #:options '(1))
-         (make-archive-file-entry (build-path file:// "lz77.rkt") "deflated/lz77#9.rkt" #:methods '(deflated) #:options '(9)))))
+   (make-archive-directory-entries rootdir rootdir #:configure defualt-archive-ignore-configure #:keep-directory? #false #:methods '(deflated))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-feature pkzip #:do
@@ -126,11 +121,10 @@
                 (expect-file-exists pk.zip)))
   (describe "verify" #:do
             (for/spec ([entry (in-list (reverse (zip-extract pk.zip (make-archive-verification-reader) null)))])
-              (it ["should be OK for ~a" (car entry)] #:do
+              (it (car entry) #:do
                   (if (string? (cdr entry))
                       (expect-true (cdr entry) (cdr entry))
-                      (expect-true (cdr entry))))))
-  (describe "extract" #:do))
+                      (expect-true (cdr entry)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

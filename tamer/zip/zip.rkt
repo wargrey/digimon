@@ -1,6 +1,6 @@
 #lang typed/racket/gui
 
-(provide main)
+(provide (all-defined-out))
 
 (require digimon/archive)
 
@@ -98,9 +98,10 @@
                         (apply zip-exec 'zip
                                (format "-~aq~a" (cdr strategy) (if (zip-flags-recurse-paths options) 'r ""))
                                target_zip sources))
-                
-                (for ([e (in-list (zip-directory-list* target_zip))])
-                  (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
+
+                (when (file-exists? target_zip)
+                  (for ([e (in-list (zip-directory-list* target_zip))])
+                    (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts))))
 
                 (define all-entries : (Listof (Listof String))
                   (for/fold ([merged-entries : (Listof (Listof String)) null])
@@ -125,7 +126,8 @@
                       (newline)))
 
                   (zip-display-tail-info target.zip 'green)
-                  (zip-display-tail-info target_zip 252)))
+                  (when (file-exists? target_zip)
+                    (zip-display-tail-info target_zip 252))))
 
               (dtrace-datum-notice eof)
               (thread-wait tracer))))))
