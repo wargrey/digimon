@@ -13,6 +13,8 @@
 (provide zip-identity-preference zip-plain-preference zip-backward-preference zip-run-preference)
 (provide ZIP-File zip-file? sizeof-zip-file ZIP-Directory zip-directory? sizeof-zip-directory)
 
+(require racket/math)
+
 (require "digitama/bintext/archive.rkt")
 (require "digitama/bintext/zipinfo.rkt")
 (require "digitama/bintext/zipconfig.rkt")
@@ -177,6 +179,36 @@
                            [(and mkdir?) (make-directory* target)]
                            [else #false #| we don't know if certain directory already created because of its children |#]))
             (file-or-directory-modify-seconds target timestamp void)))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-archive-entry-terminal-gauge : (->* () (Output-Port #:bar-width Positive-Byte #:bar-symbol Char
+                                                                 #:bgcolor Term-Color #:fgcolor Term-Color)
+                                                 Archive-Entry-Progress-Handler)
+  (lambda [[/dev/stdout (current-output-port)] #:bar-width [chars-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false]]
+    (define last-count : Integer 0)
+    (define bar : String (make-string 1 #\space))
+
+    (λ [topic entry-name zipped total finish-entry?]
+      (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
+      (define count : Integer (exact-floor (* % chars-width)))
+
+      (when (> count last-count)
+        (when (= last-count 0) (display "[" /dev/stdout))
+
+        (for ([i (in-range last-count count)])
+          (fechof /dev/stdout bar #:bgcolor bgcolor #:fgcolor fgcolor))
+        (set! last-count count)
+
+        (esc-save)
+        (when (< count chars-width) (esc-move-right (- chars-width count)))
+        (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
+        (esc-restore)
+
+        (flush-output /dev/stdout))
+
+      (when (and finish-entry?)
+        (set! last-count 0)
+        (newline /dev/stdout)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-directory-list #:+ (Listof ZIP-Directory) #:binary

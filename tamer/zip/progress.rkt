@@ -15,40 +15,6 @@
 (require "zip.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(port-count-lines-enabled #false)
-
-(define chars-width : Index 64)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define update-gauge : (-> Symbol String Natural Natural Boolean Void)
-  (let ([last-count : (Boxof Integer) (box 0)]
-        [bar : String (make-string 1 #\space)])
-    (lambda [topic entry-name zipped total finish-entry?]
-      (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
-      (define count : Integer (exact-floor (* % chars-width)))
-      (define lcount : Integer (unbox last-count))
-
-      (when (> count lcount)
-        (set-box! last-count count)
-
-        (when (= lcount 0)
-          (display "["))
-
-        (for ([i (in-range lcount count)])
-          (echof bar #:bgcolor 'green))
-
-        (esc-save)
-        (when (< count chars-width)
-          (esc-move-right (- chars-width count)))
-        (printf "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
-        (esc-restore)
-
-        (flush-output))
-
-      (when (and finish-entry?)
-        (set-box! last-count 0)
-        (newline)))))
-
 (define main : (-> (U (Listof String) (Vectorof String)) Void)
   (lambda [argument-list]
     (define-values (options λargv) (parse-zip-flags argument-list #:help-output-port (current-output-port)))
@@ -77,6 +43,6 @@
                         (newline)))))))
 
 (module+ main
-  (parameterize ([default-archive-entry-progress-handler update-gauge])
+  (parameterize ([default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)])
     (main (current-command-line-arguments))))
   

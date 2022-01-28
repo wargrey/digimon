@@ -1,8 +1,10 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) define-esc))
+(provide Term-Color term-colorize)
+(provide echof fechof eechof)
 
 (require racket/string)
+(require racket/symbol)
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -15,7 +17,9 @@
     [(_ esc [[arg : Type defval ...] ...] fmt)
      (with-syntax ([esc* (format-id #'esc "~a*" (syntax-e #'esc))])
        (syntax/loc stx
-         (begin (define (esc* [arg : Type defval ...] ... #:/dev/stdout [/dev/stdout : Output-Port (current-output-port)]) : Void
+         (begin (provide esc* esc)
+
+                (define (esc* [arg : Type defval ...] ... #:/dev/stdout [/dev/stdout : Output-Port (current-output-port)]) : Void
                   (fprintf /dev/stdout fmt arg ...))
 
                 (define (esc [arg : Type defval ...] ... #:/dev/stdout [/dev/stdout : Output-Port (current-output-port)]) : Void
@@ -23,22 +27,28 @@
                     (esc* #:/dev/stdout /dev/stdout arg ...))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define vim-colors : (HashTable String Byte)
-  #hash(("black" . 0) ("darkgray" . 8) ("darkgrey" . 8) ("lightgray" . 7) ("lightgrey" . 7) ("gray" . 7) ("grey" . 7) ("white" . 15)
-                      ("darkred" . 1) ("darkgreen" . 2) ("darkyellow" . 3) ("darkblue" . 4) ("brown" . 5) ("darkmagenta" . 5)
-                      ("darkcyan" . 6) ("red" . 9) ("lightred" . 9) ("green" . 10) ("lightgreen" . 10) ("yellow" . 11) ("lightyellow" . 11)
-                      ("blue" . 12) ("lightblue" . 12) ("magenta" . 13) ("lightmagenta" . 13) ("cyan" . 14) ("lightcyan" . 14)))
+(define named-colors : (Immutable-HashTable Symbol Byte)
+  #hasheq((black . 0) (darkgray . 8) (darkgrey . 8) (lightgray . 7) (lightgrey . 7) (gray . 7) (grey . 7) (white . 15)
+                      (darkred . 1) (darkgreen . 2) (darkyellow . 3) (darkblue . 4) (brown . 5) (darkmagenta . 5)
+                      (darkcyan . 6) (red . 9) (lightred . 9) (green . 10) (lightgreen . 10) (yellow . 11) (lightyellow . 11)
+                      (blue . 12) (lightblue . 12) (magenta . 13) (lightmagenta . 13) (cyan . 14) (lightcyan . 14)))
 
 (define term-colorize : (-> Term-Color Term-Color (Listof Symbol) String String)
   (lambda [fg bg attrs content]
-    (define color-code : (-> String [#:bgcolor? Boolean] String)
-      (lambda [color #:bgcolor? [bg? #false]]
-        (format "~a8;5;~a" (if bg? 4 3) (if (regexp-match? #px"\\d+" color) color (hash-ref vim-colors color (λ [] 0))))))
+    (define (color-code [color : (U Byte String Symbol)] [bg? : Boolean]) : String
+      (format "~a8;5;~a"
+        (if bg? 4 3)
+        (cond [(symbol? color)
+               (hash-ref named-colors color
+                         (λ [] (hash-ref named-colors (string->symbol (string-downcase (symbol->immutable-string color)))
+                                         (λ [] 0))))]
+              [(string? color) (hash-ref named-colors (string->symbol (string-downcase color)) (λ [] 0))]
+              [else color])))
     
     (regexp-replace #px"^(\\s*)(.+?)(\\s*)$" content
                     (format "\\1\033[~a;~a;~am\\2\033[0m\\3"
                       (string-replace (for/fold : String ([effects ""]) ([attr : Symbol (in-list attrs)])
-                                        (case (string-downcase (format "~a" attr))
+                                        (case (string-downcase (symbol->immutable-string attr))
                                           [{"bold" "bright"} (string-append effects ";1")]
                                           [{"dim"} (string-append effects ";2")]
                                           [{"underline" "undercurl"} (string-append effects ";4")]
@@ -47,25 +57,30 @@
                                           [{"hidden" "password"} (string-append effects ";8")]
                                           [else (error 'tarminal-colorize "Unsupported Terminal Attribute: ~a" attr)]))
                                       "^;" "" #:all? #false)
-                      (if (not fg) 39 (color-code (string-downcase (format "~a" fg))))
-                      (if (not bg) 49 (color-code (string-downcase (format "~a" bg)) #:bgcolor? #true))))))
+                      (if (not fg) 39 (color-code fg #false))
+                      (if (not bg) 49 (color-code bg #true))))))
+
+(define term-echo : (-> Output-Port String Term-Color Term-Color (Listof Symbol) Void)
+  (lambda [/dev/stdout rawmsg fg bg attrs]
+    (display (if (terminal-port? /dev/stdout) (term-colorize fg bg attrs rawmsg) rawmsg)
+             /dev/stdout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg : String (apply format msgfmt vals))
-    (define colorize? (terminal-port? (current-output-port)))
-
-    (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
-             (current-output-port))))
+    (term-echo (current-output-port) (apply format msgfmt vals) fg bg attrs)))
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (term-echo (current-error-port) (apply format msgfmt vals) fg bg attrs)))
+
+(define fechof : (-> Output-Port String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
+  (lambda [/dev/stdout msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg : String (apply format msgfmt vals))
-    (define colorize? (terminal-port? (current-error-port)))
+    (define colorize? (terminal-port? /dev/stdout))
 
     (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
-             (current-error-port))))
+             /dev/stdout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-esc esc-save [] "\033[s")
