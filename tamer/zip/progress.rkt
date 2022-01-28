@@ -3,6 +3,7 @@
 (require digimon/archive)
 (require digimon/dtrace)
 (require digimon/debug)
+(require digimon/echo)
 
 (require digimon/digitama/bintext/archive)
 
@@ -19,26 +20,34 @@
 (define chars-width : Index 64)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define update-gauge : (-> Symbol String Natural Natural Void)
-  (let ([last-count : (Boxof Integer) (box 0)])
-    (lambda [topic entry-name zipped total]
+(define update-gauge : (-> Symbol String Natural Natural Boolean Void)
+  (let ([last-count : (Boxof Integer) (box 0)]
+        [bar : String (make-string 1 #\space)])
+    (lambda [topic entry-name zipped total finish-entry?]
       (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
       (define count : Integer (exact-floor (* % chars-width)))
       (define lcount : Integer (unbox last-count))
 
       (when (> count lcount)
         (set-box! last-count count)
-        (display "\033[42m")
-        (display (make-string (- count lcount) #\space))
-        (display "\033[0m")
-        (display "\033[s")
+
+        (when (= lcount 0)
+          (display "["))
+
+        (for ([i (in-range lcount count)])
+          (echof bar #:bgcolor 'green))
+
+        (esc-save)
         (when (< count chars-width)
-          (printf "\033[~aC" (- chars-width count)))
-        (printf "] [~a%]" (~r (* % 100.0) #:precision '(= 2)))
-        (display #\space)
-        (display entry-name)
-        (display "\033[u")
-        (flush-output)))))
+          (esc-move-right (- chars-width count)))
+        (printf "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
+        (esc-restore)
+
+        (flush-output))
+
+      (when (and finish-entry?)
+        (set-box! last-count 0)
+        (newline)))))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Void)
   (lambda [argument-list]

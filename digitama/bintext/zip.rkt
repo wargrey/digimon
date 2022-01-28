@@ -138,11 +138,11 @@
         [(deflated) (open-output-deflated-block /dev/stdout strategy #false #:fixed-only? static-only? #:memory-level memlevel #:name entry-name)]
         [else /dev/stdout]))
 
-    (define progress-handler : Archive-Entry-Progress-Handler (or (default-archive-entry-progress-handler) void))
+    (define progress-handler : Archive-Entry-Progress-Handler (default-archive-entry-progress-handler))
 
-    (progress-handler topic entry-name 0 total)
+    (progress-handler topic entry-name 0 total #false)
     
-    (define-values (zipped crc32)
+    (define-values (_ crc32)
       (if (bytes? source)
           (let ()
             (when (> total 0)
@@ -157,9 +157,7 @@
 
                           ; keep consistent with other kind of sources
                           #:flush-output-port? #false)))
-
-    (progress-handler topic entry-name zipped total)
-
+    
     ; by design, all output ports associated with compression methods should follow the convention:
     ;   never mark the block with the FINAL flag when flushing manually,
     ;   and let the closing flush and terminate the bitstream.
@@ -169,6 +167,8 @@
     (if (eq? /dev/stdout /dev/zipout)
         (flush-output /dev/zipout)
         (close-output-port /dev/zipout))
+
+    (progress-handler topic entry-name total total #true)
     
     (values crc32
             (max 0 (- (file-position /dev/stdout)
@@ -262,7 +262,7 @@
       (cond [(exact-positive-integer? read-size)
              (let ([consumed++ (+ consumed read-size)])
                (write-bytes pool /dev/zipout 0 read-size)
-               (progress-handler topic entry-name consumed total)
+               (progress-handler topic entry-name consumed total #false)
                (copy-entry/checksum consumed++ (checksum-crc32* pool crc32 0 read-size)))]
             [(eof-object? read-size)
              (when (and flush-out?) (flush-output /dev/zipout))

@@ -6,7 +6,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Archive-Progress-Handler (-> Symbol Natural Natural Void))
-(define-type Archive-Entry-Progress-Handler (-> Symbol String Natural Natural Void))
+(define-type Archive-Entry-Progress-Handler (-> Symbol String Natural Natural Boolean Void))
 
 (define-type Archive-Port (U Input-Port Output-Port))
 

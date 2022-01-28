@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out) define-esc))
 
 (require racket/string)
 
@@ -72,14 +72,14 @@
 (define-esc esc-restore [] "\033[u")
 
 (define-esc esc-screen-home [] "\033[H") ; cell(0, 0)
-(define-esc esc-cell [[row : Index 0] [col : Index 0]] "\033[~a;~af")
-(define-esc esc-move-up [[line : Positive-Index 1]] "\033[~aA")
-(define-esc esc-move-down [[line : Positive-Index 1]] "\033[~aB")
-(define-esc esc-move-right [[col : Positive-Index 1]] "\033[~aC")
-(define-esc esc-move-left [[col : Positive-Index 1]] "\033[~aD")
-(define-esc esc-return-down [[line : Positive-Index 1]] "\033[~aE")
-(define-esc esc-return-up [[line : Positive-Index 1]] "\033[~aF")
-(define-esc esc-move-to [[col : Index 0]] "\033[~aG")
+(define-esc esc-cell [[row : Integer 0] [col : Integer 0]] "\033[~a;~af")
+(define-esc esc-move-up [[line : Integer 1]] "\033[~aA")
+(define-esc esc-move-down [[line : Integer 1]] "\033[~aB")
+(define-esc esc-move-right [[col : Integer 1]] "\033[~aC")
+(define-esc esc-move-left [[col : Integer 1]] "\033[~aD")
+(define-esc esc-return-down [[line : Integer 1]] "\033[~aE")
+(define-esc esc-return-up [[line : Integer 1]] "\033[~aF")
+(define-esc esc-move-to [[col : Integer 0]] "\033[~aG")
 (define-esc esc-home [] "\033[0G") ; move-to(0)
 
 (define-esc esc-clear-screen-to-end [] "\033[J")
