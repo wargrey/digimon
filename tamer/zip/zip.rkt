@@ -35,6 +35,8 @@
                         "run with the strategy ~1 and compression level ~2"]
    [(#\r recurse-paths) "travel the directory recursively"]
    [(#\t temporary)     "create temporarily"]
+   [(#\p progress)      #:=> zip-progress
+                        "show progress bars"]
    [(64)                #:=> zip-64bit
                         "force building zip64 file"]
    [(#\v)               #:=> zip-verbose
@@ -42,6 +44,7 @@
 
 (define zip-verbose : (Parameterof Boolean) (make-parameter #false))
 (define zip-64bit : (Parameterof Boolean) (make-parameter #false))
+(define zip-progress : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-exec : (-> Symbol Path-String * Void)
@@ -85,6 +88,9 @@
                       (simple-form-path file.zip)))
 
                 (define target_zip : Path (path-add-extension target.zip #".zip"))
+
+                (when (zip-progress)
+                  [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)])
                 
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:strategy strategy #:force-zip64? (zip-64bit)))

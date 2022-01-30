@@ -22,12 +22,14 @@
   #:once-each
   [[(#\b)                                                "hexdump file content in binary mode"]
    [(#\w)   #:=> cmdopt-string+>byte width     #: Byte   "hexdump file content in ~1 bytes per line"]
-   [(#\v)   #:=> zip-verbose                             "run with verbose messages"]
-   [(#\t)   #:=> zip-check                               "check only"]
+   [(#\v)   #:=> unzip-verbose                           "run with verbose messages"]
+   [(#\t)   #:=> unzip-check                             "check only"]
+   [(#\p)   #:=> unzip-progress                          "show progress bars"]
    [(#\l)   #:=> cmdopt-string-identity locale #: String "set default locale to ~1"]])
 
-(define zip-verbose : (Parameterof Boolean) (make-parameter #false))
-(define zip-check : (Parameterof Boolean) (make-parameter #false))
+(define unzip-verbose : (Parameterof Boolean) (make-parameter #false))
+(define unzip-check : (Parameterof Boolean) (make-parameter #false))
+(define unzip-progress : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
@@ -42,7 +44,10 @@
                    [default-stdin-locale (or (unzip-flags-l options) 'utf-8)])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
                      (begin0 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                               (if (zip-check)
+                               (when (unzip-progress)
+                                 [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge #:at '(0 . 0))])
+                               
+                               (if (unzip-check)
                                    (cond [(null? entries) (zip-verify file.zip)]
                                          [else (let-values ([(failures rest-entries unknowns) (zip-verify* file.zip entries)])
                                                  (+ failures (length unknowns)))])
@@ -61,7 +66,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-zip-log-trace : (-> (-> Void))
   (lambda []
-    (make-dtrace-loop (if (zip-verbose) 'trace 'info))))
+    (make-dtrace-loop (if (unzip-verbose) 'trace 'info))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

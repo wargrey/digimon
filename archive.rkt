@@ -182,45 +182,58 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-entry-terminal-gauge : (->* () (Output-Port #:bar-width Positive-Byte #:bar-symbol Char
-                                                                 #:bgcolor Term-Color #:fgcolor Term-Color)
+                                                                 #:bgcolor Term-Color #:fgcolor Term-Color
+                                                                 #:at (Option (Pairof Integer Integer)))
                                                  Archive-Entry-Progress-Handler)
-  (lambda [[/dev/stdout (current-output-port)] #:bar-width [chars-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false]]
+  (lambda [#:at [position #false] #:bar-width [chars-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false]
+           [/dev/stdout (current-output-port)]]
     (define last-count : Integer 0)
-    (define bar : String (make-string 1 #\space))
+    (define bar : String (term-colorize fgcolor bgcolor null (make-string 1 bar-symbol)))
 
-    (λ [topic entry-name zipped total finish-entry?]
-      (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
-      (define count : Integer (exact-floor (* % chars-width)))
+    (if (not position)
+        (λ [topic entry-name zipped total finish-entry?]
+          (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
+          (define count : Integer (exact-floor (* % chars-width)))
+          
+          (when (> count last-count)
+            (when (= last-count 0) (display "[" /dev/stdout))
+            
+            (for ([i (in-range last-count count)])
+              (display bar /dev/stdout))
+            (set! last-count count)
+            
+            (esc-save)
+            (when (< count chars-width) (esc-move-right (- chars-width count)))
+            (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
+            (esc-restore)
+            
+            (flush-output /dev/stdout))
+          
+          (when (and finish-entry?)
+            (set! last-count 0)
+            (newline /dev/stdout)))
 
-      (when (> count last-count)
-        (when (= last-count 0) (display "[" /dev/stdout))
-
-        (for ([i (in-range last-count count)])
-          (fechof /dev/stdout bar #:bgcolor bgcolor #:fgcolor fgcolor))
-        (set! last-count count)
-
-        (esc-save)
-        (when (< count chars-width) (esc-move-right (- chars-width count)))
-        (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
-        (esc-restore)
-
-        (flush-output /dev/stdout))
-
-      (when (and finish-entry?)
-        (set! last-count 0)
-        (newline /dev/stdout)))))
+        (λ [topic entry-name zipped total finish-entry?]
+          (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
+          (define count : Integer (exact-floor (* % chars-width)))
+          
+          (esc-save)
+          (esc-cell (car position) (cdr position))
+            
+          (display "[" /dev/stdout)
+          (for ([i (in-range 0 count)])
+            (display bar /dev/stdout))
+          
+          (when (< count chars-width) (esc-move-right (- chars-width count)))
+          (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
+          
+          (flush-output /dev/stdout)
+          (esc-restore)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-directory-list #:+ (Listof ZIP-Directory) #:binary
   (lambda [/dev/zipin src]
-    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-directory-list))
-
-    (let ls ([sridc : (Listof ZIP-Directory) null]
-             [cdir-pos : Natural (port-seek /dev/zipin cdir-offset)])
-      (cond [(>= cdir-pos cdir-end) (reverse sridc)]
-            [else (let ([cdir (read-zip-directory /dev/zipin)])
-                    (ls (cons cdir sridc)
-                        (+ cdir-pos (sizeof-zip-directory cdir))))]))))
+    (zip-extract-central-directories /dev/zipin zip-directory-list)))
 
 (define-file-reader zip-file-list #:+ (Listof ZIP-File) #:binary
   (lambda [/dev/zipin src]
@@ -294,12 +307,10 @@
 (define zip-create : (->* ((U Path-String Output-Port) Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol)
                            #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
-                           #:progress-topic (Option Symbol)
                            String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           #:progress-topic [maybe-topic #false]
            out.zip entries [comment "created by λsh - https://github.com/wargrey/lambda-shell"]]
     (parameterize ([current-custodian (make-custodian)]
                    [default-stdout-all-fields? #false])
@@ -309,7 +320,7 @@
                            (open-output-file out.zip #:exists 'truncate/replace))]))
 
       (define progress-handler : Archive-Progress-Handler (default-archive-progress-handler))
-      (define topic : Symbol (or maybe-topic ((default-archive-progress-topic-resolver) /dev/zipout)))
+      (define topic : Symbol ((default-archive-progress-topic-resolver) /dev/zipout))
       
       (define px:suffix : Regexp (archive-suffix-regexp (append suffixes pkzip-default-suffixes)))
       (define seekable? : Boolean (if (not disable-seeking?) (port-random-access? /dev/zipout) #false))
@@ -333,7 +344,7 @@
                 (cond [(null? entries) (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)]
                       [else (let* ([self (car entries)]
                                    [zipped++ : Natural (+ zipped (archive-entry-size self))]
-                                   [zdir (zip-write-entry /dev/zipout self root zip-root px:suffix seekable? strategy memlevel force-zip64? crc-pool topic)])
+                                   [zdir (zip-write-entry /dev/zipout self root zip-root px:suffix seekable? strategy memlevel force-zip64? crc-pool)])
                               (progress-handler topic zipped++ total-size)
                               (zip-write (cdr entries) (cons zdir sridz) zipped++))])))
        (λ [] (custodian-shutdown-all (current-custodian)))))))
@@ -341,12 +352,10 @@
 (define zip-update : (->* (Path-String Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:freshen? Boolean
                            #:strategy PKZIP-Strategy #:memory-level Positive-Byte #:force-zip64? Boolean #:disable-seeking? Boolean
-                           #:progress-topic (Option Symbol)
                            String)
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           #:progress-topic [maybe-topic #false]
            src.zip entries [comment "updated by λsh - https://github.com/wargrey/lambda-shell"]]
     (if (file-exists? src.zip)
         (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
@@ -355,7 +364,6 @@
           (void))
         (zip-create #:root root #:zip-root zip-root #:suffixes suffixes
                     #:strategy strategy #:memory-level memlevel #:force-zip64? force-zip64? #:disable-seeking? disable-seeking?
-                    #:progress-topic maybe-topic
                     src.zip entries))))
 
 (define zip-delete : (->* (Path-String (U Path-String Regexp (Listof (U Path-String Regexp)))) ((Option String)) Void)
@@ -366,7 +374,7 @@
        (λ [] (let ([/dev/zipin (open-input-file src.zip)]
                    [/dev/zipout (open-output-file src.zip #:exists 'can-update)] ; 'append might cause incorrect signature position due to some mysteries
                    [original-size (file-size src.zip)])
-               (define-values (_ __ zcomment) (zip-seek-central-directory-section /dev/zipin zip-copy))
+               (define-values (_ __ zcomment) (zip-seek-central-directory-section /dev/zipin zip-delete))
                (define-values (reqdirs _restdirs _entries) (zip-directory-partition /dev/zipin entry-names))
                (define ordered-destdirs : (Listof ZIP-Directory) (if (= original-size 0) null (zip-directory-sort/filename (zip-directory-list /dev/zipin))))
                (define-values (fragments cdir-offset) (zip-archive-fragments /dev/zipin ordered-destdirs))
@@ -574,18 +582,8 @@
 (define #:forall (seed) zip-verify : (-> (U Input-Port Path-String) Natural)
   (lambda [/dev/zipin]
     (if (input-port? /dev/zipin)
-        (let-values ([(cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-verify)])
-          (let verify ([failures : Natural 0]
-                       [cdir-pos : Natural cdir-offset])
-            (cond [(>= cdir-pos cdir-end) failures]
-                  [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
-                          (verify (+ failures
-                                     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
-                                       (zip-verify-entry /dev/zipin cdir)))
-                                  (+ cdir-pos (sizeof-zip-directory cdir))))])))
-        (call-with-input-file* /dev/zipin
-          (λ [[/dev/zipin : Input-Port]]
-            (zip-verify /dev/zipin))))))
+        (zip-verify-directories /dev/zipin (zip-extract-central-directories /dev/zipin zip-verify))
+        (call-with-input-file* /dev/zipin (λ [[/dev/zipin : Input-Port]] (zip-verify /dev/zipin))))))
 
 (define #:forall (seed) zip-verify* : (-> (U Input-Port Path-String) (U String (Listof String)) (Values Natural (Listof ZIP-Directory) (Listof String)))
   (lambda [/dev/zipin entry]
@@ -601,11 +599,22 @@
 (define #:forall (seed) zip-verify-directories : (-> (U Input-Port Path-String) (Listof ZIP-Directory) Natural)
   (lambda [/dev/zipin cdirs]
     (if (input-port? /dev/zipin)
-        (for/fold ([failures : Natural 0])
-                  ([cdir (in-list cdirs)])
-          (+ failures
-             (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) 1)])
-               (zip-verify-entry /dev/zipin cdir))))
+        (let* ([cdir-size zip-directory-csize]
+               [total (zip-entries-size cdirs cdir-size)]
+               [progress-handler (default-archive-progress-handler)]
+               [topic ((default-archive-progress-topic-resolver) /dev/zipin)])
+          (progress-handler topic 0 total)
+          (let verify ([failures : Natural 0]
+                       [verified : Natural 0]
+                       [cdirs : (Listof ZIP-Directory) cdirs])
+            (cond [(null? cdirs) failures]
+                  [else (let*-values ([(self rest) (values (car cdirs) (cdr cdirs))]
+                                      [(verified++) (+ verified (cdir-size self))])
+                          (define okay? : Boolean
+                            (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
+                              (zip-verify-entry /dev/zipin self)))
+                          (progress-handler topic verified++ total)
+                          (verify (+ failures (if (not okay?) 1 0)) verified++ rest))])))
         (call-with-input-file* /dev/zipin
           (λ [[/dev/zipin : Input-Port]]
             (zip-verify-directories /dev/zipin cdirs))))))
@@ -616,13 +625,13 @@
     (let-values ([(requested-dirs rest-dirs unknowns) (zip-directory-partition cdirs entry)])
       (values (zip-verify-directories /dev/zipin requested-dirs) rest-dirs unknowns))))
 
-(define #:forall (a b) zip-verify-entry : (case-> [(U Input-Port Path-String) ZIP-Directory -> Natural]
-                                                  [(U Input-Port Path-String) (Listof ZIP-Directory) String -> Natural])
+(define #:forall (a b) zip-verify-entry : (case-> [(U Input-Port Path-String) ZIP-Directory -> Boolean]
+                                                  [(U Input-Port Path-String) (Listof ZIP-Directory) String -> Boolean])
   (case-lambda
     [(/dev/zipin cdirs entry)
      (let ([name (zip-path-normalize entry)])
        (let search ([cdirs : (Listof ZIP-Directory) cdirs])
-         (cond [(null? cdirs) 0]
+         (cond [(null? cdirs) #false]
                [else (let ([cdir (car cdirs)])
                        (if (string=? (zip-directory-filename cdir) name)
                            (zip-verify-entry /dev/zipin cdir)
@@ -634,12 +643,11 @@
                           [current-zip-entry cdir])
              (dynamic-wind
               void
-              (λ [] (let ([result (cdar (verify-entry (open-input-zip-entry /dev/zipin cdir #:verify? #true)
-                                                      (zip-directory-filename cdir)
-                                                      (zip-folder-entry? cdir)
-                                                      (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
-                                                      null))])
-                      (if (eq? result #true) 0 1)))
+              (λ [] (and (boolean? (cdar (verify-entry (open-input-zip-entry /dev/zipin cdir #:verify? #true)
+                                                       (zip-directory-filename cdir)
+                                                       (zip-folder-entry? cdir)
+                                                       (zip-entry-modify-seconds (zip-directory-mdate cdir) (zip-directory-mtime cdir))
+                                                       null)))))
               (λ [] (custodian-shutdown-all (current-custodian))))))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]

@@ -9,12 +9,24 @@
 (require "../../stdio.rkt")
 (require "../../port.rkt")
 (require "../../date.rkt")
-(require "../../format.rkt")
 (require "../../enumeration.rkt")
 
 (require "../ioexn.rkt")
 (require "../unsafe/ops.rkt")
 (require "../unsafe/number.rkt")
+
+(require (for-syntax racket/base))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (zip-entries-size stx)
+  (syntax-case stx [:]
+    [(_ cdirs cdir->size)
+     (syntax/loc stx
+       (let sum : Natural ([total : Natural 0]
+                           [cdirs : (Listof ZIP-Directory) cdirs])
+         (cond [(null? cdirs) total]
+               [else (sum (+ total (cdir->size (car cdirs)))
+                          (cdr cdirs))])))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%zip-entry : Index #x04034b50)
@@ -445,3 +457,15 @@
 (define read-zip-file** : (->* (Input-Port) ((Option Index)) (Values ZIP-File Byte))
   (lambda [/dev/zipin [posoff #false]]
     (values (read-zip-file /dev/zipin posoff) 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-extract-central-directories : (-> Input-Port (U Procedure Symbol) (Listof ZIP-Directory))
+  (lambda [/dev/zipin who]
+    (define-values (cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin who))
+
+    (let ls ([sridc : (Listof ZIP-Directory) null]
+             [cdir-pos : Natural (port-seek /dev/zipin cdir-offset)])
+      (cond [(>= cdir-pos cdir-end) (reverse sridc)]
+            [else (let ([cdir (read-zip-directory /dev/zipin)])
+                    (ls (cons cdir sridc)
+                        (+ cdir-pos (sizeof-zip-directory cdir))))]))))

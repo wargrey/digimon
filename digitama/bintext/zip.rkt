@@ -37,12 +37,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp
-                              Boolean PKZIP-Strategy Positive-Byte Boolean Bytes Symbol
+                              Boolean PKZIP-Strategy Positive-Byte Boolean Bytes
                               (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool topic]
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool]
     (define entry-source : (U Bytes Path) (archive-entry-source entry))
     (define regular-file? : Boolean (archive-entry-regular-file? entry))
     (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-get-name entry) root zip-root 'stdin) regular-file?))
+    (define topic : Symbol ((default-archive-progress-topic-resolver) /dev/zipout))
     (define-values (mdate mtime) (zip-entry-modify-datetime (or (archive-entry-utc-time entry) (current-seconds))))
 
     (define method : ZIP-Compression-Method
@@ -140,16 +141,17 @@
 
     (define progress-handler : Archive-Entry-Progress-Handler (default-archive-entry-progress-handler))
 
-    (progress-handler topic entry-name 0 total #false)
-    
     (define-values (_ crc32)
       (if (bytes? source)
           (let ()
+            (progress-handler topic entry-name 0 total #false)
             (when (> total 0)
               (write-bytes source /dev/zipout))
+            (progress-handler topic entry-name total total #true)
             (values total (checksum-crc32 source 0 total)))
 
-          (zip-entry-copy (open-input-file source) /dev/zipout pool topic entry-name total progress-handler
+          (zip-entry-copy (open-progress-input-port (open-input-file source) topic entry-name progress-handler total)
+                          /dev/zipout pool
 
                           ; some systems may limit the maximum number of open files
                           ; if exception escapes, constructed ports would be closed by the custodian
@@ -167,8 +169,6 @@
     (if (eq? /dev/stdout /dev/zipout)
         (flush-output /dev/zipout)
         (close-output-port /dev/zipout))
-
-    (progress-handler topic entry-name total total #true)
     
     (values crc32
             (max 0 (- (file-position /dev/stdout)
@@ -223,7 +223,7 @@
     (define-values (offset crc32 rsize csize zip64?) (zip-directory-data-descriptor cdir))
     (define ?zip (regexp-match #px"[^.]+$" (archive-port-name /dev/zipin)))
     (define port-name (format "~a://~a" (if (not ?zip) 'zip (car ?zip)) (zip-directory-filename cdir)))
-    
+        
     (file-position /dev/zipin offset)
 
     (let ([entry (read-zip-file /dev/zipin)])
@@ -238,18 +238,19 @@
 
     (when (zip-encrypted? (zip-directory-gpflag cdir))
       (throw-unsupported-error /dev/zipin 'open-input-zip-entry "encryped entry: ~a" (zip-directory-filename cdir)))
-    
-    (case (zip-directory-compression cdir)
-      [(deflated) (open-input-deflated-block /dev/zipin csize #false #:name port-name #:error-name 'zip:deflated)]
-      [else (open-input-block /dev/zipin csize #false #:name port-name)])))
+
+    (open-progress-input-port
+     (case (zip-directory-compression cdir)
+       [(deflated) (open-input-deflated-block /dev/zipin csize #false #:name port-name #:error-name 'zip:deflated)]
+       [else (open-input-block /dev/zipin csize #false #:name port-name)])
+     ((default-archive-progress-topic-resolver) /dev/zipin) (zip-directory-filename cdir) (default-archive-entry-progress-handler) csize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-entry-copy : (->* (Input-Port Output-Port)
-                              (#:close-input-port? Boolean #:flush-output-port? Boolean
-                               (U Bytes Index False) Symbol String Natural Archive-Entry-Progress-Handler)
+                              (#:close-input-port? Boolean #:flush-output-port? Boolean (U Bytes Index False))
                               (Values Natural Index))
   (lambda [#:close-input-port? [close-in? #false] #:flush-output-port? [flush-out? #true]
-           /dev/zipin /dev/zipout [pool0 4096] [topic '||] [entry-name ""] [total 0] [progress-handler void]]
+           /dev/zipin /dev/zipout [pool0 4096]]
     (define-values (#{pool : Bytes} #{pool-size : Index})
       (cond [(bytes? pool0) (values pool0 (bytes-length pool0))]
             [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
@@ -260,10 +261,8 @@
       (define read-size : (U EOF Nonnegative-Integer Procedure) (read-bytes-avail! pool /dev/zipin 0 pool-size))
       
       (cond [(exact-positive-integer? read-size)
-             (let ([consumed++ (+ consumed read-size)])
-               (write-bytes pool /dev/zipout 0 read-size)
-               (progress-handler topic entry-name consumed total #false)
-               (copy-entry/checksum consumed++ (checksum-crc32* pool crc32 0 read-size)))]
+             (write-bytes pool /dev/zipout 0 read-size)
+             (copy-entry/checksum (+ consumed read-size) (checksum-crc32* pool crc32 0 read-size))]
             [(eof-object? read-size)
              (when (and flush-out?) (flush-output /dev/zipout))
              (when (and close-in?) (close-input-port /dev/zipin))
