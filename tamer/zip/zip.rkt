@@ -90,7 +90,8 @@
                 (define target_zip : Path (path-add-extension target.zip #".zip"))
 
                 (when (zip-progress)
-                  [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)])
+                  [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
+                  [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 2 0))])
                 
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:strategy strategy #:force-zip64? (zip-64bit)))

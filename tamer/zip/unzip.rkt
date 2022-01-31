@@ -44,13 +44,14 @@
                    [default-stdin-locale (or (unzip-flags-l options) 'utf-8)])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
                      (begin0 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
-                               (when (unzip-progress)
-                                 [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge #:at '(0 . 0))])
-                               
                                (if (unzip-check)
-                                   (cond [(null? entries) (zip-verify file.zip)]
-                                         [else (let-values ([(failures rest-entries unknowns) (zip-verify* file.zip entries)])
-                                                 (+ failures (length unknowns)))])
+                                   (let ()
+                                     (when (unzip-progress)
+                                       [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge #:final-char #\space #:overlay-name? #true)]
+                                       [default-archive-progress-handler (make-archive-terminal-gauge #:at 128)])
+                                     (cond [(null? entries) (zip-verify file.zip)]
+                                           [else (let-values ([(failures rest-entries unknowns) (zip-verify* file.zip entries)])
+                                                   (+ failures (length unknowns)))]))
                                    
                                    (let ([hexdump (make-archive-hexdump-reader
                                                    #:binary? (unzip-flags-b options)

@@ -9,7 +9,9 @@
   
   (require "spec/pkzip.rkt")
 
-  (date-display-format 'iso-8601)
+  [date-display-format 'iso-8601]
+  [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
+  [default-archive-progress-handler (make-archive-terminal-gauge #:at 128)]
   
   (time** (call-with-output-file* pk.zip #:exists 'replace
             (λ [[/dev/zipout : Output-Port]]

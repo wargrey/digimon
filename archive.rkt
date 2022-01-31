@@ -93,8 +93,8 @@
       (cond [(void? idx) 1]
             [else (add1 idx)]))))
 
-(define make-archive-verification-reader : (->* () (Index #:dtrace-topic Any) (Archive-Entry-Readerof* (Listof (Pairof String (U True String)))))
-  (lambda [[pool-size 4096] #:dtrace-topic [topic #false]]
+(define make-archive-verification-reader : (->* () (Index #:topic (U False Procedure Symbol)) (Archive-Entry-Readerof* (Listof (Pairof String (U True String)))))
+  (lambda [[pool-size 4096] #:topic [topic #false]]
     (λ [/dev/zipin entry folder? timestamp result-set]
       (define cdir (current-zip-entry))
       
@@ -102,10 +102,14 @@
              (let*-values ([(_ CRC32 rSize cSize _64?) (zip-directory-data-descriptor cdir)]
                            [(result) (or folder? (zip-entry-copy/trap /dev/zipin /dev/null rSize CRC32 (max 1 pool-size)))]
                            [(entry-result) (cons entry result)])
-               (when (symbol? topic)
-                 (if (string? result)
-                     (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
-                     (dtrace-info "~a: OK" entry #:topic topic #:urgent entry-result)))
+               (cond [(symbol? topic)
+                      (if (string? result)
+                          (dtrace-error "~a: ~a" entry result #:topic topic #:urgent entry-result)
+                          (dtrace-info "~a: OK" entry #:topic topic #:urgent entry-result))]
+                     [(procedure? topic)
+                      (if (string? result)
+                          (eechof "~a: ~a: ~a~n" (object-name topic) entry result #:fgcolor 'red)
+                          (echof "~a: ~a: OK~n" (object-name topic) entry #:fgcolor 'green))])
                
                (cond [(void? result-set) (list entry-result)]
                      [else (cons entry-result result-set)]))]
@@ -181,54 +185,66 @@
             (file-or-directory-modify-seconds target timestamp void)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-entry-terminal-gauge : (->* () (Output-Port #:bar-width Positive-Byte #:bar-symbol Char
-                                                                 #:bgcolor Term-Color #:fgcolor Term-Color
-                                                                 #:at (Option (Pairof Integer Integer)))
+(define make-archive-terminal-gauge : (->* () (Output-Port #:at (U Integer (Pairof Integer Integer)) #:bar-width Positive-Byte #:bar-symbol Char
+                                                           #:bgcolor Term-Color #:fgcolor Term-Color #:precision Byte)
+                                           Archive-Progress-Handler)
+  (lambda [#:bar-width [bar-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor '202] #:fgcolor [fgcolor #false] #:precision [precision 2]
+           [/dev/stdout (current-output-port)] #:at [position (cons 0 0)]]
+    (define last-count : Integer 0)
+    (define bar : String (term-colorize fgcolor bgcolor null (make-string 1 bar-symbol)))
+ 
+    (λ [topic zipped total]
+      (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
+      (define count : Integer (exact-floor (* % bar-width)))
+      
+      (esc-save)
+      (if (pair? position)
+          (esc-cell (car position) (cdr position))
+          (esc-move-to position))
+      
+      (display "[" /dev/stdout)
+      (for ([i (in-range 0 count)])
+        (display bar /dev/stdout))
+      
+      (when (< count bar-width) (esc-move-right (- bar-width count)))
+      (fprintf /dev/stdout "] [~a%]" (~r (* % 100.0) #:precision `(= ,precision)))
+      
+      (esc-restore)
+      (flush-output /dev/stdout))))
+
+(define make-archive-entry-terminal-gauge : (->* () (Output-Port #:bar-width Positive-Byte #:bar-symbol Char #:final-char Char #:overlay-name? Boolean
+                                                                 #:bgcolor Term-Color #:fgcolor Term-Color #:precision Byte)
                                                  Archive-Entry-Progress-Handler)
-  (lambda [#:at [position #false] #:bar-width [chars-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false]
+  (lambda [#:bar-width [bar-width 64] #:bar-symbol [bar-symbol #\space] #:final-char [final-char #\newline] #:overlay-name? [overlay-name? #false]
+           #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false] #:precision [precision 2]
            [/dev/stdout (current-output-port)]]
     (define last-count : Integer 0)
     (define bar : String (term-colorize fgcolor bgcolor null (make-string 1 bar-symbol)))
 
-    (if (not position)
-        (λ [topic entry-name zipped total finish-entry?]
-          (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
-          (define count : Integer (exact-floor (* % chars-width)))
-          
-          (when (> count last-count)
-            (when (= last-count 0) (display "[" /dev/stdout))
-            
-            (for ([i (in-range last-count count)])
-              (display bar /dev/stdout))
-            (set! last-count count)
-            
-            (esc-save)
-            (when (< count chars-width) (esc-move-right (- chars-width count)))
-            (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
-            (esc-restore)
-            
-            (flush-output /dev/stdout))
-          
-          (when (and finish-entry?)
-            (set! last-count 0)
-            (newline /dev/stdout)))
+    (λ [topic entry-name zipped total finish-entry?]
+      (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
+      (define count : Integer (exact-floor (* % bar-width)))
+      
+      (when (> count last-count)
+        (when (= last-count 0) (display "[" /dev/stdout))
+        
+        (for ([i (in-range last-count count)])
+          (display bar /dev/stdout))
+        (set! last-count count)
+        
+        (esc-save)
+        (when (< count bar-width) (esc-move-right (- bar-width count)))
+        (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision `(= ,precision)) entry-name)
+        (esc-restore)
+        
+        (flush-output /dev/stdout))
+      
+      (when (and finish-entry?)
+        (set! last-count 0)
+        (esc-move-to (+ 11 bar-width precision (if (not overlay-name?) (string-utf-8-length entry-name) 0)))
+        (display final-char /dev/stdout)
+        (esc-save)))))
 
-        (λ [topic entry-name zipped total finish-entry?]
-          (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
-          (define count : Integer (exact-floor (* % chars-width)))
-          
-          (esc-save)
-          (esc-cell (car position) (cdr position))
-            
-          (display "[" /dev/stdout)
-          (for ([i (in-range 0 count)])
-            (display bar /dev/stdout))
-          
-          (when (< count chars-width) (esc-move-right (- chars-width count)))
-          (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision '(= 2)) entry-name)
-          
-          (flush-output /dev/stdout)
-          (esc-restore)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-directory-list #:+ (Listof ZIP-Directory) #:binary
@@ -475,18 +491,8 @@
     [(/dev/zipin read-entry) (void (zip-extract /dev/zipin read-entry (void)))]
     [(/dev/zipin read-entry datum0)
      (if (input-port? /dev/zipin)
-         (let-values ([(cdir-offset cdir-end _) (zip-seek-central-directory-section /dev/zipin zip-extract)])
-           (let extract ([datum : seed datum0]
-                         [cdir-pos : Natural cdir-offset])
-             (cond [(>= cdir-pos cdir-end) datum]
-                   [else (let ([cdir (read-zip-directory /dev/zipin cdir-pos)])
-                           (extract (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
-                                          (zip-extract-entry /dev/zipin cdir read-entry datum))
-                                        datum)
-                                    (+ cdir-pos (sizeof-zip-directory cdir))))])))
-         (call-with-input-file* /dev/zipin
-           (λ [[/dev/zipin : Input-Port]]
-             (zip-extract /dev/zipin read-entry datum0))))]))
+         (zip-extract-directories /dev/zipin (zip-extract-central-directories /dev/zipin zip-extract) read-entry datum0)
+         (call-with-input-file* /dev/zipin (λ [[/dev/zipin : Input-Port]] (zip-extract /dev/zipin read-entry datum0))))]))
 
 (define #:forall (seed) zip-extract*
   : (case-> [(U Input-Port Path-String) (U String (Listof String)) -> (Values Void (Listof ZIP-Directory) (Listof String))]
@@ -513,11 +519,22 @@
     [(/dev/zipin cdirs read-entry) (void (zip-extract-directories /dev/zipin cdirs read-entry (void)))]
     [(/dev/zipin cdirs read-entry datum0)
      (if (input-port? /dev/zipin)
-         (for/fold ([datum : seed datum0])
-                   ([cdir (in-list cdirs)])
-           (or (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) #false)])
-                 (zip-extract-entry /dev/zipin cdir read-entry datum))
-               datum))
+         (let* ([cdir-size zip-directory-csize]
+                [total (zip-entries-size cdirs cdir-size)]
+                [progress-handler (default-archive-progress-handler)]
+                [topic ((default-archive-progress-topic-resolver) /dev/zipin)])
+          (progress-handler topic 0 total)
+          (let extract ([datum : seed datum0]
+                        [extracted : Natural 0]
+                        [cdirs : (Listof ZIP-Directory) cdirs])
+            (cond [(null? cdirs) datum]
+                  [else (let*-values ([(self rest) (values (car cdirs) (cdr cdirs))]
+                                      [(extracted++) (+ extracted (cdir-size self))])
+                          (define datum++ : seed
+                            (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false) datum0)])
+                              (or (zip-extract-entry /dev/zipin self read-entry datum) datum0)))
+                          (progress-handler topic extracted++ total)
+                          (extract datum++ extracted++ rest))])))
          (call-with-input-file* /dev/zipin
            (λ [[/dev/zipin : Input-Port]]
              (zip-extract-directories /dev/zipin cdirs read-entry datum0))))]))
@@ -638,7 +655,7 @@
                            (search (cdr cdirs))))])))]
     [(/dev/zipin cdir)
      (if (input-port? /dev/zipin)
-         (let ([verify-entry (make-archive-verification-reader #:dtrace-topic 'zip-verify)])
+         (let ([verify-entry (make-archive-verification-reader #:topic zip-verify)])
            (parameterize ([current-custodian (make-custodian)]
                           [current-zip-entry cdir])
              (dynamic-wind
