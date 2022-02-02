@@ -27,19 +27,32 @@
 (define-type Tex-Info (Pairof Path (List Symbol (Option String) (Listof (U Regexp Byte-Regexp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define find-digimon-typesettings : (->* (Info-Ref) (Boolean) (Listof Tex-Info))
-  (lambda [info-ref [silent #false]]
-    (define maybe-typesettings (info-ref 'typesettings (λ [] null)))
+(define find-digimon-typesettings : (->* (Info-Ref)
+                                         ((Option (-> (Listof Symbol))) #:name Symbol #:fallback (Option Symbol) #:info-id Symbol #:silent? Boolean)
+                                         (Listof Tex-Info))
+  (lambda [#:name [name the-name] #:info-id [symid 'typesettings] #:fallback [?fallback #true] #:silent? [silent? #false]
+           info-ref [list-renderers #false]]
+    (define maybe-typesettings (info-ref symid (λ [] null)))
+    
     (unless (list? maybe-typesettings)
-      (raise-user-error 'info.rkt "malformed `typesettings`: ~a" maybe-typesettings))
+      (raise-user-error 'info.rkt "malformed `~a`: ~a" symid maybe-typesettings))
     
     ((inst filter-map Tex-Info Any)
      (λ [typesetting]
        (if (and (pair? typesetting) (path-string? (car typesetting)))
            (let ([setting.scrbl (build-path (current-directory) (path-normalize/system (car typesetting)))])
              (and (file-exists? setting.scrbl)
-                  (cons setting.scrbl (typeset-filter-renderer (cdr typesetting) silent))))
-           (raise-user-error 'info.rkt "malformed `typesetting`: ~a" typesetting)))
+                  (let-values ([(?renderer ?alt-name dependencies) (typeset-filter-renderer (cdr typesetting) (or list-renderers tex-list-renderers))])
+                    (cond [(and ?renderer) (cons setting.scrbl (list ?renderer ?alt-name dependencies))]
+                          [(and ?fallback)
+                           (let ([fallback-renderer (if (symbol? ?fallback) ?fallback tex-fallback-renderer)])
+                             (when (not silent?)
+                               (dtrace-note #:topic name #:prefix? #false
+                                            "~a ~a: no suitable renderer is found, use `~a` instead"
+                                            name (current-make-phony-goal) fallback-renderer))
+                             (cons setting.scrbl (list fallback-renderer ?alt-name dependencies)))]
+                          [else #false]))))
+           (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
@@ -159,22 +172,18 @@
     (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define typeset-filter-renderer : (-> Any Boolean (List Symbol (Option String) (Listof (U Regexp Byte-Regexp))))
-  (lambda [argv silent]
-    (define candidates : (Listof Symbol) (tex-list-renderers))
+(define typeset-filter-renderer : (-> Any (-> (Listof Symbol)) (Values (Option Symbol) (Option String) (Listof (U Regexp Byte-Regexp))))
+  (lambda [argv list-renderers]
+    (define candidates : (Listof Symbol) (list-renderers))
     (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
     (define maybe-names (filter string? rest))
-    (list (let check : Symbol ([renderers : (Listof Symbol) maybe-renderers])
-            (cond [(null? renderers)
-                   (when (not silent)
-                     (dtrace-note #:topic the-name #:prefix? #false
-                                  "~a ~a: no suitable renderer is found, use `~a` instead"
-                                  the-name (current-make-phony-goal) tex-fallback-renderer))
-                   tex-fallback-renderer]
-                  [(memq (car renderers) candidates) (car renderers)]
-                  [else (check (cdr renderers))]))
-          (and (pair? maybe-names) (car maybe-names))
-          (filter typeset-regexp? rest))))
+
+    (values (let check : (Option Symbol) ([renderers : (Listof Symbol) maybe-renderers])
+              (and (pair? renderers)
+                   (cond [(memq (car renderers) candidates) (car renderers)]
+                         [else (check (cdr renderers))])))
+            (and (pair? maybe-names) (car maybe-names))
+            (filter typeset-regexp? rest))))
 
 (define typeset-note : (-> Symbol (Option String) Path Void)
   (lambda [renderer maybe-name TEXNAME.scrbl]

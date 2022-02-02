@@ -31,7 +31,7 @@
               (filter-map (λ [[readme : Tex-Info]]
                             (and (regexp-match? #px"\\.scrbl$" (car readme))
                                  (cons (cons (car readme) (current-directory)) (cons 0 1))))
-                          (find-digimon-typesettings info-ref #true))))
+                          (find-digimon-typesettings info-ref #:silent? #true))))
 
     (define readmes : (Listof Tex-Sample-Info)
       (append (if (null? root-readmes) null (list (car root-readmes)))

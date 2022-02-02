@@ -3,11 +3,9 @@
 (provide (all-defined-out))
 (provide tex-renderer Tex-Renderer)
 
-(require racket/file)
 (require racket/port)
 (require racket/string)
 
-(require "exec.rkt")
 (require "typeset/renderer.rkt")
 (require "typeset/exec.rkt")
 (require "typeset/tex.rkt")
@@ -62,14 +60,14 @@
                       (tex-exec renderer latex src.tex dest-dir retry)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes) (Option Path))
-  (lambda [tex [contained-in-package? #true] #:extension [ext #".pdf"]]
+(define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes #:dest-dirname String) (Option Path))
+  (lambda [tex [contained-in-package? #true] #:extension [ext #".pdf"] #:dest-dirname [rootdir "typesetting"]]
     (define dirname : (Option Path) (path-only tex))
     (define basename : (Option Path) (file-name-from-path tex))
 
     (and (path? dirname) (path? basename)
          (build-path dirname (car (use-compiled-file-paths))
-                     "typesetting" (path-replace-extension basename ext)))))
+                     rootdir (path-replace-extension basename ext)))))
 
 (define tex-document-extension : (-> Symbol [#:fallback (U Symbol Bytes)] Bytes)
   (lambda[renderer #:fallback [fallback #".pdf"]]
