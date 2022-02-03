@@ -134,7 +134,7 @@
                   (huffman-calculate-length literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
 
     (define (huffman-calculate-dynamic-block-length [hclen : Index]) : Nonnegative-Fixnum
-      (unsafe-fx+ #;(+ 3 5 5 4) 17
+      (unsafe-fx+ 17 #;(+ 3 5 5 4)
 
                   ; codelen codes lengths
                   (unsafe-idx+
@@ -478,7 +478,7 @@
       ;   and the codelen codes will consume at most 19 * 3 = 57 bits, in which case the actual bits would be
       ;   7 + roundup(57 - 7) = 63 bits, which seems safe in a 64-bit system. However, Racket supports big
       ;   integer as the first-class number by reserving the leading 1 or 3 bits (depending on the variant)
-      ;   for distinguishing big integers and mechine integers (a.k.a fixnums).
+      ;   to distinguish big integers and mechine integers (a.k.a fixnums).
       ; Operating bits one by one is usually inefficient, our bitstream facility is therefore in the charge of
       ;   `racket/unsafe/ops`. That is to say, we have to keep in mind that the feeding bits shouldn't cause
       ;   the overflow of fixnum, or the momery would be ruined clandestinely.
@@ -487,8 +487,8 @@
       ; Lucky, the specification says the number of codelen codes must be at least 4, that's a reasonable hint.
       ;
       ;; NOTE
-      ; The above is discussed in a specific case, but a huffman block doesn't have to start at byte boundary.
-      ;   Nonetheless, feeding another 7 bits is always heuristic.
+      ; Above discussion is actually in a specific case, but a huffman block doesn't have to start at the byte
+      ;   boundary. Nonetheless, feeding another 7 bits is always heuristic.
 
       (when (< hclen uplencode) (bytes-fill! codelen-lengths 0)) ; the omited codelen codes are 0s
       (huffman-read-codelen-codes 0 codelen-nbase codelen-nbase) ; load the first 4 codelen codes, it would be at most 3 + roundup(12 - 3) = 18 bits
@@ -514,7 +514,7 @@
             (cond [(< lensym codelen-copy:2) (unsafe-bytes-set! codeword-lengths code-idx lensym) (read-lit+dist-lengths (+ code-idx 1) lensym)]
                   [(= lensym codelen-copy:3) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 3 #b111 codelen-min-match N BFINAL?) 0)]
                   [(= lensym codelen-copy:7) (read-lit+dist-lengths (read-huffman-repetition-times code-idx 7 #x7F codelen-min-match:7 N BFINAL?) 0)]
-                  [else ; codelen-copy:2) ; to repeat previous length 3 - 6 times, determined by next 2 bits
+                  [else ; codelen-copy:2 ; to repeat previous length 3 - 6 times, determined by next 2 bits
                    (let ([idx++ (read-huffman-repetition-times code-idx 2 #b11 codelen-min-match N BFINAL?)])
                      (cond [(= prev-len 0) (throw-check-error /dev/blkin ename "dynamic[~a]: previous length shouldn't be zero" (if (not BFINAL?) #b0 #b1))]
                            [else (let copy-code ([idx : Nonnegative-Fixnum code-idx])
@@ -651,7 +651,7 @@
       
       (when (> idx++ N)
         (throw-check-error /dev/blkin ename
-                           "dynamic[~a]: repeated codes are out of overstep the boundary: ~a (~a left)"
+                           "dynamic[~a]: repeated codes overstep the boundary: ~a (~a left)"
                            (if (not BFINAL?) #b0 #b1) n (- N idx)))
 
       (FIRE-BITS bitsize)

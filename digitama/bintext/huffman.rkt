@@ -596,7 +596,7 @@
         
         (define count : Index
           (let fold-repeated ([rdx : Nonnegative-Fixnum start-idx])
-            (cond [(and (= (unsafe-bytes-ref lengths rdx) copying) (< rdx max-idx)) (fold-repeated (+ rdx 1))]
+            (cond [(and (< rdx max-idx) (= (unsafe-bytes-ref lengths rdx) copying)) (fold-repeated (+ rdx 1))]
                   [else (unsafe-idx- rdx len-idx)])))
         
         (define-values (codelen-sym repeat)
