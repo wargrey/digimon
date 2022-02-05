@@ -7,7 +7,7 @@
 (require digimon/format)
 (require digimon/spec)
 
-(require "../codelen-cases.rkt")
+(require racket/list)
 
 (require (for-syntax racket/base))
 
@@ -16,10 +16,6 @@
 (define t:codewords : (Mutable-Vectorof Index) (make-vector uplitcode))
 (define t:lengths : Bytes (make-bytes uplitcode))
 
-(define codelen-symbols : Bytes (make-bytes (+ uplitcode updistcode)))
-(define codelen-repeats : Bytes (make-bytes (+ uplitcode updistcode)))
-(define codelen-frequencies : (Mutable-Vectorof Index) (make-vector uplencode))
-
 (define basic-freqs : (Vectorof Index) (vector 8 1 1 2 5 10 9 1 0 0 0 0 0 0 0 0 1 3 5))
 (define one-freqs : (Vectorof Index) (vector 0 0 0 4))
 (define two-freqs : (Vectorof Index) (vector 1 0 0 4))
@@ -27,16 +23,13 @@
 (define limited-freqs : (Vectorof Index) (vector 1 2 4 8))
 (define crazy-freqs : (Vectorof Index) (vector 16383 16384 16384 16384))
 (define full-freqs : (Vectorof Index) (make-vector uplitcode 1))
+(define maxbits-freqs : (Vectorof Index) (vector 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 987 1597))
 
 (define basic-lengths : (Listof Byte) (list 3 3 3 3 3 3 4 4 0 0 0 0 0 0 0 0 6 5 4))
 (define extreme-lengths : (Listof Byte) (list 3 3 3 15 15 15))
 (define rfc1951-lengths : (Listof Byte) (list 3 3 3 3 3 2 4 4))
-(define evil-lengths : (Listof Byte) (list 1 2 3
-                                           4 4 4 4 4 4 4 4 4 4
-                                           4 4 4 4 4 4 4 4 4 4
-                                           4 4 4 4 4 4 4 4 4 4
-                                           4 4 4 4 4 4 4 4 4 4
-                                           4 4 4 4 4 4 4 4 4 4))
+(define evil-lengths : (Listof Byte) (list* 1 2 3 (make-list 50 4)))
+(define maxbits-lengths : (Listof Byte) (list 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 16))
 
 (define bad-stored-block : Bytes (bytes #x01 #x05 #x00 #x12 #x34))
 (define good-stored-block : Bytes (bytes-append (bytes #x01 #x05 #x00 #xfa #xff) (string->bytes/utf-8 "Hello")))
@@ -105,47 +98,6 @@
       (zip-entry-copy /dev/zipin /dev/bsout))
 
     (get-output-bytes /dev/bsout)))
-
-(define codelen-repetition : (-> Byte Index Index Byte)
-  (lambda [n idx N]
-    (when (> (+ idx n) N)
-      (error 'codelen-repetition "repeated codes overflow: ~a (~a left)" n (- N idx)))
-    n))
-
-(define codelen-inflate : (-> Index (Listof (U Byte (Pairof Byte Byte))) Bytes)
-  (lambda [N codelen-symbols]
-    (define codeword-lengths : Bytes (make-bytes N 0))
-
-    (let inflate ([code-idx : Nonnegative-Fixnum 0]
-                  [prev-len : Index 0]
-                  [symbols : (Listof (U Byte (Pairof Byte Byte))) codelen-symbols])
-      (when (and (< code-idx N) (pair? symbols))
-        (define-values (len count)
-          (let ([s (car symbols)])
-            (cond [(pair? s) (values (car s) (cdr s))]
-                  [else (values s s)])))
-        
-        (cond [(< len codelen-copy:2) (bytes-set! codeword-lengths code-idx len) (inflate (+ code-idx 1) len (cdr symbols))]
-              [(= len codelen-copy:3) (inflate (+ code-idx (codelen-repetition count code-idx N)) 0 (cdr symbols))]
-              [(= len codelen-copy:7) (inflate (+ code-idx (codelen-repetition count code-idx N)) 0 (cdr symbols))]
-              [else ; codelen-copy:2) ; to repeat previous length 3 - 6 times, determined by next 2 bits
-               (let ([n (codelen-repetition count code-idx N)])
-                 (cond [(= prev-len 0) (error 'codelen-inflate "previous length shouldn't be zero")]
-                       [else (let ([idx++ (+ code-idx n)])
-                               (let copy-code ([idx : Natural code-idx])
-                                 (cond [(< idx idx++) (bytes-set! codeword-lengths idx prev-len) (copy-code (+ idx 1))]
-                                       [else (inflate idx++ prev-len (cdr symbols))])))]))])))
-
-    codeword-lengths))
-
-(define codelen-deflate : (-> Bytes (Listof (U Byte (Pairof Byte Byte))))
-  (lambda [lengths]
-    (huffman-dynamic-lengths-deflate! lengths (bytes-length lengths) codelen-symbols codelen-repeats codelen-frequencies)
-    
-    (for/list : (Listof (U Byte (Pairof Byte Byte))) ([s (in-bytes codelen-symbols)]
-                                                      [r (in-bytes codelen-repeats)])
-      (cond [(< s codelen-copy:2) s]
-            [else (cons s r)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-behavior (it-will-extract-symbol-from alphabet msb-code symbol-code symbol-bits)
@@ -250,14 +202,25 @@
                                #:before (λ [] (huffman-frequencies->length-limited-tree full-freqs t:codewords t:lengths 15)) #:do
                                (it "should have lengths of 8 or 9 for all symbols" #:do
                                    (for ([idx (in-range uplitcode)])
-                                     (expect-member (bytes-ref t:lengths idx) (list 8 9))))))
+                                     (expect-member (bytes-ref t:lengths idx) (list 8 9)))))
+
+                      (context ["when provided with maxbits frequencies ~a" maxbits-freqs] #:do
+                               #:before (λ [] (huffman-frequencies->length-limited-tree maxbits-freqs t:codewords t:lengths 16)) #:do
+                               (it-check-length t:lengths 0  16)
+                               (it-check-length t:lengths 1  16)
+                               (it-check-length t:lengths 16  1)
+
+                               (it-check-codeword t:codewords 0  #x7fff)
+                               (it-check-codeword t:codewords 1  #xffff)
+                               (it-check-codeword t:codewords 16 #x0)))
             (describe "alphabet" #:do
                       (context ["when provided with lengths ~a" basic-lengths] #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes basic-lengths))) #:do
                                (it-will-extract-symbol-from t:alphabet  #b000     0  3)
                                (it-will-extract-symbol-from t:alphabet  #b011     3  3)
-                               (it-will-extract-symbol-from t:alphabet  #b11110   17 5)
                                (it-will-extract-symbol-from t:alphabet  #b111110  16 6)
+                               (it-will-extract-symbol-from t:alphabet  #b11110   17 5)
+                               (it-will-extract-symbol-from t:alphabet  #b1110    18 4)
                                (it-will-extract-nothing-from t:alphabet #b1111111    7))
                      
                       (context ["when provided with lengths ~a" rfc1951-lengths] #:do
@@ -270,6 +233,18 @@
                                (it-will-extract-symbol-from t:alphabet #b00   5 2)
                                (it-will-extract-symbol-from t:alphabet #b1110 6 4)
                                (it-will-extract-symbol-from t:alphabet #b1111 7 4))
+
+                      (context ["when provided with lengths ~a" maxbits-lengths] #:do
+                               #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes maxbits-lengths))) #:do
+                               (it-will-extract-symbol-from t:alphabet #b0                 0  1)
+                               (it-will-extract-symbol-from t:alphabet #b10                1  2)
+                               (it-will-extract-symbol-from t:alphabet #b110               2  3)
+                               (it-will-extract-symbol-from t:alphabet #b1110              3  4)
+                               (it-will-extract-symbol-from t:alphabet #b11110             4  5)
+                               (it-will-extract-symbol-from t:alphabet #b111110            5  6)
+                               (it-will-extract-symbol-from t:alphabet #b1111110           6  7)
+                               (it-will-extract-symbol-from t:alphabet #b1111111111111110 15 16)
+                               (it-will-extract-symbol-from t:alphabet #b1111111111111111 16 16))
                      
                       (context ["when provided with long lengths ~a" extreme-lengths] #:do
                                #:before (λ [] (huffman-alphabet-canonicalize! t:alphabet (list->bytes extreme-lengths))) #:do
@@ -436,15 +411,7 @@
                          (expect-no-exception
                           (λ [] (expect-bytes= (inflate deflated-dist0)
                                                (bytes 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
-                                                      15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0)))))))
-
-  (describe "codelen codes" #:do
-            (for/spec ([testcase (in-list codelen-testcases)])
-              (it ["~s" (car testcase)] #:do
-                  (let ([N (bytes-length (car testcase))]
-                        [encoded (codelen-deflate (car testcase))])
-                    (expect-bytes= (car testcase) (codelen-inflate N (cdr testcase)))
-                    (expect-bytes= (car testcase) (codelen-inflate N encoded)))))))
+                                                      15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

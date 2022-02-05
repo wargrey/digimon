@@ -30,7 +30,6 @@
 (define tree-run : (-> Bytes Void) ; WARNING: the heap is 0-based
   (lambda [txt]
     (define rsize : Index (bytes-length txt))
-    (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define frequencies : (Mutable-Vectorof Index) (make-vector uplitcode 0))
     (define lengths : Bytes (make-bytes uplitcode 0))
     (define huffman-tree : (Mutable-Vectorof Index) (make-vector (+ uplitcode uplitcode) 0))

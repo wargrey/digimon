@@ -28,16 +28,14 @@
 (provide (all-defined-out) force)
 (provide (all-from-out "table/huffman.rkt"))
 
-(require (for-syntax racket/base))
-
 (require racket/promise)
-(require racket/math)
 
 (require digimon/bitstream)
 
 (require "table/huffman.rkt")
-
 (require "../unsafe/ops.rkt")
+
+(require (for-syntax racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define window-ibits : Positive-Byte 15)      ; bits of the window size that at least 32K for reading zip
@@ -576,50 +574,53 @@
                                                       (unsafe-bytes-ref huffman-distance-extra-bits distance)))))
                 total))))))
 
-(define huffman-dynamic-lengths-deflate! : (-> Bytes Index Bytes Bytes (Mutable-Vectorof Index) Void)
-  (lambda [lengths N symbols repeats frequencies]
-    (bytes-fill! symbols 0) ; if data in `symbols` are clean, dirty data in `repeats` wouldn't be harmful
-    (vector-fill! frequencies 0)
+(define huffman-dynamic-lengths-deflate! : (case-> [Bytes Index Index Bytes Bytes (Mutable-Vectorof Index) -> Index]
+                                                   [Bytes Index Bytes Bytes (Mutable-Vectorof Index) -> Index])
+  (case-lambda
+    [(lengths hlit hdist symbols repeats frequencies)
+     (huffman-dynamic-lengths-deflate! lengths (unsafe-idx+ hlit hdist) symbols repeats frequencies)]
+    [(lengths N symbols repeats frequencies)
+     (bytes-fill! symbols 0) ; if `symbols` are clean, dirty `repeats` wouldn't be harmful
+     (vector-fill! frequencies 0)
 
-    (let run-length ([len-idx : Nonnegative-Fixnum 0]
-                     [sym-idx : Index 0])
-      (when (< len-idx N)
-        (define self-length : Byte (unsafe-bytes-ref lengths len-idx))
-        
-        (define-values (copying start-idx max-idx)
-          (cond [(= self-length 0) (values 0 (+ len-idx 1) (unsafe-fxmin N (+ len-idx codelen-max-match:7)))]
-                [(= len-idx 0) (values self-length #| <= any non-0 is okay |# len-idx len-idx)]
-                [else (let ([p-length (unsafe-bytes-ref lengths (unsafe-idx- len-idx 1))])
-                        (if (= p-length 0)
-                            (values self-length #| <= any non-0 is okay |# len-idx len-idx)
-                            (values p-length len-idx (unsafe-fxmin N (+ len-idx codelen-max-match:2)))))]))
-        
-        (define count : Index
-          (let fold-repeated ([rdx : Nonnegative-Fixnum start-idx])
-            (cond [(and (< rdx max-idx) (= (unsafe-bytes-ref lengths rdx) copying)) (fold-repeated (+ rdx 1))]
-                  [else (unsafe-idx- rdx len-idx)])))
-        
-        (define-values (codelen-sym repeat)
-          (cond [(>= count codelen-min-match:7)
-                 (unsafe-bytes-set! symbols sym-idx codelen-copy:7)
-                 (unsafe-bytes-set! repeats sym-idx count)
-                 (values codelen-copy:7 count)]
-                [(< count codelen-min-match)
-                 (unsafe-bytes-set! symbols sym-idx self-length)
-                 (values self-length 1)]
-                [(= copying 0)
-                 (unsafe-bytes-set! symbols sym-idx codelen-copy:3)
-                 (unsafe-bytes-set! repeats sym-idx count)
-                 (values codelen-copy:3 count)]
-                [else ; repeating previous length
-                 (unsafe-bytes-set! symbols sym-idx codelen-copy:2)
-                 (unsafe-bytes-set! repeats sym-idx count)
-                 (values codelen-copy:2 count)]))
-
-        (unsafe-vector*-set! frequencies codelen-sym
-                             (unsafe-idx+ (unsafe-vector*-ref frequencies codelen-sym) 1))
-        
-        (run-length (+ len-idx repeat) (unsafe-idx+ sym-idx 1))))))
+     (let run-length ([len-idx : Nonnegative-Fixnum 0]
+                      [sym-idx : Index 0])
+       (cond [(>= len-idx N) sym-idx]
+             [else (let ([self-length (unsafe-bytes-ref lengths len-idx)])
+                     (define-values (copying start-idx max-idx)
+                       (cond [(= self-length 0) (values 0 (+ len-idx 1) (unsafe-fxmin N (+ len-idx codelen-max-match:7)))]
+                             [(= len-idx 0) (values self-length #| <= any non-0 is okay |# len-idx len-idx)]
+                             [else (let ([p-length (unsafe-bytes-ref lengths (unsafe-idx- len-idx 1))])
+                                     (if (= p-length 0)
+                                         (values self-length #| <= any non-0 is okay |# len-idx len-idx)
+                                         (values p-length len-idx (unsafe-fxmin N (+ len-idx codelen-max-match:2)))))]))
+                     
+                     (define repeat : Index
+                       (let fold-repeated ([rdx : Nonnegative-Fixnum start-idx])
+                         (cond [(and (< rdx max-idx) (= (unsafe-bytes-ref lengths rdx) copying)) (fold-repeated (+ rdx 1))]
+                               [else (unsafe-idx- rdx len-idx)])))
+                     
+                     (define-values (codelen-sym step)
+                       (cond [(>= repeat codelen-min-match:7)
+                              (unsafe-bytes-set! symbols sym-idx codelen-copy:7)
+                              (unsafe-bytes-set! repeats sym-idx repeat)
+                              (values codelen-copy:7 repeat)]
+                             [(< repeat codelen-min-match)
+                              (unsafe-bytes-set! symbols sym-idx self-length)
+                              (values self-length 1)]
+                             [(= copying 0)
+                              (unsafe-bytes-set! symbols sym-idx codelen-copy:3)
+                              (unsafe-bytes-set! repeats sym-idx repeat)
+                              (values codelen-copy:3 repeat)]
+                             [else ; repeating previous length
+                              (unsafe-bytes-set! symbols sym-idx codelen-copy:2)
+                              (unsafe-bytes-set! repeats sym-idx repeat)
+                              (values codelen-copy:2 repeat)]))
+                     
+                     (unsafe-vector*-set! frequencies codelen-sym
+                                          (unsafe-idx+ (unsafe-vector*-ref frequencies codelen-sym) 1))
+                     
+                     (run-length (+ len-idx step) (unsafe-idx+ sym-idx 1)))]))]))
 
 (define huffman-dynamic-codelen-effective-count : (-> Bytes Index)
   (lambda [codelen-lengths]
