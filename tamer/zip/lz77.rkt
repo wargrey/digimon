@@ -44,7 +44,8 @@
 
    [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
    [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]
-   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (huffman only)"]]
+   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (huffman only)"]
+   [(#\h)   #:=> lz77-hexdump                                   "dump the hexdecicaml codes of the content"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
@@ -53,6 +54,7 @@
 (define lz77-brief : (Parameterof Boolean) (make-parameter #false))
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
 (define lz77-dynamic : (Parameterof Boolean) (make-parameter #false))
+(define lz77-hexdump : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-run : LZ77-Run
@@ -139,14 +141,16 @@
     (if (file-exists? src.txt)
         (printf "~a [~a]~n" (simple-form-path src.txt) (~size (file-size src.txt)))
         (printf "~a [~a]~n" src.txt (~size (string-utf-8-length src.txt))))
-    
-    (run (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))
-         strategies
-         (or (lz77-flags-m options) lz77-default-min-match)
-         (or (lz77-flags-F options) lz77-default-farthest)
-         (or (lz77-flags-f options) 0)
-         (or (lz77-flags-W options) 12)
-         (or (lz77-flags-M options) 1))))
+
+    (let ([txt (if (file-exists? src.txt) (file->bytes src.txt) (string->bytes/utf-8 src.txt))])
+      (when (lz77-verbose) (displayln txt))
+      
+      (run txt strategies
+           (or (lz77-flags-m options) lz77-default-min-match)
+           (or (lz77-flags-F options) lz77-default-farthest)
+           (or (lz77-flags-f options) 0)
+           (or (lz77-flags-W options) 12)
+           (or (lz77-flags-M options) 1)))))
 
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
   (lambda [argument-list [run lz77-run]]

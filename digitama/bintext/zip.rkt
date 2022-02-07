@@ -246,7 +246,7 @@
      ((default-archive-progress-topic-resolver) /dev/zipin) (zip-directory-filename cdir) (default-archive-entry-progress-handler) csize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-entry-copy : (->* (Input-Port Output-Port)
+(define zip-entry-copy : (->* (Input-Port (U Output-Port (Listof Output-Port)))
                               (#:close-input-port? Boolean #:flush-output-port? Boolean (U Bytes Index False))
                               (Values Natural Index))
   (lambda [#:close-input-port? [close-in? #false] #:flush-output-port? [flush-out? #true]
@@ -256,21 +256,29 @@
             [(exact-positive-integer? pool0) (values (make-bytes pool0 0) pool0)]
             [else (values (make-bytes 4096 0) 4096)]))
 
+    (define write-bytes-from-pool : (-> Nonnegative-Integer (U Index Void))
+      (if (output-port? /dev/zipout)
+          (λ [[read-size : Nonnegative-Integer]] (write-bytes pool /dev/zipout 0 read-size))
+          (λ [[read-size : Nonnegative-Integer]] (for ([zipout (in-list /dev/zipout)]) (write-bytes pool zipout 0 read-size)))))
+
     (let copy-entry/checksum ([consumed : Natural 0]
                               [crc32 : Index 0])
       (define read-size : (U EOF Nonnegative-Integer Procedure) (read-bytes-avail! pool /dev/zipin 0 pool-size))
       
       (cond [(exact-positive-integer? read-size)
-             (write-bytes pool /dev/zipout 0 read-size)
+             (write-bytes-from-pool read-size)
              (copy-entry/checksum (+ consumed read-size) (checksum-crc32* pool crc32 0 read-size))]
             [(eof-object? read-size)
-             (when (and flush-out?) (flush-output /dev/zipout))
+             (when (and flush-out?)
+               (if (list? /dev/zipout)
+                   (for-each flush-output /dev/zipout)
+                   (flush-output /dev/zipout)))
              (when (and close-in?) (close-input-port /dev/zipin))
              (values consumed crc32)]
             [else ; deadcode. skip special values
              (copy-entry/checksum consumed crc32)]))))
 
-(define zip-entry-copy/trap : (->* (Input-Port Output-Port Natural Index) ((U Bytes Index False)) (U String True))
+(define zip-entry-copy/trap : (->* (Input-Port (U Output-Port (Listof Output-Port)) Natural Index) ((U Bytes Index False)) (U String True))
   (lambda [/dev/zipin /dev/zipout rSize CRC32 [pool0 4096]]
     (with-handlers ([exn:fail? exn-message])
       (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout pool0)])

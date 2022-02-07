@@ -580,7 +580,7 @@
     [(lengths hlit hdist symbols repeats frequencies)
      (huffman-dynamic-lengths-deflate! lengths (unsafe-idx+ hlit hdist) symbols repeats frequencies)]
     [(lengths N symbols repeats frequencies)
-     (bytes-fill! symbols 0) ; if `symbols` are clean, dirty `repeats` wouldn't be harmful
+     (bytes-fill! symbols 0) ; if `symbol`s are clean, dirty `repeat`s wouldn't be harmful
      (vector-fill! frequencies 0)
 
      (let run-length ([len-idx : Nonnegative-Fixnum 0]

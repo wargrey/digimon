@@ -190,7 +190,7 @@
                                [(< start++ end) (push-bits (unsafe-bytes-ref bs start++) 8 #xFF) (align (add1 start++) r)]))]))]))
 
     (define send-bits : (-> [#:windup? Boolean] Natural)
-      (lambda [#:windup? [windup? #false] #:save? [save? #false]]
+      (lambda [#:windup? [windup? #false]]
         (define count : Natural
           (cond [(<= tank-payload 0) pre-sent]
                  [else (begin0 (+ pre-sent (flush-bits tank-payload))
@@ -207,7 +207,10 @@
                               [(> pwidth-- 0)
                                (write-byte payload-- /dev/bsout)
                                (windup 0 0 (add1 count++))]
-                              [else (set!-values (payload pwidth) (values 0 0)) count++]))]))
+                              [else ; finally
+                               (set!-values (payload pwidth) (values 0 0))
+                               (flush-output /dev/bsout)
+                               count++]))]))
 
         (when (> pre-sent 0) (set! pre-sent 0))
         (set! aggregate (+ aggregate sent))

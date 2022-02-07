@@ -3,6 +3,7 @@
 (require digimon/checksum)
 (require digimon/dtrace)
 (require digimon/format)
+(require digimon/port)
 (require digimon/debug)
 
 (require digimon/digitama/bintext/zip)
@@ -44,7 +45,9 @@
                    
                    (let ([/dev/zipin (open-input-deflated-block (open-input-bytes (get-output-bytes /dev/bsout #true)) #false #true #:name desc)])
                      (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e))])
-                       (let ([?errmsg (zip-entry-copy/trap /dev/zipin /dev/bsout rsize (checksum-crc32 txt 0 rsize))])
+                       (let* ([/dev/hexout (open-output-hexdump (current-output-port) #:width 32 #:binary? #false #:decimal-cursor? #false)]
+                              [out-ports (if (lz77-hexdump) (list /dev/bsout /dev/hexout) /dev/bsout)]
+                              [?errmsg (zip-entry-copy/trap /dev/zipin out-ports rsize (checksum-crc32 txt 0 rsize))])
                          (when (string? ?errmsg) (dtrace-error ?errmsg))
                          (custodian-shutdown-all (current-custodian)))))
                    
