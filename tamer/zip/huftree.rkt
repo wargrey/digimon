@@ -102,12 +102,21 @@
 
 (define display-codeword : (-> (Vectorof Index) Bytes Void)
   (lambda [codewords lengths]
-    (for ([codeword (in-vector codewords)]
+    (define codeword+lengths : (Listof (List Index Index Byte))
+      ((inst sort (List Index Index Byte) Index)
+       (for/list : (Listof (List Index Index Byte))
+         ([codeword (in-vector codewords)]
           [bitsize (in-bytes lengths)]
-          [symbol (in-naturals)]
           #:when (> bitsize 0))
+         (list (bits-reverse-uint16 codeword bitsize) codeword bitsize))
+       <
+       #:key car))
+    
+    (for ([codeword+length (in-list codeword+lengths)]
+          [symbol (in-naturals)])
+      (define-values (drowedoc codeword bitsize) (values (car codeword+length) (cadr codeword+length) (caddr codeword+length)))
       (displayln (list (codesymbol->visual-value symbol)
-                       (~binstring (bits-reverse-uint16 codeword bitsize) bitsize)
+                       (~binstring drowedoc bitsize)
                        '=> (~binstring codeword bitsize))))))
 
 (define display-alphabet : (-> Huffman-Alphabet Void)
