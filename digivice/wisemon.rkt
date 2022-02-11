@@ -45,8 +45,13 @@
                      '(all prove typeset cc dist mostlyclean clean distclean maintainer-clean))]
                  #:when (hash-has-key? phonies p))
         (format "    ~a : ~a" p (wisemon-phony-description (hash-ref phonies p)))))
+    (define foreign-helps : (Listof String)
+      (for/list : (Listof String) ([p (in-hash-values (wisemon-list-foreign-phony-goals))])
+        (format "    ~a : ~a" (wisemon-phony-name p) (wisemon-phony-description p))))
     
-    (display-wisemon-flags #:more-ps (cons "  where <phony-target> is one of" phony-helps)
+    (display-wisemon-flags #:more-ps (cons "  where <phony-target> is one of"
+                                           (cond [(null? foreign-helps) phony-helps]
+                                                 [else (append phony-helps (list " ") foreign-helps)]))
                            #:exit retcode)))
 
 (define wisemon-goal-partition : (-> (Listof String) (Values (Pairof Wisemon-Phony (Listof Wisemon-Phony)) (Listof Path)))
