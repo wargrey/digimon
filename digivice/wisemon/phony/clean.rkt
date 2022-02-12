@@ -12,19 +12,25 @@
 (require "../path.rkt")
 (require "../spec.rkt")
 
+(require "../../../digitama/exec.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make~clean : Make-Phony
   (lambda [digimon info-ref]
     (define submakes : (Listof Path) (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
     (define px.compiled : PRegexp (pregexp (format "/~a(?![^/])/?" (car (use-compiled-file-paths)))))
+    (define px.compiled/mostly : PRegexp (pregexp (format "/~a(?![^/])/.+[.](dep|zo)" (car (use-compiled-file-paths)))))
     (define clean-phony : Symbol (current-make-phony-goal))
-    
-    (wisemon-make (cons (let ([compiled (find-digimon-files (λ [[file : Path]] (regexp-match? px.compiled file)) (current-directory) #:search-compiled? #true)])
-                          (wisemon-path->clean-spec (reverse #| ensure directories second |# compiled) clean-phony))
-                        (for/list : Wisemon-Specification ([spec (in-list (make-implicit-dist-specs info-ref))]
-                                                           #:when (wisemon-spec-target-exists? spec))
-                          (wisemon-spec->clean-spec spec clean-phony)))
-                  null #true)
+
+    (make-do-clean 
+     (if (eq? clean-phony 'mostlyclean)
+         (list (let ([compiled (find-digimon-files (λ [[file : Path]] (regexp-match? px.compiled/mostly file)) (current-directory) #:search-compiled? #true)])
+                 (wisemon-path->clean-spec (reverse #| ensure directories second |# compiled) clean-phony)))
+         (cons (let ([compiled (find-digimon-files (λ [[file : Path]] (regexp-match? px.compiled file)) (current-directory) #:search-compiled? #true)])
+                 (wisemon-path->clean-spec (reverse #| ensure directories second |# compiled) clean-phony))
+               (for/list : Wisemon-Specification ([spec (in-list (make-implicit-dist-specs info-ref))]
+                                                  #:when (wisemon-spec-target-exists? spec))
+                 (wisemon-spec->clean-spec spec clean-phony)))))
     
     (when (memq clean-phony '[distclean maintainer-clean])
       (for ([submake (in-list submakes)])
@@ -50,9 +56,14 @@
               (cond [(wisemon-spec? maybe-spec) (append clean-specs (list maybe-spec))]
                     [(list? maybe-spec) (append clean-specs (filter wisemon-spec? maybe-spec))]
                     [else clean-specs])))
-          (wisemon-make (for/list ([spec (in-list clean-specs)])
-                          (wisemon-spec->clean-spec spec clean-phony))
-                        null #true))))))
+          (make-do-clean (for/list ([spec (in-list clean-specs)])
+                          (wisemon-spec->clean-spec spec clean-phony))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-do-clean : (->* (Wisemon-Specification) (Symbol) Void)
+  (lambda [clean-specs [operation 'clean]]
+    (for ([path (in-list (wisemon-targets-flatten clean-specs))])
+      (fg-recon-rm operation path))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mostlyclean-phony-goal : Wisemon-Phony
