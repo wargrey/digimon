@@ -24,6 +24,7 @@
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"
   #:once-each
   [[(#\B always-make)         #:=> make-always-run                       "Unconditionally make all targets"]
+   [(#\C directory)           #:=> cmdopt-string->path DIR #: Path       "Change to directory ~1 before making"]
    [(#\i ignore-errors)       #:=> (λ _ (make-errno 0))                  "Do not tell shell there are errors"]
    [(#\n dry-run recon)       #:=> make-dry-run                          "Don't actually run any commands; just print them [Except *.rkt]"]
    [(#\s slient quiet)        #:=> (λ _ (current-output-port /dev/null)) "Just make and only display errors"]
@@ -104,11 +105,10 @@
       (when (and jobs (> jobs 0))
         (parallel-workers jobs)))
 
-    (make-assume-oldfiles (wisemon-flags-old-file options))
-    (make-assume-newfiles (wisemon-flags-new-file options))
-
-    (parameterize ([current-logger /dev/dtrace])
-      (define digimons (collection-info))
+    (parameterize ([make-assume-oldfiles (wisemon-flags-old-file options)]
+                   [make-assume-newfiles (wisemon-flags-new-file options)]
+                   [current-logger /dev/dtrace])
+      (define digimons (collection-info (or (wisemon-flags-directory options) (current-directory))))
       (if (not digimons)
           (let ([retcode (make-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: not in a digimon zone")))

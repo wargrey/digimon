@@ -69,6 +69,14 @@
                 [(regexp-match? re ts) (append targets (list ts))]
                 [else targets])))))
 
+(define wisemon-spec-target-exists? : (->* (Wisemon-Spec) (Boolean) Boolean)
+  (lambda [spec [must-all? #false]]
+    (define targets : Wisemon-Targets (wisemon-spec-target spec))
+
+    (cond [(path? targets) (file-exists? targets)]
+          [(not must-all?) (ormap file-exists? targets)]
+          [else (andmap file-exists? targets)])))
+
 (define wisemon-spec->clean-spec : (->* (Wisemon-Spec) (Symbol) Wisemon-Spec)
   (lambda [spec [operation 'clean]]
     (wisemon-path->clean-spec (wisemon-spec-target spec) operation)))

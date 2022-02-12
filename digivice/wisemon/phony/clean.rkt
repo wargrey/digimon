@@ -21,7 +21,8 @@
     
     (wisemon-make (cons (let ([compiled (find-digimon-files (λ [[file : Path]] (regexp-match? px.compiled file)) (current-directory) #:search-compiled? #true)])
                           (wisemon-path->clean-spec (reverse #| ensure directories second |# compiled) clean-phony))
-                        (for/list : Wisemon-Specification ([spec (in-list (make-implicit-dist-specs info-ref))])
+                        (for/list : Wisemon-Specification ([spec (in-list (make-implicit-dist-specs info-ref))]
+                                                           #:when (wisemon-spec-target-exists? spec))
                           (wisemon-spec->clean-spec spec clean-phony)))
                   null #true)
     
