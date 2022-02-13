@@ -127,8 +127,8 @@
            (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
                  [else (build-path (native-rootdir/compiled c) bname)])))))
 
-(define c-include-headers : (-> Path-String (Listof Path))
-  (lambda [c]
+(define c-include-headers : (->* (Path-String) (#:source-recursive? Boolean) (Listof Path))
+  (lambda [c #:source-recursive? [recur? #false]]
     (let include.h ([entry : Path (if (string? c) (string->path c) c)]
                     [memory : (Listof Path) null])
       (define dirname : (Option Path) (path-only entry))
@@ -136,10 +136,15 @@
             [else (foldl (λ [[include : Bytes] [memory : (Listof Path)]] : (Listof Path)
                            (define maybe-header : (Option (Pairof Bytes (Listof (Option Bytes)))) (regexp-match #px#"\"(.+?)\"" include))
                            (cond [(or (not maybe-header) (null? (cdr maybe-header)) (not (cadr maybe-header))) memory]
-                                 [else (let ([subsrc (simplify-path (build-path dirname (bytes->string/utf-8 (cadr maybe-header))))])
-                                         (cond [(member subsrc memory) memory]
-                                               [(file-exists? subsrc) (include.h subsrc (append memory (list subsrc)))]
-                                               [else #| the including files might already been commented out |# memory]))]))
+                                 [else (let ([nested.h (simplify-path (build-path dirname (bytes->string/utf-8 (cadr maybe-header))))])
+                                         (cond [(member nested.h memory) memory]
+                                               [(not (file-exists? nested.h)) #| the including files might already been commented out |# memory]
+                                               [else (let ([memory++ (include.h nested.h (append memory (list nested.h)))])
+                                                       (cond [(not recur?) memory++]
+                                                             [else ; for executables and shared obejcts
+                                                              (let ([nested.c (c-header->maybe-source nested.h)])
+                                                                (cond [(not nested.c) memory++]
+                                                                      [else (include.h nested.c memory++)]))]))]))]))
                          memory
                          (call-with-input-file* entry
                            (λ [[/dev/stdin : Input-Port]]
@@ -158,7 +163,7 @@
 (define c-headers->files : (->* ((Listof Path)) ((Option (-> Path (Option Path)))) (Listof Path))
   (lambda [deps [src->file #false]]
     (remove-duplicates
-     (filter-map (λ [[h : Path]] (c-header->maybe-source h src->file))
+     (filter-map (λ [[h : Path]] (c-header->maybe-source h))
                  deps))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

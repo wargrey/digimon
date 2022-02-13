@@ -47,6 +47,7 @@
                   [else (case system
                           [(macosx) (list #| MH_BUNDLE file type |# "-bundle")]
                           [else (list "-fPIC" "-shared")])])
+            (if (not cpp?) (list "-std=c17") (list "-std=c++17"))
             (case system
               [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
               [(illumos) (list "-m64")]

@@ -5,9 +5,9 @@
 (require typed/setup/getinfo)
 
 (require racket/fixnum)
-(require racket/path)
-(require racket/match)
+(require racket/string)
 (require racket/symbol)
+(require racket/path)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct place-message ([stream : Any]) #:prefab)
@@ -22,10 +22,10 @@
 (define-values (digimon-waketime digimon-partner digimon-system)
   (values (current-milliseconds)
           (or (getenv "USER") (getenv "LOGNAME") #| daemon |# "root")
-          (match (path->string (system-library-subpath #false))
-            [(pregexp #px"solaris") 'illumos]
-            [(pregexp #px"linux") 'linux]
-            [_ (system-type 'os)])))
+          (let ([libpath (path->string (system-library-subpath #false))])
+            (cond [(regexp-match? #px"solaris" libpath) 'illumos]
+                  [(regexp-match? #px"linux" libpath) 'linux]
+                  [else (system-type 'os)]))))
 
 (define #%info : (->* (Symbol) ((-> Any)) Any)
   (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
@@ -70,3 +70,8 @@
 (define digivice-path : (-> (U String Bytes) (U Symbol Path-String) Path-String * Path)
   (lambda [suffix path . paths]
     (build-path (apply digimon-path path paths) (path-add-extension (current-digivice) suffix))))
+
+(define digimon-stone-path? : (-> Path-String Boolean)
+  (lambda [path]
+    (string-prefix? (path->string (simple-form-path path))
+                    (path->string (digimon-path 'stone)))))

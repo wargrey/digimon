@@ -36,13 +36,12 @@
 (define make-c-library-specs : (-> Info-Ref Regexp Boolean (Listof Path) Wisemon-Specification)
   (lambda [info-ref px.ext cpp? ex-shared-objects]
     (define rootdir (path->string (digimon-path 'zone)))
-    (define stone-dir (path->string (digimon-path 'stone)))
     (define configs (#%info 'ffi-toolchain-config))
     (define-values (macros includes libpaths libraries) (c-configuration-filter (if (list? configs) configs null) digimon-system))
 
     (for/fold ([specs : Wisemon-Specification null])
               ([c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))])
-      (define contained-in-package?  : Boolean (string-prefix? (path->string c) stone-dir))
+      (define contained-in-package?  : Boolean (digimon-stone-path? c))
       (define ffi? : Boolean (file-exists? (path-replace-extension c #".rkt")))
       (define deps.h : (Listof Path) (c-include-headers c))
       (define c.o : Path (assert (c-source->object-file c)))

@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 
 (require racket/list)
-(require racket/path)
 
 (require "../../../cc.rkt")
 
@@ -54,17 +53,17 @@
     (for/fold ([specs : Wisemon-Specification null])
               ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)?$" file)) (current-directory)))])
       (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
-      (define incs.h : (Listof Path) (c-include-headers dep.c))
+      (define deps.h : (Listof Path) (c-include-headers dep.c))
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
       
-      (list* (wisemon-spec dep++.o #:^ (cons dep.c incs.h)
+      (list* (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
                            #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose)
                                           #:includes includes #:macros macros
                                           dep.c dep++.o))
              
              (cond [(not cpp-file?)
                     (let ([dep.o (assert (c-source->object-file dep.c 'c))])
-                      (cons (wisemon-spec dep.o #:^ (cons dep.c incs.h)
+                      (cons (wisemon-spec dep.o #:^ (cons dep.c deps.h)
                                           #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose)
                                                          #:includes includes #:macros macros
                                                          dep.c dep.o))
@@ -81,10 +80,11 @@
       (define native : Path (assert (c-source->executable-file native.c #false (cc-launcher-info-name info))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang)))
-      (define deps.h : (Listof Path) (c-include-headers native.c))
-      (define objects : (Listof Path) (cons native.o (c-headers->files deps.h (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
+      (define objects : (Listof Path)
+        (cons native.o (c-headers->files (c-include-headers native.c #:source-recursive? #true)
+                                         (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
-      (list* (wisemon-spec native.o #:^ (cons native.c deps.h)
+      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
@@ -100,7 +100,7 @@
     (define launchers : (Listof CC-Launcher-Name) (find-digimon-native-launcher-names info-ref))
     (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs))
     (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs))
-    
+
     (wisemon-compile (current-directory) digimon info-ref)
     (wisemon-make (append depcc-specs cc-specs)
                   (let ([natives (wisemon-targets-flatten cc-specs)]
