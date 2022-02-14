@@ -102,12 +102,12 @@
     (when again? (compile-directory pwd info-ref (add1 round)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define racket-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
+(define scribble-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
              (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
              (cond [(member subsrc memory) memory]
-                   [else (racket-smart-dependencies subsrc memory)]))
+                   [else (scribble-smart-dependencies subsrc memory)]))
            (append memory (list (if (string? entry) (string->path entry) entry)))
            (call-with-input-file* entry
              (λ [[rktin : Input-Port]]

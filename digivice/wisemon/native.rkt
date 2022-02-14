@@ -21,10 +21,8 @@
 ;       3. a header file only has one implementing source file
 ;
 ;     But, even if those assumptions are not true, foreign code would also work just fine
-;       as long as the dependent symbols of a shared object are manually loaded into the process
+;       as long as the dependent symbols of shared objects are manually loaded into the process
 ;       by `require`ing corresponding racket files that define the FFI symbols.
-;
-;     Some modeline rules in header files should be set to drop those assumptions
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-native-library-specs : (->* (Info-Ref) ((Listof Path)) Wisemon-Specification)

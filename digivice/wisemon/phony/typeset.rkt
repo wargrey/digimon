@@ -73,7 +73,7 @@
       (define style.tex (build-path this-stone "style.tex"))
       (define load.tex (build-path this-stone "load.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
-      (define scrbl-deps (racket-smart-dependencies TEXNAME.scrbl))
+      (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
       (define stone-deps (if (pair? regexps) (find-digimon-files (make-regexps-filter regexps) local-stone) null))
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
       
