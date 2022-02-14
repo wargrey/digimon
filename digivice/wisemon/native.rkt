@@ -43,16 +43,15 @@
               ([c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? px.ext file)) (current-directory)))])
       (define contained-in-package?  : Boolean (digimon-stone-path? c))
       (define ffi? : Boolean (file-exists? (path-replace-extension c #".rkt")))
-      (define deps.h : (Listof Path) (c-include-headers c))
       (define c.o : Path (assert (c-source->object-file c)))
       
-      (list* (wisemon-spec c.o #:^ (cons c deps.h)
+      (list* (wisemon-spec c.o #:^ (cons c (c-include-headers c))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose)
                                           #:includes (cons rootdir includes) #:macros macros
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
-                    (let ([objects (cons c.o (c-headers->files deps.h c-source->object-file))]
+                    (let ([objects (cons c.o (c-headers->files (c-include-headers c #:check-source? #true) c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects
                                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose) #:subsystem #false

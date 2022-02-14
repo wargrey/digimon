@@ -81,7 +81,7 @@
 
       (define native.o : Path (assert (c-source->object-file native.c lang)))
       (define objects : (Listof Path)
-        (cons native.o (c-headers->files (c-include-headers native.c #:source-recursive? #true)
+        (cons native.o (c-headers->files (c-include-headers native.c #:check-source? #true)
                                          (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c))

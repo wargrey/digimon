@@ -127,8 +127,8 @@
            (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
                  [else (build-path (native-rootdir/compiled c) bname)])))))
 
-(define c-include-headers : (->* (Path-String) (#:source-recursive? Boolean) (Listof Path))
-  (lambda [c #:source-recursive? [recur? #false]]
+(define c-include-headers : (->* (Path-String) (#:check-source? Boolean) (Listof Path))
+  (lambda [c #:check-source? [recur? #false]]
     (let include.h ([entry : Path (if (string? c) (string->path c) c)]
                     [memory : (Listof Path) null])
       (define dirname : (Option Path) (path-only entry))
@@ -163,7 +163,7 @@
 (define c-headers->files : (->* ((Listof Path)) ((Option (-> Path (Option Path)))) (Listof Path))
   (lambda [deps [src->file #false]]
     (remove-duplicates
-     (filter-map (λ [[h : Path]] (c-header->maybe-source h))
+     (filter-map (λ [[h : Path]] (c-header->maybe-source h src->file))
                  deps))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
