@@ -102,7 +102,7 @@
     (when again? (compile-directory pwd info-ref (add1 round)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define scribble-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
+(define racket-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
              (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
@@ -111,7 +111,20 @@
            (append memory (list (if (string? entry) (string->path entry) entry)))
            (call-with-input-file* entry
              (λ [[rktin : Input-Port]]
-               (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[]((\\(submod \")|\")?).+?.(scrbl|rktl?)(?=\"?[]}])"
+               (regexp-match* #px"(?<=[(]require ([(]submod )?\").+?.rktl?(?=\"([)]| ))"
+                              rktin))))))
+
+(define scribble-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
+  (lambda [entry [memory null]]
+    (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
+             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
+             (cond [(member subsrc memory) memory]
+                   [(regexp-match? #px"[.]rkt$" subsrc) (racket-smart-dependencies subsrc memory)]
+                   [else (scribble-smart-dependencies subsrc memory)]))
+           (append memory (list (if (string? entry) (string->path entry) entry)))
+           (call-with-input-file* entry
+             (λ [[rktin : Input-Port]]
+               (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[](([(]submod \")|\")?).+?.(scrbl|rktl?)(?=\"?[]}])"
                               rktin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
