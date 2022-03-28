@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
 (provide (except-out (all-defined-out) describe:it describe:let describe:let* describe:for describe:for* 
-                     it:$! spec-format spec-conditional-format spec-parameterize))
+                     it:$! spec-format spec-conditional-format spec-parameterize spec-context-with spec-it-with))
 (provide (rename-out [define-scenario define-feature]))
 (provide (rename-out [describe context]))
 
@@ -145,28 +145,56 @@
 
 (define-syntax (define-behavior stx)
   (syntax-parse stx
-    [(_ [id pstx ...] (local ... #:it brief ... #:do body ...))
+    [(_ [id pstx ...] (local:expr ([defs:expr ...] ...) [#:it brief ... #:do body ...] ...))
      (syntax/loc stx
        (define-syntax (id b-stx)
          (syntax-parse b-stx
            [(_ pstx ...)
-            (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
-              (syntax/loc b-stx
-                (local ...
-                  (it brief ... #:do
-                      (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
-                        body ...)))))])))]
-    [(_ [id pstx ...] definition ... #:it brief ... #:do body ...)
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
+              (syntax/loc b-stx (local ([defs ...] ...) (list (spec-it-with loc #:it brief ... #:do body ...) ...))))])))]
+    [(_ [id pstx ...] [#:it brief ... #:do body ...] ...)
      (syntax/loc stx
        (define-syntax (id b-stx)
          (syntax-parse b-stx
            [(_ pstx ...)
-            (with-syntax ([loc (datum->syntax #false "use stx directly causes recursively macro expanding" b-stx)])
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
               (syntax/loc b-stx
-                (begin definition ...
-                       (it brief ... #:do
-                           (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc))])
-                             body ...)))))])))]))
+                (list (spec-it-with loc #:it brief ... #:do body ...) ...)))])))]
+    [(_ [id pstx ...] (local:expr ([defs:expr ...] ...) #:it brief ... #:do body ...))
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
+              (syntax/loc b-stx (local ([defs ...] ...) (spec-it-with loc #:it brief ... #:do body ...))))])))]
+    [(_ [id pstx ...] #:it brief ... #:do body ...)
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
+              (syntax/loc b-stx
+                (spec-it-with loc #:it brief ... #:do body ...)))])))]))
+
+(define-syntax (define-context stx)
+  (syntax-parse stx
+    [(_ [id pstx ...] (local:expr ([defs:expr ...] ...) #:desc brief ... #:do body ...))
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
+              (syntax/loc b-stx
+                (local ([defs ...] ...)
+                  (spec-context-with loc #:desc brief ... #:do body ...))))])))]
+    [(_ [id pstx ...] #:desc brief ... #:do body ...)
+     (syntax/loc stx
+       (define-syntax (id b-stx)
+         (syntax-parse b-stx
+           [(_ pstx ...)
+            (with-syntax ([loc (datum->syntax #false "using stx directly causes recursively macro expanding" b-stx)])
+              (syntax/loc b-stx
+                (spec-context-with loc #:desc brief ...  #:do body ...)))])))]))
 
 (define-syntax (it:$! stx)
   (syntax-parse stx
@@ -223,3 +251,19 @@
   (syntax-parse stx
     [(_ []) (syntax/loc stx #false)]
     [(_ ([p0 v0] [p v] ...)) (syntax/loc stx (λ [] (p0 v0) (p v) ... (void)))]))
+
+(define-syntax (spec-context-with stx)
+  (syntax-parse stx
+    [(_ loc-stx #:desc brief ... #:do body ...)
+     (syntax/loc stx
+       (describe brief ... #:do
+                 #:parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc-stx))]) #:do
+                 body ...))]))
+
+(define-syntax (spec-it-with stx)
+  (syntax-parse stx
+    [(_ loc-stx #:it brief ... #:do body ...)
+     (syntax/loc stx
+       (it brief ... #:do
+           (parameterize ([default-spec-issue-location (or (default-spec-issue-location) (spec-location #'loc-stx))])
+             body ...)))]))
