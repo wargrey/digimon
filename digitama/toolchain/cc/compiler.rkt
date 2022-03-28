@@ -31,7 +31,8 @@
 (define cc-default-macros : (-> Symbol Boolean (Listof (Pairof String (Option String))))
   (lambda [system cpp?]
     (list (cons (format "__~a__" system) #false)
-          (cons "__lambda__" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
+          (cons "__lambda__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
+          (cons "__ffi__" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
 
 (define cc-default-io-file : CC-IO-File-Flag
   (lambda [src system cpp?]
