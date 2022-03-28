@@ -7,9 +7,9 @@
  [compiler-sizeof (-> Symbol Byte)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define compiler-aligned-offset : (-> Symbol Nonnegative-Fixnum Nonnegative-Fixnum)
+(define compiler-aligned-offset : (-> (U Symbol Byte) Nonnegative-Fixnum Nonnegative-Fixnum)
   (lambda [type offset0]
-    (define sizeof (compiler-sizeof type))
+    (define sizeof (if (symbol? type) (compiler-sizeof type) type))
     (define sizemod (remainder offset0 sizeof))
     
     (cond [(= sizemod 0) offset0]
