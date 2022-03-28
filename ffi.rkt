@@ -5,8 +5,6 @@
 (provide (all-from-out ffi/unsafe/define))
 (provide (all-from-out ffi/unsafe/alloc))
 
-(require racket/path)
-
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require ffi/unsafe/alloc)
