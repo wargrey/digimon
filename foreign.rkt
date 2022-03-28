@@ -4,7 +4,7 @@
 
 (require/typed/provide
  ffi/unsafe
- [compiler-sizeof (-> Symbol Index)])
+ [compiler-sizeof (-> Symbol Byte)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define compiler-aligned-offset : (-> Symbol Nonnegative-Fixnum Nonnegative-Fixnum)
