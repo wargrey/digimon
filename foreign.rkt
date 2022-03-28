@@ -2,9 +2,15 @@
 
 (provide (all-defined-out))
 
+(require typed/racket/unsafe)
+
 (require/typed/provide
  ffi/unsafe
  [compiler-sizeof (-> (U Symbol (Listof Symbol)) Byte)])
+
+(unsafe-require/typed
+ ffi/unsafe
+ [#:opaque CPointer cpointer?])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define compiler-aligned-offset : (-> (U (U Symbol (Listof Symbol)) Index) Nonnegative-Fixnum Nonnegative-Fixnum)
