@@ -1,7 +1,10 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (rename-out [spec-begin example-begin]))
+(provide (rename-out [spec-begin example-begin]
+                     [spec-begin begin-spec]
+                     [spec-begin begin-example]))
+
 (provide Spec-Summary Spec-Behavior Spec-Feature)
 (provide spec-feature? spec-behavior? spec-feature-brief default-spec-issue-handler)
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
