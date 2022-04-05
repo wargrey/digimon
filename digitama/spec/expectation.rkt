@@ -4,6 +4,7 @@
 
 (require racket/list)
 (require racket/symbol)
+(require racket/sequence)
 
 (require "prompt.rkt")
 (require "issue.rkt")
@@ -193,3 +194,10 @@
   (or (cond [(input-port? given) (regexp-match-peek px given)]
             [else (regexp-match? px given)])
       (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (ordered [given : (Sequenceof T)] [op : (-> T T Boolean)])
+  (for/fold ([r : (Option T) #false])
+            ([s given])
+    (cond [(not r) s]
+          [(op r s) s]
+          [else (spec-misbehave)])))

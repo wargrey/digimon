@@ -62,6 +62,7 @@
 (define default-spec-behavior-prove : (Parameterof Spec-Behavior-Prove) (make-parameter spec-behavior-prove))
 (define default-spec-issue-fgcolor : (Parameterof Spec-Issue-Fgcolor) (make-parameter spec-issue-fgcolor))
 (define default-spec-issue-symbol : (Parameterof Spec-Issue-Symbol) (make-parameter spec-issue-moji))
+(define default-spec-hide-timing-info : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-summary-fold
@@ -116,8 +117,8 @@
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
 
-(define spec-prove : (-> (U Spec-Feature Spec-Behavior) [#:selector Spec-Prove-Selector] Natural)
-  (lambda [feature #:selector [selector null]]
+(define spec-prove : (-> (U Spec-Feature Spec-Behavior) [#:selector Spec-Prove-Selector] [#:hide-timing-info? Boolean] Natural)
+  (lambda [feature #:selector [selector null] #:hide-timing-info? [no-timing-info? (default-spec-hide-timing-info)]]
     (define ~fgcolor : Spec-Issue-Fgcolor (default-spec-issue-fgcolor))
     (define ~symbol : Spec-Issue-Symbol (default-spec-issue-symbol))
     
@@ -141,7 +142,7 @@
         (echof #:fgcolor (~fgcolor type) "~a~a" headline (spec-issue-brief issue))
 
         (case type
-          [(pass) (echof #:fgcolor 'darkgrey " [~a, ~a task time]~n" (~size memory) (~gctime (- real gc)))]
+          [(pass) (when (not no-timing-info?) (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc)))) (newline)]
           [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
           [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
           [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
