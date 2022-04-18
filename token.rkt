@@ -2,8 +2,13 @@
 
 (provide (all-defined-out))
 
+(require racket/path)
+
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Syn-Token-StdIn (U Input-Port Path-String Bytes))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-token-interface stx)
@@ -150,8 +155,6 @@
     (format "~a:~a:~a" (syn-token-source instance) (syn-token-line instance) (add1 (syn-token-column instance)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define syn-empty-stack : Continuation-Mark-Set (continuation-marks #false))
-
 (define syn-log-exn : (->* ((U exn String) Symbol) (Any Log-Level) Void)
   (lambda [errobj topic [src #false] [level 'debug]]
     (define message : String
@@ -164,12 +167,13 @@
 (define #:forall (T Error) syn-token->exn
   : (case-> [(-> String Continuation-Mark-Set (Listof Syntax) Error) (->* (T) ((Option Any) (Option Any)) String) (-> T Syntax) T -> Error]
             [(-> String Continuation-Mark-Set (Listof Syntax) Error) (->* (T) ((Option Any) (Option Any)) String) (-> T Syntax) (-> T String) T (Listof T) -> Error])
-  (case-lambda
-    [(exn:xml token->string token->syntax main)
-     (exn:xml (token->string main exn:xml) syn-empty-stack (list (token->syntax main)))]
-    [(exn:xml token->string token->syntax token-datum->string head others)
-     (exn:xml (format "~a ~a" (token->string head exn:xml) (map token-datum->string others))
-              syn-empty-stack (map token->syntax (cons head others)))]))
+  (let ([syn-empty-stack (continuation-marks #false)])
+    (case-lambda
+      [(exn:xml token->string token->syntax main)
+       (exn:xml (token->string main exn:xml) syn-empty-stack (list (token->syntax main)))]
+      [(exn:xml token->string token->syntax token-datum->string head others)
+       (exn:xml (format "~a ~a" (token->string head exn:xml) (map token-datum->string others))
+                syn-empty-stack (map token->syntax (cons head others)))])))
 
 (define #:forall (T Error) syn-log-syntax-error : (->* (Symbol (->* (T) ((Option Any) (Option Any)) String) (-> T Any) Error) ((Option T) Log-Level) Void)
   (lambda [topic token->string token->datum errobj [property #false] [level 'warning]]
@@ -182,3 +186,38 @@
              (cond [(not <eof>?) (log-message logger level topic (format "~a @~a" msg property-msg) errobj)]
                    [else (let ([eof-msg (token->string property errobj eof)])
                            (log-message logger level topic (format "~a @~a" eof-msg property-msg) errobj))]))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define syn-token-stdin->port : (->* (Syn-Token-StdIn Regexp Any) ((U String Symbol False)) Input-Port)
+  (lambda [/dev/stdin rx.ext basename [port-name #false]]
+    (cond [(port? /dev/stdin) /dev/stdin]
+          [(path? /dev/stdin) (open-input-file /dev/stdin)]
+          [(regexp-match? rx.ext /dev/stdin) (open-input-file (format "~a" /dev/stdin))]
+          [(string? /dev/stdin) (open-input-string /dev/stdin (or port-name (format "/dev/~a/string" basename)))]
+          [(bytes? /dev/stdin) (open-input-bytes /dev/stdin (or port-name (format "/dev/~a/bytes" basename)))]
+          [else (open-input-string (format "~s" /dev/stdin) (or port-name (format "/dev/~a/error" basename)))])))
+
+(define syn-token-port-name : (-> Input-Port (U String Symbol))
+  (lambda [/dev/xmlin]
+    (define src (object-name /dev/xmlin))
+
+    (cond [(path? src) (path->string (simple-form-path src))]
+          [(symbol? src) src]
+          [(string? src) (string->symbol src)]
+          [else (string->symbol (format "~a" src))])))
+
+(define syn-token-port-skip-lang-line : (-> Input-Port Void)
+  (lambda [/dev/cssin]
+    (let skip ()
+      (define ch : (U EOF Char) (peek-char /dev/cssin))
+
+      (cond [(eq? ch #\#)
+             (cond [(equal? (peek-bytes 5 1 /dev/cssin) #"lang ") (read-line /dev/cssin)]
+                   [else (let ([nch (peek-byte /dev/cssin 1)])
+                           (cond [(eq? nch #;#\; #x3B) (read /dev/cssin) (skip)]
+                                 [(eq? nch #;#\| #x7C) (regexp-match-positions #px"^.*(?<=[|])[#]\\s*" /dev/cssin) (skip)]))])]
+            [(eq? ch #\;) (read-line /dev/cssin) (skip)]
+            [(and (char? ch) (char-whitespace? ch)) (regexp-match-positions #px"^\\s+" /dev/cssin) (skip)]))
+
+    (regexp-match-positions #px"^\\s*" /dev/cssin)
+    (void)))

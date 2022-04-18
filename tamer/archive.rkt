@@ -19,10 +19,6 @@ and all APIs are implemented in pure Typed Racket.
 
 @handbook-scenario{Shared Symbols}
 
-Despite the fact that people invented so many concepts and methodologies in order to improve software quality. Amongst them,
-@tech{BDD} is a communication technique and concentrates on bringing people involved in a software project closer.
-
-
 @include-section[(submod "archive/zip.rkt" doc)]
 
 @handbook-reference[]
@@ -38,4 +34,4 @@ Despite the fact that people invented so many concepts and methodologies in orde
        (module tamer typed/racket/base
          (require digimon/spec)
          
-         (spec-begin bdd #:do))]
+         (spec-begin archive #:do))]
