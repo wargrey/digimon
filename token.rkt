@@ -221,3 +221,9 @@
 
     (regexp-match-positions #px"^\\s*" /dev/cssin)
     (void)))
+
+(define syn-token-fallback-charset : (-> Bytes String)
+  (lambda [from]
+    (define CHARSET : String (string-upcase (bytes->string/utf-8 from)))
+    (cond [(member CHARSET '("UTF-16BE" "UTF-16LE")) "UTF-8"]
+          [else CHARSET])))
