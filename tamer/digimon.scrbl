@@ -10,6 +10,6 @@
 
 @handbook-smart-table[]
 
-@;include-section[(submod "bdd.rkt" doc)]
+@include-section[(submod "archive.rkt" doc)]
 
 @handbook-appendix[]
