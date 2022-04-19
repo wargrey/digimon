@@ -1,11 +1,18 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide (rename-out [port-next-location syn-token-port-location]))
 
 (require racket/path)
 
+(require typed/racket/unsafe)
+
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
+
+(unsafe-require/typed
+ racket/base ; the line is gauranteed to count, hence the explicitly requiring.
+ [port-next-location (-> Port (Values Positive-Integer Natural Positive-Integer))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Syn-Token-StdIn (U Input-Port Path-String Bytes))
