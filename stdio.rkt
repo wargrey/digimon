@@ -458,6 +458,25 @@
                          #false 0 size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define drop-bytes : (-> Input-Port Natural Void)
+  (let* ([pool-size 4096]
+         [/dev/null (make-bytes pool-size)])
+    (lambda [/dev/stdin n]
+      (let skip ([n : Natural n])
+        (define n-- (- n pool-size))
+        (cond [(<= n-- 0) (void (read-bytes! /dev/null /dev/stdin 0 n))]
+              [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+
+(define drop-string : (-> Input-Port Natural Void)
+  (let* ([pool-size 4096]
+         [/dev/null (make-string pool-size)])
+    (lambda [/dev/stdin n]
+      (let skip ([n : Natural n])
+        (define n-- (- n pool-size))
+        (cond [(<= n-- 0) (void (read-string! /dev/null /dev/stdin 0 n))]
+              [else (read-string! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-write-integer* write-fixed-integer #true
   [1 [write-msint8]  [write-muint8]]
   [2 [write-msint16] [write-muint16]]

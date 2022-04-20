@@ -272,15 +272,6 @@
                   (file-position /dev/stdio pos)
                   (assert pos exact-nonnegative-integer?))])))
 
-(define port-skip : (-> Input-Port Natural Void)
-  (let* ([pool-size 4096]
-         [/dev/null (make-bytes pool-size)])
-    (lambda [/dev/stdin n]
-      (let skip ([n : Natural n])
-        (define n-- (- n pool-size))
-        (cond [(<= n-- 0) (read-bytes! /dev/null /dev/stdin 0 n) (void)]
-              [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
   (lambda [/dev/stdio]
