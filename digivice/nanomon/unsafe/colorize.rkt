@@ -31,8 +31,7 @@
       (send lframe show #true)
       (send lframe center 'both)
 
-      (send leditor freeze-colorer)
-      (send leditor thaw-colorer))))
+      (send leditor thaw-colorer #true #true))))
 
 (require/typed/provide
  (submod "." unsafe)
