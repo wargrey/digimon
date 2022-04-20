@@ -12,6 +12,7 @@
 (require "digitama/stdio.rkt")
 
 (require "digitama/unsafe/number.rkt")
+(require "digitama/unsafe/ops.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -431,6 +432,14 @@
                     [else (let-values ([(raw/utf-8 n status) (bytes-convert ->utf-8 raw)])
                             (bytes-close-converter ->utf-8)
                             (bytes->string/utf-8 raw/utf-8 #false 0 n))]))])))
+
+(define read-tail-string : (-> Input-Port Natural Char String)
+  (lambda [/dev/stdin tailsize leader]
+    (define total : Nonnegative-Fixnum (unsafe-fx+ tailsize 1))
+    (define whole-string : String (make-string total leader))
+
+    (read-string! whole-string /dev/stdin 1 total)
+    whole-string))
 
 (define peek-bytes* : (->* (Input-Port Natural) (Natural) Bytes)
   (lambda [/dev/stdin size [skip 0]]
