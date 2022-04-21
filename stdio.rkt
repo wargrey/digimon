@@ -5,8 +5,10 @@
                      [write-luintptr write-lsize]))
 
 (require racket/list)
+(require racket/fixnum)
 
 (require "port.rkt")
+(require "character.rkt")
 
 (require "digitama/ioexn.rkt")
 (require "digitama/stdio.rkt")
@@ -433,12 +435,34 @@
                             (bytes-close-converter ->utf-8)
                             (bytes->string/utf-8 raw/utf-8 #false 0 n))]))])))
 
-(define read-tail-string : (-> Input-Port Natural Char String)
-  (lambda [/dev/stdin tailsize leader]
-    (define total : Nonnegative-Fixnum (unsafe-fx+ tailsize 1))
-    (define whole-string : String (make-string total leader))
+(define read-limited-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (when (> skip 0)
+      (drop-bytes /dev/stdin skip))
+ 
+    (let read-hexadecimal ([rest : Byte max-ndigit]
+                           [skip : Natural 0]
+                           [result : Nonnegative-Fixnum result])
+      (define hex : (U EOF Char) (peek-char /dev/stdin skip))
+      (cond [(or (eof-object? hex) (not (char-hexdigit? hex)) (zero? rest))
+             (drop-bytes /dev/stdin (+ skip (if (and eat-last-whitespace? (char? hex) (char-whitespace? hex)) 1 0)))
+             (values result rest)]
+            [else (read-hexadecimal (fx- rest 1) (fx+ skip 1)
+                                       (fx+ (fxlshift result 4)
+                                            (char->hexadecimal hex)))]))))
 
-    (read-string! whole-string /dev/stdin 1 total)
+(define read-limited-char-from-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Char Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (define-values (n rest) (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
+
+    (values (integer->char n) rest)))
+
+(define read-tail-string : (-> Input-Port Nonnegative-Fixnum (Option Char) String)
+  (lambda [/dev/stdin tailsize ?leader]
+    (define-values (start total) (if (char? ?leader) (values 1 (unsafe-fx+ tailsize 1)) (values 0 tailsize)))
+    (define whole-string : String (make-string total (or ?leader #\null)))
+
+    (read-string! whole-string /dev/stdin start total)
     whole-string))
 
 (define peek-bytes* : (->* (Input-Port Natural) (Natural) Bytes)
@@ -456,6 +480,22 @@
   (lambda [/dev/stdin size]
     (bytes->string/utf-8 (peek-nbytes /dev/stdin size)
                          #false 0 size)))
+
+(define peek-flexible-hexadecimal : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip [result 0] [count 0]]
+    (define hex : (U EOF Char) (peek-char /dev/stdin skip))
+    
+    (if (and (char? hex) (char-hexdigit? hex))
+        (peek-flexible-hexadecimal /dev/stdin (fx+ skip 1)
+                                   (fx+ (fxlshift result 4) (char->hexadecimal hex))
+                                   (fx+ count 1))
+        (values result count))))
+
+(define peek-char-from-hexadecimal : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip [result 0] [count 0]]
+    (define-values (n size) (peek-flexible-hexadecimal /dev/stdin skip result count))
+
+    (values (integer->char n) size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define drop-bytes : (-> Input-Port Natural Void)
