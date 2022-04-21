@@ -451,7 +451,7 @@
                                        (fx+ (fxlshift result 4)
                                             (char->hexadecimal hex)))]))))
 
-(define read-limited-char-from-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Char Byte))
+(define read-limited-unicode-char : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Char Byte))
   (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
     (define-values (n rest) (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
 
@@ -491,7 +491,7 @@
                                    (fx+ count 1))
         (values result count))))
 
-(define peek-char-from-hexadecimal : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
+(define peek-unicode-char : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
   (lambda [/dev/stdin skip [result 0] [count 0]]
     (define-values (n size) (peek-flexible-hexadecimal /dev/stdin skip result count))
 
