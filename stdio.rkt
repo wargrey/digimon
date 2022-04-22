@@ -457,9 +457,9 @@
 
     (values (integer->char n) rest)))
 
-(define read-tail-string : (-> Input-Port Nonnegative-Fixnum (Option Char) String)
+(define read-tail-string : (-> Input-Port Integer (Option Char) String)
   (lambda [/dev/stdin tailsize ?leader]
-    (define-values (start total) (if (char? ?leader) (values 1 (unsafe-fx+ tailsize 1)) (values 0 tailsize)))
+    (define-values (start total) (if (char? ?leader) (values 1 (+ tailsize 1)) (values 0 tailsize)))
     (define whole-string : String (make-string total (or ?leader #\null)))
 
     (read-string! whole-string /dev/stdin start total)
