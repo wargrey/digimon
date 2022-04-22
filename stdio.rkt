@@ -457,10 +457,18 @@
 
     (values (integer->char n) rest)))
 
-(define read-tail-string : (-> Input-Port Integer (Option Char) String)
+(define read-tail-string : (-> Input-Port Integer (U String Char False) String)
   (lambda [/dev/stdin tailsize ?leader]
-    (define-values (start total) (if (char? ?leader) (values 1 (+ tailsize 1)) (values 0 tailsize)))
-    (define whole-string : String (make-string total (or ?leader #\null)))
+    (define-values (start total fill-char)
+      (cond [(char? ?leader) (values 1 (+ tailsize 1) ?leader)]
+            [(not ?leader) (values 0 tailsize #\null)]
+            [else (let ([headsize (string-length ?leader)])
+                    (values headsize (+ tailsize headsize) #\null))]))
+
+    (define whole-string : String (make-string total fill-char))
+
+    (when (string? ?leader)
+      (string-copy! whole-string 0 ?leader 0))
 
     (read-string! whole-string /dev/stdin start total)
     whole-string))
