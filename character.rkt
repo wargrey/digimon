@@ -5,6 +5,11 @@
 (require "digitama/unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define char-integer? : (-> Integer Boolean)
+  (lambda [i]
+    (or (<= 0 i #xD7FF)
+        (<= #xE000 i #x10FFFF))))
+
 (define char-octdigit? : (-> Char Boolean)
   (lambda [ch]
     (char-ci<=? #\0 ch #\7)))
