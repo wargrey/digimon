@@ -86,6 +86,32 @@
        (begin (define-peek-integer peek-integer do-bytes->integer #true  bsize #:-> Integer) ...
               (define-peek-integer peek-natural do-bytes->integer #false bsize #:-> Natural) ...))]))
 
+(define-syntax (define-limited-unicode-reader stx)
+  (syntax-case stx [:]
+    [(_ id #:->* iTypes oTypes Type #:lambda [args ...] #:-> ->datum sexp ...)
+     (with-syntax ([id* (datum->syntax #'id (string->symbol (format "~a*" (syntax-e #'id))))])
+       (syntax/loc stx
+         (begin (define id : (->* iTypes oTypes (Values Type Byte))
+                  (lambda [args ...]
+                    (define-values (unicode other) (begin sexp ...))
+                    (values (->datum unicode) other)))
+
+                (define id* : (->* iTypes oTypes Type)
+                  (lambda [args ...]
+                    (define-values (unicode _) (begin sexp ...))
+                    (->datum unicode))))))]
+    [(_ id #:->* iTypes oTypes Type #:lambda [args ...] sexp ...)
+     (with-syntax ([id* (datum->syntax #'id (string->symbol (format "~a*" (syntax-e #'id))))])
+       (syntax/loc stx
+         (begin (define id : (->* iTypes oTypes (Values Type Byte))
+                  (lambda [args ...]
+                    sexp ...))
+
+                (define id* : (->* iTypes oTypes Type)
+                  (lambda [args ...]
+                    (define-values (unicode _) (begin sexp ...))
+                    unicode)))))]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (stdio-target-field <field> <fields>)
   (define field (syntax-e <field>))

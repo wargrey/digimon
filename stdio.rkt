@@ -476,13 +476,13 @@
   (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
     (read-unlimited-decimal /dev/stdin 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?)))
 
-(define read-limited-octadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Nonnegative-Fixnum Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (read-limited-decimal /dev/stdin max-ndigit 3 char-octdigit? char->octadecimal skip result eat-last-whitespace?)))
+(define-limited-unicode-reader read-limited-octadecimal #:->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Nonnegative-Fixnum
+  #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-limited-decimal /dev/stdin max-ndigit 3 char-octdigit? char->octadecimal skip result eat-last-whitespace?))
 
-(define read-limited-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Nonnegative-Fixnum Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (read-limited-decimal /dev/stdin max-ndigit 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?)))
+(define-limited-unicode-reader read-limited-hexadecimal #:->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Nonnegative-Fixnum
+  #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-limited-decimal /dev/stdin max-ndigit 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?))
 
 (define peek-flexible-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
   (lambda [/dev/stdin skip [result 0] [count 0]]
@@ -496,21 +496,17 @@
   (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
     (integer->char (read-unlimited-octadecimal /dev/stdin result #:s?$? eat-last-whitespace? #:skip skip))))
 
-(define read-limited-unicode-from-octadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Char Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (define-values (n rest) (read-limited-octadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
-
-    (values (integer->char n) rest)))
+(define-limited-unicode-reader read-limited-unicode-from-octadecimal #:->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char
+  #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]] #:-> integer->char
+    (read-limited-octadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
 
 (define read-unlimited-unicode-from-hexadecimal : (->* (Input-Port) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char)
   (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
     (integer->char (read-unlimited-hexadecimal /dev/stdin result #:s?$? eat-last-whitespace? #:skip skip))))
 
-(define read-limited-unicode-from-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Char Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (define-values (n rest) (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
-
-    (values (integer->char n) rest)))
+(define-limited-unicode-reader read-limited-unicode-from-hexadecimal #:->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char
+  #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]] #:-> integer->char
+    (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
 
 (define peek-unicode-from-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
   (lambda [/dev/stdin skip [result 0] [count 0]]
