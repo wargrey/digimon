@@ -4,6 +4,7 @@
 (provide (for-syntax (all-defined-out)))
 
 (require racket/format)
+(require racket/fixnum)
 (require racket/string)
 (require racket/symbol)
 
@@ -200,3 +201,54 @@
                [(16) (fprintf /dev/stdout "#x~a" (~r datum #:base (list 'up radix) #:min-width (* size 2) #:pad-string "0"))]
                [else #false]))
         (write-datum datum /dev/stdout))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define drop-bytes : (-> Input-Port Natural Void)
+  (let* ([pool-size 4096]
+         [/dev/null (make-bytes pool-size)])
+    (lambda [/dev/stdin n]
+      (let skip ([n : Natural n])
+        (define n-- (- n pool-size))
+        (cond [(<= n-- 0) (void (read-bytes! /dev/null /dev/stdin 0 n))]
+              [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+
+(define read-unlimited-decimal : (-> Input-Port Byte (-> Char Boolean) (-> Char Index) Natural Natural Boolean Natural)
+  (lambda [/dev/stdin bitwidth char-digit? char->decimal skip initial-result eat-last-whitespace?]
+    (when (> skip 0)
+      (drop-bytes /dev/stdin skip))
+ 
+    (let read-octal ([skip : Natural 0]
+                     [result : Natural initial-result])
+      (define ch : (U EOF Char) (peek-char /dev/stdin skip))
+      (cond [(or (eof-object? ch) (not (char-digit? ch)))
+             (drop-bytes /dev/stdin (+ skip (if (and eat-last-whitespace? (char? ch) (char-whitespace? ch)) 1 0)))
+             result]
+            [else (read-octal (fx+ skip 1) (bitwise-ior (arithmetic-shift result bitwidth) (char->decimal ch)))]))))
+
+(define read-limited-decimal : (-> Input-Port Byte Byte (-> Char Boolean) (-> Char Index) Natural Nonnegative-Fixnum Boolean (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin max-ndigit bitwidth char-digit? char->decimal skip initial-result eat-last-whitespace?]
+    (when (> skip 0)
+      (drop-bytes /dev/stdin skip))
+ 
+    (let read-octadecimal ([rest : Byte max-ndigit]
+                           [skip : Natural 0]
+                           [result : Nonnegative-Fixnum initial-result])
+      (define ch : (U EOF Char) (peek-char /dev/stdin skip))
+      (cond [(or (eof-object? ch) (not (char-digit? ch)) (zero? rest))
+             (drop-bytes /dev/stdin (+ skip (if (and eat-last-whitespace? (char? ch) (char-whitespace? ch)) 1 0)))
+             (values result rest)]
+            [else (read-octadecimal (fx- rest 1) (fx+ skip 1)
+                                    (fxior (fxlshift result bitwidth)
+                                           (char->decimal ch)))]))))
+
+(define peek-flexible-decimal : (-> Input-Port Natural Byte (-> Char Boolean) (-> Char Index) Nonnegative-Fixnum Nonnegative-Fixnum
+                                    (Values Nonnegative-Fixnum Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip bitwidth char-digit? char->decimal initial-result initial-count]
+    (let peek-decimal ([skip : Natural skip]
+                       [result : Nonnegative-Fixnum initial-result]
+                       [count : Nonnegative-Fixnum initial-count])
+      (define hex : (U EOF Char) (peek-char /dev/stdin skip))
+    
+      (if (and (char? hex) (char-digit? hex))
+          (peek-decimal (fx+ skip 1) (fxior (fxlshift result bitwidth) (char->decimal hex)) (fx+ count 1))
+          (values result count)))))

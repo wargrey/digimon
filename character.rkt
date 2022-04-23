@@ -5,10 +5,18 @@
 (require "digitama/unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define char-octdigit? : (-> Char Boolean)
+  (lambda [ch]
+    (char-ci<=? #\0 ch #\7)))
+
 (define char-hexdigit? : (-> Char Boolean)
   (lambda [ch]
     (or (char-numeric? ch)
         (char-ci<=? #\a ch #\f))))
+
+(define char->octadecimal : (-> Char Index)
+  (lambda [octch]
+    (unsafe-idx- (char->integer octch) #x30)))
 
 (define char->hexadecimal : (-> Char Index)
   (lambda [hexch]

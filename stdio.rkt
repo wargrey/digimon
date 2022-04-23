@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) drop-bytes)
 (provide (rename-out [write-muintptr write-msize]
                      [write-luintptr write-lsize]))
 
@@ -435,28 +435,6 @@
                             (bytes-close-converter ->utf-8)
                             (bytes->string/utf-8 raw/utf-8 #false 0 n))]))])))
 
-(define read-limited-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Nonnegative-Fixnum Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (when (> skip 0)
-      (drop-bytes /dev/stdin skip))
- 
-    (let read-hexadecimal ([rest : Byte max-ndigit]
-                           [skip : Natural 0]
-                           [result : Nonnegative-Fixnum result])
-      (define hex : (U EOF Char) (peek-char /dev/stdin skip))
-      (cond [(or (eof-object? hex) (not (char-hexdigit? hex)) (zero? rest))
-             (drop-bytes /dev/stdin (+ skip (if (and eat-last-whitespace? (char? hex) (char-whitespace? hex)) 1 0)))
-             (values result rest)]
-            [else (read-hexadecimal (fx- rest 1) (fx+ skip 1)
-                                       (fx+ (fxlshift result 4)
-                                            (char->hexadecimal hex)))]))))
-
-(define read-limited-unicode-char : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Byte) (Values Char Byte))
-  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
-    (define-values (n rest) (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
-
-    (values (integer->char n) rest)))
-
 (define read-tail-string : (-> Input-Port Integer (U String Char False) String)
   (lambda [/dev/stdin tailsize ?leader]
     (define-values (start total fill-char)
@@ -489,32 +467,64 @@
     (bytes->string/utf-8 (peek-nbytes /dev/stdin size)
                          #false 0 size)))
 
-(define peek-flexible-hexadecimal : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip [result 0] [count 0]]
-    (define hex : (U EOF Char) (peek-char /dev/stdin skip))
-    
-    (if (and (char? hex) (char-hexdigit? hex))
-        (peek-flexible-hexadecimal /dev/stdin (fx+ skip 1)
-                                   (fx+ (fxlshift result 4) (char->hexadecimal hex))
-                                   (fx+ count 1))
-        (values result count))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define read-unlimited-octadecimal : (->* (Input-Port) (Natural #:\s?$? Boolean #:skip Natural) Natural)
+  (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-unlimited-decimal /dev/stdin 3 char-octdigit? char->octadecimal skip result eat-last-whitespace?)))
+ 
+(define read-unlimited-hexadecimal : (->* (Input-Port) (Natural #:\s?$? Boolean #:skip Natural) Natural)
+  (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-unlimited-decimal /dev/stdin 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?)))
 
-(define peek-unicode-char : (->* (Input-Port Nonnegative-Fixnum) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
+(define read-limited-octadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-limited-decimal /dev/stdin max-ndigit 3 char-octdigit? char->octadecimal skip result eat-last-whitespace?)))
+
+(define read-limited-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (read-limited-decimal /dev/stdin max-ndigit 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?)))
+
+(define peek-flexible-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip [result 0] [count 0]]
+    (peek-flexible-decimal /dev/stdin skip 3 char-octdigit? char->octadecimal result count)))
+
+(define peek-flexible-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip [result 0] [count 0]]
+    (peek-flexible-decimal /dev/stdin skip 4 char-hexdigit? char->hexadecimal result count)))
+
+(define read-unlimited-unicode-from-octadecimal : (->* (Input-Port) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char)
+  (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (integer->char (read-unlimited-octadecimal /dev/stdin result #:s?$? eat-last-whitespace? #:skip skip))))
+
+(define read-limited-unicode-from-octadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Char Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (define-values (n rest) (read-limited-octadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
+
+    (values (integer->char n) rest)))
+
+(define read-unlimited-unicode-from-hexadecimal : (->* (Input-Port) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char)
+  (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (integer->char (read-unlimited-hexadecimal /dev/stdin result #:s?$? eat-last-whitespace? #:skip skip))))
+
+(define read-limited-unicode-from-hexadecimal : (->* (Input-Port Byte) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) (Values Char Byte))
+  (lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
+    (define-values (n rest) (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
+
+    (values (integer->char n) rest)))
+
+(define peek-unicode-from-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
+  (lambda [/dev/stdin skip [result 0] [count 0]]
+    (define-values (n size) (peek-flexible-octadecimal /dev/stdin skip result count))
+
+    (values (integer->char n) size)))
+
+(define peek-unicode-from-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
   (lambda [/dev/stdin skip [result 0] [count 0]]
     (define-values (n size) (peek-flexible-hexadecimal /dev/stdin skip result count))
 
     (values (integer->char n) size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define drop-bytes : (-> Input-Port Natural Void)
-  (let* ([pool-size 4096]
-         [/dev/null (make-bytes pool-size)])
-    (lambda [/dev/stdin n]
-      (let skip ([n : Natural n])
-        (define n-- (- n pool-size))
-        (cond [(<= n-- 0) (void (read-bytes! /dev/null /dev/stdin 0 n))]
-              [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
-
 (define drop-string : (-> Input-Port Natural Void)
   (let* ([pool-size 4096]
          [/dev/null (make-string pool-size)])
