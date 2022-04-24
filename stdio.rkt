@@ -525,10 +525,11 @@
   (let* ([pool-size 4096]
          [/dev/null (make-string pool-size)])
     (lambda [/dev/stdin n]
-      (let skip ([n : Natural n])
-        (define n-- (- n pool-size))
-        (cond [(<= n-- 0) (void (read-string! /dev/null /dev/stdin 0 n))]
-              [else (read-string! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+      (let drop ([n : Integer n])
+        (when (> n 0)
+          (define count : (U Natural EOF) (read-string! /dev/null /dev/stdin 0 n))
+          (unless (eof-object? count)
+            (drop (- n count))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-write-integer* write-fixed-integer #true

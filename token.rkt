@@ -176,10 +176,10 @@
             [(-> String Continuation-Mark-Set (Listof Syntax) Error) (->* (T) ((Option Any) (Option Any)) String) (-> T Syntax) (-> T String) T (Listof T) -> Error])
   (let ([syn-empty-stack (continuation-marks #false)])
     (case-lambda
-      [(exn:xml token->string token->syntax main)
-       (exn:xml (token->string main exn:xml) syn-empty-stack (list (token->syntax main)))]
-      [(exn:xml token->string token->syntax token-datum->string head others)
-       (exn:xml (format "~a ~a" (token->string head exn:xml) (map token-datum->string others))
+      [(exn:syn token->string token->syntax main)
+       (exn:syn (token->string main exn:syn) syn-empty-stack (list (token->syntax main)))]
+      [(exn:syn token->string token->syntax token-datum->string head others)
+       (exn:syn (format "~a ~a" (token->string head exn:syn) (map token-datum->string others))
                 syn-empty-stack (map token->syntax (cons head others)))])))
 
 (define #:forall (T Error) syn-log-syntax-error : (->* (Symbol (->* (T) ((Option Any) (Option Any)) String) (-> T Any) Error) ((Option T) Log-Level) Void)
@@ -205,8 +205,8 @@
           [else (open-input-string (format "~s" /dev/stdin) (or port-name (format "/dev/~a/error" basename)))])))
 
 (define syn-token-port-name : (-> Input-Port (U String Symbol))
-  (lambda [/dev/xmlin]
-    (define src (object-name /dev/xmlin))
+  (lambda [/dev/stdin]
+    (define src (object-name /dev/stdin))
 
     (cond [(path? src) (path->string (simple-form-path src))]
           [(symbol? src) src]
@@ -214,19 +214,20 @@
           [else (string->symbol (format "~a" src))])))
 
 (define syn-token-port-skip-lang-line : (-> Input-Port Void)
-  (lambda [/dev/cssin]
+  (lambda [/dev/stdin]
     (let skip ()
-      (define ch : (U EOF Char) (peek-char /dev/cssin))
+      (define ch : (U EOF Char) (peek-char /dev/stdin))
 
-      (cond [(eq? ch #\#)
-             (cond [(equal? (peek-bytes 5 1 /dev/cssin) #"lang ") (read-line /dev/cssin)]
-                   [else (let ([nch (peek-byte /dev/cssin 1)])
-                           (cond [(eq? nch #;#\; #x3B) (read /dev/cssin) (skip)]
-                                 [(eq? nch #;#\| #x7C) (regexp-match-positions #px"^.*(?<=[|])[#]\\s*" /dev/cssin) (skip)]))])]
-            [(eq? ch #\;) (read-line /dev/cssin) (skip)]
-            [(and (char? ch) (char-whitespace? ch)) (regexp-match-positions #px"^\\s+" /dev/cssin) (skip)]))
-
-    (regexp-match-positions #px"^\\s*" /dev/cssin)
+      (unless (eof-object? ch)
+        (cond [(eq? ch #\#)
+               (cond [(equal? (peek-bytes 5 1 /dev/stdin) #"lang ") (read-line /dev/stdin)]
+                     [else (let ([nch (peek-byte /dev/stdin 1)])
+                             (cond [(eq? nch #;#\; #x3B) (read /dev/stdin) (skip)]
+                                   [(eq? nch #;#\| #x7C) (regexp-match-positions #px"^.*(?<=[|])[#]\\s*" /dev/stdin) (skip)]))])]
+              [(eq? ch #\;) (read-line /dev/stdin) (skip)]
+              [(char-whitespace? ch) (regexp-match-positions #px"^\\s+" /dev/stdin) (skip)])))
+      
+    (regexp-match-positions #px"^\\s*" /dev/stdin)
     (void)))
 
 (define syn-token-fallback-charset : (-> Bytes String)

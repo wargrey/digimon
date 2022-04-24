@@ -19,7 +19,7 @@
 
   #:usage-help "An utility for testing #lang"
   #:once-each
-  [[(#\l lang)                                       lang          "replace the #lang line with ~1 (unimplemented yet)"]
+  [[(#\l lang)                                       lang          "replace the #lang line with ~1 for lexer"]
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                     the-print-width]]
    [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]

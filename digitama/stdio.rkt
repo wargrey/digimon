@@ -233,10 +233,11 @@
   (let* ([pool-size 4096]
          [/dev/null (make-bytes pool-size)])
     (lambda [/dev/stdin n]
-      (let skip ([n : Natural n])
-        (define n-- (- n pool-size))
-        (cond [(<= n-- 0) (void (read-bytes! /dev/null /dev/stdin 0 n))]
-              [else (read-bytes! /dev/null /dev/stdin 0 pool-size) (skip n--)])))))
+      (let drop ([n : Integer n])
+        (when (> n 0)
+          (define count : (U Natural EOF) (read-bytes! /dev/null /dev/stdin 0 n))
+          (unless (eof-object? count)
+            (drop (- n count))))))))
 
 (define read-unlimited-decimal : (-> Input-Port Byte (-> Char Boolean) (-> Char Index) Natural Natural Boolean Natural)
   (lambda [/dev/stdin bitwidth char-digit? char->decimal skip initial-result eat-last-whitespace?]
