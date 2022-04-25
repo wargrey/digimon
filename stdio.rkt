@@ -484,13 +484,13 @@
   #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
     (read-limited-decimal /dev/stdin max-ndigit 4 char-hexdigit? char->hexadecimal skip result eat-last-whitespace?))
 
-(define peek-flexible-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip [result 0] [count 0]]
-    (peek-flexible-decimal /dev/stdin skip 3 char-octdigit? char->octadecimal result count)))
+(define peek-flexible-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum #:ceiling Nonnegative-Fixnum) (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin skip [result 0] [count 0] #:ceiling [ceiling #o777]]
+    (peek-flexible-decimal /dev/stdin skip 3 ceiling char-octdigit? char->octadecimal result count)))
 
-(define peek-flexible-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Nonnegative-Fixnum Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip [result 0] [count 0]]
-    (peek-flexible-decimal /dev/stdin skip 4 char-hexdigit? char->hexadecimal result count)))
+(define peek-flexible-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum #:ceiling Nonnegative-Fixnum) (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin skip [result 0] [count 0] #:ceiling [ceiling (assert #xFFFFFFFF fixnum?)]]
+    (peek-flexible-decimal /dev/stdin skip 4 ceiling char-hexdigit? char->hexadecimal result count)))
 
 (define read-unlimited-unicode-from-octadecimal : (->* (Input-Port) (Nonnegative-Fixnum #:\s?$? Boolean #:skip Natural) Char)
   (lambda [/dev/stdin [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]]
@@ -508,15 +508,15 @@
   #:lambda [/dev/stdin max-ndigit [result 0] #:\s?$? [eat-last-whitespace? #false] #:skip [skip 0]] #:-> integer->char
     (read-limited-hexadecimal /dev/stdin max-ndigit result #:s?$? eat-last-whitespace? #:skip skip))
 
-(define peek-unicode-from-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip [result 0] [count 0]]
-    (define-values (n size) (peek-flexible-octadecimal /dev/stdin skip result count))
+(define peek-unicode-from-octadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum #:ceiling Nonnegative-Fixnum) (Values Char Byte))
+  (lambda [/dev/stdin skip [result 0] [count 0] #:ceiling [ceiling #o777]]
+    (define-values (n size) (peek-flexible-octadecimal /dev/stdin skip result count #:ceiling ceiling))
 
     (values (integer->char n) size)))
 
-(define peek-unicode-from-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum) (Values Char Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip [result 0] [count 0]]
-    (define-values (n size) (peek-flexible-hexadecimal /dev/stdin skip result count))
+(define peek-unicode-from-hexadecimal : (->* (Input-Port Natural) (Nonnegative-Fixnum Nonnegative-Fixnum #:ceiling Nonnegative-Fixnum) (Values Char Byte))
+  (lambda [/dev/stdin skip [result 0] [count 0] #:ceiling [ceiling (assert #xFFFFFFFF fixnum?)]]
+    (define-values (n size) (peek-flexible-hexadecimal /dev/stdin skip result count #:ceiling ceiling))
 
     (values (integer->char n) size)))
 

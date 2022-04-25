@@ -11,8 +11,6 @@
 (require "../debug.rkt")
 (require "ioexn.rkt")
 
-(require "unsafe/number.rkt")
-
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
 
@@ -268,14 +266,15 @@
                                     (fxior (fxlshift result bitwidth)
                                            (char->decimal ch)))]))))
 
-(define peek-flexible-decimal : (-> Input-Port Natural Byte (-> Char Boolean) (-> Char Index) Nonnegative-Fixnum Nonnegative-Fixnum
-                                    (Values Nonnegative-Fixnum Nonnegative-Fixnum))
-  (lambda [/dev/stdin skip bitwidth char-digit? char->decimal initial-result initial-count]
+(define peek-flexible-decimal : (-> Input-Port Natural Byte Nonnegative-Fixnum (-> Char Boolean) (-> Char Index) Nonnegative-Fixnum Nonnegative-Fixnum
+                                    (Values Nonnegative-Fixnum Byte))
+  (lambda [/dev/stdin skip bitwidth ceiling char-digit? char->decimal initial-result initial-count]
     (let peek-decimal ([skip : Natural skip]
                        [result : Nonnegative-Fixnum initial-result]
                        [count : Nonnegative-Fixnum initial-count])
       (define hex : (U EOF Char) (peek-char /dev/stdin skip))
     
-      (if (and (char? hex) (char-digit? hex))
-          (peek-decimal (fx+ skip 1) (fxior (fxlshift result bitwidth) (char->decimal hex)) (fx+ count 1))
-          (values result count)))))
+      (cond [(or (eof-object? hex) (not (char-digit? hex))) (values result (assert count byte?))]
+            [else (let ([result++ (fxior (fxlshift result bitwidth) (char->decimal hex))])
+                    (cond [(<= result++ ceiling) (peek-decimal (fx+ skip 1) result++ (fx+ count 1))]
+                          [else (values result (assert count byte?))]))]))))

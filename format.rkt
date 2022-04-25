@@ -156,6 +156,13 @@
     (string-append (case radix [(2) "#b"] [(8) "#o"] [(16) "#x"] [else ""])
                    (~r n #:base radix #:min-width width #:pad-string "0"))))
 
+(define string->quoted-symbol : (-> String Symbol)
+  (lambda [str]
+    (string->symbol
+     (string-append "\""
+                    (format "~a" str)
+                    "\""))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define text-column-widths : (-> (Pairof (Listof String) (Listof (Listof String))) (Listof Index))
   (lambda [entries]
