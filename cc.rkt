@@ -149,7 +149,7 @@
                          (call-with-input-file* entry
                            (λ [[/dev/stdin : Input-Port]]
                              ; TODO: implement a robust `#include` reader 
-                             (regexp-match* #px"(?<=#include)\\s+[<\"].+?.h(pp)?[\">]" /dev/stdin))))]))))
+                             (regexp-match* #px"(?<=#include)\\s+[<\"].+?[\">]" /dev/stdin))))]))))
 
 (define c-header->maybe-source : (->* (Path-String) ((Option (-> Path (Option Path)))) (Option Path))
   (lambda [h [src->file #false]]

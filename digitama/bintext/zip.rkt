@@ -263,7 +263,8 @@
 
     (let copy-entry/checksum ([consumed : Natural 0]
                               [crc32 : Index 0])
-      (define read-size : (U EOF Nonnegative-Integer Procedure) (read-bytes-avail! pool /dev/zipin 0 pool-size))
+      (define read-size : (U EOF Nonnegative-Integer Procedure)
+        (read-bytes-avail! pool /dev/zipin 0 pool-size))
       
       (cond [(exact-positive-integer? read-size)
              (write-bytes-from-pool read-size)

@@ -10,21 +10,37 @@
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
    [filename-length : LUInt16]
    [comment : (MNBytes 2)]
-   [filename : (Stringof filename-length)]
+   [filename : (Localeof filename-length)]
    [os : (#:enum Byte system->byte byte->system #:fallback 'unused)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
-  (define entry (make-stdio-entry #:os 'Macintosh #:compression 'stored #:filename "二进制文件.zip" #:comment #"read and write binary files"))
+  (require (for-syntax racket/base))
+
+  (define-syntax (call-with-lc stx)
+    (syntax-case stx []
+      [(_ lc-all sexp ...)
+       (syntax/loc stx
+         (begin (printf "========= ~a =========~n" lc-all)
+                (parameterize ([default-stdin-locale lc-all]
+                               [default-stdout-locale lc-all])
+                  sexp)
+                ...))]))
+
+  (define-syntax (call-with-locales stx)
+    (syntax-case stx []
+      [(_ [lc-all ...] sexp ...)
+       (syntax/loc stx
+         (begin (call-with-lc 'lc-all sexp ...)
+                ...))]))
+  
+  (define entry (make-stdio-entry #:os 'Macintosh #:compression 'stored #:filename "奇葩文件名.docx"
+                                  #:comment #"A test case for encoding filename when writing into a zip archive"))
 
   (default-stdout-all-fields? #false)
-  
-  (bytes->stdio-entry (stdio-entry->bytes entry))
 
-  (display-stdio-entry entry)
-  (sizeof-stdio-entry entry)
+  entry
   
-  (for/list : (Listof Any) ([field (list 'signature 'compression 'filename-length 'comment 'filename 'os)])
-    (list field
-          (offsetof-stdio-entry field)
-          (offsetof-stdio-entry entry field))))
+  (call-with-locales [UTF-8 GB18030]
+    (bytes->stdio-entry (stdio-entry->bytes entry))
+    (display-stdio-entry entry #:with-offset? #true)))

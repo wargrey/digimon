@@ -5,9 +5,9 @@
                      [write-luintptr write-lsize]))
 
 (require racket/list)
-(require racket/fixnum)
 
 (require "port.rkt")
+(require "string.rkt")
 (require "character.rkt")
 
 (require "digitama/ioexn.rkt")
@@ -89,20 +89,23 @@
 ;; TODO
 ; what if the size of bytes field is counted on by another field which indicates the size of the entire layout,
 ; like `zip64-end-of-central-directory` (see digimon/digitama/bintext/zipinfo).
+
+;; TODO
+; `default-stdout-locale` might cause inconsistent values which indicates the size of certain field encoded.
 (define-for-syntax (stdio-bytes-type datatype <fields>)
   (case (syntax-e (car datatype))
-    [(Bytesof)          (make-bintype #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes      #'write-nbytes     #'bytes-length)]
-    [(Stringof)         (make-bintype #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring    #'write-nbstring   #'string-utf-8-length)]
-    [(Localeof)         (make-bintype #'String (stdio-target-field (cadr datatype) <fields>) #'read-nlcstring   #'write-nbstring   #'string-utf-8-length)]
+    [(Bytesof)          (make-bintype #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes      #'write-nbytes      #'bytes-length)]
+    [(Stringof)         (make-bintype #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring    #'write-nbstring    #'string-utf-8-length)]
+    [(Localeof)         (make-bintype #'String (stdio-target-field (cadr datatype) <fields>) #'read-nlcstring   #'write-nlcstring   #'string-locale-length)]
 
-    [(NBytes MNBytes)   (make-bintype #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes    #'write-mn:bytes   #'bytes-length)]
-    [(LNBytes)          (make-bintype #'Bytes  (stdio-word-size (cadr datatype))             #'read-ln:bytes    #'write-ln:bytes   #'bytes-length)]
+    [(NBytes MNBytes)   (make-bintype #'Bytes  (stdio-word-size (cadr datatype))             #'read-mn:bytes    #'write-mn:bytes    #'bytes-length)]
+    [(LNBytes)          (make-bintype #'Bytes  (stdio-word-size (cadr datatype))             #'read-ln:bytes    #'write-ln:bytes    #'bytes-length)]
 
-    [(NString MNString) (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-mn:bstring  #'write-mn:bstring #'string-utf-8-length)]
-    [(LNString)         (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-ln:bstring  #'write-ln:bstring #'string-utf-8-length)]
+    [(NString MNString) (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-mn:bstring  #'write-mn:bstring  #'string-utf-8-length)]
+    [(LNString)         (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-ln:bstring  #'write-ln:bstring  #'string-utf-8-length)]
     
-    [(NLocale MNLocale) (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-mn:lcstring #'write-mn:bstring #'string-utf-8-length)]
-    [(LNLocale)         (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-ln:lcstring #'write-ln:bstring #'string-utf-8-length)]
+    [(NLocale MNLocale) (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-mn:lcstring #'write-mn:lcstring #'string-locale-length)]
+    [(LNLocale)         (make-bintype #'String (stdio-word-size (cadr datatype))             #'read-ln:lcstring #'write-ln:lcstring #'string-locale-length)]
 
     [else #false]))
 
@@ -137,8 +140,9 @@
 
   (and (pair? datatype)
        (case (syntax-e (car datatype))
-         [(Bytesof)           (list (cadr datatype) <field> #'bytes-length)]
-         [(Stringof Localeof) (list (cadr datatype) <field> #'string-utf-8-length)]
+         [(Bytesof)  (list (cadr datatype) <field> #'bytes-length)]
+         [(Stringof) (list (cadr datatype) <field> #'string-utf-8-length)]
+         [(Localeof) (list (cadr datatype) <field> #'string-locale-length)]
          [else #false])))
 
 (define-for-syntax (stdio-field-metainfo <read> <meta>)
@@ -293,8 +297,11 @@
                     (when (exact-nonnegative-integer? posoff)
                       (file-position /dev/stdout posoff))
 
-                    (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field (field-ref src) integer-size /dev/stdout)
-                       ...)))
+                    (let* ([sig-field magic-number] ...
+                           [man-field (man-ref src)] ...
+                           [auto-field (field->value target-field)] ...)
+                      (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field field integer-size /dev/stdout)
+                         ...))))
 
                 (define bytes->layout : (->* (Bytes) (Natural) Layout)
                   (lambda [bs [posoff 0]]
@@ -311,24 +318,42 @@
                        (begin0 (+ off (write-layout src /dev/stdout))
                                (close-output-port /dev/stdout)))]))
                 
-                (define display-layout : (->* (Layout) (Output-Port #:mode (U Zero One Boolean)) Void)
-                  (lambda [self [/dev/stdout (current-output-port)] #:mode [mode 1]]
+                (define display-layout : (->* (Layout) (Output-Port #:mode (U Zero One Boolean) #:with-offset? Boolean) Void)
+                  (lambda [self [/dev/stdout (current-output-port)] #:mode [mode 1] #:with-offset? [offset? #false]]
                     (define write-datum : (-> Any Output-Port Void) (stdio-select-writer mode))
-                    (displayln (stdio-field->name 'layout) /dev/stdout)
-                    (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
-                          [datum (in-list (list (field-ref self) ...))]
-                          [width (in-list (list 'integer-size ...))]
-                          [radix (in-list (list display-radix ...))])
-                      (display "    " /dev/stdout)
-                      (display fname /dev/stdout)
-                      (display ": " /dev/stdout)
-                      (stdio-write-field datum width radix write-datum /dev/stdout)
-                      (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
-                        (display " (" /dev/stdout)
-                        (write-datum datum /dev/stdout)
-                        (display #\) /dev/stdout))
-                      (display #\newline /dev/stdout))
-                    (flush-output /dev/stdout))))))]))
+                    (display (stdio-field->name 'layout) /dev/stdout)
+                    (unless (not offset?)
+                      (display " [sizeof: " /dev/stdout)
+                      (display (sizeof-layout self))
+                      (display #\] /dev/stdout))
+                    (display #\newline /dev/stdout)
+                    (let* ([sig-field magic-number] ...
+                           [man-field (man-ref self)] ...
+                           [auto-field (field->value target-field)] ...)
+                      (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
+                            [fnraw (in-list (list 'field ...))]
+                            [datum (in-list (list field ...))]
+                            [dorig (in-list (list (field-ref self) ...))]
+                            [width (in-list (list 'integer-size ...))]
+                            [radix (in-list (list display-radix ...))])
+                        (display "    " /dev/stdout)
+                        (unless (not offset?)
+                          (display "[" /dev/stdout)
+                          (display (offsetof-layout self fnraw) /dev/stdout)
+                          (display #\] /dev/stdout))
+                        (display fname /dev/stdout)
+                        (display ": " /dev/stdout)
+                        (unless (equal? datum dorig)
+                            (display #\space /dev/stdout)
+                            (write-datum dorig /dev/stdout)
+                            (display " => " /dev/stdout))
+                        (stdio-write-field datum width radix write-datum /dev/stdout)
+                        (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
+                          (display " (" /dev/stdout)
+                          (write-datum datum /dev/stdout)
+                          (display #\) /dev/stdout))
+                        (display #\newline /dev/stdout))
+                      (flush-output /dev/stdout)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define try-read-signature : (-> Input-Port Bytes Boolean)
@@ -401,7 +426,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-stdin-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
+(define default-stdout-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
 (define default-stdout-all-fields? : (Parameterof Boolean) (make-parameter #true))
+
+(define string-locale-length : (-> String Index)
+  (lambda [raw]
+    (unicode-string-locale-length raw (default-stdout-locale))))
 
 (define read-bytes* : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
@@ -425,15 +455,7 @@
     (define raw : Bytes (read-nbytes /dev/stdin bsize))
     (define lc-all : (U String Symbol) (default-stdin-locale))
 
-    (case lc-all
-      [(utf-8) (bytes->string/utf-8 raw #false 0 bsize)]
-      [(locale) (bytes->string/locale raw #false 0 bsize)]
-      [(latin-1) (bytes->string/latin-1 raw #false 0 bsize)]
-      [else (let ([->utf-8 (bytes-open-converter (if (symbol? lc-all) (symbol->string lc-all) lc-all) "UTF-8")])
-              (cond [(not ->utf-8) (bytes->string/utf-8 raw #false 0 bsize)]
-                    [else (let-values ([(raw/utf-8 n status) (bytes-convert ->utf-8 raw)])
-                            (bytes-close-converter ->utf-8)
-                            (bytes->string/utf-8 raw/utf-8 #false 0 n))]))])))
+    (locale-bytes->unicode-string raw lc-all 0 bsize)))
 
 (define read-tail-string : (-> Input-Port Integer (U String Char False) String)
   (lambda [/dev/stdin tailsize ?leader]
@@ -565,6 +587,22 @@
     (+ (write-luintptr bsize nsize /dev/stdout)
        (write-nbstring s 0 /dev/stdout))))
 
+(define write-mn:lcstring : (->* (String Natural) (Output-Port) Nonnegative-Fixnum)
+  (lambda [s nsize [/dev/stdout (current-output-port)]]
+    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale)))
+    (define bsize : Index (bytes-length bs))
+    
+    (+ (write-muintptr bsize nsize /dev/stdout)
+       (write-nbytes bs bsize /dev/stdout))))
+
+(define write-ln:lcstring : (->* (String Natural) (Output-Port) Nonnegative-Fixnum)
+  (lambda [s nsize [/dev/stdout (current-output-port)]]
+    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale)))
+    (define bsize : Index (bytes-length bs))
+    
+    (+ (write-luintptr bsize nsize /dev/stdout)
+       (write-nbytes bs bsize /dev/stdout))))
+
 (define write-msintptr : (->* (Integer Integer) (Output-Port) Byte)
   (lambda [n size [/dev/stdout (current-output-port)]]
     (write-fixed-integer /dev/stdout n size #true #true)))
@@ -592,3 +630,12 @@
     (cond [(> bsize 0) (write-bytes (string->bytes/utf-8 s) /dev/stdout 0 bsize)]
           [else (let ([ch-size (write-string s /dev/stdout)])
                   (string-utf-8-length s 0 ch-size))])))
+
+(define write-nlcstring : (->* (String Index) (Output-Port) Index)
+  (lambda [s bsize [/dev/stdout (current-output-port)]]
+    (define lc-all : (U String Symbol) (default-stdout-locale))
+    (define bs : Bytes (unicode-string->locale-bytes s lc-all))
+    
+    (cond [(> bsize 0) (write-bytes bs /dev/stdout 0 bsize)]
+          [else (let ([ch-size (write-bytes bs /dev/stdout)])
+                  (locale-bytes-unicode-length bs lc-all 0 ch-size))])))
