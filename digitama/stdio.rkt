@@ -196,10 +196,11 @@
   (lambda [_]
     0))
 
-(define stdio-signature-filter : (All (a) (-> Input-Port a Any Symbol a))
+(define stdio-signature-filter : (All (a) (-> Input-Port (∩ a Number) (∩ a Number) Symbol a))
   (lambda [/dev/stdin given expected src]
     (unless (eq? given expected)
-      (throw-signature-error /dev/stdin src "signature mismatched"))
+      (throw-signature-error /dev/stdin src "signature mismatched (expect: ~a; given: ~a)"
+                             (number->string expected 16) (number->string given 16)))
 
     given))
 

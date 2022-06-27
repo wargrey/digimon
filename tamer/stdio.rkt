@@ -35,7 +35,7 @@
                 ...))]))
   
   (define entry (make-stdio-entry #:os 'Macintosh #:compression 'stored #:filename "奇葩文件名.docx"
-                                  #:comment #"A test case for encoding filename when writing into a zip archive"))
+                                  #:comment #"test encoded filename to satisfy WinZip"))
 
   (default-stdout-all-fields? #false)
 

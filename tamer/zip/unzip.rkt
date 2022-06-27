@@ -25,7 +25,7 @@
    [(#\v)   #:=> unzip-verbose                           "run with verbose messages"]
    [(#\t)   #:=> unzip-check                             "check only"]
    [(#\p)   #:=> unzip-progress                          "show progress bars"]
-   [(#\l)   #:=> cmdopt-string-identity locale #: String "set default locale to ~1"]])
+   [(#\l)   #:=> cmdopt-string-identity locale #: String "suppose filename is encoded with ~1"]])
 
 (define unzip-verbose : (Parameterof Boolean) (make-parameter #false))
 (define unzip-check : (Parameterof Boolean) (make-parameter #false))
@@ -41,7 +41,7 @@
                    [pretty-print-columns 160]
                    [current-command-line-arguments (vector)]
                    [date-display-format 'iso-8601]
-                   [default-stdin-locale (or (unzip-flags-l options) 'utf-8)])
+                   [default-stdin-locale (unzip-flags-l options)])
       (exit (time* (let ([tracer (thread (make-zip-log-trace))])
                      (begin0 (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                                (if (unzip-check)

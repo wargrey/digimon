@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require digimon/archive)
+(require digimon/stdio)
 
 (require digimon/cmdopt)
 (require digimon/date)
@@ -31,18 +32,21 @@
   #:args [file.zip source . sources]
 
   #:once-each
-  [[(#\s strategy)      #:=> zip-strategy#level strategy level #: (Pairof Symbol Byte)
-                        "run with the strategy ~1 and compression level ~2"]
-   [(#\r recurse-paths) "travel the directory recursively"]
-   [(#\t temporary)     "create temporarily"]
-   [(#\p progress)      #:=> zip-progress
-                        "show progress bars"]
-   [(64)                #:=> zip-64bit
-                        "force building zip64 file"]
-   [(#\v)               #:=> zip-verbose
-                        "run with verbose messages"]])
+  [[(#\s strategy)         #:=> zip-strategy#level strategy level #: (Pairof Symbol Byte)
+                           "run with the strategy ~1 and compression level ~2"]
+   [(#\r recurse-paths)    "travel the directory recursively"]
+   [(#\t temporary)        "create temporarily"]
+   [(#\p progress)         #:=> zip-progress
+                           "show progress bars"]
+   [(#\C change-directory) #:=> cmdopt-string->path root #: Path
+                           "set root directory for entry path to ~1"]
+   [(#\l)                  #:=> cmdopt-string->symbol locale #: Symbol
+                           "force encoding filename with ~1"]
+   [(64)                   #:=> zip-64bit
+                           "force building zip64 file"]
+   [(#\v)                  #:=> zip-verbose
+                           "run with verbose messages"]])
 
-(define zip-verbose : (Parameterof Boolean) (make-parameter #false))
 (define zip-64bit : (Parameterof Boolean) (make-parameter #false))
 (define zip-progress : (Parameterof Boolean) (make-parameter #false))
 
@@ -65,7 +69,9 @@
     (define sources (cons source rest))
 
     (parameterize ([current-logger /dev/dtrace]
-                   [date-display-format 'iso-8601])
+                   [date-display-format 'iso-8601]
+                   [default-stdin-locale (zip-flags-l options)]
+                   [default-stdout-locale (zip-flags-l options)])
       (exit (let ([tracer (thread (make-zip-log-trace))])
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                 (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-lht") #:help-output-port (current-output-port)))
@@ -138,11 +144,6 @@
 
               (dtrace-datum-notice eof)
               (thread-wait tracer))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-zip-log-trace : (-> (-> Void))
-  (lambda []
-    (make-dtrace-loop (if (zip-verbose) 'trace 'info))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

@@ -376,7 +376,7 @@
 
 (define read-mn:bstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
-    (bytes->string/utf-8 (read-mn:bytes /dev/stdin bsize))))
+    (bytes->string/utf-8 (read-mn:bytes /dev/stdin bsize) (default-stdin-error-char))))
 
 (define read-mn:lcstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
@@ -388,7 +388,7 @@
 
 (define read-ln:bstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
-    (bytes->string/utf-8 (read-ln:bytes /dev/stdin bsize))))
+    (bytes->string/utf-8 (read-ln:bytes /dev/stdin bsize) (default-stdin-error-char))))
 
 (define read-ln:lcstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
@@ -425,8 +425,10 @@
 (define-peek-integer peek-lsize lsb-bytes->index #:-> Index)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define default-stdin-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
-(define default-stdout-locale : (Parameterof (U Symbol String)) (make-parameter 'utf-8))
+(define default-stdin-locale : (Parameterof (Option (U Symbol String))) (make-parameter 'utf-8))
+(define default-stdin-error-char : (Parameterof (Option Char)) (make-parameter #\uFFFD))
+(define default-stdout-locale : (Parameterof (Option (U Symbol String))) (make-parameter 'utf-8))
+(define default-stdout-error-byte : (Parameterof (Option Byte)) (make-parameter #false))
 (define default-stdout-all-fields? : (Parameterof Boolean) (make-parameter #true))
 
 (define string-locale-length : (-> String Index)
@@ -448,14 +450,15 @@
 (define read-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
     (bytes->string/utf-8 (read-nbytes /dev/stdin bsize)
-                         #false 0 bsize)))
+                         (default-stdin-error-char) 0 bsize)))
 
 (define read-nlcstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin bsize]
     (define raw : Bytes (read-nbytes /dev/stdin bsize))
-    (define lc-all : (U String Symbol) (default-stdin-locale))
+    (define lc-all : (U String Symbol False) (default-stdin-locale))
 
-    (locale-bytes->unicode-string raw lc-all 0 bsize)))
+    (locale-bytes->unicode-string #:error-char (default-stdin-error-char)
+                                  raw lc-all 0 bsize)))
 
 (define read-tail-string : (-> Input-Port Integer (U String Char False) String)
   (lambda [/dev/stdin tailsize ?leader]
@@ -487,7 +490,7 @@
 (define peek-nbstring : (-> Input-Port Natural String)
   (lambda [/dev/stdin size]
     (bytes->string/utf-8 (peek-nbytes /dev/stdin size)
-                         #false 0 size)))
+                         (default-stdin-error-char) 0 size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-unlimited-octadecimal : (->* (Input-Port) (Natural #:\s?$? Boolean #:skip Natural) Natural)
@@ -589,7 +592,7 @@
 
 (define write-mn:lcstring : (->* (String Natural) (Output-Port) Nonnegative-Fixnum)
   (lambda [s nsize [/dev/stdout (current-output-port)]]
-    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale)))
+    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale) #:error-byte (default-stdout-error-byte)))
     (define bsize : Index (bytes-length bs))
     
     (+ (write-muintptr bsize nsize /dev/stdout)
@@ -597,7 +600,7 @@
 
 (define write-ln:lcstring : (->* (String Natural) (Output-Port) Nonnegative-Fixnum)
   (lambda [s nsize [/dev/stdout (current-output-port)]]
-    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale)))
+    (define bs : Bytes (unicode-string->locale-bytes s (default-stdout-locale) #:error-byte (default-stdout-error-byte)))
     (define bsize : Index (bytes-length bs))
     
     (+ (write-luintptr bsize nsize /dev/stdout)
@@ -627,14 +630,14 @@
 
 (define write-nbstring : (->* (String Index) (Output-Port) Index)
   (lambda [s bsize [/dev/stdout (current-output-port)]]
-    (cond [(> bsize 0) (write-bytes (string->bytes/utf-8 s) /dev/stdout 0 bsize)]
+    (cond [(> bsize 0) (write-bytes (string->bytes/utf-8 s (default-stdout-error-byte)) /dev/stdout 0 bsize)]
           [else (let ([ch-size (write-string s /dev/stdout)])
                   (string-utf-8-length s 0 ch-size))])))
 
 (define write-nlcstring : (->* (String Index) (Output-Port) Index)
   (lambda [s bsize [/dev/stdout (current-output-port)]]
-    (define lc-all : (U String Symbol) (default-stdout-locale))
-    (define bs : Bytes (unicode-string->locale-bytes s lc-all))
+    (define lc-all : (U String Symbol False) (default-stdout-locale))
+    (define bs : Bytes (unicode-string->locale-bytes s lc-all #:error-byte (default-stdout-error-byte)))
     
     (cond [(> bsize 0) (write-bytes bs /dev/stdout 0 bsize)]
           [else (let ([ch-size (write-bytes bs /dev/stdout)])
