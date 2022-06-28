@@ -83,7 +83,7 @@
 
           (unless (not metainfo?)
             (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir) cdir))])
-              (zip-display-metainfo (car info) (cdr info) /dev/zipout))))
+              (zipinfo-display (car info) (cdr info) /dev/zipout))))
 
         (cond [(not check?) (copy-port /dev/zipin /dev/hexout)]
               [else (let ([errmsg (zip-entry-copy/trap /dev/zipin /dev/hexout rSize CRC32)])
@@ -197,7 +197,7 @@
 
           (let ([metainfos (read-zip-metainfos (zip-directory-metainfo cdir) cdir notify-unknown)])
             (for ([info (in-list metainfos)])
-              (zip-display-metainfo (car info) (cdr info) /dev/zipout))
+              (zipinfo-display (car info) (cdr info) /dev/zipout))
 
             (cond [(void? idx) (length metainfos)]
                   [else (+ idx (length metainfos))])))))))

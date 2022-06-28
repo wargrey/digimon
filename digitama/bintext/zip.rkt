@@ -76,6 +76,7 @@
               [else (string-ci=? "UTF-8" (symbol->immutable-string LC-ALL))])))
 
     (define fixed-only? : Boolean (and (memq 'fixed (cons ?strategy (archive-entry-options entry))) #true))
+    (define comment : String (or (archive-entry-comment entry) ""))
     (define has-data-descriptor? : Boolean (not seekable?))
     
     (define flag : Index
@@ -96,6 +97,14 @@
     ; TODO: squeeze out every single byte based on the trick of zip64 extended data
     (when (or zip64-format?)
       (write-zipinfo-zip64 (make-zipinfo-zip64 #:rsize rsize #:csize 0 #:relative-offset position) /dev/zmiout))
+
+    (when (not utf8?)
+      (let ([name (string->bytes/utf-8 entry-name)])
+        (write-zipinfo-unicode-path (make-zipinfo-unicode-path #:crc32 (checksum-crc32 name) #:name name) /dev/zmiout))
+      
+      (when (> (string-length comment) 0)
+        (let ([content (string->bytes/utf-8 comment)])
+          (write-zipinfo-unicode-comment (make-zipinfo-unicode-comment #:crc32 (checksum-crc32 content) #:content content) /dev/zmiout))))
 
     (define extraction-version : Byte (if (not zip64-format?) pkzip-extraction-version pkzip-extraction-version64))
     
@@ -137,8 +146,7 @@
                         #:gpflag flag #:compression method #:mdate mdate #:mtime mtime
                         #:internal-attributes (if (archive-entry-ascii? entry) #b1 #b0)
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
-                        #:metainfo (get-output-bytes /dev/zmiout #false)
-                        #:comment (or (archive-entry-comment entry) ""))))
+                        #:metainfo (get-output-bytes /dev/zmiout #false) #:comment comment)))
 
 (define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String Natural ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean Symbol)
                                     ((Option Natural))
