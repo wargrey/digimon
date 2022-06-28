@@ -10,6 +10,7 @@
 
 (require "../debug.rkt")
 (require "ioexn.rkt")
+(require "unsafe/ops.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
@@ -112,27 +113,30 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-for-syntax (stdio-target-field <field> <fields>)
-  (define field (syntax-e <field>))
-  (unless (memq field (syntax->datum <fields>))
-    (raise-syntax-error 'define-file-header "undefined field" <field>))
+  (unless (memq (syntax-e <field>) (syntax->datum <fields>))
+    (raise-syntax-error 'define-binary-struct "undefined field" <field>))
   <field>)
 
 (define-for-syntax (stdio-word-size <n>)
   (define n (syntax-e <n>))
   (unless (memq n (list 1 2 4 8))
-    (raise-syntax-error 'define-file-header "invalid size" <n>))
+    (raise-syntax-error 'define-binary-struct "invalid size" <n>))
   (datum->syntax <n> (- n)))
+
+(define-for-syntax (stdio-check-datum-offset <offset>)
+  (when (> (syntax-e <offset>) 0)
+    (raise-syntax-error 'define-binary-struct "#:datum-offset only works for referenced fields" <offset>)))
 
 (define-syntax (call-datum-reader stx)
   (syntax-parse stx #:datum-literals []
-    [(_ read-datum n:nat /dev/stdin self sizes #false args ...)
+    [(_ read-datum wordsize:nat offset:integer /dev/stdin self sizes #false args ...)
      (syntax/loc stx (read-datum /dev/stdin args ...))]
-    [(_ read-datum n:nat /dev/stdin self sizes #true args ...)
-     (syntax/loc stx (let ([v (read-datum /dev/stdin args ...)]) (hash-set! sizes self v) v))]
-    [(_ read-datum field:id /dev/stdin self sizes fields ...)
+    [(_ read-datum wordsize:nat offset:integer /dev/stdin self sizes #true args ...)
+     (syntax/loc stx (let ([v (read-datum /dev/stdin args ...)]) (hash-set! sizes self (unsafe-idx- v offset)) v))]
+    [(_ read-datum field:id offset:integer /dev/stdin self sizes fields ...)
      (syntax/loc stx (read-datum /dev/stdin (hash-ref sizes 'field)))]
-    [(_ read-datum n:integer /dev/stdin self sizes fields ...)
-     (syntax/loc stx (read-datum /dev/stdin (- n)))]))
+    [(_ read-datum -wordsize:integer offset:integer /dev/stdin self sizes fields ...)
+     (syntax/loc stx (read-datum /dev/stdin (- -wordsize)))]))
 
 (define-syntax (call-datum-reader* stx)
   (syntax-parse stx #:datum-literals [assert]

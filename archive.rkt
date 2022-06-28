@@ -83,7 +83,7 @@
 
           (unless (not metainfo?)
             (for ([info (in-list (read-zip-metainfos (zip-directory-metainfo cdir) cdir))])
-              (displayln info /dev/zipout))))
+              (zip-display-metainfo (car info) (cdr info) /dev/zipout))))
 
         (cond [(not check?) (copy-port /dev/zipin /dev/hexout)]
               [else (let ([errmsg (zip-entry-copy/trap /dev/zipin /dev/hexout rSize CRC32)])
@@ -183,6 +183,24 @@
                            [(and mkdir?) (make-directory* target)]
                            [else #false #| we don't know if certain directory already created because of its children |#]))
             (file-or-directory-modify-seconds target timestamp void)))))))
+
+(define make-archive-metainfo-reader : (->* () (Output-Port #:on-unrecognized (-> Index Index Void)) (Archive-Entry-Readerof* Natural))
+  (lambda [[/dev/zipout (current-output-port)] #:on-unrecognized [notify-unknown void]]
+    (λ [/dev/zipin entry folder? timestamp idx]
+      (let ([cdir (assert (current-zip-entry))])
+        (displayln (object-name /dev/zipin) /dev/zipout)
+
+        (when (zip-directory? cdir)
+          (let ([comment (zip-directory-comment cdir)])
+            (unless (string=? comment "")
+              (displayln comment /dev/zipout)))
+
+          (let ([metainfos (read-zip-metainfos (zip-directory-metainfo cdir) cdir notify-unknown)])
+            (for ([info (in-list metainfos)])
+              (zip-display-metainfo (car info) (cdr info) /dev/zipout))
+
+            (cond [(void? idx) (length metainfos)]
+                  [else (+ idx (length metainfos))])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-archive-terminal-gauge : (->* () (Output-Port #:at (U Integer (Pairof Integer Integer)) #:bar-width Positive-Byte #:bar-symbol Char

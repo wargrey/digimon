@@ -31,8 +31,8 @@
 (define-type Octets (U Bytes Subbytes))
 
 (begin-for-syntax
-  (struct bintype (type int-size read-int write-int fixed-size datum->raw raw->datum) #:prefab)
-  (struct fieldinfo (default signature? omittable? peek-int name radix) #:prefab)
+  (struct bintype (type word-size read-int write-int fixed-size datum->raw raw->datum) #:prefab)
+  (struct fieldinfo (default signature? omittable? peek-int name radix datum-offset) #:prefab)
 
   (define (stdio-integer-type/read->peek <read-int>)
     (case (syntax-e <read-int>)
@@ -51,19 +51,19 @@
       [(read-luint64) #'peek-luint64]
       [else <read-int>]))
 
-  (define (make-bintype type int-size read-int write-int fixed-size [datum->raw null] [raw->datum null])
-    (bintype type int-size read-int write-int fixed-size datum->raw raw->datum))
+  (define (make-bintype type word-size read-int write-int fixed-size [datum->raw null] [raw->datum null])
+    (bintype type word-size read-int write-int fixed-size datum->raw raw->datum))
 
-  (define (remake-bintype bt #:type [type #false] #:integer-size [int-size #false]
+  (define (remake-bintype bt #:type [type #false] #:word-size [word-size #false]
                           #:read [read-int #false] #:write [write-int #false] #:size [fixed-size #false]
                           #:datum->raw [datum->raw #false] #:raw->datum [raw->datum #false])
-    (bintype (or type (bintype-type bt)) (or int-size (bintype-int-size bt))
+    (bintype (or type (bintype-type bt)) (or word-size (bintype-word-size bt))
              (or read-int (bintype-read-int bt)) (or write-int (bintype-write-int bt)) (or fixed-size (bintype-fixed-size bt))
              (or datum->raw (bintype-datum->raw bt)) (or raw->datum (bintype-raw->datum bt)))))
 
 (define-for-syntax (stdio-integer-type datatype)
   (case datatype
-    [(Byte Octet)                (make-bintype #'Byte    1 #'read-luint8  #'write-msintptr #'stdio-fixed-size)]
+    [(Byte Octet UInt8)          (make-bintype #'Byte    1 #'read-luint8  #'write-msintptr #'stdio-fixed-size)]
     [(Short MShort Int16 MInt16) (make-bintype #'Fixnum  2 #'read-msint16 #'write-msintptr #'stdio-fixed-size)]
     [(UInt16 MUInt16)            (make-bintype #'Index   2 #'read-muint16 #'write-muintptr #'stdio-fixed-size)]
     [(LShort LInt16)             (make-bintype #'Fixnum  2 #'read-lsint16 #'write-lsintptr #'stdio-fixed-size)]
@@ -85,10 +85,6 @@
     ;[(Double MDouble)            (list #'flonum 8)]
     ;[(LDouble)                   (list #'flonum 8)]
     [else #false]))
-
-;; TODO
-; what if the size of bytes field is counted on by another field which indicates the size of the entire layout,
-; like `zip64-end-of-central-directory` (see digimon/digitama/bintext/zipinfo).
 
 ;; TODO
 ; `default-stdout-locale` might cause inconsistent values which indicates the size of certain field encoded.
@@ -154,29 +150,31 @@
                                    [defval #'#false]))
             (~optional (~and #:omittable omittable?) #:defaults ([omittable? #'#false]))
             (~optional (~seq #:name name) #:defaults ([name #'#false]))
-            (~optional (~seq #:radix (~and (~or* 2 8 10 16) radix)) #:defaults ([radix #'#false])))
+            (~optional (~seq #:radix (~and (~or* 2 8 10 16) radix)) #:defaults ([radix #'#false]))
+            (~optional (~seq #:datum-offset datum-offset:nat) #:defaults ([datum-offset #'0])))
       ...)
      (fieldinfo (if (syntax-e #'defval) (list #'defval) null)
                 (if (syntax-e #'signature?) #'#true #'#false) (if (syntax-e #'omittable?) #'#true #'#false)
                 (if (syntax-e #'omittable?) (stdio-integer-type/read->peek <read>) <read>)
                 #'name
-                (if (syntax-e #'radix) #'radix (if (syntax-e #'signature?) #'16 #'10)))]))
+                (if (syntax-e #'radix) #'radix (if (syntax-e #'signature?) #'16 #'10))
+                #'datum-offset)]))
 
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
     [(_ layout+super : Layout ([field : DataType metainfo ...] ...) options ...)
      (with-syntax* ([(layout super ...) (let ([id+super (syntax-e #'layout+super)]) (if (symbol? id+super) (list #'layout+super) id+super))]
-                    [constructor (format-id #'layout "~a" (gensym (format "~a:" (syntax-e #'layout))))]
-                    [make-layout (format-id #'layout "make-~a" (syntax-e #'layout))]
-                    [remake-layout (format-id #'layout "remake-~a" (syntax-e #'layout))]
-                    [sizeof-layout (format-id #'layout "sizeof-~a" (syntax-e #'layout))]
+                    [constructor     (format-id #'layout "~a" (gensym (format "~a:" (syntax-e #'layout))))]
+                    [make-layout     (format-id #'layout "make-~a" (syntax-e #'layout))]
+                    [remake-layout   (format-id #'layout "remake-~a" (syntax-e #'layout))]
+                    [sizeof-layout   (format-id #'layout "sizeof-~a" (syntax-e #'layout))]
                     [offsetof-layout (format-id #'layout "offsetof-~a" (syntax-e #'layout))]
-                    [read-layout (format-id #'layout "read-~a" (syntax-e #'layout))]
-                    [write-layout (format-id #'layout "write-~a" (syntax-e #'layout))]
-                    [bytes->layout (format-id #'layout "bytes->~a" (syntax-e #'layout))]
-                    [layout->bytes (format-id #'layout "~a->bytes" (syntax-e #'layout))]
-                    [display-layout (format-id #'layout "display-~a" (syntax-e #'layout))]
-                    [(#s[bintype FieldType integer-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
+                    [read-layout     (format-id #'layout "read-~a" (syntax-e #'layout))]
+                    [write-layout    (format-id #'layout "write-~a" (syntax-e #'layout))]
+                    [bytes->layout   (format-id #'layout "bytes->~a" (syntax-e #'layout))]
+                    [layout->bytes   (format-id #'layout "~a->bytes" (syntax-e #'layout))]
+                    [display-layout  (format-id #'layout "display-~a" (syntax-e #'layout))]
+                    [(#s[bintype FieldType word-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))]
                                   [<field> (in-syntax #'(field ...))])
@@ -187,7 +185,7 @@
                                   (or (stdio-bytes-type datatype <fields>)
                                       (stdio-datum-type <DataType> #'layout <field>)))
                              (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>))))]
-                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix] ...)
+                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix datum-offset] ...)
                      (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))]
                                 [<read> (in-syntax #'(read-field ...))])
                        (stdio-field-metainfo <read> <metainfo>))]
@@ -208,25 +206,30 @@
                          (define field (syntax-e <field>))
                          (list (format-id <field> "~a-~a" (syntax-e #'layout) field)
                                (and (memq field autofields) #true))))]
-                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...])
-                     (let*-values ([(auto-fields) (append (syntax->datum #'(sig-field ...)) (syntax->datum #'(auto-field ...)))]
-                                   [(args reargs sdleif)
-                                    (for/fold ([args null] [reargs null] [sdleif null])
+                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-datum-offset ...])
+                     (let*-values ([(sig-fields) (syntax->datum #'(sig-field ...))]
+                                   [(auto-fields) (syntax->datum #'(auto-field ...))]
+                                   [(args reargs sdleif stesffo)
+                                    (for/fold ([args null] [reargs null] [sdleif null] [stesffo null])
                                               ([<field> (in-syntax #'(field ...))]
                                                [<ref> (in-syntax #'(field-ref ...))]
+                                               [<datum-offset> (in-syntax #'(datum-offset ...))]
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
-                                      (cond [(memq field auto-fields) (values args reargs sdleif)]
+                                      (cond [(memq field sig-fields) (stdio-check-datum-offset <datum-offset>) (values args reargs sdleif stesffo)]
+                                            [(memq field auto-fields) (values args reargs sdleif (cons <datum-offset> stesffo))]
                                             [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
+                                                    (stdio-check-datum-offset <datum-offset>)
                                                     (values (cons <kw-name> (cons <Argument> args))
                                                             (cons <kw-name> (cons <ReArgument> reargs))
-                                                            (cons (list <field> <ref>) sdleif)))]))])
-                       (list args reargs (reverse sdleif)))]
+                                                            (cons (list <field> <ref>) sdleif)
+                                                            stesffo))]))])
+                       (list args reargs (reverse sdleif) (reverse stesffo)))]
                     [(size0 [offset field-n] ...)
                      (let-values ([(size0 stesffo)
                                    (for/fold ([size0 0] [stesffo null])
-                                             ([size (in-list (map syntax-e (syntax->list #'(integer-size ...))))]
+                                             ([size (in-list (map syntax-e (syntax->list #'(word-size ...))))]
                                               [n (in-naturals 0)])
                                      (values (cond [(not (exact-integer? size)) size0]
                                                    [(>= size 0) (+ size0 size)]
@@ -243,7 +246,7 @@
                     (display (if (eq? mode 0) "(struct:" "#<") /dev/stdout)
                     (display 'layout /dev/stdout)
                     (for ([datum (in-list (list (field-ref self) ...))]
-                          [width (in-list (list 'integer-size ...))]
+                          [width (in-list (list 'word-size ...))]
                           [radix (in-list (list display-radix ...))])
                       (display #\space /dev/stdout)
                       (stdio-write-field datum width radix write-datum /dev/stdout))
@@ -254,13 +257,13 @@
 
                 (define (make-layout kw-args ...) : Layout
                   (let ([sig-field magic-number] ...
-                        [auto-field (field->value target-field)] ...)
+                        [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
                     (constructor field ...)))
 
                 (define (remake-layout [src : Layout] kw-reargs ...) : Layout
                   (let* ([sig-field magic-number] ...
                          [man-field (or man-field (man-ref src))] ...
-                         [auto-field (field->value target-field)] ...)
+                         [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
                     (constructor field ...)))
 
                 (define sizeof-layout : (case-> [-> Index]
@@ -289,7 +292,7 @@
 
                       (let* ([field (call-datum-reader* [signature? omittable? peek-field /dev/stdin read-layout defval ...]
                                                         [raw->datum ...]
-                                                        read-field integer-size /dev/stdin 'field sizes auto?)] ...)
+                                                        read-field word-size datum-offset /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
@@ -299,8 +302,8 @@
 
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref src)] ...
-                           [auto-field (field->value target-field)] ...)
-                      (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field field integer-size /dev/stdout)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
+                      (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field field word-size /dev/stdout)
                          ...))))
 
                 (define bytes->layout : (->* (Bytes) (Natural) Layout)
@@ -329,13 +332,14 @@
                     (display #\newline /dev/stdout)
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref self)] ...
-                           [auto-field (field->value target-field)] ...)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
                       (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
                             [fnraw (in-list (list 'field ...))]
                             [datum (in-list (list field ...))]
                             [dorig (in-list (list (field-ref self) ...))]
-                            [width (in-list (list 'integer-size ...))]
-                            [radix (in-list (list display-radix ...))])
+                            [width (in-list (list 'word-size ...))]
+                            [radix (in-list (list display-radix ...))]
+                            [doffs (in-list (list datum-offset ...))])
                         (display "    " /dev/stdout)
                         (unless (not offset?)
                           (display "[" /dev/stdout)
@@ -352,6 +356,10 @@
                           (display " (" /dev/stdout)
                           (write-datum datum /dev/stdout)
                           (display #\) /dev/stdout))
+                        (when (> doffs 0)
+                          (display " [+" /dev/stdout)
+                          (write-datum doffs /dev/stdout)
+                          (display #\] /dev/stdout))
                         (display #\newline /dev/stdout))
                       (flush-output /dev/stdout)))))))]))
 

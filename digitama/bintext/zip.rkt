@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/string)
+(require racket/symbol)
 
 (require "zipinfo.rkt")
 (require "zipconfig.rkt")
@@ -66,12 +67,25 @@
                   [else #false]))
           (zip-default-preference)))
 
-    (define fixed-only? : Boolean (and (memq 'fixed (cons ?strategy (archive-entry-options entry))) #true))
+    (define utf8? : Boolean
+      ; WARNING: Extended Language Encoding Data (#x0008) remains undefined
+      (let ([LC-ALL (default-stdout-locale)])
+        (cond [(or (not LC-ALL) (eq? LC-ALL 'utf-8) (eq? LC-ALL 'UTF-8)) #true]
+              [(eq? LC-ALL 'locale) (string-ci=? "UTF-8" (locale-string-encoding))]
+              [(string? LC-ALL) (string-ci=? "UTF-8" LC-ALL)]
+              [else (string-ci=? "UTF-8" (symbol->immutable-string LC-ALL))])))
 
+    (define fixed-only? : Boolean (and (memq 'fixed (cons ?strategy (archive-entry-options entry))) #true))
+    (define has-data-descriptor? : Boolean (not seekable?))
+    
     (define flag : Index
-      (case method
-        [(deflated) (zip-deflation-flag (zip-strategy-flag strategy) (not seekable?))]
-        [else 0]))
+      (if (eq? method 'deflated)
+          (zip-deflation-flag #:encrypted? #false #:strong-encryption? #false #:encrypt-cdir? #false
+                              #:patched-data? #false #:utf8? utf8?
+                              (zip-strategy-flag strategy) has-data-descriptor?)
+          (zip-stored-flag #:encrypted? #false #:strong-encryption? #false #:encrypt-cdir? #false
+                           #:patched-data? #false #:utf8? utf8?
+                           has-data-descriptor?)))
 
     (define position : Natural (file-position /dev/zipout))
     (define rsize : Natural (archive-entry-size entry))
@@ -81,7 +95,7 @@
     ; please keep the zip64 extended info as the first extra fields, so that we can easily modify the compressed size
     ; TODO: squeeze out every single byte based on the trick of zip64 extended data
     (when (or zip64-format?)
-      (write-zip64-extended-info (make-zip64-extended-info #:rsize rsize #:csize 0 #:relative-offset position) /dev/zmiout))
+      (write-zipinfo-zip64 (make-zipinfo-zip64 #:rsize rsize #:csize 0 #:relative-offset position) /dev/zmiout))
 
     (define extraction-version : Byte (if (not zip64-format?) pkzip-extraction-version pkzip-extraction-version64))
     
@@ -101,14 +115,14 @@
                         (if (and zip64-format?)
                             (let ([ds (make-zip64-data-descriptor #:crc32 crc32 #:rsize rsize #:csize csize)])
                               (write-zip64-data-descriptor ds /dev/zipout)
-                              (zip-update-csize64 /dev/zmiout csize (offsetof-zip64-extended-info 'csize)))
+                              (zip-update-csize64 /dev/zmiout csize (offsetof-zipinfo-zip64 'csize)))
                             (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize (assert rsize index?) #:csize (assert csize index?))])
                               (write-zip-data-descriptor ds /dev/zipout)))
                         (let ([end-of-body-position (file-position /dev/zipout)])
                           (file-position /dev/zipout (+ position (offsetof-zip-file #| self-local |# 'crc32)))
                           (if (and zip64-format?)
                               (let ([ds (make-zip-data-descriptor #:crc32 crc32 #:rsize 0xFF32 #:csize 0xFF32)]
-                                    [csize64-offset (offsetof-zip64-extended-info 'csize)])
+                                    [csize64-offset (offsetof-zipinfo-zip64 'csize)])
                                 (write-zip-data-descriptor ds /dev/zipout)
                                 (zip-update-csize64 /dev/zipout csize (+ position (offsetof-zip-file self-local 'metainfo) csize64-offset))
                                 (zip-update-csize64 /dev/zmiout csize csize64-offset))
