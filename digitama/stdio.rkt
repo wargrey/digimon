@@ -123,9 +123,9 @@
     (raise-syntax-error 'define-binary-struct "invalid size" <n>))
   (datum->syntax <n> (- n)))
 
-(define-for-syntax (stdio-check-datum-offset <offset>)
+(define-for-syntax (stdio-check-fixed-size <offset>)
   (when (> (syntax-e <offset>) 0)
-    (raise-syntax-error 'define-binary-struct "#:datum-offset only works for referenced fields" <offset>)))
+    (raise-syntax-error 'define-binary-struct "#:+fixed-size only works for referenced fields" <offset>)))
 
 (define-syntax (call-datum-reader stx)
   (syntax-parse stx #:datum-literals []

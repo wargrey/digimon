@@ -32,7 +32,7 @@
 
 (begin-for-syntax
   (struct bintype (type word-size read-int write-int fixed-size datum->raw raw->datum) #:prefab)
-  (struct fieldinfo (default signature? omittable? peek-int name radix datum-offset) #:prefab)
+  (struct fieldinfo (default signature? omittable? peek-int name radix fixed-size) #:prefab)
 
   (define (stdio-integer-type/read->peek <read-int>)
     (case (syntax-e <read-int>)
@@ -151,14 +151,14 @@
             (~optional (~and #:omittable omittable?) #:defaults ([omittable? #'#false]))
             (~optional (~seq #:name name) #:defaults ([name #'#false]))
             (~optional (~seq #:radix (~and (~or* 2 8 10 16) radix)) #:defaults ([radix #'#false]))
-            (~optional (~seq #:datum-offset datum-offset:nat) #:defaults ([datum-offset #'0])))
+            (~optional (~seq #:+fixed-size fixed-size:nat) #:defaults ([fixed-size #'0])))
       ...)
      (fieldinfo (if (syntax-e #'defval) (list #'defval) null)
                 (if (syntax-e #'signature?) #'#true #'#false) (if (syntax-e #'omittable?) #'#true #'#false)
                 (if (syntax-e #'omittable?) (stdio-integer-type/read->peek <read>) <read>)
                 #'name
                 (if (syntax-e #'radix) #'radix (if (syntax-e #'signature?) #'16 #'10))
-                #'datum-offset)]))
+                #'fixed-size)]))
 
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
@@ -185,7 +185,7 @@
                                   (or (stdio-bytes-type datatype <fields>)
                                       (stdio-datum-type <DataType> #'layout <field>)))
                              (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>))))]
-                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix datum-offset] ...)
+                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix fixed-size] ...)
                      (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))]
                                 [<read> (in-syntax #'(read-field ...))])
                        (stdio-field-metainfo <read> <metainfo>))]
@@ -206,21 +206,21 @@
                          (define field (syntax-e <field>))
                          (list (format-id <field> "~a-~a" (syntax-e #'layout) field)
                                (and (memq field autofields) #true))))]
-                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-datum-offset ...])
+                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-fixed-size ...])
                      (let*-values ([(sig-fields) (syntax->datum #'(sig-field ...))]
                                    [(auto-fields) (syntax->datum #'(auto-field ...))]
                                    [(args reargs sdleif stesffo)
                                     (for/fold ([args null] [reargs null] [sdleif null] [stesffo null])
                                               ([<field> (in-syntax #'(field ...))]
                                                [<ref> (in-syntax #'(field-ref ...))]
-                                               [<datum-offset> (in-syntax #'(datum-offset ...))]
+                                               [<fixed-size> (in-syntax #'(fixed-size ...))]
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
-                                      (cond [(memq field sig-fields) (stdio-check-datum-offset <datum-offset>) (values args reargs sdleif stesffo)]
-                                            [(memq field auto-fields) (values args reargs sdleif (cons <datum-offset> stesffo))]
+                                      (cond [(memq field sig-fields) (stdio-check-fixed-size <fixed-size>) (values args reargs sdleif stesffo)]
+                                            [(memq field auto-fields) (values args reargs sdleif (cons <fixed-size> stesffo))]
                                             [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
-                                                    (stdio-check-datum-offset <datum-offset>)
+                                                    (stdio-check-fixed-size <fixed-size>)
                                                     (values (cons <kw-name> (cons <Argument> args))
                                                             (cons <kw-name> (cons <ReArgument> reargs))
                                                             (cons (list <field> <ref>) sdleif)
@@ -257,13 +257,13 @@
 
                 (define (make-layout kw-args ...) : Layout
                   (let ([sig-field magic-number] ...
-                        [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
+                        [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
                     (constructor field ...)))
 
                 (define (remake-layout [src : Layout] kw-reargs ...) : Layout
                   (let* ([sig-field magic-number] ...
                          [man-field (or man-field (man-ref src))] ...
-                         [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
+                         [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
                     (constructor field ...)))
 
                 (define sizeof-layout : (case-> [-> Index]
@@ -292,7 +292,7 @@
 
                       (let* ([field (call-datum-reader* [signature? omittable? peek-field /dev/stdin read-layout defval ...]
                                                         [raw->datum ...]
-                                                        read-field word-size datum-offset /dev/stdin 'field sizes auto?)] ...)
+                                                        read-field word-size fixed-size /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
@@ -302,7 +302,7 @@
 
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref src)] ...
-                           [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
                       (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field field word-size /dev/stdout)
                          ...))))
 
@@ -332,14 +332,14 @@
                     (display #\newline /dev/stdout)
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref self)] ...
-                           [auto-field (unsafe-idx+ (field->value target-field) auto-datum-offset)] ...)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
                       (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
                             [fnraw (in-list (list 'field ...))]
                             [datum (in-list (list field ...))]
                             [dorig (in-list (list (field-ref self) ...))]
                             [width (in-list (list 'word-size ...))]
                             [radix (in-list (list display-radix ...))]
-                            [doffs (in-list (list datum-offset ...))])
+                            [doffs (in-list (list fixed-size ...))])
                         (display "    " /dev/stdout)
                         (unless (not offset?)
                           (display "[" /dev/stdout)

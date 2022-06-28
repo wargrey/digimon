@@ -8,7 +8,7 @@
 (define-binary-struct stdio-entry : Stdio-Entry
   ([signature : MUInt32 #:signature #%zip-?data #:omittable]
    [compression : (#:enum LUInt16 compression-method->index index->compression-method)]
-   [filename-length : LUInt16 #:datum-offset 1]
+   [filename-length : LUInt16 #:+fixed-size 1]
    [version : Byte #:default 1]
    [comment : (MNBytes 2)]
    [filename : (Localeof filename-length)]

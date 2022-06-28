@@ -174,7 +174,7 @@
 
 (define-binary-struct zip64-end-of-central-directory : ZIP64-End-Of-Central-Directory
   ([signature : LUInt32 #:signature #%zip64-eocdr]
-   [self-size : LUInt64 #:datum-offset 44]  ; Size in bytes of this instance except the first 2 fields
+   [self-size : LUInt64 #:+fixed-size 44]  ; Size in bytes of this instance except the first 2 fields
    [cversion : Byte]
    [csystem : (#:enum Byte system->byte byte->system #:fallback 'unused)]
    [eversion : Byte]
@@ -226,7 +226,7 @@
 
 (define-binary-struct [zipinfo-unicode-comment zip-metainfo] : ZipInfo-Unicode-Comment
   ([id : LUInt16 #:signature #%zipinfo-unicode-comment]
-   [size : LUInt16 #:datum-offset 5]
+   [size : LUInt16 #:+fixed-size 5]
 
    [version : Byte #:default 1]
    [crc32 : LUInt32 #:radix 16]
@@ -235,7 +235,7 @@
 
 (define-binary-struct [zipinfo-unicode-path zip-metainfo] : ZipInfo-Unicode-Path
   ([id : LUInt16 #:signature #%zipinfo-unicode-path]
-   [size : LUInt16 #:datum-offset 5]
+   [size : LUInt16 #:+fixed-size 5]
 
    [version : Byte #:default 1]
    [crc32 : LUInt32 #:radix 16]
