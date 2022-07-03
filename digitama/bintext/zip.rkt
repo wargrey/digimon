@@ -305,7 +305,7 @@
   (lambda [/dev/zipin /dev/zipout rSize CRC32 [pool0 4096]]
     (with-handlers ([exn:fail? exn-message])
       (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout pool0)])
-        (cond [(not (= rSize rsize)) (format "bad size ~a (should be ~a)" rsize rSize)]
+        (cond [(not (= rSize rsize)) (format "bad size ~a (should be ~a, shortened by ~a)" rsize rSize (- rSize rsize))]
               [(not (= CRC32 crc32)) (format "bad checksum ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
               [else #true])))))
 

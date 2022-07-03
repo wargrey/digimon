@@ -7,7 +7,7 @@
 (provide Archive-Progress-Handler Archive-Entry-Progress-Handler default-archive-progress-handler default-archive-entry-progress-handler)
 (provide default-archive-progress-topic-resolver archive-resolve-progress-topic)
 
-(provide make-archive-chained-configure make-archive-ignore-configure defualt-archive-ignore-configure)
+(provide make-archive-chained-configure make-archive-ignored-configure defualt-archive-ignored-configure defualt-archive-ignored-configure+compiled)
 (provide make-archive-file-entry make-archive-ascii-entry make-archive-binary-entry)
 (provide ZIP-Strategy zip-strategy? zip-normal-preference zip-lazy-preference zip-special-preference)
 (provide zip-identity-preference zip-plain-preference zip-backward-preference zip-run-preference)

@@ -106,7 +106,7 @@
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options '(6 fixed))))
    
    (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
-   (make-archive-directory-entries rootdir rootdir #:configure defualt-archive-ignore-configure #:keep-directory? #false #:methods '(deflated))))
+   (make-archive-directory-entries rootdir rootdir #:configure defualt-archive-ignored-configure+compiled #:keep-directory? #false #:methods '(deflated))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-feature pkzip #:do

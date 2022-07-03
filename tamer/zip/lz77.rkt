@@ -183,7 +183,7 @@
                 (if (pair? user-strategies) user-strategies fallback-strategies))
               
               (cond [(directory-exists? src.txt)
-                     (let ([entries (make-archive-directory-entries src.txt #:configure defualt-archive-ignore-configure #:keep-directory? #false)])
+                     (let ([entries (make-archive-directory-entries src.txt #:configure defualt-archive-ignored-configure+compiled #:keep-directory? #false)])
                        (let run-on-dir ([es : Archive-Entries entries])
                          (for ([e (in-list es)])
                            (cond [(list? e) (run-on-dir e)]

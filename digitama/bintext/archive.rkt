@@ -110,9 +110,9 @@
                    comment #true (bytes-length raw-bytes))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-ignore-configure : (-> (U Regexp Byte-Regexp String Path (Listof (U Regexp Byte-Regexp String Path))) Archive-Directory-Configure)
-  (lambda [ignores]
-    (define match? (make-path-match-predicate ignores))
+(define make-archive-ignored-configure : (-> (U Regexp Byte-Regexp String Path (Listof (U Regexp Byte-Regexp String Path))) Archive-Directory-Configure)
+  (lambda [ignoreds]
+    (define match? (make-path-match-predicate ignoreds))
 
     (λ [fullpath basename config]
       (cond [(match? fullpath basename) #false]
@@ -129,8 +129,11 @@
                                [else (cfold ((car cs) fullpath basename ?c)
                                             (cdr cs))]))))])))
 
-(define defualt-archive-ignore-configure : Archive-Directory-Configure
-  (make-archive-ignore-configure (cons #px"/(compiled|[.]DS_Store|[.]git.*)/?$" (use-compiled-file-paths))))
+(define defualt-archive-ignored-configure : Archive-Directory-Configure
+  (make-archive-ignored-configure (cons #px"/(compiled|[.]DS_Store|[.]git.*)/?$" (use-compiled-file-paths))))
+
+(define defualt-archive-ignored-configure+compiled : Archive-Directory-Configure
+  (make-archive-ignored-configure #px"/([.]DS_Store|[.]git.*)/?$"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-port-name : (-> Input-Port String)
