@@ -192,7 +192,7 @@
                       (context ["when provided with crazy frequencies ~a" crazy-freqs] #:do
                                #:before (λ [] (huffman-frequencies->length-limited-tree crazy-freqs t:codewords t:lengths 10)) #:do
                                (it "should sum to UINT16-MAX" #:do
-                                   (expect-0x= (for/sum ([f (in-vector crazy-freqs)]) f) #xFFFF))
+                                 (expect-0x= (for/sum ([f (in-vector crazy-freqs)]) f) #xFFFF))
                                (it-check-length t:lengths 0  2)
                                (it-check-length t:lengths 1  2)
                                (it-check-length t:lengths 2  2)

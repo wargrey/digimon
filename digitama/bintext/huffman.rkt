@@ -480,13 +480,11 @@
         (cond [(< idx code-end)
                (let ([parent-idx (unsafe-vector*-ref heap idx)]
                      [idx++ (+ idx 1)])
-                 (if (= parent-idx 0)
-                     (update-lengths idx++ effective-idx maxlength)
-
-                     (let ([length (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1)]
-                           [self-idx (unsafe-idx- idx code-start)])
-                       (unsafe-bytes-set! lengths self-idx length)
-                       (update-lengths idx++ self-idx (unsafe-fxmax maxlength length)))))]
+                 (cond [(= parent-idx 0) (update-lengths idx++ effective-idx maxlength)]
+                       [else (let ([length (unsafe-b+ (unsafe-vector*-ref heap parent-idx) 1)]
+                                   [self-idx (unsafe-idx- idx code-start)])
+                               (unsafe-bytes-set! lengths self-idx length)
+                               (update-lengths idx++ self-idx (unsafe-fxmax maxlength length)))]))]
               [(not effective-idx) (values lengths maxlength 0)]
               [else (values lengths maxlength (unsafe-idx+ effective-idx 1))])))))
 
@@ -549,7 +547,7 @@
                (values maxlength effective-count)]
               [else (length-limit-huffman-canonicalize! (quotient peak 2))])))))
 
-(define huffman-calculate-length : (-> (Vectorof Index) (Vectorof Index) Bytes Bytes Nonnegative-Fixnum)
+(define huffman-calculate-length-in-bits : (-> (Vectorof Index) (Vectorof Index) Bytes Bytes Nonnegative-Fixnum)
   (lambda [literal-frequencies distance-frequencies literal-lengths distance-lengths]
     (let sum ([literal : Nonnegative-Fixnum 0]
               [literal-total : Nonnegative-Fixnum 0])
@@ -627,3 +625,19 @@
     (let countdown ([idx : Index (unsafe-idx- uplencode 1)])
       (cond [(= (unsafe-bytes-ref codelen-lengths (unsafe-bytes-ref codelen-codes-order idx)) 0) (countdown (unsafe-idx- idx 1))]
             [else #| always greater than 4, since EOB won't be in first 4 slots (16, 17, 18, 0) |# (unsafe-idx+ idx 1)]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Ensures there are at least 2 distance codes to support buggy decoders.
+;   Zlib 1.2.1 and below have a bug where it fails if there isn't at least 1
+;   distance code (with length > 0), even though it's valid according to the
+;   deflate spec to have 0 distance codes. On top of that, some mobile phones
+;   require at least two distance codes. To support these decoders too (but
+;   potentially at the cost of a few bytes), add dummy code lengths of 1.
+(define huffman-patch-distances-for-buggy-inflator! : (-> (Vectorof Index) Void)
+  (lambda [distance-frequencies]
+    (let patch ([idx : Index 0]
+                [count : Index 0])
+      (cond [(>= count 2) (void 'done)]
+            [(<= idx 30) (patch (+ idx 1) (if (> (unsafe-vector*-ref distance-frequencies idx) 0) (+ count 1) count))]
+            [(eq? count 1) (unsafe-vector*-set! distance-frequencies (if (> (unsafe-vector*-ref distance-frequencies 0) 0) 1 0) 1)]
+            [else (unsafe-vector*-set! distance-frequencies 0 1) (unsafe-vector*-set! distance-frequencies 1 1)]))))

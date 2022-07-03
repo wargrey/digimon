@@ -67,6 +67,8 @@
 
     (define raw-start : Index window-size/2)
     (define raw-end : Index window-size/2)
+
+    ; for fallback to stored blocks if both static and dynamic ones are not smaller
     (define stored-start : Fixnum window-size/2)
     (define stored-count : Index 0)
     
@@ -113,7 +115,7 @@
          (submit-huffman-symbol sym BFINAL)]
         [(distance span BFINAL)
          (let ([hspan (backref-span->huffman-symbol span)]
-               [hdist (backref-distance->huffman-distance span)])
+               [hdist (backref-distance->huffman-distance distance)])
            (unsafe-vector*-set! literal-frequencies hspan (unsafe-idx+ (unsafe-vector*-ref literal-frequencies hspan) 1))
            (unsafe-vector*-set! distance-frequencies hdist (unsafe-idx+ (unsafe-vector*-ref distance-frequencies hdist) 1))
            (submit-huffman-symbol distance span BFINAL))]))
@@ -122,17 +124,17 @@
       (huffman-frequencies->tree! freqs codes lengths upcode minheap prefab-nextcodes prefab-counts #:length-limit limit))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    (define (huffman-calculate-stored-block-length) : Natural
+    (define (huffman-calculate-stored-block-length-in-bits) : Natural
       (+ ($SHELL 'tellp)
          (+ 35 #| 3 + 16 * 2 |#
             (unsafe-idxlshift stored-count 3))))
 
-    (define (huffman-calculate-static-block-length) : Nonnegative-Fixnum
+    (define (huffman-calculate-static-block-length-in-bits) : Nonnegative-Fixnum
       (unsafe-fx+ 3
                   ; EOB is counted in literal-frequencies
-                  (huffman-calculate-length literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
+                  (huffman-calculate-length-in-bits literal-frequencies distance-frequencies huffman-fixed-literal-lengths huffman-fixed-distance-lengths)))
 
-    (define (huffman-calculate-dynamic-block-length [hclen : Index]) : Nonnegative-Fixnum
+    (define (huffman-calculate-dynamic-block-length-in-bits [hclen : Index]) : Nonnegative-Fixnum
       (unsafe-fx+ 17 #;(+ 3 5 5 4)
 
                   ; codelen codes lengths
@@ -153,7 +155,7 @@
                                                                                              [else 0])))))])))
                   
                    ; EOB is counted in literal-frequencies
-                   (huffman-calculate-length literal-frequencies distance-frequencies literal-lengths distance-lengths))))
+                   (huffman-calculate-length-in-bits literal-frequencies distance-frequencies literal-lengths distance-lengths))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (huffman-write-empty-block! [BFINAL : Boolean]) : Natural
@@ -286,30 +288,31 @@
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
       ;   reasonable data and slide the window when necessary.
 
-      (define-values (?stored-start non-dynamic-bits)
+      (define-values (?stored-start non-dynamic-length)
         (cond [(and static-only?) (values #false 0)] ; no frequencies are gathered, `non-dynamic-bits` is meaningless
-              [(< stored-start 0) (values #false (huffman-calculate-static-block-length))]
-              [else (let ([static-bits (huffman-calculate-static-block-length)]
-                          [stored-bits (huffman-calculate-stored-block-length)])
-                      (if (< static-bits stored-bits)
-                          (values #false static-bits)
-                          (values stored-start stored-bits)))]))
-      
+              [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))]
+              [else (let ([static-length (huffman-calculate-static-block-length-in-bits)]
+                          [stored-length (huffman-calculate-stored-block-length-in-bits)])
+                      (if (< static-length stored-length)
+                          (values #false static-length)
+                          (values stored-start stored-length)))]))
+
       (or (and (not static-only?)
+               ;(huffman-patch-distances-for-buggy-inflator! distance-frequencies)
                (let-values ([(dist-maxlength hdist) (construct-tree! distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
                  (and (>= hdist distance-nbase) ; it's impossible to compress a block with zero back references
                       (<= dist-maxlength codeword-length-limit)
                       (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)`
                       (let-values ([(lit-maxlength hlit) (construct-tree! literal-frequencies literal-codewords literal-lengths uplitcode codeword-length-limit)])
                         (and (<= lit-maxlength codeword-length-limit)
-                             ; combine literal alphebet and distance alphabet for better compressed codelen codes
+                             ; combine literal alphabet and distance alphabet for better compressed codelen codes
                              (unsafe-bytes-copy! codeword-lengths 0 literal-lengths 0 hlit)
                              (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
                              (let*-values ([(nsym) (huffman-dynamic-lengths-deflate! codeword-lengths hlit hdist codelen-symbols codelen-repeats codelen-frequencies)]
                                            [(who cares) (construct-tree! codelen-frequencies codelen-codewords codelen-lengths uplencode uplenbits)]
                                            [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
-                                           [(dynamic-length) (huffman-calculate-dynamic-block-length hclen)])
-                               (and ;(< dynamic-length non-dynamic-bits)
+                                           [(dynamic-length) (huffman-calculate-dynamic-block-length-in-bits hclen)])
+                               (and ;(< dynamic-length non-dynamic-length)
                                     (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen nsym)
                                     (vector-fill! literal-frequencies 0)
                                     (vector-fill! distance-frequencies 0))))))))
@@ -321,8 +324,8 @@
       (vector-fill! lz77-dists 0)
       
       (set! lz77-payload 0)
-      (set! stored-count 0)
-      (set! stored-start (unsafe-fx+ stored-start stored-count)))
+      (set! stored-start (unsafe-fx+ stored-start stored-count))
+      (set! stored-count 0))
     
     (define (block-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define received : Integer (- end start))
@@ -426,14 +429,14 @@
                 [BTYPE (PEEK-BITS 2 #b11 1)])
             (FIRE-BITS 3)
             (values (case BTYPE
-                      [(#b00) (huffman-begin-stored-block! BFINAL?) 'stored]
-                      [(#b01) (huffman-begin-static-block! BFINAL?) 'static]
-                      [(#b10) (huffman-begin-dynamic-block! BFINAL?) 'dynamic]
+                      [(#b00) (huffman-begin-read-stored-block! BFINAL?) 'stored]
+                      [(#b01) (huffman-begin-read-static-block! BFINAL?) 'static]
+                      [(#b10) (huffman-begin-read-dynamic-block! BFINAL?) 'dynamic]
                       [else (throw-check-error /dev/blkin ename "unknown deflate block type: ~a" (~binstring BTYPE 2))])
                     BFINAL?))
           (values 'EOB #true)))
 
-    (define (huffman-begin-stored-block! [BFINAL? : Boolean]) : Any
+    (define (huffman-begin-read-stored-block! [BFINAL? : Boolean]) : Any
       ($SHELL 'align)
       
       (unless (FEED-BITS 32)
@@ -448,14 +451,14 @@
 
       (FIRE-BITS 32))
     
-    (define (huffman-begin-static-block! [BFINAL? : Boolean]) : Any
+    (define (huffman-begin-read-static-block! [BFINAL? : Boolean]) : Any
       (unless (eq? BTYPE 'static)
         (set! literal-alphabet (force huffman-fixed-literal-alphabet))
         (set! distance-alphabet (force huffman-fixed-distance-alphabet))
         (set! literal-maxlength huffman-fixed-literal-maxlength)
         (set! distance-maxlength huffman-fixed-distance-maxlength)))
 
-    (define (huffman-begin-dynamic-block! [BFINAL? : Boolean]) : Any
+    (define (huffman-begin-read-dynamic-block! [BFINAL? : Boolean]) : Any
       (unless (FEED-BITS 14)
         (throw-eof-error /dev/blkin 'huffman-begin-dynamic-block!))
       
@@ -475,7 +478,7 @@
       ;; WARNING
       ; After feeding and firing 3 + 14 bits, there are still 7 bits left in the bitstream before feeding more,
       ;   and the codelen codes will consume at most 19 * 3 = 57 bits, in which case the actual bits would be
-      ;   7 + roundup(57 - 7) = 63 bits, which seems safe in a 64-bit system. However, Racket supports big
+      ;   7 + roundup(57 - 7) = 63 bits, which seems safe in a 64-bit machine. However, Racket supports big
       ;   integer as the first-class number by reserving the leading 1 or 3 bits (depending on the variant)
       ;   to distinguish big integers and mechine integers (a.k.a fixnums).
       ; Operating bits one by one is usually inefficient, our bitstream facility is therefore in the charge of
@@ -490,8 +493,8 @@
       ;   boundary. Nonetheless, feeding another 7 bits is always heuristic.
 
       (when (< hclen uplencode) (bytes-fill! codelen-lengths 0)) ; the omited codelen codes are 0s
-      (huffman-read-codelen-codes 0 codelen-nbase codelen-nbase) ; load the first 4 codelen codes, it would be at most 3 + roundup(12 - 3) = 18 bits
-      (huffman-read-codelen-codes codelen-nbase hclen hclen0)    ; load the rest, it would be at most 4 + roundup(45 - 4) = 52 bits
+      (huffman-read-codelen-codes! 0 codelen-nbase codelen-nbase) ; load the first 4 codelen codes, it would be at most 3 + roundup(12 - 3) = 18 bits
+      (huffman-read-codelen-codes! codelen-nbase hclen hclen0)    ; load the rest, it would be at most 4 + roundup(45 - 4) = 52 bits
       
       ; the lengths of codewords of real literals and distances are also encoded as huffman codes,
       ; the code length codes are just what encode those lengths.
@@ -534,7 +537,7 @@
         (set! literal-maxlength upbits)
         (set! distance-maxlength upbits)))
 
-    (define (huffman-read-codelen-codes [start : Byte] [end : Index] [count : Byte]) : Void
+    (define (huffman-read-codelen-codes! [start : Byte] [end : Index] [count : Byte]) : Void
       (let ([nbits (unsafe-b* count 3)])
         (unless (FEED-BITS nbits)
           (throw-eof-error /dev/blkin 'read-codelen-lengths!))

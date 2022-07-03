@@ -191,6 +191,8 @@
         (displayln (object-name /dev/zipin) /dev/zipout)
 
         (when (zip-directory? cdir)
+          (displayln cdir)
+          
           (let ([comment (zip-directory-comment cdir)])
             (unless (string=? comment "")
               (displayln comment /dev/zipout)))
