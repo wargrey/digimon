@@ -1,4 +1,4 @@
-#lang typed/racket/gui
+#lang typed/racket/base
 
 (provide main)
 

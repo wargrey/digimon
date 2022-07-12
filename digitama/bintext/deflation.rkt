@@ -298,11 +298,11 @@
                           (values stored-start stored-length)))]))
 
       (or (and (not static-only?)
-               ;(huffman-patch-distances-for-buggy-inflator! distance-frequencies)
+               (huffman-patch-distances-for-buggy-inflator! distance-frequencies)
                (let-values ([(dist-maxlength hdist) (construct-tree! distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
                  (and (>= hdist distance-nbase) ; it's impossible to compress a block with zero back references
                       (<= dist-maxlength codeword-length-limit)
-                      (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)`
+                      (unsafe-vector*-set! literal-frequencies EOB 1) ; the `EOB` always testifies to `(>= hlit literal-nbase)` and `(>= hclen codelen-nbase)`
                       (let-values ([(lit-maxlength hlit) (construct-tree! literal-frequencies literal-codewords literal-lengths uplitcode codeword-length-limit)])
                         (and (<= lit-maxlength codeword-length-limit)
                              ; combine literal alphabet and distance alphabet for better compressed codelen codes
@@ -312,16 +312,16 @@
                                            [(who cares) (construct-tree! codelen-frequencies codelen-codewords codelen-lengths uplencode uplenbits)]
                                            [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
                                            [(dynamic-length) (huffman-calculate-dynamic-block-length-in-bits hclen)])
-                               (and ;(< dynamic-length non-dynamic-length)
-                                    (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen nsym)
-                                    (vector-fill! literal-frequencies 0)
-                                    (vector-fill! distance-frequencies 0))))))))
+                               (and (< dynamic-length non-dynamic-length)
+                                    (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen nsym))))))))
           
           (if (index? ?stored-start)
               (huffman-write-stored-block! window BFINAL ?stored-start (unsafe-idx+ ?stored-start stored-count))
               (huffman-write-static-block! lz77-block lz77-dists BFINAL 0 payload)))
 
       (vector-fill! lz77-dists 0)
+      (vector-fill! literal-frequencies 0)
+      (vector-fill! distance-frequencies 0)
       
       (set! lz77-payload 0)
       (set! stored-start (unsafe-fx+ stored-start stored-count))

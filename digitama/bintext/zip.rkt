@@ -57,16 +57,6 @@
                           [(regexp-match? px:suffix entry-name) 'stored]
                           [else 'deflated]))]))
 
-    (define strategy : ZIP-Strategy
-      (or (for/or : (Option ZIP-Strategy) ([opt (in-list (cons ?strategy (archive-entry-options entry)))])
-            (cond [(zip-strategy? opt) opt]
-                  [(index? opt) (zip-level->maybe-strategy opt)]
-                  [(symbol? opt) (zip-name->maybe-strategy opt)]
-                  [(and (pair? opt) (symbol? (car opt)) (index? (cdr opt)))
-                   (zip-name->maybe-strategy (car opt) (cdr opt))]
-                  [else #false]))
-          (zip-default-preference)))
-
     (define utf8? : Boolean
       ; WARNING: Extended Language Encoding Data (#x0008) remains undefined
       (let ([LC-ALL (default-stdout-locale)])
@@ -75,7 +65,7 @@
               [(string? LC-ALL) (string-ci=? "UTF-8" LC-ALL)]
               [else (string-ci=? "UTF-8" (symbol->immutable-string LC-ALL))])))
 
-    (define fixed-only? : Boolean (and (memq 'fixed (cons ?strategy (archive-entry-options entry))) #true))
+    (define-values (strategy fixed-only?) (zip-strategy-normalize ?strategy (archive-entry-options entry)))
     (define comment : String (or (archive-entry-comment entry) ""))
     (define has-data-descriptor? : Boolean (not seekable?))
     
@@ -162,29 +152,23 @@
         [else /dev/stdout]))
 
     (define progress-handler : Archive-Entry-Progress-Handler (default-archive-entry-progress-handler))
+    (define shadow-handler : Archive-Entry-Shadow-Handler (default-archive-entry-shadow-handler))
 
     (define-values (_ crc32)
-      (if (bytes? source)
-          (let ()
-            (progress-handler topic entry-name 0 total #false)
-            (when (> total 0)
-              (write-bytes source /dev/zipout))
-            (progress-handler topic entry-name total total #true)
-            (values total (checksum-crc32 source 0 total)))
-
-          (zip-entry-copy (open-progress-input-port (open-input-file source) topic entry-name progress-handler total)
-                          /dev/zipout pool
-
-                          ; some systems may limit the maximum number of open files
-                          ; if exception escapes, constructed ports would be closed by the custodian
-                          #:close-input-port? #true
-
-                          ; keep consistent with other kind of sources
-                          #:flush-output-port? #false)))
+      (zip-entry-copy (open-progress-input-port (if (bytes? source) (open-input-memory source) (open-input-file source))
+                                                topic entry-name progress-handler shadow-handler total)
+                      /dev/zipout pool
+                      
+                      ; some systems may limit the maximum number of open files
+                      ; if exception escapes, constructed ports would be closed by the custodian
+                      #:close-input-port? #true
+                      
+                      ; keep consistent with other kind of sources
+                      #:flush-output-port? #false))
     
     ; by design, all output ports associated with compression methods should follow the convention:
-    ;   never mark the block with the FINAL flag when flushing manually,
-    ;   and let the closing flush and terminate the bitstream.
+    ;   never mark the block with the FINAL flag when manually invoking `flush-output`,
+    ;   and let the `close-output-port` flush and terminate the bitstream.
     ; as such, only do flushing on non-compression output port,
     ;   and we would have a chance to save some bytes for another empty final block
     ;   if the bitstream isn't block aligned.
@@ -265,7 +249,9 @@
      (case (zip-directory-compression cdir)
        [(deflated) (open-input-deflated-block /dev/zipin csize #false #:name port-name #:error-name 'zip:deflated)]
        [else (open-input-block /dev/zipin csize #false #:name port-name)])
-     ((default-archive-progress-topic-resolver) /dev/zipin) (zip-directory-filename cdir) (default-archive-entry-progress-handler) csize)))
+     ((default-archive-progress-topic-resolver) /dev/zipin) (zip-directory-filename cdir)
+     (default-archive-entry-progress-handler) (default-archive-entry-shadow-handler)
+     csize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-entry-copy : (->* (Input-Port (U Output-Port (Listof Output-Port)))
@@ -310,6 +296,20 @@
               [else #true])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define zip-strategy-normalize : (->* (PKZIP-Strategy) ((Listof Any)) (Values ZIP-Strategy Boolean))
+  (lambda [?strategy [options null]]
+    (values (or (for/or : (Option ZIP-Strategy) ([opt (in-list (cons ?strategy options))])
+                  (cond [(zip-strategy? opt) opt]
+                        [(index? opt) (zip-level->maybe-strategy opt)]
+                        [(symbol? opt) (zip-name->maybe-strategy opt)]
+                        [(and (pair? opt) (symbol? (car opt)) (index? (cdr opt)))
+                         (zip-name->maybe-strategy (car opt) (cdr opt))]
+                        [else #false]))
+                (zip-default-preference))
+
+            (and (memq 'fixed (cons ?strategy options))
+                 #true))))
+
 (define zip-path-normalize : (case-> [Path-String -> String]
                                      [Path-String Boolean -> String])
   (let ([pxwin-separator #rx"\\\\"])

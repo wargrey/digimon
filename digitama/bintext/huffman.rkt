@@ -59,7 +59,7 @@
 
 ; as intricate as it is, the "codelen codes" are "codewords" for
 ;   encoding the lengths of "codewords" of the dynamic huffman codes,
-;   and these codes themselves are encoded and stored in the block,
+;   and these codes themselves are encoded and stored in dynamic blocks,
 ;   in the order:
 (define codelen-codes-order : Bytes (bytes 16 17 18 0 8 7 9 6 10 5 11 4 12 3 13 2 14 1 15))
 (define uplencode : Index (bytes-length codelen-codes-order))
@@ -570,6 +570,7 @@
                                       (unsafe-idx* (unsafe-vector*-ref distance-frequencies distance)
                                                    (+ (unsafe-bytes-ref distance-lengths distance)
                                                       (unsafe-bytes-ref huffman-distance-extra-bits distance)))))
+                
                 total))))))
 
 (define huffman-dynamic-lengths-deflate! : (case-> [Bytes Index Index Bytes Bytes (Mutable-Vectorof Index) -> Index]
