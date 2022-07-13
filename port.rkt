@@ -141,12 +141,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-hexdump : (->* ()
                                    (#:width Byte #:cursor-initial Natural #:cursor-width Byte
-                                    #:binary? Boolean #:ascii? Boolean #:decimal-cursor? Boolean 
+                                    #:cursor? Boolean #:binary? Boolean #:ascii? Boolean #:decimal-cursor? Boolean 
                                     #:upcase? Boolean #:name Any
                                     Output-Port Boolean)
                                    Output-Port)
   (lambda [#:width [width 32] #:cursor-initial [initial 0] #:cursor-width [cwidth 8]
-           #:binary? [binary? #false] #:ascii? [ascii? #true] #:decimal-cursor? [dec-cursor? #false]
+           #:cursor? [cursor? #true] #:binary? [binary? #false] #:ascii? [ascii? #true] #:decimal-cursor? [dec-cursor? #false]
            #:upcase? [upcase? #false] #:name [name #false]
            [/dev/hexout (current-output-port)] [close-origin? #false]]
     (define magazine : Bytes (make-bytes width 0))
@@ -158,10 +158,11 @@
     (define (hexdump [n : Natural]) : Natural
       (define diff : Integer (- width n))
       (define cursor++ : Natural (+ cursor n))
-      
-      (write-string (~r cursor #:min-width cwidth #:base 16 #:pad-string "0") /dev/hexout)
-      (write-char #\space /dev/hexout)
-      (write-char #\space /dev/hexout)
+
+      (unless (not cursor?)
+        (write-string (~r cursor #:min-width cwidth #:base 16 #:pad-string "0") /dev/hexout)
+        (write-char #\space /dev/hexout)
+        (write-char #\space /dev/hexout))
       
       (for ([b (in-bytes magazine 0 n)]
             [i (in-naturals 1)])
