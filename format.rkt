@@ -111,9 +111,11 @@
   (lambda [base]
     (symbol->immutable-string (gensym base))))
 
-(define byte->hexstring : (-> Byte String)
-  (lambda [b]
-    (define hex (number->string b 16))
+(define byte->hexstring : (->* (Byte) (Boolean) String)
+  (lambda [b [upcase? #false]]
+    (define hex : String
+      (cond [(not upcase?) (number->string b 16)]
+            [else (string-upcase (number->string b 16))]))
     
     (if (> b #xF) hex (string-append "0" hex))))
 
@@ -121,10 +123,10 @@
   (lambda [b [width 8]]
     (~r b #:base 2 #:min-width (if (<= width 0) 8 width) #:pad-string "0")))
 
-(define bytes->hexstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
-  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
+(define bytes->hexstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String #:upcase? Boolean) String)
+  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""] #:upcase? [upcase? #false]]
     (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
-                   (byte->hexstring b))
+                   (byte->hexstring b upcase?))
                  sep)))
 
 (define bytes->binstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)

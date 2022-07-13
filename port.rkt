@@ -140,11 +140,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-hexdump : (->* ()
-                                   (#:width Byte #:cursor-initial Natural #:cursor-width Byte #:binary? Boolean #:decimal-cursor? Boolean #:name Any
+                                   (#:width Byte #:cursor-initial Natural #:cursor-width Byte
+                                    #:binary? Boolean #:ascii? Boolean #:decimal-cursor? Boolean 
+                                    #:upcase? Boolean #:name Any
                                     Output-Port Boolean)
                                    Output-Port)
   (lambda [#:width [width 32] #:cursor-initial [initial 0] #:cursor-width [cwidth 8]
-           #:binary? [binary? #false] #:decimal-cursor? [dec-cursor? #false] #:name [name #false]
+           #:binary? [binary? #false] #:ascii? [ascii? #true] #:decimal-cursor? [dec-cursor? #false]
+           #:upcase? [upcase? #false] #:name [name #false]
            [/dev/hexout (current-output-port)] [close-origin? #false]]
     (define magazine : Bytes (make-bytes width 0))
     (define payload : Natural 0)
@@ -163,7 +166,7 @@
       (for ([b (in-bytes magazine 0 n)]
             [i (in-naturals 1)])
         (if (not binary?)
-            (write-string (byte->hexstring b) /dev/hexout)
+            (write-string (byte->hexstring b upcase?) /dev/hexout)
             (write-string (byte->binstring b) /dev/hexout))
         (write-char #\space /dev/hexout)
         (when (and (= r 0) (= q i))
@@ -174,11 +177,12 @@
                                  (if (and (= r 0) (< n q)) 1 0)))
                       /dev/hexout))
 
-      (write-char #\space /dev/hexout)
-      (write-char #\| /dev/hexout)
-      (for ([b (in-bytes magazine 0 n)]) (write-char (~char b #\.) /dev/hexout))
-      (when (> diff 0) (write-string (~space diff) /dev/hexout))
-      (write-char #\| /dev/hexout)
+      (unless (not ascii?)
+        (write-char #\space /dev/hexout)
+        (write-char #\| /dev/hexout)
+        (for ([b (in-bytes magazine 0 n)]) (write-char (~char b #\.) /dev/hexout))
+        (when (> diff 0) (write-string (~space diff) /dev/hexout))
+        (write-char #\| /dev/hexout))
 
       (unless (not dec-cursor?)
         (write-char #\space /dev/hexout)

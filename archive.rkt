@@ -241,7 +241,7 @@
     (define last-count : Integer 0)
     (define bar : String (term-colorize fgcolor bgcolor null (make-string 1 bar-symbol)))
 
-    (λ [topic entry-name zipped total finish-entry?]
+    (λ [topic entry-name zipped total done?]
       (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
       (define count : Integer (exact-floor (* % bar-width)))
       
@@ -259,7 +259,7 @@
         
         (flush-output /dev/stdout))
       
-      (when (and finish-entry?)
+      (when (and done?)
         (set! last-count 0)
         (esc-move-to (+ 11 bar-width precision (if (not overlay-name?) (string-utf-8-length entry-name) 0)))
         (display final-char /dev/stdout)
