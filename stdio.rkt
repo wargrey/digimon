@@ -560,7 +560,8 @@
     (lambda [/dev/stdin n]
       (let drop ([n : Integer n])
         (when (> n 0)
-          (define count : (U Natural EOF) (read-string! /dev/null /dev/stdin 0 n))
+          (define count : (U Natural EOF)
+            (read-string! /dev/null /dev/stdin 0 (min n pool-size)))
           (unless (eof-object? count)
             (drop (- n count))))))))
 

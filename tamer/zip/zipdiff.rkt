@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require digimon/port)
+(require digimon/stdio)
 (require digimon/thread)
 (require digimon/format)
 
@@ -24,6 +25,8 @@
   [[(#\s strategy)         #:=> zip-strategy#level strategy level #: (Pairof Symbol Byte)
                            "run with the strategy ~1 and compression level ~2"]
    [(#\M)                  #:=> cmdopt-string+>byte memlevel  #: Positive-Byte "encoding in memory level of ~1"]
+   [(#\n)                  #:=> cmdopt-string+>index span  #: Positive-Index "test with only first ~1 bytes"]
+   [(#\o)                  #:=> cmdopt-string->index skip  #: Index "skip ~1 bytes before testing"]
    [(#\v)                  #:=> zip-verbose
                            "run with verbose messages"]])
 
@@ -89,39 +92,51 @@
           (define pool : Bytes (make-bytes 4096))
           (define-values (strategy fixed-only?) (zip-strategy-normalize (zipdiff-flags-strategy options)))
           (define /dev/rhexout : Output-Port (open-output-hexdump /dev/grawout #true #:upcase? #true #:ascii? #false))
-          (define /dev/stdin : Input-Port (open-input-file source))
+          (define /dev/stdin : (U Path Bytes)
+            (let ([n (or (zipdiff-flags-n options) 0)]
+                  [o (or (zipdiff-flags-o options) 0)])
+              (cond [(= o n 0) source]
+                    [else (call-with-input-file source
+                            (λ [[/dev/stdin : Input-Port]] : Bytes
+                              (when (> o 0) (drop-bytes /dev/stdin o))
+                              (let ([head (read-bytes n /dev/stdin)])
+                                (cond [(eof-object? head) #""]
+                                      [else head]))))])))
           
           (parameterize ([default-archive-entry-shadow-handler /dev/rhexout]
                          [default-archive-entry-progress-handler (zipdiff-make-gauge de-gauge "Deflating")])
-            (zip-write-entry-body pool /dev/zipout source (path->string source) (file-size source)
+            (zip-write-entry-body pool /dev/zipout /dev/stdin (path->string source)
+                                  (if (bytes? /dev/stdin) (bytes-length /dev/stdin) (file-size source))
                                   'deflated strategy (or (zipdiff-flags-M options) 8) fixed-only?
                                   ((default-archive-progress-topic-resolver) /dev/zipout))
             
             (close-output-port /dev/zipout)
             (close-output-port /dev/rhexout)))))
 
-    (define zipdiff-display : (case-> [String (Instance Zipdiff-Text%) -> Void]
+    (define zipdiff-display : (case-> [Bytes (Instance Zipdiff-Text%) -> Void]
                                       [-> Void])
       (case-lambda
         [(hexline t)
          (send t begin-edit-sequence)
-         (send t insert hexline)
+         (send t insert (bytes->string/utf-8 hexline))
          (send t insert #\newline)
          (send t end-edit-sequence)]
         [()
          (with-handlers ([exn:break? void])
            (let sync-read-display-loop : Void ()
-             (define rawline (read-line /dev/grawin))
-             (define hexline (read-line /dev/gzipin))
-             
-             (when (and (string? rawline) (string? hexline))
-               (zipdiff-display rawline raw-text)
-               
-               (if (string-ci=? rawline hexline)
-                   (zipdiff-display hexline zip-text)
-                   (zipdiff-display (string-append hexline " F") zip-text))
-               
-               (sync-read-display-loop))))]))
+             (sync/enable-break /dev/gzipin)
+
+             (let* ([n (pipe-content-length /dev/gzipin)]
+                    [rawline (read-bytes n /dev/grawin)]
+                    [hexline (read-bytes n /dev/gzipin)])
+               (when (and (> n 0) (bytes? rawline) (bytes? hexline))
+                 (zipdiff-display rawline raw-text)
+                 
+                 (if (bytes=? rawline hexline)
+                     (zipdiff-display hexline zip-text)
+                     (zipdiff-display (bytes-append hexline #" F") zip-text))
+                 
+                 (sync-read-display-loop)))))]))
 
     (define (zipdiff-stop) : Void
       (thread-safe-kill (unbox &ghostcats))
