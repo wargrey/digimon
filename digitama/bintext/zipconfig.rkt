@@ -17,7 +17,8 @@
    ; the compression levels are defined by `zlib`, and re-configured by `zlib-new`
    ; #0 for stored block, #1 for fastest of a concrete strategy, #9 for ratio-highest
    [level : Index])
-  #:type-name ZIP-Strategy)
+  #:type-name ZIP-Strategy
+  #:transparent)
 
 ; TODO: find the proper strategies so that fastest for #1 and ratio-highest for #9
 (define zip-level->maybe-strategy : (-> Index (Option ZIP-Strategy))
@@ -26,7 +27,7 @@
       [(1 2 3) (zip-normal-preference level)]
       [(4 5 6) (zip-backward-preference level)]
       [(7 8 9) (zip-lazy-preference level)]
-      [(0)     (zip-identity-preference)]
+      [(0)     (zip-normal-preference level)]
       [else #false])))
 
 (define zip-name->maybe-strategy : (->* (Symbol) ((Option Index)) (Option ZIP-Strategy))

@@ -37,7 +37,8 @@
 (define-type Zipdiff-Panel%
   (Class #:implements/inits Vertical-Panel%
          (init [options Zipdiff-Flags]
-               [source Path])))
+               [source Path]
+               [huffman-codes Symbol])))
 
 (define-type Zipdiff%
   (Class #:implements Frame%
@@ -50,14 +51,14 @@
 
 (define zipdiff-panel% : Zipdiff-Panel%
   (class vertical-panel% (super-new)
-    (init options source)
+    (init options source huffman-codes)
 
     (define master : Custodian (make-custodian))
     (define-values (/dev/zipin /dev/zipout) (make-pipe))
     (define-values (/dev/grawin /dev/grawout) (make-pipe))
     (define-values (/dev/gzipin /dev/gzipout) (make-pipe))
 
-    (define pathname : (Instance Message%) (new message% [label (path->string source)] [parent this]))
+    (define pathname : (Instance Message%) (new message% [label (format "~a [~a]" source huffman-codes)] [parent this]))
     (define de-gauge : (Instance Gauge%) (new gauge% [label "Deflating [000.0%]"] [parent this] [range 100]))
     (define zip-zone : (Instance Horizontal-Pane%) (new horizontal-pane% [parent this]))
 
@@ -90,7 +91,7 @@
       (with-handlers ([exn:break? void])
         (parameterize ([current-custodian master])
           (define pool : Bytes (make-bytes 4096))
-          (define-values (strategy fixed-only?) (zip-strategy-normalize (zipdiff-flags-strategy options)))
+          (define-values (strategy huffcodes) (zip-strategy-normalize (zipdiff-flags-strategy options) (list huffman-codes)))
           (define /dev/rhexout : Output-Port (open-output-hexdump /dev/grawout #true #:upcase? #true #:ascii? #false))
           (define /dev/stdin : (U Path Bytes)
             (let ([n (or (zipdiff-flags-n options) 0)]
@@ -103,22 +104,21 @@
                                 (cond [(eof-object? head) #""]
                                       [else head]))))])))
           
-          (parameterize ([default-archive-entry-shadow-handler /dev/rhexout]
-                         [default-archive-entry-progress-handler (zipdiff-make-gauge de-gauge "Deflating")])
+          (parameterize ([default-archive-entry-progress-handler (zipdiff-make-gauge de-gauge "Deflating")])
             (zip-write-entry-body pool /dev/zipout /dev/stdin (path->string source)
                                   (if (bytes? /dev/stdin) (bytes-length /dev/stdin) (file-size source))
-                                  'deflated strategy (or (zipdiff-flags-M options) 8) fixed-only?
+                                  'deflated strategy (or (zipdiff-flags-M options) 8) huffcodes
                                   ((default-archive-progress-topic-resolver) /dev/zipout))
             
             (close-output-port /dev/zipout)
             (close-output-port /dev/rhexout)))))
 
-    (define zipdiff-display : (case-> [Bytes (Instance Zipdiff-Text%) -> Void]
+    (define zipdiff-display : (case-> [String (Instance Zipdiff-Text%) -> Void]
                                       [-> Void])
       (case-lambda
         [(hexline t)
          (send t begin-edit-sequence)
-         (send t insert (bytes->string/utf-8 hexline))
+         (send t insert hexline)
          (send t insert #\newline)
          (send t end-edit-sequence)]
         [()
@@ -126,15 +126,14 @@
            (let sync-read-display-loop : Void ()
              (sync/enable-break /dev/gzipin)
 
-             (let* ([n (pipe-content-length /dev/gzipin)]
-                    [rawline (read-bytes n /dev/grawin)]
-                    [hexline (read-bytes n /dev/gzipin)])
-               (when (and (> n 0) (bytes? rawline) (bytes? hexline))
+             (let* ([rawline (read-line /dev/grawin)]
+                    [hexline (read-line /dev/gzipin)])
+               (when (and (string? rawline) (string? hexline))
                  (zipdiff-display rawline raw-text)
                  
-                 (if (bytes=? rawline hexline)
+                 (if (string-ci=? rawline hexline)
                      (zipdiff-display hexline zip-text)
-                     (zipdiff-display (bytes-append hexline #" F") zip-text))
+                     (zipdiff-display (string-append hexline " F") zip-text))
                  
                  (sync-read-display-loop)))))]))
 
@@ -158,10 +157,13 @@
                [x 0] [y 0] [width #false] [height #false] [min-width 1200] [min-height 800]
                [alignment '(center top)] [border 0] [spacing 0])
 
-    (define main : (Instance Zipdiff-Panel%)
-      (let-values ([(opts λsrc) (parse-zipdiff-flags argument-list #:help-output-port (current-output-port))])
-        (new zipdiff-panel% [parent this] [options opts] [source (simple-form-path (λsrc))]
-             [style '(border auto-vscroll)])))))
+    (define zipdiffs : (Listof (Instance Zipdiff-Panel%))
+      (let*-values ([(opts λsrc) (parse-zipdiff-flags argument-list #:help-output-port (current-output-port))]
+                    [(srcfile) (simple-form-path (λsrc))]
+                    [(pstyle) '(border auto-vscroll)])
+        (list (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'fixed] [style pstyle])
+              (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'dynamic] [style pstyle])
+              (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'auto] [style pstyle]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

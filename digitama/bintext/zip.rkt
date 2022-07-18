@@ -65,7 +65,7 @@
               [(string? LC-ALL) (string-ci=? "UTF-8" LC-ALL)]
               [else (string-ci=? "UTF-8" (symbol->immutable-string LC-ALL))])))
 
-    (define-values (strategy fixed-only?) (zip-strategy-normalize ?strategy (archive-entry-options entry)))
+    (define-values (strategy huffcodes) (zip-strategy-normalize ?strategy (archive-entry-options entry)))
     (define comment : String (or (archive-entry-comment entry) ""))
     (define has-data-descriptor? : Boolean (not seekable?))
     
@@ -109,7 +109,7 @@
 
     (define-values (#{crc32 : Index} #{csize : Natural})
       (cond [(not regular-file?) (values 0 0) #| blank files should not be skipped here, they might be filled with an empty compressed block |#]
-            [else (let-values ([(crc32 csize) (zip-write-entry-body pool /dev/zipout entry-source entry-name rsize method strategy memlevel fixed-only? topic)])
+            [else (let-values ([(crc32 csize) (zip-write-entry-body pool /dev/zipout entry-source entry-name rsize method strategy memlevel huffcodes topic)])
                     (if (not seekable?)
                         (if (and zip64-format?)
                             (let ([ds (make-zip64-data-descriptor #:crc32 crc32 #:rsize rsize #:csize csize)])
@@ -138,25 +138,22 @@
                         #:external-attributes (zip-permission-attribute (archive-entry-permission entry) (not regular-file?))
                         #:metainfo (get-output-bytes /dev/zmiout #false) #:comment comment)))
 
-(define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String Natural ZIP-Compression-Method ZIP-Strategy Positive-Byte Boolean Symbol)
+(define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String Natural ZIP-Compression-Method ZIP-Strategy Positive-Byte Symbol Symbol)
                                     ((Option Natural))
                                     (Values Index Natural))
-  (lambda [pool /dev/stdout source entry-name total method strategy memlevel static-only? topic [seek #false]]
+  (lambda [pool /dev/stdout source entry-name total method strategy memlevel huffcodes topic [seek #false]]
     (define anchor : Natural
       (cond [(not seek) (file-position /dev/stdout)]
             [else (file-position /dev/stdout seek) seek]))
 
     (define /dev/zipout : Output-Port
       (case method
-        [(deflated) (open-output-deflated-block /dev/stdout strategy #false #:fixed-only? static-only? #:memory-level memlevel #:name entry-name)]
+        [(deflated) (open-output-deflated-block /dev/stdout strategy #false #:huffman-codes huffcodes #:memory-level memlevel #:name entry-name)]
         [else /dev/stdout]))
-
-    (define progress-handler : Archive-Entry-Progress-Handler (default-archive-entry-progress-handler))
-    (define shadow-handler : Archive-Entry-Shadow-Handler (default-archive-entry-shadow-handler))
 
     (define-values (_ crc32)
       (zip-entry-copy (open-progress-input-port (if (bytes? source) (open-input-memory source) (open-input-file source))
-                                                topic entry-name progress-handler shadow-handler total)
+                                                topic entry-name (default-archive-entry-progress-handler) total)
                       /dev/zipout pool
                       
                       ; some systems may limit the maximum number of open files
@@ -250,8 +247,7 @@
        [(deflated) (open-input-deflated-block /dev/zipin csize #false #:name port-name #:error-name 'zip:deflated)]
        [else (open-input-block /dev/zipin csize #false #:name port-name)])
      ((default-archive-progress-topic-resolver) /dev/zipin) (zip-directory-filename cdir)
-     (default-archive-entry-progress-handler) (default-archive-entry-shadow-handler)
-     csize)))
+     (default-archive-entry-progress-handler) csize)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-entry-copy : (->* (Input-Port (U Output-Port (Listof Output-Port)))
@@ -296,9 +292,11 @@
               [else #true])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-strategy-normalize : (->* (PKZIP-Strategy) ((Listof Any)) (Values ZIP-Strategy Boolean))
+(define zip-strategy-normalize : (->* (PKZIP-Strategy) ((Listof Any)) (Values ZIP-Strategy Symbol))
   (lambda [?strategy [options null]]
-    (values (or (for/or : (Option ZIP-Strategy) ([opt (in-list (cons ?strategy options))])
+    (define all-options : (Listof Any) (cons ?strategy options))
+    
+    (values (or (for/or : (Option ZIP-Strategy) ([opt (in-list all-options)])
                   (cond [(zip-strategy? opt) opt]
                         [(index? opt) (zip-level->maybe-strategy opt)]
                         [(symbol? opt) (zip-name->maybe-strategy opt)]
@@ -307,8 +305,13 @@
                         [else #false]))
                 (zip-default-preference))
 
-            (and (memq 'fixed (cons ?strategy options))
-                 #true))))
+            (or (for/or : (Option Symbol) ([opt (in-list all-options)])
+                  (cond [(eq? opt 'fixed) opt]
+                        [(eq? opt 'dynamic) opt]
+                        [(eq? opt 'auto) opt]
+                        [(eq? opt 'static) 'fixed]
+                        [else #false]))
+                'auto))))
 
 (define zip-path-normalize : (case-> [Path-String -> String]
                                      [Path-String Boolean -> String])

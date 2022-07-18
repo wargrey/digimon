@@ -44,8 +44,8 @@
                 (define entries : Archive-Entries
                   (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
                     (if (zip-flags-recurse-paths options)
-                        (make-archive-directory-entries src #:configure #false)
-                        (make-archive-file-entry src))))
+                        (make-archive-directory-entries src #:configure #false #:options (list (zip-flags-huffman-codes options)))
+                        (make-archive-file-entry src #:options (list (zip-flags-huffman-codes options))))))
                 
                 (define target.zip : Path
                   (if (zip-flags-temporary options)

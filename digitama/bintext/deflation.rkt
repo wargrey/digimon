@@ -23,13 +23,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
-                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:fixed-only? Boolean
+                                          (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:huffman-codes Symbol
                                                    #:min-match Positive-Byte #:name Any)
                                           Output-Port)
-  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:fixed-only? [static-only? #true]
+  (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:huffman-codes [huffman-codes 'auto]
            #:min-match [min-match lz77-default-min-match] #:name [name '/dev/dfbout]
            /dev/zipout strategy [close-orig? #false]]
-    (define no-compression? : Boolean (= (zip-strategy-level strategy) 0))
+    (define stored-only? : Boolean (= (zip-strategy-level strategy) 0))
+    (define favor-fixed? : Boolean (eq? huffman-codes 'fixed))
+    (define favor-dynamic? : Boolean (eq? huffman-codes 'dynamic))
     (define memory-level : Positive-Byte (min memlevel 9))
     
     ;;; NOTE
@@ -49,8 +51,8 @@
     (define bits-blocksize : Positive-Index raw-blocksize)
 
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
-    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
-    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize no-compression?))
+    (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize stored-only? #false))
+    (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize stored-only? #false))
     (define lz77-payload : Index 0)
     
     (define hash-bits : Positive-Index (+ memory-level 7))
@@ -59,8 +61,8 @@
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
 
-    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size no-compression?))
-    (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 no-compression?))
+    (define hash-heads : (Vectorof Index) (smart-make-vector hash-size stored-only? #false))
+    (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 stored-only? #false))
     (define hash-nil : Index (bytes-length window))
     (define prev-remained : Index 0)
     (define prev-hash : Index 0)
@@ -89,24 +91,24 @@
            (void (lz77-block-flush BFINAL lz77-payload)))]))
 
     ;; for (dynamic) huffman tree
-    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
-    (define literal-codewords : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
-    (define literal-lengths : Bytes (smart-make-bytes uplitcode (or no-compression? static-only?)))
+    (define literal-frequencies : (Vectorof Index) (smart-make-vector uplitcode stored-only? favor-fixed?))
+    (define literal-codewords : (Mutable-Vectorof Index) (smart-make-vector uplitcode stored-only? favor-fixed?))
+    (define literal-lengths : Bytes (smart-make-bytes uplitcode stored-only? favor-fixed?))
 
-    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcode (or no-compression? static-only?)))
-    (define distance-codewords : (Mutable-Vectorof Index) (smart-make-vector updistcode (or no-compression? static-only?)))
-    (define distance-lengths : Bytes (smart-make-bytes updistcode (or no-compression? static-only?)))
+    (define distance-frequencies : (Vectorof Index) (smart-make-vector updistcode stored-only? favor-fixed?))
+    (define distance-codewords : (Mutable-Vectorof Index) (smart-make-vector updistcode stored-only? favor-fixed?))
+    (define distance-lengths : Bytes (smart-make-bytes updistcode stored-only? favor-fixed?))
 
-    (define codeword-lengths : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
-    (define codelen-symbols : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
-    (define codelen-repeats : Bytes (smart-make-bytes (+ uplitcode updistcode) (or no-compression? static-only?)))
-    (define codelen-lengths : Bytes (smart-make-bytes uplencode (or no-compression? static-only?)))
-    (define codelen-frequencies : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? static-only?)))
-    (define codelen-codewords : (Mutable-Vectorof Index) (smart-make-vector uplencode (or no-compression? static-only?)))
+    (define codeword-lengths : Bytes (smart-make-bytes (+ uplitcode updistcode) stored-only? favor-fixed?))
+    (define codelen-symbols : Bytes (smart-make-bytes (+ uplitcode updistcode) stored-only? favor-fixed?))
+    (define codelen-repeats : Bytes (smart-make-bytes (+ uplitcode updistcode) stored-only? favor-fixed?))
+    (define codelen-lengths : Bytes (smart-make-bytes uplencode stored-only? favor-fixed?))
+    (define codelen-frequencies : (Mutable-Vectorof Index) (smart-make-vector uplencode stored-only? favor-fixed?))
+    (define codelen-codewords : (Mutable-Vectorof Index) (smart-make-vector uplencode stored-only? favor-fixed?))
     
-    (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) (or no-compression? static-only?)))
-    (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
-    (define prefab-nextcodes : (Mutable-Vectorof Index) (smart-make-vector uplitcode (or no-compression? static-only?)))
+    (define minheap : (Mutable-Vectorof Index) (smart-make-vector (+ uplitcode uplitcode) stored-only? favor-fixed?))
+    (define prefab-counts : (Mutable-Vectorof Index) (smart-make-vector uplitcode stored-only? favor-fixed?))
+    (define prefab-nextcodes : (Mutable-Vectorof Index) (smart-make-vector uplitcode stored-only? favor-fixed?))
     
     (define submit-huffman-symbol+frequency : LZ77-Submit-Symbol
       (case-lambda
@@ -158,6 +160,8 @@
                    (huffman-calculate-length-in-bits literal-frequencies distance-frequencies literal-lengths distance-lengths))))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    (displayln (cons name huffman-codes))
+    
     (define (huffman-write-empty-block! [BFINAL : Boolean]) : Natural
       (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111) ; empty static block
       (PUSH-BITS #;(vector-ref (force huffman-fixed-literal-codewords) EOB) EOB EOBbits) ; only when `(EOB & EOBbits)` is 0
@@ -165,7 +169,9 @@
     
     (define (huffman-write-stored-block! [bsrc : Bytes] [BFINAL : Boolean] [start : Index] [end : Index]) : Natural
       (define size : Index (unsafe-idx- end start))
-        
+
+      (printf "\tstored~n")
+
       (PUSH-BITS (if BFINAL #b001 #b000) 3 #b111)
       ($SHELL 'align)
       (PUSH-BITS size 16 #xFFFF)
@@ -177,6 +183,8 @@
     (define (huffman-write-static-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)] [BFINAL : Boolean] [start : Index] [end : Index]) : Natural
       (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111)
 
+      (printf "\tstatic~n")
+      
       (huffman-write-block! l77src dists
                             (force huffman-fixed-literal-codewords) (force huffman-fixed-distance-codewords)
                             huffman-fixed-literal-lengths huffman-fixed-distance-lengths
@@ -188,6 +196,8 @@
     (define (huffman-write-dynamic-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)] [BFINAL : Boolean] [start : Index] [end : Index]
                                           [hlit : Index] [hdist : Index] [hclen : Index] [sym-count : Index]) : Natural
       (PUSH-BITS (if BFINAL #b101 #b100) 3 #b111)
+
+      (printf "\tdynamic~n")
 
       (PUSH-BITS (unsafe-idx- hlit  literal-nbase)  5 #x1F)
       (PUSH-BITS (unsafe-idx- hdist distance-nbase) 5 #x1F)
@@ -250,11 +260,11 @@
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (raw-block-flush [BFINAL : Boolean] [flush-lz77? : Boolean]) : (U Void Natural)
-      (cond [(not no-compression?)
+      (cond [(not stored-only?)
              (when (or (> raw-end raw-start) (> prev-remained 0))
                (define-values (next-idx hash++)
                  (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
-                               window (if (not static-only?) submit-huffman-symbol+frequency submit-huffman-symbol)
+                               window (if (not favor-fixed?) submit-huffman-symbol+frequency submit-huffman-symbol)
                                strategy (unsafe-idx- raw-start prev-remained) raw-end prev-hash BFINAL hash-nil))
 
                (set! prev-remained (unsafe-idx- raw-end next-idx))
@@ -263,21 +273,23 @@
                ; the length of sliding window is assumed exactly multiple of length of the raw block
                (cond [(< raw-end window-size)
                       (set! raw-start raw-end)]
-                     [else ; slide the window
+                     [else ; guaranteed (= raw-end window-size) by `block-write` ; slide the window
                       (unsafe-bytes-copy! window 0 window window-size/2 window-size)
                       (lz77-slide-hash hash-heads hash-prevs window-size/2 hash-nil strategy)
-                      (set! raw-start window-size/2)
+                      (set! raw-start window-size/2) ; <==> (set! raw-start (- window-size window-size/2))
                       (set! raw-end raw-start)
                       (set! stored-start (unsafe-fx- stored-start window-size/2))]))
 
              (when (or BFINAL flush-lz77?)
                (cond [(> lz77-payload 0) (lz77-block-flush BFINAL lz77-payload)]
                      [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
+            
             [(> raw-end raw-start)
              (huffman-write-stored-block! window BFINAL raw-start raw-end)
              ; no need to maintain the history of the input for stored blocks,
              ; simply reset the end cursor to where it starts.
              (set! raw-end raw-start)]
+
             [(and BFINAL) (huffman-write-empty-block! BFINAL)]))
 
     (define (lz77-block-flush [BFINAL : Boolean] [payload : Index]) : Void
@@ -289,7 +301,8 @@
       ;   reasonable data and slide the window when necessary.
 
       (define-values (?stored-start non-dynamic-length)
-        (cond [(and static-only?) (values #false 0)] ; no frequencies are gathered, `non-dynamic-bits` is meaningless
+        (cond [(and favor-fixed?) (values #false 0)]  ; no frequencies are gathered, `non-dynamic-bits` is meaningless
+              [(or favor-dynamic?) (values #false 0)] ; don't waste time to compute non-dynamic lengths
               [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))]
               [else (let ([static-length (huffman-calculate-static-block-length-in-bits)]
                           [stored-length (huffman-calculate-stored-block-length-in-bits)])
@@ -297,7 +310,7 @@
                           (values #false static-length)
                           (values stored-start stored-length)))]))
 
-      (or (and (not static-only?)
+      (or (and (not favor-fixed?)
                (huffman-patch-distances-for-buggy-inflator! distance-frequencies)
                (let-values ([(dist-maxlength hdist) (construct-tree! distance-frequencies distance-codewords distance-lengths updistcode codeword-length-limit)])
                  (and (>= hdist distance-nbase) ; it's impossible to compress a block with zero back references
@@ -310,9 +323,10 @@
                              (unsafe-bytes-copy! codeword-lengths hlit distance-lengths 0 hdist)
                              (let*-values ([(nsym) (huffman-dynamic-lengths-deflate! codeword-lengths hlit hdist codelen-symbols codelen-repeats codelen-frequencies)]
                                            [(who cares) (construct-tree! codelen-frequencies codelen-codewords codelen-lengths uplencode uplenbits)]
-                                           [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)]
-                                           [(dynamic-length) (huffman-calculate-dynamic-block-length-in-bits hclen)])
-                               (and (< dynamic-length non-dynamic-length)
+                                           [(hclen) (huffman-dynamic-codelen-effective-count codelen-lengths)])
+                               (and (or favor-dynamic?
+                                        (< (huffman-calculate-dynamic-block-length-in-bits hclen)
+                                           non-dynamic-length))
                                     (huffman-write-dynamic-block! lz77-block lz77-dists BFINAL 0 payload hlit hdist hclen nsym))))))))
           
           (if (index? ?stored-start)
@@ -346,7 +360,7 @@
                 (set! raw-end end++)))))
 
       (when (or non-block/buffered? #| non-block writing implies flushing |#
-                (<= received 0) #| via `flush-port` or non-block writing with an empty bytes |#)
+                (<= received 0)     #| via `flush-port` or non-block writing with an empty bytes |#)
         (raw-block-flush #false #true))
       
       received)
@@ -699,12 +713,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define vector-placeholder : (Mutable-Vectorof Index) (make-vector 0))
 
-(define smart-make-bytes : (->* (Natural Boolean) (Byte) Bytes)
-  (lambda [size unused? [defval 0]]
-    (cond [(not unused?) (make-bytes size defval)]
-          [else #""])))
+(define smart-make-bytes : (->* (Natural Boolean Boolean) (Byte) Bytes)
+  (lambda [size no-compression? static-only? [defval 0]]
+    (cond [(or no-compression? static-only?) #""]
+          [else (make-bytes size defval)])))
 
-(define smart-make-vector : (->* (Natural Boolean) (Index) (Mutable-Vectorof Index))
-  (lambda [size unused? [defval 0]]
-    (cond [(not unused?) (make-vector size defval)]
-          [else vector-placeholder])))
+(define smart-make-vector : (->* (Natural Boolean Boolean) (Index) (Mutable-Vectorof Index))
+  (lambda [size no-compression? static-only? [defval 0]]
+    (cond [(or no-compression? static-only?) vector-placeholder]
+          [else (make-vector size defval)])))

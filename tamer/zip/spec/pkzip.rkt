@@ -17,6 +17,8 @@
 
 (define pk.zip : Path (build-path tempdir "pk.zip"))
 (define pktest : Path (build-path tempdir "pktest"))
+(define pktest/fixed : Path (build-path pktest "fixed"))
+(define pktest/dynamic : Path (build-path pktest "dynamic"))
 
 (define rootdir : Path (simplify-path (collection-file-path "." "digimon")))
 (define tamer:// : Path (collection-file-path "zip" "digimon" "tamer"))
@@ -34,17 +36,20 @@
 
 (define pktest-write : (-> Bytes (U String Symbol) Void)
   (lambda [raw filename]
-    (define test.λsh (build-path pktest (format "~a" filename)))
+    (define test.λsh-list : (Listof Path)
+      (list (build-path pktest "fixed" (format "~a" filename))
+            (build-path pktest "dynamic" (format "~a" filename))))
 
-    (unless (file-exists? test.λsh)
-      (make-parent-directory* test.λsh)
-    
-      (call-with-output-file* #:exists 'truncate/replace
-        test.λsh
-        (λ [[/dev/zipout : Output-Port]]
-          (void (write-bytes raw /dev/zipout)))))))
+    (for ([test.λsh (in-list test.λsh-list)])
+      (unless (file-exists? test.λsh)
+        (make-parent-directory* test.λsh)
+        
+        (call-with-output-file* #:exists 'truncate/replace
+          test.λsh
+          (λ [[/dev/zipout : Output-Port]]
+            (void (write-bytes raw /dev/zipout))))))))
 
-(define pktest-configure : Archive-Directory-Configure
+(define (make-pktest-configure [huffcodes : Symbol]) : Archive-Directory-Configure
   (lambda [path name config]
     (define ?dist (regexp-match-positions* #px"(?<=:)(\\d+)" name))
 
@@ -54,13 +59,13 @@
                  (and (not (list? pos))
                       (let* ([bname (path->string name)]
                              [base (string->number (substring bname (car pos) (cdr pos)))])
-                        (list (zip-run-preference (max 1 (assert base index?))) 'fixed)))))
+                        (list (zip-run-preference (max 1 (assert base index?))) huffcodes)))))
           (let ([bname (string->symbol (path->string name))])
             (case bname
-              [(block-aligned.λsh literals.λsh) (list 'huffman-only 'fixed)]
-              [(window-sliding.λsh) (list 1 'fixed)]
-              [(backref) (list 'run 'fixed)]
-              [else (cadr config)]))))
+              [(block-aligned.λsh literals.λsh) (list 'huffman-only huffcodes)]
+              [(window-sliding.λsh) (list 1 huffcodes)]
+              [(backref) (list 'run huffcodes)]
+              [else (cons huffcodes (cadr config))]))))
 
     (list (car config) options (caddr config))))
 
@@ -105,7 +110,8 @@
                (make-archive-binary-entry #"data hasn't been compressed by lz77 algorithm" "deflated/fixed/identity.λsh" #:methods '(deflated) #:options '(id fixed))
                (make-archive-binary-entry #"Fa-la-la-la-la (4 'la's)" "deflated/fixed/overlap.λsh" #:methods '(deflated) #:options '(6 fixed))))
    
-   (make-archive-directory-entries pktest pktest #:configure pktest-configure #:keep-directory? #true #:methods '(deflated) #:options '(fixed))
+   (make-archive-directory-entries pktest/fixed pktest #:configure (make-pktest-configure 'fixed) #:keep-directory? #true #:methods '(deflated))
+   (make-archive-directory-entries pktest/dynamic pktest #:configure (make-pktest-configure 'dynamic) #:keep-directory? #false #:methods '(deflated))
    (make-archive-directory-entries rootdir rootdir #:configure defualt-archive-ignored-configure #:keep-directory? #false #:methods '(deflated))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

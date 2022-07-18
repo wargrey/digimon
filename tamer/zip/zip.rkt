@@ -44,11 +44,17 @@
                            "force encoding filename with ~1"]
    [(64)                   #:=> zip-64bit
                            "force building zip64 file"]
+   [(#\i)                  #:=> zip-interoperate
+                           "interoperate with `zip` application"]
    [(#\v)                  #:=> zip-verbose
-                           "run with verbose messages"]])
+                           "run with verbose messages"]]
+  #:multi
+  [[(#\c huffman-codes)    #:=> cmdopt-string->symbol huffman-codes #: Symbol
+                           "specific the huffman codes (fixed, dynamic, or auto)"]])
 
 (define zip-64bit : (Parameterof Boolean) (make-parameter #false))
 (define zip-progress : (Parameterof Boolean) (make-parameter #false))
+(define zip-interoperate : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-exec : (-> Symbol Path-String * Void)
@@ -76,17 +82,18 @@
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                 (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-lht") #:help-output-port (current-output-port)))
                 (define entries.λsh : (HashTable String (Listof String)) (make-hash))
-                (define entries.zip : (HashTable String (Listof String)) (make-hash))
+                (define entries_zip : (HashTable String (Listof String)) (make-hash))
                 
                 (define tempdir : Path (build-path (find-system-path 'temp-dir) "lambda-sh"))
                 (define strategy : (Pairof Symbol Index) (or (zip-flags-strategy options) (cons 'default 6)))
-                
+
                 (define entries : Archive-Entries
-                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
-                    (define alias : (Option Path-String) (if (relative-path? src) (current-directory) ""))
-                    (if (zip-flags-recurse-paths options)
-                        (make-archive-directory-entries src alias #:configure #false)
-                        (make-archive-file-entry src (archive-entry-reroot src alias #false)))))
+                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([huffcode (in-list (zip-flags-huffman-codes options))])
+                    (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
+                      (define alias : (Option Path-String) (if (relative-path? src) (current-directory) ""))
+                      (if (zip-flags-recurse-paths options)
+                          (make-archive-directory-entries src alias #:configure #false #:options (list huffcode))
+                          (make-archive-file-entry src (archive-entry-reroot src alias #false) #:options (list huffcode))))))
                 
                 (define target.zip : Path
                   (if (zip-flags-temporary options)
@@ -94,6 +101,9 @@
                       (simple-form-path file.zip)))
 
                 (define target_zip : Path (path-add-extension target.zip #".zip"))
+
+                (when (file-exists? target_zip)
+                  (fg-recon-rm 'zip target_zip))           
 
                 (when (zip-progress)
                   [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
@@ -105,25 +115,24 @@
                 (for ([e (in-list (zip-directory-list* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
 
-                (time** #:title 'zip
-                        (when (file-exists? target_zip)
-                          (fg-recon-rm 'zip target_zip))
-                        (apply zip-exec 'zip
-                               (format "-~aq~a" (cdr strategy) (if (zip-flags-recurse-paths options) 'r ""))
-                               target_zip sources))
+                (when (zip-flags-i options)
+                  (time** #:title 'zip
+                          (apply zip-exec 'zip
+                                 (format "-~aq~a" (cdr strategy) (if (zip-flags-recurse-paths options) 'r ""))
+                                 target_zip sources)))
 
                 (when (file-exists? target_zip)
                   (for ([e (in-list (zip-directory-list* target_zip))])
-                    (hash-set! entries.zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts))))
+                    (hash-set! entries_zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts))))
 
                 (define all-entries : (Listof (Listof String))
                   (for/fold ([merged-entries : (Listof (Listof String)) null])
                             ([(entry info) (in-hash entries.λsh)])
-                    (define zip-info : (Listof String) (hash-ref entries.zip entry (inst list String)))
-                    
+                    (define zip-info : (Listof String) (hash-ref entries_zip entry (inst list String)))
+
                     (cond [(null? zip-info) (cons (cons "λsh" info) merged-entries)]
                           [else (cons (cons "λsh" info) (cons (cons "zip" zip-info) merged-entries))])))
-
+                
                 (when (pair? all-entries)
                   (let ([widths (text-column-widths all-entries)])
                     (for ([e (in-list all-entries)])
@@ -131,7 +140,8 @@
                       (for ([col (in-list (cdr e))]
                             [wid (in-list (cdr widths))]
                             [idx (in-naturals)])
-                        (when (> idx 0) (display #\space))
+                        (when (> idx 0)
+                          (display #\space))
 
                         (let ([numerical? (memq (string-ref col (sub1 (string-length col))) (list #\% #\B))])
                           (echof (~a col #:min-width (+ wid 1) #:align (if numerical? 'right 'left)) #:fgcolor fgc)))

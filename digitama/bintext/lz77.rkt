@@ -507,7 +507,7 @@
           (define pos : Index (unsafe-vector*-ref heads idx))
 
           (cond [(< pos distance) (unsafe-vector*-set! heads idx nil)]
-                [(< pos nil)(unsafe-vector*-set! heads idx (unsafe-idx- pos distance))])
+                [(< pos nil) (unsafe-vector*-set! heads idx (unsafe-idx- pos distance))])
           
           (slide-head (+ idx 1)))))
 

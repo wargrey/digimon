@@ -14,7 +14,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define deflation-run : LZ77-Run
-  (lambda [txt strategies min-match farthest filtered winbits memlevel]
+  (lambda [txt strategies min-match farthest filtered winbits memlevel huffcodes]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
 
@@ -37,7 +37,7 @@
           (time-apply**
            (λ [] (let ([&csize : (Boxof Natural) (box 0)])
                    (let ([/dev/zipout (open-output-deflated-block #:window-bits winbits #:memory-level memlevel
-                                                                  #:name desc #:fixed-only? (not (lz77-dynamic))
+                                                                  #:name desc #:huffman-codes huffcodes
                                                                   /dev/bsout strategy #false)])
                      (write-bytes-avail* txt /dev/zipout)
                      (close-output-port /dev/zipout)

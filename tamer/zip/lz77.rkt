@@ -20,7 +20,7 @@
 (require "zipinfo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte Index Index Positive-Byte Positive-Byte Void))
+(define-type LZ77-Run (-> Bytes (Listof ZIP-Strategy) Positive-Byte Index Index Positive-Byte Positive-Byte Symbol Void))
 
 (define lz77-strategy : (-> Symbol String String String (List Symbol Byte Index))
   (lambda [option str.name str.#0 str.#n]
@@ -35,17 +35,18 @@
   #:args [filename]
 
   #:once-each
-  [[(#\m)   #:=> cmdopt-string+>byte min-match #: Positive-Byte "use ~1 as the default minimum match"]
-   [(#\F)   #:=> cmdopt-string->index farthest #: Index         "use ~1 as the distance limit for short matches"]
-   [(#\f)   #:=> cmdopt-string->index filtered #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
+  [[(#\m)   #:=> cmdopt-string+>byte min-match   #: Positive-Byte "use ~1 as the default minimum match"]
+   [(#\F)   #:=> cmdopt-string->index farthest   #: Index         "use ~1 as the distance limit for short matches"]
+   [(#\f)   #:=> cmdopt-string->index filtered   #: Index         "use ~1 as the filtered threshold to throw away random distributed data"]
    
-   [(#\W)   #:=> cmdopt-string+>byte winbits   #: Positive-Byte "encoding with the slide window of ~1 bits"]
-   [(#\M)   #:=> cmdopt-string+>byte memlevel  #: Positive-Byte "encoding in memory level of ~1"]
+   [(#\W)   #:=> cmdopt-string+>byte winbits     #: Positive-Byte "encoding with the slide window of ~1 bits"]
+   [(#\M)   #:=> cmdopt-string+>byte memlevel    #: Positive-Byte "encoding in memory level of ~1"]
 
-   [(#\b)   #:=> lz77-brief                                     "only display T or F as the test result of a test"]
-   [(#\v)   #:=> lz77-verbose                                   "run with verbose messages"]
-   [(#\d)   #:=> lz77-dynamic                                   "allow dynamic huffman encoding (huffman only)"]
-   [(#\h)   #:=> lz77-hexdump                                   "dump the hexdecicaml codes of the content"]]
+   [(#\c)   #:=> cmdopt-string->symbol huffcodes #: Symbol        "specific the huffman codes"]
+
+   [(#\b)   #:=> lz77-brief                                       "only display T or F as the test result of a test"]
+   [(#\v)   #:=> lz77-verbose                                     "run with verbose messages"]
+   [(#\h)   #:=> lz77-hexdump                                     "dump the hexdecicaml codes of the content"]]
 
   #:multi
   [[(#\s strategy) #:=> lz77-strategy strategy level0 leveln #: (List Symbol Byte Index)
@@ -53,12 +54,11 @@
 
 (define lz77-brief : (Parameterof Boolean) (make-parameter #false))
 (define lz77-verbose : (Parameterof Boolean) (make-parameter #false))
-(define lz77-dynamic : (Parameterof Boolean) (make-parameter #false))
 (define lz77-hexdump : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define lz77-run : LZ77-Run
-  (lambda [txt strategies min-match farthest filtered winbits memlevel]
+  (lambda [txt strategies min-match farthest filtered winbits memlevel huffcodes]
     (define rsize : Index (bytes-length txt))
     (define magazine : (Vectorof LZ77-Symbol) (make-vector rsize 0))
     (define mgz-idx : Natural 0)
@@ -150,7 +150,8 @@
            (or (lz77-flags-F options) lz77-default-farthest)
            (or (lz77-flags-f options) 0)
            (or (lz77-flags-W options) 12)
-           (or (lz77-flags-M options) 1)))))
+           (or (lz77-flags-M options) 1)
+           (or (lz77-flags-c options) 'auto)))))
 
 (define lz77-main : (->* ((U (Listof String) (Vectorof String))) (LZ77-Run) Nothing)
   (lambda [argument-list [run lz77-run]]
