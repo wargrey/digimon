@@ -65,7 +65,8 @@
                 (set!-values (payload pwidth) (values 0 0)))
 
               (define (tell-padding-size) : Byte
-                (unsafe-idx- 8 (unsafe-fxremainder pwidth 8)))
+                (let ([r (unsafe-fxremainder pwidth 8)])
+                  (if (= r 0) 0 (unsafe-idx- 8 r))))
 
               (define (align-bits) : Byte
                 (let ([ps (tell-padding-size)])

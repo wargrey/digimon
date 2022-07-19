@@ -6,6 +6,8 @@
 (require racket/string)
 (require racket/symbol)
 
+(require "format.rkt")
+
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 
@@ -68,15 +70,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (term-echo (current-output-port) (apply format msgfmt vals) fg bg attrs)))
+    (term-echo (current-output-port) (~string msgfmt vals) fg bg attrs)))
 
 (define eechof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (term-echo (current-error-port) (apply format msgfmt vals) fg bg attrs)))
+    (term-echo (current-error-port) (~string msgfmt vals) fg bg attrs)))
 
 (define fechof : (-> Output-Port String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [/dev/stdout msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
-    (define rawmsg : String (apply format msgfmt vals))
+    (define rawmsg : String (~string msgfmt vals))
     (define colorize? (terminal-port? /dev/stdout))
 
     (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)

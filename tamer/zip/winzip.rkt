@@ -32,7 +32,8 @@
     (parameterize ([current-logger /dev/dtrace]
                    [date-display-format 'iso-8601]
                    [default-stdin-locale LC_ALL]
-                   [default-stdout-locale LC_ALL])
+                   [default-stdout-locale LC_ALL]
+                   [current-directory (or (zip-flags-change-directory options) (current-directory))])
       (exit (let ([tracer (thread (make-zip-log-trace))])
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                 (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-lht") #:help-output-port (current-output-port)))

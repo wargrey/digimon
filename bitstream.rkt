@@ -114,7 +114,7 @@
         (set! mgz-start (min lookahead mgz-payload))))
 
     (define (draw-phantom-bytes) : Void
-      ; do padding one by one, in case a gentle client doesn't exploiting to much.
+      ; do padding one by one, in case a gentle client doesn't exploit too much.
       (unsafe-bytes-set! magazine mgz-start eof-byte)
       (set! mgz-payload (unsafe-idx+ mgz-start 1))
       (set! eof-width (+ eof-width 8)))

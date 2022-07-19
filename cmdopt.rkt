@@ -132,6 +132,8 @@
 (define cmdopt-string+>byte (make-cmdopt-string->integer positive-byte?))
 (define cmdopt-string->index (make-cmdopt-string->integer index?))
 (define cmdopt-string+>index (make-cmdopt-string->integer positive-index?))
+(define cmdopt-string->natural (make-cmdopt-string->integer exact-nonnegative-integer?))
+(define cmdopt-string+>natural (make-cmdopt-string->integer exact-positive-integer?))
 
 (define cmdopt-string->port (make-cmdopt-string->integer index? (cons 0 65535) "port number"))
 (define cmdopt-string+>port (make-cmdopt-string->integer positive-index? (cons 1 65535) "port number"))

@@ -38,6 +38,12 @@
    [(#\t temporary)        "create temporarily"]
    [(#\p progress)         #:=> zip-progress
                            "show progress bars"]
+
+   [(#\n)                  #:=> cmdopt-string->index span  #: Index
+                           "test with only first ~1 bytes"]
+   [(#\o)                  #:=> cmdopt-string->index skip  #: Natural
+                           "skip ~1 bytes before testing"]
+   
    [(#\C change-directory) #:=> cmdopt-string->path root #: Path
                            "set root directory for entry path to ~1"]
    [(#\l)                  #:=> cmdopt-string->symbol locale #: Symbol
@@ -77,7 +83,8 @@
     (parameterize ([current-logger /dev/dtrace]
                    [date-display-format 'iso-8601]
                    [default-stdin-locale (zip-flags-l options)]
-                   [default-stdout-locale (zip-flags-l options)])
+                   [default-stdout-locale (zip-flags-l options)]
+                   [current-directory (or (zip-flags-change-directory options) (current-directory))])
       (exit (let ([tracer (thread (make-zip-log-trace))])
               (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                 (define-values (zipinfo:opts _) (parse-zipinfo-flags (list "-lht") #:help-output-port (current-output-port)))
@@ -86,14 +93,23 @@
                 
                 (define tempdir : Path (build-path (find-system-path 'temp-dir) "lambda-sh"))
                 (define strategy : (Pairof Symbol Index) (or (zip-flags-strategy options) (cons 'default 6)))
+                (define all-huffcodes : (Listof Symbol) (zip-flags-huffman-codes options))
+
+                (define span : Index (or (zip-flags-n options) 0))
+                (define skip : Natural (or (zip-flags-o options) 0))
 
                 (define entries : Archive-Entries
-                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([huffcode (in-list (zip-flags-huffman-codes options))])
+                  (for/list : (Listof (U Archive-Entry Archive-Entries)) ([huffcode (if (null? all-huffcodes) (in-value 'auto) (in-list all-huffcodes))])
                     (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
                       (define alias : (Option Path-String) (if (relative-path? src) (current-directory) ""))
-                      (if (zip-flags-recurse-paths options)
-                          (make-archive-directory-entries src alias #:configure #false #:options (list huffcode))
-                          (make-archive-file-entry src (archive-entry-reroot src alias #false) #:options (list huffcode))))))
+                      (cond [(zip-flags-recurse-paths options) (make-archive-directory-entries src alias #:configure #false #:options (list huffcode))]
+                            [(and (= skip span 0)) (make-archive-file-entry src (archive-entry-reroot src alias #false) #:options (list huffcode))]
+                            [else (let ([/dev/stdin (open-input-file src)])
+                                    (when (> skip 0) (drop-bytes /dev/stdin skip))
+                                    (make-archive-binary-entry (cond [(= span 0)  (port->bytes /dev/stdin)]
+                                                                     [else (let ([bs (read-bytes span /dev/stdin)])
+                                                                             (if (eof-object? bs) #"" bs))])
+                                                               (archive-entry-reroot src alias #false) #:options (list huffcode)))]))))
                 
                 (define target.zip : Path
                   (if (zip-flags-temporary options)
@@ -110,7 +126,7 @@
                   [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 2 0))])
                 
                 (time** #:title 'λsh
-                        (zip-create target.zip entries #:strategy strategy #:force-zip64? (zip-64bit)))
+                        (zip-create target.zip entries #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)))
 
                 (for ([e (in-list (zip-directory-list* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))

@@ -141,7 +141,7 @@
 (define zip-write-entry-body : (->* (Bytes Output-Port (U Bytes Path) String Natural ZIP-Compression-Method ZIP-Strategy Positive-Byte Symbol Symbol)
                                     ((Option Natural))
                                     (Values Index Natural))
-  (lambda [pool /dev/stdout source entry-name total method strategy memlevel huffcodes topic [seek #false]]
+  (lambda [pool /dev/stdout source entry-name rsize method strategy memlevel huffcodes topic [seek #false]]
     (define anchor : Natural
       (cond [(not seek) (file-position /dev/stdout)]
             [else (file-position /dev/stdout seek) seek]))
@@ -153,14 +153,14 @@
 
     (define-values (_ crc32)
       (zip-entry-copy (open-progress-input-port (if (bytes? source) (open-input-memory source) (open-input-file source))
-                                                topic entry-name (default-archive-entry-progress-handler) total)
+                                                topic entry-name (default-archive-entry-progress-handler) rsize)
                       /dev/zipout pool
                       
                       ; some systems may limit the maximum number of open files
                       ; if exception escapes, constructed ports would be closed by the custodian
                       #:close-input-port? #true
                       
-                      ; keep consistent with other kind of sources
+                      ; keep consistent with other kinds of sources
                       #:flush-output-port? #false))
     
     ; by design, all output ports associated with compression methods should follow the convention:

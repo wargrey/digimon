@@ -161,9 +161,7 @@
       (let*-values ([(opts λsrc) (parse-zipdiff-flags argument-list #:help-output-port (current-output-port))]
                     [(srcfile) (simple-form-path (λsrc))]
                     [(pstyle) '(border auto-vscroll)])
-        (list (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'fixed] [style pstyle])
-              (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'dynamic] [style pstyle])
-              (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'auto] [style pstyle]))))))
+        (list (new zipdiff-panel% [parent this] [options opts] [source srcfile] [huffman-codes 'auto] [style pstyle]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main

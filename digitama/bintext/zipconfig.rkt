@@ -31,12 +31,13 @@
       [else #false])))
 
 (define zip-name->maybe-strategy : (->* (Symbol) ((Option Index)) (Option ZIP-Strategy))
-  (lambda [name [l #false]]
+  (lambda [name [level #false]]
     (case name
-      [(normal fast)           (zip-normal-preference (or (and (zip-compression-level? l) l) 1))]
-      [(lazy slow)             (zip-lazy-preference (or (and (zip-compression-level? l) l) 6))]
-      [(default backward)      (zip-default-preference)]
-      [(rle run)               (zip-run-preference (max (or l 1) 1))]
+      [(normal fast)           (zip-normal-preference (or (and (zip-compression-level? level) level) 1))]
+      [(lazy slow)             (zip-lazy-preference (or (and (zip-compression-level? level) level) 6))]
+      [(default)               (zip-default-preference level)]
+      [(backward)              (zip-backward-preference (or (and (zip-compression-level? level) level) 6))]
+      [(rle run)               (zip-run-preference (max (or level 1) 1))]
       [(plain fastest)         (zip-plain-preference)]
       [(identity huffman-only) (zip-identity-preference)]
       [else #false])))
@@ -119,9 +120,9 @@
     (zip-run-strategy 'rle 'fast 1 length)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-default-preference : (-> ZIP-Backward-Strategy)
-  (lambda []
-    (zip-backward-preference 6)))
+(define zip-default-preference : (->* () ((Option Index)) ZIP-Backward-Strategy)
+  (lambda [[level #false]]
+    (zip-backward-preference (or (and (zip-compression-level? level) level) 6))))
 
 (define zip-special-preference : (-> Symbol ZIP-Strategy)
   (let ([strategies : (HashTable Symbol ZIP-Strategy) (make-hasheq)])
