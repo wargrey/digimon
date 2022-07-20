@@ -303,8 +303,8 @@
 
       (define-values (?stored-start non-dynamic-length)
         (cond [(and favor-fixed?) (values #false 0)]  ; no frequencies are gathered, `non-dynamic-bits` is meaningless
-              [(or favor-dynamic?) (values #false 0)] ; don't waste time to compute non-dynamic lengths, fall back to static one
-              [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))]
+              [(or favor-dynamic?) (values #false 0)] ; don't waste time to compute non-dynamic lengths, fall back to use the fixed huffman codes
+              [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))] ; should be deadcode, but who knows
               [else (let ([stored-length (huffman-calculate-stored-block-length-in-bits)]
                           [static-length (huffman-calculate-static-block-length-in-bits)])
                       (if (< stored-length static-length)
