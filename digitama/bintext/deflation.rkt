@@ -178,7 +178,7 @@
 
     (define (huffman-write-static-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)] [BFINAL : Boolean] [start : Index] [end : Index]) : Natural
       (PUSH-BITS (if BFINAL #b011 #b010) 3 #b111)
-      
+
       (huffman-write-block! l77src dists
                             (force huffman-fixed-literal-codewords) (force huffman-fixed-distance-codewords)
                             huffman-fixed-literal-lengths huffman-fixed-distance-lengths
@@ -190,7 +190,7 @@
     (define (huffman-write-dynamic-block! [l77src : (Vectorof Index)] [dists : (Vectorof Index)] [BFINAL : Boolean] [start : Index] [end : Index]
                                           [hlit : Index] [hdist : Index] [hclen : Index] [sym-count : Index]) : Natural
       (PUSH-BITS (if BFINAL #b101 #b100) 3 #b111)
-      
+
       (PUSH-BITS (unsafe-idx- hlit  literal-nbase)  5 #x1F)
       (PUSH-BITS (unsafe-idx- hdist distance-nbase) 5 #x1F)
       (PUSH-BITS (unsafe-idx- hclen codelen-nbase)  4 #x0F)
@@ -253,7 +253,8 @@
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     (define (raw-block-flush [BFINAL : Boolean] [flush-lz77? : Boolean]) : (U Void Natural)
       (cond [(not stored-only?)
-             (when (or (> raw-end raw-start) (> prev-lookbehind-span 0))
+             (define lz77-has-payload? : Boolean (or (> raw-end raw-start) (> prev-lookbehind-span 0)))
+             (when (or lz77-has-payload?)
                (define-values (next-idx hash++)
                  (lz77-deflate #:hash-bits hash-bits #:hash-heads hash-heads #:hash-chain hash-prevs #:min-match min-match
                                window (if (or favor-fixed?) submit-huffman-symbol submit-huffman-symbol+frequency)
@@ -274,7 +275,7 @@
 
              (when (or BFINAL flush-lz77?)
                (cond [(> lz77-payload 0) (lz77-block-flush BFINAL)]
-                     [(and BFINAL) (huffman-write-empty-block! BFINAL)]))]
+                     [(not lz77-has-payload?) #| for aligned blocks |# (huffman-write-empty-block! BFINAL)]))]
             
             [(> raw-end raw-start)
              (huffman-write-stored-block! window BFINAL raw-start raw-end)
@@ -284,13 +285,21 @@
 
             [(and BFINAL) (huffman-write-empty-block! BFINAL)]))
 
-    (define (lz77-block-flush [BFINAL : Boolean]) : Void
+    (define (lz77-block-flush [?BFINAL : Boolean]) : Void
       ;;; NOTE
       ; The handy thing is that backref distances are allowed to cross block boundaries,
       ;   thus, the only thing to do here is to figure out a good way to encode current
       ;   lz77 block and feed the bitstream resulting bits to output.
       ; The `raw-block-flush` has the responsibility to feed the `lz77-deflate`
       ;   reasonable data and slide the window when necessary.
+      
+      ;;; WARNING
+      ; The lz77 block might be full before `raw-block-flush` finished,
+      ;   in which case the true `BFINAL` flag would stop the rest from being inflated. 
+
+      (define BFINAL : Boolean
+        (and ?BFINAL
+             (= (+ stored-start stored-count) raw-end)))
 
       (define-values (?stored-start non-dynamic-length)
         (cond [(and favor-fixed?) (values #false 0)]  ; no frequencies are gathered, `non-dynamic-bits` is meaningless

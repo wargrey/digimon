@@ -104,7 +104,7 @@
   (lambda [#:utc-time [mtime #false] #:permission [permission archive-stdin-permission] #:methods [methods null] #:options [options null] #:comment [comment #false]
            src [name #false]]
     (define raw-bytes : Bytes (if (string? src) (string->bytes/utf-8 src) src))
-    
+
     (archive-entry raw-bytes (or name (symbol->immutable-string (gensym 'binary)))
                    #false methods options mtime permission
                    comment #true (bytes-length raw-bytes))))

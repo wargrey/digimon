@@ -103,7 +103,7 @@
                     (for/list : (Listof (U Archive-Entry Archive-Entries)) ([src (in-list (map string->path sources))])
                       (define alias : (Option Path-String) (if (relative-path? src) (current-directory) ""))
                       (cond [(zip-flags-recurse-paths options) (make-archive-directory-entries src alias #:configure #false #:options (list huffcode))]
-                            [(and (= skip span 0)) (make-archive-file-entry src (archive-entry-reroot src alias #false) #:options (list huffcode))]
+                            [(= skip span 0) (make-archive-file-entry src (archive-entry-reroot src alias #false) #:options (list huffcode))]
                             [else (let ([/dev/stdin (open-input-file src)])
                                     (when (> skip 0) (drop-bytes /dev/stdin skip))
                                     (make-archive-binary-entry (cond [(= span 0)  (port->bytes /dev/stdin)]
@@ -124,7 +124,7 @@
                 (when (zip-progress)
                   [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
                   [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 2 0))])
-                
+
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)))
 
