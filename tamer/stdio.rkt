@@ -51,6 +51,10 @@
 
   (newline)
 
+  (define-values (/dev/bsin /dev/bsout) (make-pipe))
+    
   (call-with-locales [UTF-8 GB18030]
-    (bytes->stdio-entry (stdio-entry->bytes entry))
+    (write-stdio-entry entry /dev/bsout)
+    (pipe-content-length /dev/bsin)
+    (read-stdio-entry /dev/bsin)
     (display-stdio-entry entry #:with-offset? #true)))

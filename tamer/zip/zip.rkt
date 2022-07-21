@@ -14,6 +14,7 @@
 (require digimon/format)
 
 (require digimon/digitama/exec)
+(require digimon/digitama/bintext/zip)
 (require digimon/digitama/bintext/archive)
 (require digimon/digitama/bintext/zipinfo)
 
@@ -123,7 +124,7 @@
 
                 (when (zip-progress)
                   [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
-                  [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 2 0))])
+                  [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 1 128))])
 
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)))
@@ -142,12 +143,18 @@
                     (hash-set! entries_zip (zip-directory-filename e) (zip-entry-info e zipinfo:opts))))
 
                 (define all-entries : (Listof (Listof String))
-                  (for/fold ([merged-entries : (Listof (Listof String)) null])
-                            ([(entry info) (in-hash entries.λsh)])
-                    (define zip-info : (Listof String) (hash-ref entries_zip entry (inst list String)))
-
-                    (cond [(null? zip-info) (cons (cons "λsh" info) merged-entries)]
-                          [else (cons (cons "λsh" info) (cons (cons "zip" zip-info) merged-entries))])))
+                  (append (for/fold ([merged-entries : (Listof (Listof String)) null])
+                                    ([(entry info) (in-hash entries.λsh)]
+                                     #:when (not (zip-folder-name? entry)))
+                            (define zip-info : (Listof String) (hash-ref entries_zip entry (inst list String)))
+                            
+                            (cond [(null? zip-info) (cons (cons "λsh" info) merged-entries)]
+                                  [else (list* (cons "λsh" info) (cons "zip" zip-info) merged-entries)]))
+                          (for/list : (Listof (Listof String))
+                            ([(entry zip-info) (in-hash entries_zip)]
+                             #:when (not (or (zip-folder-name? entry)
+                                             (hash-has-key? entries.λsh entry))))
+                            (cons "zip" zip-info))))
                 
                 (when (pair? all-entries)
                   (let ([widths (text-column-widths all-entries)])

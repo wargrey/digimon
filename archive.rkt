@@ -292,7 +292,8 @@
       (cond [(not maybe-pos) (reverse seirtne)]
             [else (let-values ([(lfheader dr-size) (read-zip-file** /dev/zipin)])
                     (when (= dr-size 0)
-                      (drop-bytes /dev/zipin (zip-file-csize lfheader)))
+                      (let-values ([(_ rsize csize) (zip-entry-metrics lfheader)])
+                        (drop-bytes /dev/zipin csize)))
                     (ls (cons (cons lfheader maybe-pos) seirtne)))]))))
 
 (define-file-reader zip-comment-list #:+ (Pairof String (Listof (Pairof String String)))

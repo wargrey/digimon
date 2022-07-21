@@ -55,7 +55,7 @@
 
                 (when (zip-progress)
                   [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge)]
-                  [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 2 0))])
+                  [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 1 128))])
                 
                 (time** #:title 'λsh
                         (zip-create target.zip entries #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)))

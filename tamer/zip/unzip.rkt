@@ -50,7 +50,7 @@
                                       (let ()
                                         (when (unzip-progress)
                                           [default-archive-entry-progress-handler (make-archive-entry-terminal-gauge #:final-char #\space #:overlay-name? #true)]
-                                          [default-archive-progress-handler (make-archive-terminal-gauge #:at 128)])
+                                          [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 1 128))])
                                         (cond [(null? entries) (zip-verify file.zip)]
                                               [else (let-values ([(failures rest-entries unknowns) (zip-verify* file.zip entries)])
                                                       (+ failures (length unknowns)))]))]

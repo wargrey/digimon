@@ -80,7 +80,7 @@
 
     (define position : Natural (file-position /dev/zipout))
     (define rsize : Natural (archive-entry-size entry))
-    (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (not (index? rsize #| just in case `csize` will be greater then `rsize` |#))))
+    (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (> rsize 0xFF31) #| just in case `csize` greater than `rsize`|#))
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
 
     ; please keep the zip64 extended info as the first extra fields, so that we can easily modify the compressed size
@@ -183,15 +183,11 @@
       (cond [(not at-position) (file-position /dev/zipout)]
             [else (file-position /dev/zipout at-position) at-position]))
     
-    (define-values (cdsize count)
-      (for/fold ([size : Natural 0] [count : Natural 0])
-                ([cdir (in-list cdirs)] #:when cdir)
-        (values (+ size (write-zip-directory cdir /dev/zipout)) (+ count 1))))
+    (define count : Natural (for/sum : Natural ([cdir (in-list cdirs)] #:when cdir) (write-zip-directory cdir /dev/zipout) 1))
+    (define cdsize : Natural (assert (- (file-position /dev/zipout) cdoffset) exact-nonnegative-integer?))
 
-    #;(assert (- (file-position /dev/zipout) offset cdirsize) zero?)
-    
     (define eocdr : ZIP-End-Of-Central-Directory
-      (let ([offset32 (assert (if (not force-zip64?) (min cdoffset 0xFF32) 0xFF32) index?)]
+      (let ([offset32 (if (not force-zip64?) (assert (min cdoffset 0xFF32) index?) 0xFF32)]
             [cdsize32 (assert (min cdsize 0xFF32) index?)]
             [count32 (assert (min count 0xFF16) index?)])
         (make-zip-end-of-central-directory #:cdir-offset offset32 #:cdir-size cdsize32
@@ -216,11 +212,6 @@
     (flush-output /dev/zipout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define zip-folder-entry? : (-> ZIP-Directory Boolean)
-  (lambda [cdir]
-    (let ([fname (zip-directory-filename cdir)])
-      (eq? (string-ref fname (sub1 (string-length fname))) #\/))))
-
 (define open-input-zip-entry : (-> Input-Port ZIP-Directory #:verify? Boolean Input-Port)
   (lambda [/dev/zipin cdir #:verify? verify?]
     (define-values (offset crc32 rsize csize zip64?) (zip-directory-data-descriptor cdir))
@@ -326,6 +317,14 @@
        (cond [(not regular-file?) (zip-path-normalize (path->directory-path filename))]
              [(string? filename) (zip-path-normalize (string-trim filename #rx"(/|\\\\)$" #:left? #false #:right? #true #:repeat? #false))]
              [else (zip-path-normalize (path->string filename) regular-file?)])])))
+
+(define zip-folder-name? : (-> String Boolean)
+  (lambda [fname]
+    (eq? (string-ref fname (sub1 (string-length fname))) #\/)))
+
+(define zip-folder-entry? : (-> ZIP-Directory Boolean)
+  (lambda [cdir]
+    (zip-folder-name? (zip-directory-filename cdir))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-update-csize64 : (-> Output-Port Natural Natural Byte)

@@ -65,14 +65,14 @@
   (lambda [ze opts]
     (filter string?
             (if (zip-directory? ze)
-                (let-values ([(csize rsize) (values (zip-directory-csize ze) (zip-directory-rsize ze))])
+                (let-values ([(_ rsize csize) (zip-entry-metrics ze)])
                   (list (zip-version (zip-directory-cversion ze)) (symbol->immutable-string (zip-directory-csystem ze))
                         (zip-version (zip-directory-eversion ze)) (symbol->immutable-string (zip-directory-esystem ze))
                         (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
                         (symbol->immutable-string (zip-directory-compression ze))
                         (zip-datetime (zip-directory-mdate ze) (zip-directory-mtime ze) (zipinfo-flags-T opts))
                         (zip-directory-filename ze)))
-                (let-values ([(csize rsize) (values (zip-file-csize ze) (zip-file-rsize ze))])
+                (let-values ([(_ rsize csize) (zip-entry-metrics ze)])
                   (list (zip-version (zip-file-eversion ze)) (symbol->immutable-string (zip-file-esystem ze))
                         (zip-size rsize) (cond [(zipinfo-flags-m opts) (zip-cfactor csize rsize)] [(zipinfo-flags-l opts) (zip-size csize)])
                         (symbol->immutable-string (zip-file-compression ze))
