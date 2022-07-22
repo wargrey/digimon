@@ -373,17 +373,22 @@
             (cond [(list? entry) (zip-flatten (reverse entry) entries size)]
                   [else (values (cons entry entries) (+ size (archive-entry-size entry)))]))))
 
+      (dtrace-note "~a" #:topic topic (object-name /dev/zipout))
+
       (dynamic-wind
        (λ [] (progress-handler topic 0 total-size))
        (λ [] (let zip-write : Void ([entries : (Listof Archive-Entry) flat-entries]
                                     [sridz : (Listof (Option ZIP-Directory)) null]
                                     [zipped : Natural 0])
-                (cond [(null? entries) (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)]
-                      [else (let* ([self (car entries)]
-                                   [zipped++ : Natural (+ zipped (archive-entry-size self))]
-                                   [zdir (zip-write-entry /dev/zipout self root zip-root px:suffix seekable? strategy memlevel force-zip64? crc-pool)])
-                              (progress-handler topic zipped++ total-size)
-                              (zip-write (cdr entries) (cons zdir sridz) zipped++))])))
+                (if (pair? entries)
+                    (let* ([self (car entries)]
+                           [zipped++ : Natural (+ zipped (archive-entry-size self))]
+                           [zdir (zip-write-entry /dev/zipout self root zip-root px:suffix seekable? strategy memlevel force-zip64? crc-pool topic)])
+                      (progress-handler topic zipped++ total-size)
+                      (zip-write (cdr entries) (cons zdir sridz) zipped++))
+                    (let* ()
+                      (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)
+                      (dtrace-note "~a in ~a ~a" #:topic topic (~size total-size) (length flat-entries) comment)))))
        (λ [] (custodian-shutdown-all (current-custodian)))))))
 
 (define zip-update : (->* (Path-String Archive-Entries)

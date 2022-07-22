@@ -18,6 +18,7 @@
 (require "../../stdio.rkt")
 (require "../../format.rkt")
 (require "../../checksum.rkt")
+(require "../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type PKZIP-Strategy (U (Pairof Symbol Index) Index Symbol ZIP-Strategy False))
@@ -38,13 +39,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-write-entry : (-> Output-Port Archive-Entry (Option Path-String) (Option Path-String) Regexp
-                              Boolean PKZIP-Strategy Positive-Byte Boolean Bytes
+                              Boolean PKZIP-Strategy Positive-Byte Boolean Bytes Symbol
                               (Option ZIP-Directory))
-  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool]
+  (lambda [/dev/zipout entry root zip-root px:suffix seekable? ?strategy memlevel force-zip64? pool topic]
     (define entry-source : (U Bytes Path) (archive-entry-source entry))
     (define regular-file? : Boolean (archive-entry-regular-file? entry))
     (define entry-name : String (zip-path-normalize (archive-entry-reroot (archive-entry-get-name entry) root zip-root 'stdin) regular-file?))
-    (define topic : Symbol ((default-archive-progress-topic-resolver) /dev/zipout))
     (define-values (mdate mtime) (zip-entry-modify-datetime (or (archive-entry-utc-time entry) (current-seconds))))
 
     (define method : ZIP-Compression-Method
@@ -82,6 +82,10 @@
     (define rsize : Natural (archive-entry-size entry))
     (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (> rsize 0xFF31) #| just in case `csize` greater than `rsize`|#))
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
+
+    (dtrace-note #:topic topic "~a[~a]: @~a ~a ~a" entry-name method
+                 (~r position #:base 16 #:min-width 8 #:pad-string "0")
+                 (if zip64-format? '64bit '32bit) comment)
 
     ; please keep the zip64 extended info as the first extra fields, so that we can easily modify the compressed size
     ; TODO: squeeze out every single byte based on the trick of zip64 extended data
@@ -130,6 +134,9 @@
                           (file-position /dev/zipout end-of-body-position)))
                     (values crc32 csize))]))
 
+    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a" entry-name method (~size rsize) (~size csize)
+                 (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2)))
+
     (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version
                         #:filename entry-name #:relative-offset (assert (if (not zip64-format?) position 0xFF32) index?)
                         #:crc32 crc32 #:rsize (assert (if (not zip64-format?) rsize 0xFF32) index?) #:csize (assert (if (not zip64-format?) csize 0xFF32) index?)
@@ -148,7 +155,7 @@
 
     (define /dev/zipout : Output-Port
       (case method
-        [(deflated) (open-output-deflated-block /dev/stdout strategy #false #:huffman-codes huffcodes #:memory-level memlevel #:name entry-name)]
+        [(deflated) (open-output-deflated-block /dev/stdout strategy #false #:huffman-codes huffcodes #:memory-level memlevel #:name entry-name #:topic topic)]
         [else /dev/stdout]))
 
     (define-values (_ crc32)

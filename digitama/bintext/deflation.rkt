@@ -18,21 +18,24 @@
 (require "../../port.rkt")
 (require "../../bitstream.rkt")
 (require "../../format.rkt")
+(require "../../dtrace.rkt")
 
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define open-output-deflated-block : (->* (Output-Port ZIP-Strategy)
                                           (Boolean #:window-bits Positive-Byte #:memory-level Positive-Byte #:huffman-codes Symbol
-                                                   #:min-match Positive-Byte #:name Any)
+                                                   #:min-match Positive-Byte #:name Any #:topic Symbol)
                                           Output-Port)
   (lambda [#:window-bits [winbits window-obits] #:memory-level [memlevel 8] #:huffman-codes [huffman-codes 'auto]
-           #:min-match [min-match lz77-default-min-match] #:name [name '/dev/dfbout]
+           #:min-match [min-match lz77-default-min-match] #:name [name '/dev/dfbout] #:topic [topic 'zip]
            /dev/zipout strategy [close-orig? #false]]
     (define stored-only? : Boolean (= (zip-strategy-level strategy) 0))
     (define favor-fixed? : Boolean (eq? huffman-codes 'fixed))
     (define favor-dynamic? : Boolean (eq? huffman-codes 'dynamic))
     (define memory-level : Positive-Byte (min memlevel 9))
+
+    (dtrace-note #:topic topic "deflate: ~a #~a ~a" (zip-strategy-name strategy) (zip-strategy-level strategy) huffman-codes)
     
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
@@ -50,6 +53,9 @@
     (define lz77-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 6)))
     (define bits-blocksize : Positive-Index raw-blocksize)
 
+    (dtrace-note #:topic topic "deflate: memory level: ~a (~a, ~a, ~a)"
+                 memory-level (~size raw-blocksize) (~size lz77-blocksize) (~size bits-blocksize))
+
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
     (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize stored-only? #false))
     (define lz77-dists : (Vectorof Index) (smart-make-vector lz77-blocksize stored-only? #false))
@@ -60,6 +66,8 @@
     (define window-size/2 : Index (unsafe-idxlshift 1 winbits))
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
+
+    (dtrace-note #:topic topic "deflate: window size: ~a (~a, ~a)" (~size window-size) hash-bits (~size hash-size))
 
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size stored-only? #false))
     (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 stored-only? #false))
@@ -304,7 +312,7 @@
       (define-values (?stored-start non-dynamic-length)
         (cond [(and favor-fixed?) (values #false 0)]  ; no frequencies are gathered, `non-dynamic-bits` is meaningless
               [(or favor-dynamic?) (values #false 0)] ; don't waste time to compute non-dynamic lengths, fall back to use the fixed huffman codes
-              [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))] ; should be deadcode, but who knows
+              [(< stored-start 0) (values #false (huffman-calculate-static-block-length-in-bits))]
               [else (let ([stored-length (huffman-calculate-stored-block-length-in-bits)]
                           [static-length (huffman-calculate-static-block-length-in-bits)])
                       (if (< stored-length static-length)

@@ -58,7 +58,9 @@
                   [default-archive-progress-handler (make-archive-terminal-gauge #:at (cons 1 128))])
                 
                 (time** #:title 'λsh
-                        (zip-create target.zip entries #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)))
+                        (zip-create #:root (zip-flags-change-directory options) #:strategy strategy #:force-zip64? (zip-64bit)
+                                    #:memory-level (or (zip-flags-memory-level options) 8)
+                                    target.zip entries))
 
                 (for ([e (in-list (zip-directory-list* target.zip))])
                   (hash-set! entries.λsh (zip-directory-filename e) (zip-entry-info e zipinfo:opts)))
