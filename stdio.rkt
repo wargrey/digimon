@@ -281,9 +281,10 @@
                        [(field) offset] ...
                        [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) fieldname)])]
                     [(instance fieldname)
-                     (case fieldname
-                       [(field) (apply + offset (take (list (field-size (field-ref instance)) ...) field-n))] ...
-                       [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) 1 instance fieldname)])]))
+                     (let ([sizes (list (field-size (field-ref instance)) ...)])
+                       (case fieldname
+                         [(field) (apply + offset (take sizes field-n))] ...
+                         [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) 1 instance fieldname)]))]))
 
                 (define read-layout : (->* () (Input-Port (Option Integer)) Layout)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
@@ -650,5 +651,4 @@
     (define bs : Bytes (unicode-string->locale-bytes s lc-all #:error-byte (default-stdout-error-byte)))
     
     (cond [(> bsize 0) (write-bytes bs /dev/stdout 0 bsize)]
-          [else (let ([ch-size (write-bytes bs /dev/stdout)])
-                  (locale-bytes-unicode-length bs lc-all 0 ch-size))])))
+          [else (write-bytes bs /dev/stdout)])))
