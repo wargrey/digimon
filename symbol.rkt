@@ -52,6 +52,16 @@
   (lambda [s]
     (string->keyword (symbol->immutable-string s))))
 
+(define symbol->unreadable-symbol : (-> Symbol Symbol)
+  (lambda [s]
+    (cond [(symbol-unreadable? s) s]
+          [else (string->unreadable-symbol (symbol->immutable-string s))])))
+
+(define symbol->interned-symbol : (-> Symbol Symbol)
+  (lambda [s]
+    (cond [(symbol-interned? s) s]
+          [else (string->symbol (symbol->immutable-string s))])))
+
 (define keyword->symbol : (-> Keyword Symbol)
   (lambda [k]
     (string->symbol (keyword->immutable-string k))))
