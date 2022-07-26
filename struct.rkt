@@ -2,11 +2,9 @@
 
 (provide (all-defined-out))
 
-(require (for-syntax racket/base))
-(require (for-syntax racket/syntax))
-(require (for-syntax racket/sequence))
-(require (for-syntax racket/symbol))
+(require "syntax.rkt")
 
+(require (for-syntax racket/symbol))
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -37,19 +35,8 @@
     [(_ id : ID ([field : FieldType defval ...] ...) options ...)
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                     [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
-                    [(field-ref ...)
-                     (for/list ([<field> (in-syntax #'(field ...))])
-                       (format-id <field> "~a-~a" (syntax-e #'id) (syntax-e <field>)))]
-                    [([kw-args ...] [kw-reargs ...])
-                     (let-values ([(args reargs)
-                                   (for/fold ([args null] [reargs null])
-                                             ([<field> (in-syntax #'(field ...))]
-                                              [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
-                                              [<ReArgument> (in-syntax #'([field : (U Void FieldType) (void)] ...))])
-                                     (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))])
-                                       (values (cons <kw-name> (cons <Argument> args))
-                                               (cons <kw-name> (cons <ReArgument> reargs)))))])
-                       (list args reargs))])
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID options ...)
 
@@ -64,7 +51,7 @@
     [(_ id : ID ([method : MethodType defmth ...] ...))
      (syntax/loc stx (define-object id : ID () ([method : MethodType defmth ...] ...)))]
     [(_ id : ID ([field : FieldType defval ...] ...) ([method : MethodType defmth ...] ...))
-     (with-syntax* ([ABS-ID (format-id #'id "Abstract-~a" (syntax-e #'ID))]
+     (with-syntax* ([ABS-ID (format-id #'ID "Abstract-~a" (syntax-e #'ID))]
                     [abs-id (format-id #'id "abstract-~a" (syntax-e #'id))]
                     [id-abs (format-id #'id "~a-interface" (syntax-e #'id))]
                     [make-id (format-id #'id "make-~a" (syntax-e #'id))]
