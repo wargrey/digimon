@@ -20,6 +20,10 @@
     
     (for/list ([<field> (in-syntax <field>s)])
       (format-id <field> fmt id (syntax-e <field>))))
+
+  (define (map-identifiers <id>s fmt)
+    (for/list ([<id> (in-syntax <id>s)])
+      (format-id <id> fmt (syntax-e <id>))))
   
   (define (make-keyword-optional-arguments <field>s <DataType>s)
     (let-values ([(args reargs)
