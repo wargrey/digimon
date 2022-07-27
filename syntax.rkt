@@ -3,6 +3,7 @@
 (provide (for-syntax (all-defined-out)))
 (provide (for-syntax (all-from-out racket/base)))
 (provide (for-syntax (all-from-out racket/syntax)))
+(provide (for-syntax (all-from-out racket/symbol)))
 (provide (for-syntax (all-from-out racket/sequence)))
 
 (require (for-syntax racket/base))
