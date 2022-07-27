@@ -48,6 +48,39 @@
          (andmap keyword? a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define symbol-upcase : (-> Symbol Symbol)
+  (lambda [s]
+    (string->symbol (string-upcase (symbol->immutable-string s)))))
+
+(define symbol-downcase : (-> Symbol Symbol)
+  (lambda [s]
+    (string->symbol (string-downcase (symbol->immutable-string s)))))
+
+(define symbol-titlecase : (-> Symbol Symbol)
+  (lambda [s]
+    (string->symbol (string-titlecase (symbol->immutable-string s)))))
+
+(define symbol-foldcase : (-> Symbol Symbol)
+  (lambda [s]
+    (string->symbol (string-foldcase (symbol->immutable-string s)))))
+
+(define keyword-upcase : (-> Keyword Keyword)
+  (lambda [s]
+    (string->keyword (string-upcase (keyword->immutable-string s)))))
+
+(define keyword-downcase : (-> Keyword Keyword)
+  (lambda [s]
+    (string->keyword (string-downcase (keyword->immutable-string s)))))
+
+(define keyword-titlecase : (-> Keyword Keyword)
+  (lambda [s]
+    (string->keyword (string-titlecase (keyword->immutable-string s)))))
+
+(define keyword-foldcase : (-> Keyword Keyword)
+  (lambda [s]
+    (string->keyword (string-foldcase (keyword->immutable-string s)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define symbol->keyword : (-> Symbol Keyword)
   (lambda [s]
     (string->keyword (symbol->immutable-string s))))
