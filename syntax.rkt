@@ -25,6 +25,12 @@
   (define (map-identifiers <id>s fmt)
     (for/list ([<id> (in-syntax <id>s)])
       (format-id <id> fmt (syntax-e <id>))))
+
+  (define (make-identifier-indices <field>s [start-idx 0])
+    (cons (datum->syntax <field>s (length (syntax->list <field>s)))
+          (for/list ([<field> (in-syntax <field>s)]
+                     [idx (in-naturals start-idx)])
+            (datum->syntax <field> idx))))
   
   (define (make-keyword-optional-arguments <field>s <DataType>s)
     (let-values ([(args reargs)
