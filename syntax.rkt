@@ -1,5 +1,7 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (provide (for-syntax (all-defined-out)))
 (provide (for-syntax (all-from-out racket/base)))
 (provide (for-syntax (all-from-out racket/syntax)))
@@ -57,3 +59,21 @@
                               (cons <kw-name> (cons <ReArgument> reargs)))))])
       (list args reargs))))
 
+(define-syntax (with-a-field-replaced stx)
+    (syntax-case stx [:]
+      [(_ (func pre-argl ... #:fields (field ...)) #:for field-name #:set sexpr)
+       (with-syntax* ([(replaced-field ...)
+                       (let ([name (syntax-e #'field-name)])
+                         (for/list ([<field> (in-syntax #'(field ...))])
+                           (if (eq? (syntax-e <field>) name)
+                               #'sexpr <field>)))])
+         (syntax/loc stx
+           (func pre-argl ... replaced-field ...)))]
+      [(_ (func pre-argl ... #:fields (field ...)) #:for field-name #:set sexpr #:if condition)
+       (with-syntax* ([(replaced-field ...)
+                       (let ([name (syntax-e #'field-name)])
+                         (for/list ([<field> (in-syntax #'(field ...))])
+                           (if (eq? (syntax-e <field>) name)
+                               #`(if condition sexpr #,<field>) <field>)))])
+         (syntax/loc stx
+           (func pre-argl ... replaced-field ...)))]))
