@@ -30,7 +30,7 @@
     (and (list? a)
          (andmap symbol? a))))
 
-(define symbol-list*? : (-> Any Boolean : (Pairof Symbol (Listof Symbol)))
+(define symbol-list+? : (-> Any Boolean : (Pairof Symbol (Listof Symbol)))
   (lambda [a]
     (and (list? a)
          (pair? a)
@@ -41,7 +41,7 @@
     (and (list? a)
          (andmap keyword? a))))
 
-(define keyword-list*? : (-> Any Boolean : (Pairof Keyword (Listof Keyword)))
+(define keyword-list+? : (-> Any Boolean : (Pairof Keyword (Listof Keyword)))
   (lambda [a]
     (and (list? a)
          (pair? a)
