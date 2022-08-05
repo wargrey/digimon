@@ -15,8 +15,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (begin-for-syntax
-  (define (make-identifier <id> fmt)
-    (format-id <id> fmt (syntax-e <id>)))
+  (define (make-identifier <id> fmt [-> values])
+    (format-id <id> fmt (-> (syntax-e <id>))))
   
   (define (make-identifiers <id> <field>s [fmt "~a-~a"])
     (define id (syntax-e <id>))
@@ -24,9 +24,9 @@
     (for/list ([<field> (in-syntax <field>s)])
       (format-id <field> fmt id (syntax-e <field>))))
 
-  (define (map-identifiers <id>s fmt)
+  (define (map-identifiers <id>s fmt [-> values])
     (for/list ([<id> (in-syntax <id>s)])
-      (format-id <id> fmt (syntax-e <id>))))
+      (format-id <id> fmt (-> (syntax-e <id>)))))
 
   (define (make-identifier-indices <field>s [start-idx 0])
     (cons (datum->syntax <field>s (length (syntax->list <field>s)))
