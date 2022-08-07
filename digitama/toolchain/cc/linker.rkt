@@ -12,7 +12,7 @@
 (define-type LD-Flags (-> Symbol Boolean Boolean (Listof Any) Boolean Boolean (Listof String)))
 (define-type LD-Libpaths (-> (Listof Path) Symbol Boolean (Listof String)))
 (define-type LD-Libraries (-> (Listof Symbol) (Option Keyword) Symbol Boolean (Listof String)))
-(define-type LD-Subsystem (-> Symbol Boolean (Option Symbol) (Listof String)))
+(define-type LD-Subsystem (-> Symbol Boolean (Option Symbol) (Option Keyword) (Listof String)))
 
 (define-type LD-IO-File-Flag (-> Path-String Symbol Boolean (Listof String)))
 
@@ -33,7 +33,7 @@
     (list (path->string/quote (find-relative-path (current-directory) dest)))))
 
 (define ld-default-no-subsystem-flag : LD-Subsystem
-  (lambda [system cpp? ?subsystem]
+  (lambda [system cpp? ?subsystem ?entry]
     null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

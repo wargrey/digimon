@@ -1,7 +1,8 @@
 #lang typed/racket/base
 
-(require racket/symbol)
 (require racket/string)
+(require racket/symbol)
+(require racket/keyword)
 
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
@@ -50,12 +51,11 @@
         (append (if (not verbose?) null (list "/VERBOSE"))))))
 
 (define msvc-subsystem-flags : LD-Subsystem
-  (lambda [system cpp? ?subsystem]
-    (cond [(not ?subsystem) null]
-          [else (list (format "/SUBSYSTEM:~a"
-                        (string-upcase (symbol->immutable-string
-                                        ?subsystem))))])))
-
+  (lambda [system cpp? ?subsystem ?entry]
+    (filter string?
+            (list (and ?subsystem (format "/SUBSYSTEM:~a" (string-upcase (symbol->immutable-string ?subsystem))))
+                  (and ?entry (format "/ENTRY:~a" (keyword->immutable-string ?entry)))))))
+  
 (define msvc-linker-libpaths : LD-Libpaths
   (lambda [extra-dirs system cpp?]
     (append (map msvc-build-libpath extra-dirs)

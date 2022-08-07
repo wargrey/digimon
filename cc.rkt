@@ -64,11 +64,11 @@
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
-                      (#:cpp? Boolean #:verbose? Boolean #:subsystem (Option Symbol)
+                      (#:cpp? Boolean #:verbose? Boolean #:subsystem (Option Symbol) #:entry (Option Keyword)
                        #:libpaths (Listof C-Toolchain-Path-String) #:libraries (Listof C-Link-Library)
                        #:linkers (Option (Listof Symbol)))
                       Void)
-  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:subsystem [?subsystem #false]
+  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:subsystem [?subsystem #false] #:entry [?entry #false]
            #:libpaths [libpaths null] #:libraries [libs null] #:linkers [linkers #false]
            infiles outfile]
     (define linker : (Option LD) (c-pick-linker linkers))
@@ -84,7 +84,7 @@
                      (case layout
                        [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
                        [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
-                       [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem)]
+                       [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem ?entry)]
                        [(libpath) ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?)]
                        [(libraries) (let ([ld-lib (ld-libraries linker)])
                                       (apply append

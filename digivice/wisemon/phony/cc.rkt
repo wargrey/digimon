@@ -23,6 +23,7 @@
   ([lang : (Option Symbol)]
    [name : (Option String)]
    [subsystem : Symbol]
+   [entry : (Option Keyword)]
    [macros : (Listof C-Compiler-Macro)]
    [includes : (Listof C-Toolchain-Path-String)]
    [libpaths : (Listof C-Toolchain-Path-String)]
@@ -89,7 +90,8 @@
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
              (wisemon-spec native #:^ objects
-                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose) #:subsystem (cc-launcher-info-subsystem info)
+                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                                       #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                        objects native))
              specs))))
@@ -120,19 +122,22 @@
 (define cc-filter-name : (-> Any CC-Launcher-Info)
   (lambda [argv]
     (let partition ([lang : (Option Symbol) #false]
-                    [name : (Option String) #false]
+                    [biname : (Option String) #false]
                     [subsystem : Symbol 'CONSOLE]
+                    [entry : (Option Keyword) #false]
                     [srehto : (Listof Any) null]
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
       (if (pair? options)
-          (let-values ([(opt rest) (values (car options) (cdr options))])
-            (cond [(memq opt '(C c)) (partition (or lang 'c) name subsystem srehto rest)]
-                  [(memq opt '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) name subsystem srehto rest)]
-                  [(memq opt '(windows desktop)) (partition lang name 'WINDOWS srehto rest)]
-                  [(string? opt) (partition lang (or name opt) subsystem srehto rest)]
-                  [else (partition lang name subsystem (cons opt srehto) rest)]))
+          (let-values ([(self rest) (values (car options) (cdr options))])
+            (cond [(pair? self) (partition lang biname subsystem entry (cons self srehto) rest)]
+                  [(memq self '(C c)) (partition (or lang 'c) biname subsystem entry srehto rest)]
+                  [(memq self '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
+                  [(memq self '(windows desktop)) (partition lang biname 'WINDOWS entry srehto rest)]
+                  [(keyword? self) (partition lang biname subsystem self srehto rest)]
+                  [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
+                  [else #| deadcode |# (partition lang biname subsystem entry srehto rest)]))
           (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
-            (cc-launcher-info lang name subsystem macros includes libpaths libraries))))))
+            (cc-launcher-info lang biname subsystem entry macros includes libpaths libraries))))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]

@@ -52,7 +52,8 @@
                     (let ([objects (cons c.o (c-headers->files (c-include-headers c #:check-source? #true) c-source->object-file))]
                           [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
                       (cons (wisemon-spec c.so #:^ objects
-                                          #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose) #:subsystem #false
+                                          #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                                                      #:subsystem #false #:entry #false
                                                       #:libpaths libpaths #:libraries libraries
                                                       objects c.so))
                             specs))]
