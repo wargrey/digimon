@@ -22,7 +22,7 @@
 (struct cc-launcher-info
   ([lang : (Option Symbol)]
    [name : (Option String)]
-   [subsystem : Symbol]
+   [subsystem : (Option Symbol)]
    [entry : (Option Keyword)]
    [macros : (Listof C-Compiler-Macro)]
    [includes : (Listof C-Toolchain-Path-String)]
@@ -123,7 +123,7 @@
   (lambda [argv]
     (let partition ([lang : (Option Symbol) #false]
                     [biname : (Option String) #false]
-                    [subsystem : Symbol 'CONSOLE]
+                    [subsystem : (Option Symbol) #false]
                     [entry : (Option Keyword) #false]
                     [srehto : (Listof Any) null]
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
@@ -132,8 +132,9 @@
             (cond [(pair? self) (partition lang biname subsystem entry (cons self srehto) rest)]
                   [(memq self '(C c)) (partition (or lang 'c) biname subsystem entry srehto rest)]
                   [(memq self '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
-                  [(memq self '(windows desktop)) (partition lang biname 'WINDOWS entry srehto rest)]
-                  [(keyword? self) (partition lang biname subsystem self srehto rest)]
+                  [(memq self '(console)) (partition lang biname (or subsystem 'CONSOLE) entry srehto rest)]
+                  [(memq self '(windows desktop)) (partition lang biname (or subsystem 'WINDOWS) entry srehto rest)]
+                  [(keyword? self) (partition lang biname subsystem (or entry self) srehto rest)]
                   [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
                   [else #| deadcode |# (partition lang biname subsystem entry srehto rest)]))
           (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
