@@ -130,13 +130,16 @@
       (if (pair? options)
           (let-values ([(self rest) (values (car options) (cdr options))])
             (cond [(pair? self) (partition lang biname subsystem entry (cons self srehto) rest)]
-                  [(memq self '(C c)) (partition (or lang 'c) biname subsystem entry srehto rest)]
-                  [(memq self '(C++ c++ Cpp cpp)) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
-                  [(memq self '(console)) (partition lang biname (or subsystem 'CONSOLE) entry srehto rest)]
-                  [(memq self '(windows desktop)) (partition lang biname (or subsystem 'WINDOWS) entry srehto rest)]
+                  [(symbol? self)
+                   (case self
+                     [(C c) (partition (or lang 'c) biname subsystem entry srehto rest)]
+                     [(C++ c++ Cpp cpp) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
+                     [(console) (partition lang biname (or subsystem 'CONSOLE) entry srehto rest)]
+                     [(windows desktop) (partition lang biname (or subsystem 'WINDOWS) entry srehto rest)]
+                     [else (partition lang biname (or subsystem self) entry srehto rest)])]
                   [(keyword? self) (partition lang biname subsystem (or entry self) srehto rest)]
                   [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
-                  [else #| deadcode |# (partition lang biname subsystem entry srehto rest)]))
+                  [else (partition lang biname subsystem entry srehto rest)]))
           (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
             (cc-launcher-info lang biname subsystem entry macros includes libpaths libraries))))))
 
