@@ -34,30 +34,59 @@
                      [idx (in-naturals start-idx)])
             (datum->syntax <field> idx))))
   
-  (define (make-keyword-optional-arguments <field>s <DataType>s)
-    (let-values ([(args reargs)
-                  (for/fold ([args null] [reargs null])
-                            ([<field> (in-syntax <field>s)]
-                             [<DataType> (in-syntax <DataType>s)])
-                    (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
-                          [<Argument> #`[#,<field> : (Option #,<DataType>) #false]]
-                          [<ReArgument> #`[#,<field> : (U Void False #,<DataType>) (void)]])
-                      (values (cons <kw-name> (cons <Argument> args))
-                              (cons <kw-name> (cons <ReArgument> reargs)))))])
-      (list args reargs)))
+  (define make-keyword-optional-arguments
+    (case-lambda
+      [(<field>s <DataType>s)
+       (define-values (args reargs)
+         (for/fold ([args null] [reargs null])
+                   ([<field> (in-syntax <field>s)]
+                    [<DataType> (in-syntax <DataType>s)])
+           (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+                 [<Argument> #`[#,<field> : (Option #,<DataType>) #false]]
+                 [<ReArgument> #`[#,<field> : (U Void False #,<DataType>) (void)]])
+             (values (cons <kw-name> (cons <Argument> args))
+                     (cons <kw-name> (cons <ReArgument> reargs))))))
+       (list args reargs)]
+      [(<self> <field>s <DataType>s <ref>s)
+       (define-values (args reargs)
+         (for/fold ([args null] [reargs null])
+                   ([<field> (in-syntax <field>s)]
+                    [<DataType> (in-syntax <DataType>s)]
+                    [<ref> (in-syntax <ref>s)])
+           (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+                 [<Argument> #`[#,<field> : (Option #,<DataType>) #false]]
+                 [<ReArgument> #`[#,<field> : (Option #,<DataType>) (#,<ref> #,<self>)]])
+             (values (cons <kw-name> (cons <Argument> args))
+                     (cons <kw-name> (cons <ReArgument> reargs))))))
+       (list args reargs)]))
 
-  (define (make-keyword-arguments <field>s <DataType>s <defval>s)
-    (let-values ([(args reargs)
-                  (for/fold ([args null] [reargs null])
-                            ([<field> (in-syntax <field>s)]
-                             [<DataType> (in-syntax <DataType>s)]
-                             [<defval> (in-syntax <defval>s)])
-                    (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
-                          [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]]
-                          [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
-                      (values (cons <kw-name> (cons <Argument> args))
-                              (cons <kw-name> (cons <ReArgument> reargs)))))])
-      (list args reargs))))
+  (define make-keyword-arguments
+    (case-lambda
+      [(<field>s <DataType>s <defval>s)
+       (define-values (args reargs)
+         (for/fold ([args null] [reargs null])
+                   ([<field> (in-syntax <field>s)]
+                    [<DataType> (in-syntax <DataType>s)]
+                    [<defval> (in-syntax <defval>s)])
+           (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+                 [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]]
+                 [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
+             (values (cons <kw-name> (cons <Argument> args))
+                     (cons <kw-name> (cons <ReArgument> reargs))))))
+       (list args reargs)]
+      [(<self> <field>s <DataType>s <defval>s <ref>s)
+       (define-values (args reargs)
+         (for/fold ([args null] [reargs null])
+                   ([<field> (in-syntax <field>s)]
+                    [<DataType> (in-syntax <DataType>s)]
+                    [<defval> (in-syntax <defval>s)]
+                    [<ref> (in-syntax <ref>s)])
+           (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+                 [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]]
+                 [<ReArgument> #`[#,<field> : #,<DataType> (#,<ref> #,<self>)]])
+             (values (cons <kw-name> (cons <Argument> args))
+                     (cons <kw-name> (cons <ReArgument> reargs))))))
+       (list args reargs)])))
 
 (define-syntax (with-a-field-replaced stx)
     (syntax-case stx [:]
