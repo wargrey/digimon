@@ -35,15 +35,15 @@
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                     [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [(field-ref ...) (make-identifiers #'id #'(field ...))]
-                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'self #'(field ...) #'(FieldType ...) #'([defval ...] ...) #'(field-ref ...))])
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID options ...)
 
                 (define (make-id kw-args ...) : ID
                   (id field ...))
 
-                (define (remake-id [src : ID] kw-reargs ...) : ID
-                  (id (if (void? field) (field-ref src) field) ...)))))]))
+                (define (remake-id [self : ID] kw-reargs ...) : ID
+                  (id field ...)))))]))
 
 (define-syntax (define-object stx)
   (syntax-parse stx #:literals [:]
