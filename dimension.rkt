@@ -127,6 +127,6 @@
                          (let* ([idx+1 (+ idx 1)]
                                 [n (string->number (substring dim 0 idx+1))])
                            (values (if (real? n) (real->double-flonum n) +nan.0)
-                                   (string->symbol (substring dim idx+1 size))))]
-                        [(= idx 0) (values 1.0 (string->symbol dim))]
+                                   (string->symbol (string-downcase (substring dim idx+1 size)))))]
+                        [(= idx 0) (values 1.0 (string->symbol (string-downcase dim)))]
                         [else (dim-split (- idx 1))]))])))
