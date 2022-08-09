@@ -8,6 +8,8 @@
 ;;; https://drafts.csswg.org/css-egg/#traditional-time
 
 (require racket/math)
+
+(require racket/symbol)
 (require racket/flonum)
 
 (require "struct.rkt")
@@ -24,12 +26,18 @@
              [conversion ...]] ...))
      (syntax/loc stx
        (begin (define id : (case-> [Nonnegative-Flonum Symbol Argv ... -> Nonnegative-Flonum]
-                                   [Flonum Symbol Argv ... -> Flonum])
-                (lambda [canonical-unit unit argv ...]
-                  (case unit
-                    [(canonical-unit) canonical-unit]
-                    conversion ...
-                    [else +nan.0])))
+                                   [Flonum Symbol Argv ... -> Flonum]
+                                   [(U String Symbol) Argv ... -> Flonum])
+                (case-lambda
+                  [(canonical-unit unit argv ...)
+                   (case unit
+                     [(canonical-unit) canonical-unit]
+                     conversion ...
+                     [else +nan.0])]
+                  [(literal argv ...)
+                   (let-values ([(number unit) (string->dimension literal)])
+                     (cond [(eq? unit '||) number]
+                           [else (id number unit argv ...)]))]))
               ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -87,7 +95,25 @@
    [dim:frequency  #:=> kz
                    [[(khz)   (fl* 0.001 kz)]]]
    ;;; https://drafts.csswg.org/css-values/#resolution
-   [css:resolution #:=> dppx
+   [dim:resolution #:=> dppx
                    [[(dpcm)  (fl* (fl/ 2.54 96.0) dppx)]
                     [(dpi)   (fl* (fl/ 1.0 96.0) dppx)]
                     [(x)     dppx]]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string->dimension : (-> (U String Symbol) (Values Flonum Symbol))
+  (lambda [literal]
+    (define dim : String (if (string? literal) literal (symbol->immutable-string literal)))
+    (define size : Index (string-length dim))
+
+    (cond [(= size 0) (values +nan.0 '||)]
+          [else (let dim-split ([idx : Index (- size 1)])
+                  (define uch : Char (string-ref dim idx))
+
+                  (cond [(char-numeric? uch)
+                         (let* ([idx+1 (+ idx 1)]
+                                [n (string->number (substring dim 0 idx+1))])
+                           (values (if (real? n) (real->double-flonum n) +nan.0)
+                                   (string->symbol (substring dim idx+1 size))))]
+                        [(= idx 0) (values 1.0 (string->symbol dim))]
+                        [else (dim-split (- idx 1))]))])))
