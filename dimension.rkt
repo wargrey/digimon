@@ -14,30 +14,43 @@
 
 (require "struct.rkt")
 (require "function.rkt")
+(require "syntax.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-syntax (define-dimensions stx)
+(define-syntax (define-dimension stx)
   (syntax-parse stx #:literals [:]
-    [(_ ([id #:=> canonical-unit (~optional (~seq #:with [[argv : Argv] ...])
-                                            #:defaults ([(argv 1) null] [(Argv 1) null]))
-             [conversion ...]] ...))
+    [(_ dim #:=> canonical-unit
+        (~optional (~seq #:with [[argv : Argv] ...])
+                   #:defaults ([(argv 1) null] [(Argv 1) null]))
+        [[units expr ...] ...])
+     (with-syntax ([dim-units (make-identifier #'dim "~a-units")]
+                   [(name ...) (for/fold ([names null])
+                                         ([unit (in-syntax #'(units ...))])
+                                 (append names (syntax->datum unit)))])
+       (syntax/loc stx
+         (begin (define dim-units : (Listof Symbol) (list 'name ...))
+                
+                (define dim : (case-> [Nonnegative-Flonum Symbol Argv ... -> Nonnegative-Flonum]
+                                     [Flonum Symbol Argv ... -> Flonum]
+                                     [(U String Symbol) Argv ... -> Flonum])
+                  (case-lambda
+                    [(canonical-unit unit argv ...)
+                     (case unit
+                       [(canonical-unit) canonical-unit]
+                       [units expr ...] ...
+                       [else (if (eq? unit '||) canonical-unit +nan.0)])]
+                    [(literal argv ...)
+                     (let-values ([(number unit) (string->dimension literal)])
+                       (dim number unit argv ...))])))))]))
+
+(define-syntax (define-dimensions stx)
+  (syntax-case stx [:]
+    [(_ ([dim defs ...] ...))
      (syntax/loc stx
-       (begin (define id : (case-> [Nonnegative-Flonum Symbol Argv ... -> Nonnegative-Flonum]
-                                   [Flonum Symbol Argv ... -> Flonum]
-                                   [(U String Symbol) Argv ... -> Flonum])
-                (case-lambda
-                  [(canonical-unit unit argv ...)
-                   (case unit
-                     [(canonical-unit) canonical-unit]
-                     conversion ...
-                     [else +nan.0])]
-                  [(literal argv ...)
-                   (let-values ([(number unit) (string->dimension literal)])
-                     (cond [(eq? unit '||) number]
-                           [else (id number unit argv ...)]))]))
+       (begin (define-dimension dim defs ...)
               ...))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
