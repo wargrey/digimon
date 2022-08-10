@@ -17,6 +17,14 @@
 (define positive-flonum? : (-> Any Boolean : #:+ Positive-Flonum) (λ [f] (and (flonum? f) (> f 0.0)))) ; unable to deal with +nan.0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string->flonum : (-> String Flonum)
+  (lambda [str.n]
+    (define n (string->number str.n))
+
+    (cond [(real? n) (real->double-flonum n)]
+          [else +nan.0])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
   (lambda [pool0 size offset0 [b #x00] [fill? #false]]
     (cond [(not pool0) (values (make-bytes size b) 0)]
