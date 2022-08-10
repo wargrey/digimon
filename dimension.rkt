@@ -43,7 +43,7 @@
                        [units expr ...] ...
                        [else (if (eq? unit '||) canonical-unit +nan.0)])]
                     [(literal argv ...)
-                     (let-values ([(number unit) (string->dimension literal)])
+                     (let-values ([(number unit) (string->dimension literal #:ci? #true)])
                        (dim number unit argv ...))])))))]))
 
 (define-syntax (define-dimensions stx)
@@ -114,11 +114,11 @@
                     [(x)     dppx]]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define string->dimension : (-> (U String Symbol) (Values Flonum Symbol))
-  (lambda [literal]
+(define string->dimension : (-> (U String Symbol) [#:ci? Boolean] (Values Flonum Symbol))
+  (lambda [literal #:ci? [ci? #false]]
     (define dim : String (if (string? literal) literal (symbol->immutable-string literal)))
     (define size : Index (string-length dim))
-
+    
     (cond [(= size 0) (values +nan.0 '||)]
           [else (let dim-split ([idx : Index (- size 1)])
                   (define uch : Char (string-ref dim idx))
@@ -127,6 +127,7 @@
                          (let* ([idx+1 (+ idx 1)]
                                 [n (string->number (substring dim 0 idx+1))])
                            (values (if (real? n) (real->double-flonum n) +nan.0)
-                                   (string->symbol (string-downcase (substring dim idx+1 size)))))]
-                        [(= idx 0) (values 1.0 (string->symbol (string-downcase dim)))]
+                                   (let ([u (substring dim idx+1 size)])
+                                     (string->symbol (if (not ci?) u (string-downcase u))))))]
+                        [(= idx 0) (values 1.0 (string->symbol (if (not ci?) dim (string-downcase dim))))]
                         [else (dim-split (- idx 1))]))])))
