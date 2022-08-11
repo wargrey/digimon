@@ -17,6 +17,19 @@
 (define positive-flonum? : (-> Any Boolean : #:+ Positive-Flonum) (λ [f] (and (flonum? f) (> f 0.0)))) ; unable to deal with +nan.0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string->integer : (-> String (Option Integer))
+  (lambda [str.n]
+    (define n (string->number str.n))
+
+    (and (exact-integer? n) n)))
+
+(define string->real : (-> String Real)
+  (lambda [str.n]
+    (define n (string->number str.n))
+
+    (cond [(real? n) n]
+          [else +nan.0])))
+
 (define string->flonum : (-> String Flonum)
   (lambda [str.n]
     (define n (string->number str.n))
