@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide (rename-out [string+>integer string->natural]))
 (provide msb-bytes->float lsb-bytes->float
          msb-bytes->double lsb-bytes->double)
 
@@ -23,6 +24,12 @@
 
     (and (exact-integer? n) n)))
 
+(define string+>integer : (-> String (Option Natural))
+  (lambda [str.n]
+    (define n (string->number str.n))
+
+    (and (exact-nonnegative-integer? n) n)))
+
 (define string->real : (-> String Real)
   (lambda [str.n]
     (define n (string->number str.n))
@@ -30,12 +37,20 @@
     (cond [(real? n) n]
           [else +nan.0])))
 
-(define string->flonum : (-> String Flonum)
+(define string+>real : (-> String Nonnegative-Real)
   (lambda [str.n]
     (define n (string->number str.n))
 
-    (cond [(real? n) (real->double-flonum n)]
+    (cond [(and (real? n) (>= n 0)) n]
           [else +nan.0])))
+
+(define string->flonum : (-> String Flonum)
+  (lambda [str.n]
+    (real->double-flonum (string->real str.n))))
+
+(define string+>flonum : (-> String Nonnegative-Flonum)
+  (lambda [str.n]
+    (real->double-flonum (string+>real str.n))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
