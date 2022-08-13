@@ -128,10 +128,10 @@
                   (cond [(char-numeric? uch)
                          (let ([idx+1 (+ idx 1)])
                            (if (= idx+1 size)
-                               (values (string->flonum dim)
+                               (values (or (string->flonum dim) +nan.0)
                                        (cond [(not ci?) fallback-unit]
                                              [else (symbol-downcase fallback-unit)]))
-                               (values (string->flonum (substring dim 0 idx+1))
+                               (values (or (string->flonum (substring dim 0 idx+1)) +nan.0)
                                        (let ([u (substring dim idx+1 size)])
                                          (string->symbol (if (not ci?) u (string-downcase u)))))))]
                         [(= idx 0) (values 1.0 (string->symbol (if (not ci?) dim (string-downcase dim))))]
