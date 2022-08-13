@@ -30,27 +30,27 @@
 
     (and (exact-nonnegative-integer? n) n)))
 
-(define string->real : (-> String Real)
+(define string->real : (-> String (Option Real))
   (lambda [str.n]
     (define n (string->number str.n))
 
-    (cond [(real? n) n]
-          [else +nan.0])))
+    (and (real? n) n)))
 
-(define string+>real : (-> String Nonnegative-Real)
+(define string+>real : (-> String (Option Nonnegative-Real))
   (lambda [str.n]
     (define n (string->number str.n))
 
-    (cond [(and (real? n) (>= n 0)) n]
-          [else +nan.0])))
+    (and (real? n) (>= n 0) n)))
 
-(define string->flonum : (-> String Flonum)
+(define string->flonum : (-> String (Option Flonum))
   (lambda [str.n]
-    (real->double-flonum (string->real str.n))))
+    (define r (string->real str.n))
+    (and r (real->double-flonum r))))
 
-(define string+>flonum : (-> String Nonnegative-Flonum)
+(define string+>flonum : (-> String (Option Nonnegative-Flonum))
   (lambda [str.n]
-    (real->double-flonum (string+>real str.n))))
+    (define r (string+>real str.n))
+    (and r (real->double-flonum r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
