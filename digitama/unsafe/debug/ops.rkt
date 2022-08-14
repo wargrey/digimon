@@ -41,6 +41,10 @@
   (lambda [i1 i2]
     (assert (fxxor i1 i2) index?)))
 
+(define unsafe-idxior : (-> Integer Natural Index)
+  (lambda [i1 i2]
+    (assert (fxior i1 i2) index?)))
+
 (define unsafe-idxlshift : (case-> [Positive-Integer Fixnum -> Positive-Index]
                                    [Natural Fixnum -> Index])
   (lambda [i ls]

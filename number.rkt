@@ -18,38 +18,44 @@
 (define positive-flonum? : (-> Any Boolean : #:+ Positive-Flonum) (λ [f] (and (flonum? f) (> f 0.0)))) ; unable to deal with +nan.0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define string->integer : (-> String (Option Integer))
-  (lambda [str.n]
-    (define n (string->number str.n))
+(define string->index : (->* (String) (Integer) (Option Index))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
+
+    (and (index? n) n)))
+
+(define string->integer : (->* (String) (Integer) (Option Integer))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
 
     (and (exact-integer? n) n)))
 
-(define string+>integer : (-> String (Option Natural))
-  (lambda [str.n]
-    (define n (string->number str.n))
+(define string+>integer : (->* (String) (Integer) (Option Natural))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
 
     (and (exact-nonnegative-integer? n) n)))
 
-(define string->real : (-> String (Option Real))
-  (lambda [str.n]
-    (define n (string->number str.n))
+(define string->real : (->* (String) (Integer) (Option Real))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
 
     (and (real? n) n)))
 
-(define string+>real : (-> String (Option Nonnegative-Real))
-  (lambda [str.n]
-    (define n (string->number str.n))
+(define string+>real : (->* (String) (Integer) (Option Nonnegative-Real))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
 
     (and (real? n) (>= n 0) n)))
 
-(define string->flonum : (-> String (Option Flonum))
-  (lambda [str.n]
-    (define r (string->real str.n))
+(define string->flonum : (->* (String) (Integer) (Option Flonum))
+  (lambda [str.n [radix 10]]
+    (define r (string->real str.n radix))
     (and r (real->double-flonum r))))
 
-(define string+>flonum : (-> String (Option Nonnegative-Flonum))
-  (lambda [str.n]
-    (define r (string+>real str.n))
+(define string+>flonum : (->* (String) (Integer) (Option Nonnegative-Flonum))
+  (lambda [str.n [radix 10]]
+    (define r (string+>real str.n radix))
     (and r (real->double-flonum r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
