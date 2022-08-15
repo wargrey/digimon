@@ -118,6 +118,8 @@
      (Vectorof (U (-> Any Boolean) True Spec-Match-Datum))
      (Listof (U (-> Any Boolean) Spec-Match-Datum))))
 
+(define $?-logging-routine-values : (Parameterof (Listof Any)) (make-parameter null))
+
 (define-spec-expectation (log-message [logsrc : Log-Receiver] [messages : Spec-Log-Match-Datum] [routine : (-> AnyValues)])
   (define-values (/dev/syncin /dev/syncout) (make-pipe))
   
@@ -155,7 +157,10 @@
 
        (write-byte (if okay? 1 0) /dev/syncout))))
   
-  (routine)
+  (call-with-values routine
+    (λ results
+      ($?-logging-routine-values results)))
+  
   (write-byte 0 /dev/syncout)
   (thread-wait ghostcat)
   (or (eq? (read-byte /dev/syncin) 1)
