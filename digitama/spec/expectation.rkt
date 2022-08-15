@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (except-out (all-defined-out) Spec-Match-Datum))
+(provide (except-out (all-defined-out) Spec-Match-Datum $?-logging-routine-values))
 
 (require racket/list)
 (require racket/symbol)
@@ -118,7 +118,7 @@
      (Vectorof (U (-> Any Boolean) True Spec-Match-Datum))
      (Listof (U (-> Any Boolean) Spec-Match-Datum))))
 
-(define $?-logging-routine-values : (Parameterof (Listof Any)) (make-parameter null))
+(define $?-logging-routine-values : (Parameterof (Pairof Any (Listof Any))) (make-parameter (list (void))))
 
 (define-spec-expectation (log-message [logsrc : Log-Receiver] [messages : Spec-Log-Match-Datum] [routine : (-> AnyValues)])
   (define-values (/dev/syncin /dev/syncout) (make-pipe))
@@ -159,12 +159,21 @@
   
   (call-with-values routine
     (λ results
-      ($?-logging-routine-values results)))
+      (cond [(pair? results) ($?-logging-routine-values results)]
+            [else #| deadcode |# (spec-misbehave)])))
   
   (write-byte 0 /dev/syncout)
   (thread-wait ghostcat)
   (or (eq? (read-byte /dev/syncin) 1)
       (spec-misbehave)))
+
+(define-spec-expectation (log-message* [logsrc : Log-Receiver] [messages : Spec-Log-Match-Datum] [routine : (-> AnyValues)]
+                                       [check-routine : (U (-> (Pairof Any (Listof Any)) AnyValues) (Boxof (Pairof Any (Listof Any))))])
+  (expect-log-message logsrc messages routine)
+  
+  (if (box? check-routine)
+      (set-box! check-routine ($?-logging-routine-values))
+      (check-routine ($?-logging-routine-values))))
 
 (define-spec-expectation (throw [exception : (U (-> Any Boolean) Spec-Match-Datum)] [routine : (-> Any)])
   (define maybe-e (with-handlers ([exn:fail? values]) (void (routine))))

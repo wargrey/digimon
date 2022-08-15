@@ -10,6 +10,7 @@
 (require racket/math)
 
 (require racket/flonum)
+(require racket/string)
 
 (require "struct.rkt")
 (require "function.rkt")
@@ -45,7 +46,8 @@
                        [else (if (eq? unit '||) canonical-unit +nan.0)])]
                     [(literal argv ...)
                      (let-values ([(number unit) (string->dimension literal 'canonical-unit #:ci? #true)])
-                       (dim number unit argv ...))])))))]))
+                       (cond [(not number) +nan.0]
+                             [else (dim number unit argv ...)]))])))))]))
 
 (define-syntax (define-dimensions stx)
   (syntax-case stx [:]
@@ -53,6 +55,31 @@
      (syntax/loc stx
        (begin (define-dimension dim defs ...)
               ...))]))
+
+(define-syntax (define-string->dimension stx)
+  (syntax-case stx [:]
+    [(_ id : Type #:-> string->number #:with one)
+     (syntax/loc stx
+       (define id : (->* ((U String Symbol)) (Symbol #:ci? Boolean) (Values (Option Type) Symbol))
+         (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
+           (define dim : String (if (string? literal) (string-trim literal) (symbol->immutable-string literal)))
+           (define size : Index (string-length dim))
+           
+           (cond [(= size 0) (values #false fallback-unit)]
+                 [else (let dim-split ([idx : Index (- size 1)])
+                         (define uch : Char (string-ref dim idx))
+                         
+                         (cond [(char-numeric? uch)
+                                (let ([idx+1 (+ idx 1)])
+                                  (if (= idx+1 size)
+                                      (values (string->number dim)
+                                              (cond [(not ci?) fallback-unit]
+                                                    [else (symbol-downcase fallback-unit)]))
+                                      (values (string->number (substring dim 0 idx+1))
+                                              (let ([u (substring dim idx+1 size)])
+                                                (string->symbol (if (not ci?) u (string-downcase u)))))))]
+                               [(= idx 0) (values one (string->symbol (if (not ci?) dim (string-downcase dim))))]
+                               [else (dim-split (- idx 1))]))]))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-struct dimension-environment : Dimension-Environment
@@ -116,23 +143,5 @@
                     [(x)       dppx]]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define string->dimension : (->* ((U String Symbol)) (Symbol #:ci? Boolean) (Values Flonum Symbol))
-  (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
-    (define dim : String (if (string? literal) literal (symbol->immutable-string literal)))
-    (define size : Index (string-length dim))
-    
-    (cond [(= size 0) (values +nan.0 fallback-unit)]
-          [else (let dim-split ([idx : Index (- size 1)])
-                  (define uch : Char (string-ref dim idx))
-
-                  (cond [(char-numeric? uch)
-                         (let ([idx+1 (+ idx 1)])
-                           (if (= idx+1 size)
-                               (values (or (string->flonum dim) +nan.0)
-                                       (cond [(not ci?) fallback-unit]
-                                             [else (symbol-downcase fallback-unit)]))
-                               (values (or (string->flonum (substring dim 0 idx+1)) +nan.0)
-                                       (let ([u (substring dim idx+1 size)])
-                                         (string->symbol (if (not ci?) u (string-downcase u)))))))]
-                        [(= idx 0) (values 1.0 (string->symbol (if (not ci?) dim (string-downcase dim))))]
-                        [else (dim-split (- idx 1))]))])))
+(define-string->dimension string->dimension : Flonum #:-> string->flonum #:with 1.0)
+(define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1) ; for percentage
