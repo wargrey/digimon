@@ -15,7 +15,7 @@
 (require "cc.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make~all : Make-Phony
+(define make~all : Make-Info-Phony
   (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
     (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
@@ -69,4 +69,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define all-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'all #:phony make~all #:desc "Build the entire project without documentation [default]"))
+  (wisemon-make-info-phony #:name 'all #:phony make~all #:desc "Build the entire project without documentation [default]"))

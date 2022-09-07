@@ -8,20 +8,21 @@
 (require racket/list)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Make-Phony (-> String Info-Ref Any))
+(define-type Make-Info-Phony (-> String Info-Ref Any))
+(define-type Make-Free-Phony (-> String (Option Info-Ref) Any))
 
-(struct wisemon-phony
-  ([name : Symbol]
-   [make : Make-Phony]
-   [description : String])
-  #:constructor-name make-wisemon-phony
-  #:type-name Wisemon-Phony
-  #:transparent)
+(struct wisemon-phony ([name : Symbol] [description : String]) #:type-name Wisemon-Phony #:transparent)
+(struct wisemon-info-phony wisemon-phony ([make : Make-Info-Phony]) #:type-name Wisemon-Info-Phony #:transparent)
+(struct wisemon-free-phony wisemon-phony ([make : Make-Free-Phony]) #:type-name Wisemon-Free-Phony #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wisemon-make-phony : (-> #:name Symbol #:phony Make-Phony #:desc String Wisemon-Phony)
+(define wisemon-make-info-phony : (-> #:name Symbol #:phony Make-Info-Phony #:desc String Wisemon-Phony)
   (lambda [#:name name #:phony phony #:desc desc]
-    (make-wisemon-phony name phony desc)))
+    (wisemon-info-phony name desc phony)))
+
+(define wisemon-make-free-phony : (-> #:name Symbol #:phony Make-Free-Phony #:desc String Wisemon-Phony)
+  (lambda [#:name name #:phony phony #:desc desc]
+    (wisemon-free-phony name desc phony)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-phony-goal-rootdir : (-> Path)

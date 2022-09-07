@@ -41,6 +41,14 @@
 
     (filter-map cc-launcher-filter maybe-launchers)))
 
+(define digimon-native-files->launcher-names : (-> (Listof CC-Launcher-Name) (Listof Path) (Listof CC-Launcher-Name))
+  (lambda [info-targets targets]
+    (filter-map cc-launcher-filter
+                (for/list : (Listof Any) ([p (in-list targets)])
+                  (let ([info-p (assoc p info-targets)])
+                    (cond [(pair? info-p) info-p]
+                          [else (cons p (list 'CONSOLE))]))))))
+
 (define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Wisemon-Specification)
   (lambda [launchers incdirs]
     (define-values (macros includes)
@@ -96,27 +104,38 @@
                                        objects native))
              specs))))
     
-(define make~cc : Make-Phony
+(define make~cc : Make-Free-Phony
   (lambda [digimon info-ref]
-    (define incdirs : (Listof String) (list (path->string (digimon-path 'zone))))
-    (define launchers : (Listof CC-Launcher-Name) (find-digimon-native-launcher-names info-ref))
-    (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs))
-    (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs))
+    (define launchers : (Listof CC-Launcher-Name)
+      (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref))]
+            [real-targets (current-make-real-targets)])
+        (cond [(pair? real-targets) (digimon-native-files->launcher-names info-targets real-targets)]
+              [else info-targets])))
 
-    (wisemon-compile (current-directory) digimon info-ref)
-    (wisemon-make (append depcc-specs cc-specs)
-                  (let ([natives (wisemon-targets-flatten cc-specs)]
-                        [specific-natives (current-make-real-targets)])
-                    (cond [(null? specific-natives) natives]
-                          [else (filter (λ [[n : Path]] (member n natives)) specific-natives)])))))
+    (when (pair? launchers)
+      (define incdirs : (Listof String) (if (not info-ref) null (list (path->string (digimon-path 'zone)))))
+      (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs))
+      (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs))
+      
+      (when (or info-ref)
+        (wisemon-compile (current-directory) digimon info-ref))
+      
+      (wisemon-make (append depcc-specs cc-specs)
+                    (wisemon-targets-flatten cc-specs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-launcher-filter : (-> Any (Option CC-Launcher-Name))
   (lambda [native]
-    (if (and (pair? native) (string? (car native)))
-        (let ([native.cc (build-path (current-directory) (path-normalize/system (car native)))])
+    (if (and (pair? native) (or (string? (car native)) (path? (car native))))
+        (let* ([p (car native)]
+               [config (cdr native)]
+               [native.cc (cond [(relative-path? p) (build-path (current-directory) (path-normalize/system p))]
+                                [(string? p) (string->path p)]
+                                [else p])])
           (and (file-exists? native.cc)
-               (cons native.cc (cc-filter-name (cdr native)))))
+               (cons native.cc
+                     (cond [(cc-launcher-info? config) config]
+                           [else (cc-filter-name config)]))))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
 (define cc-filter-name : (-> Any CC-Launcher-Info)
@@ -152,5 +171,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'cc #:phony make~cc
-                      #:desc "Build the collection as a C/C++ project preprocessed by Racket"))
+  (wisemon-make-free-phony #:name 'cc #:phony make~cc
+                           #:desc "Build the collection as a C/C++ project preprocessed by Racket"))

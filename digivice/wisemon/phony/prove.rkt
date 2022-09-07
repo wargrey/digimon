@@ -55,7 +55,7 @@
                                                #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                               (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
 
-(define make~prove : Make-Phony
+(define make~prove : Make-Info-Phony
   (lambda [digimon info-ref]
     (wisemon-make (make-native-library-specs info-ref))
     (wisemon-compile (current-directory) digimon info-ref)
@@ -64,4 +64,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define prove-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))
+  (wisemon-make-info-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))

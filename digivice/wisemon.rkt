@@ -69,29 +69,51 @@
               (reverse slaer)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-digimon : (-> (U Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))) (Listof Path) (Pairof Wisemon-Phony (Listof Wisemon-Phony)) Byte)
+(define make-digimon : (-> (U False Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))) (Listof Path) (Pairof Wisemon-Phony (Listof Wisemon-Phony)) Byte)
   (lambda [info reals phonies]
-    (cond [(pair? info) (for/fold ([retcode : Byte 0]) ([subinfo (in-list (cdr info))]) (make-digimon subinfo reals phonies))]
-          [else (let ([zone (pkg-info-zone info)]
-                      [info-ref (pkg-info-ref info)]
-                      [tracer (thread (make-racket-log-trace))])
-                  (parameterize ([current-make-real-targets reals]
-                                 [current-digimon (pkg-info-name info)]
-                                 [current-free-zone zone]
-                                 [current-directory zone])
-                    (dtrace-notice "Enter Digimon Zone: ~a" (current-digimon))
-                    (begin0 (for/fold ([retcode : Byte 0])
-                                      ([phony (in-list phonies)])
-                              (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
-                                             [current-custodian (make-custodian)])
-                                (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                        [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
-                                          ((wisemon-phony-make phony) (current-digimon) info-ref)
-                                          retcode)
-                                        (custodian-shutdown-all (current-custodian)))))
-
-                            (dtrace-datum-notice eof "Leave Digimon Zone: ~a" (current-digimon))
-                            (thread-wait tracer))))])))
+    (cond [(pair? info)
+           (for/fold ([retcode : Byte 0])
+                     ([subinfo (in-list (cdr info))])
+             (make-digimon subinfo reals phonies))]
+          [(pkg-info? info)
+           (let ([zone (pkg-info-zone info)]
+                 [info-ref (pkg-info-ref info)]
+                 [tracer (thread (make-racket-log-trace))])
+             (parameterize ([current-make-real-targets reals]
+                            [current-digimon (pkg-info-name info)]
+                            [current-free-zone zone]
+                            [current-directory zone])
+               (dtrace-notice "Open Digimon Zone: ~a" (current-digimon))
+               (begin0 (for/fold ([retcode : Byte 0])
+                                 ([phony (in-list phonies)])
+                         (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
+                                        [current-custodian (make-custodian)])
+                           (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                                                   [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
+                                     (cond [(wisemon-info-phony? phony) ((wisemon-info-phony-make phony) (current-digimon) info-ref)]
+                                           [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) info-ref)])
+                                     retcode)
+                                   (custodian-shutdown-all (current-custodian)))))
+                       
+                       (dtrace-datum-notice eof "Close Digimon Zone: ~a" (current-digimon))
+                       (thread-wait tracer))))]
+          [else
+           (let ([tracer (thread (make-racket-log-trace))])
+             (parameterize ([current-make-real-targets reals])
+               (begin0 (for/fold ([retcode : Byte 0])
+                                 ([phony (in-list phonies)])
+                         (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
+                                        [current-custodian (make-custodian)])
+                           (dtrace-notice "Open Free Phony: ~a" (current-make-phony-goal))
+                           (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                                                   [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
+                                     (cond [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) #false) retcode]
+                                           [else (dtrace-fatal "fatal: not in a digimon zone") (make-errno)]))
+                                   (custodian-shutdown-all (current-custodian))
+                                   (dtrace-notice "Close Free Phony: ~a" (current-make-phony-goal)))))
+                       
+                       (dtrace-datum-notice eof "")
+                       (thread-wait tracer))))])))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
@@ -108,13 +130,12 @@
     (parameterize ([make-assume-oldfiles (wisemon-flags-old-file options)]
                    [make-assume-newfiles (wisemon-flags-new-file options)]
                    [current-logger /dev/dtrace])
-      (define digimons (collection-info (or (wisemon-flags-directory options) (current-directory))))
-      (if (not digimons)
-          (let ([retcode (make-errno)])
-            (call-with-dtrace (λ [] (dtrace-fatal "fatal: not in a digimon zone")))
-            (exit retcode))
-          (let-values ([(phonies reals) (wisemon-goal-partition (λargv))])
-            (exit (time* (make-digimon digimons reals phonies))))))))
+      (let-values ([(phonies reals) (wisemon-goal-partition (λargv))])
+        (exit (time* (make-digimon (collection-info (or (wisemon-flags-directory options)
+                                                        (current-directory)))
+                                   reals phonies)))))))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

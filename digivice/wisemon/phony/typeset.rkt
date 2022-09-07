@@ -162,7 +162,7 @@
                                       (tex-render #:fallback tex-fallback-renderer #:enable-filter #true
                                                   renderer TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
     
-(define make~typeset : Make-Phony
+(define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
     (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
     
@@ -213,4 +213,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'typeset #:phony make~typeset #:desc "Typeset writting publication in PDF via LaTex"))
+  (wisemon-make-info-phony #:name 'typeset #:phony make~typeset #:desc "Typeset writting publication in PDF via LaTex"))

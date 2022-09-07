@@ -15,7 +15,7 @@
 (require "../../../digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make~clean : Make-Phony
+(define make~clean : Make-Info-Phony
   (lambda [digimon info-ref]
     (define submakes : (Listof Path) (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
     (define px.compiled : PRegexp (pregexp (format "/~a(?![^/])/?" (car (use-compiled-file-paths)))))
@@ -67,13 +67,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define mostlyclean-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'mostlyclean      #:phony make~clean #:desc "Delete all except that can be however hard to be remade."))
+  (wisemon-make-info-phony #:name 'mostlyclean      #:phony make~clean #:desc "Delete all except that can be however hard to be remade."))
 
 (define clean-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'clean            #:phony make~clean #:desc "Delete all except that record the configuration."))
+  (wisemon-make-info-phony #:name 'clean            #:phony make~clean #:desc "Delete all except that record the configuration."))
 
 (define distclean-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'distclean        #:phony make~clean #:desc "Delete all that are excluded in the distribution."))
+  (wisemon-make-info-phony #:name 'distclean        #:phony make~clean #:desc "Delete all that are excluded in the distribution."))
 
 (define maintainer-clean-phony-goal : Wisemon-Phony
-  (wisemon-make-phony #:name 'maintainer-clean #:phony make~clean #:desc "Delete all that can be remade. [For Maintainers]"))
+  (wisemon-make-info-phony #:name 'maintainer-clean #:phony make~clean #:desc "Delete all that can be remade. [For Maintainers]"))

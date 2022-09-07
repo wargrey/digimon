@@ -19,34 +19,34 @@
 (define single-collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any) (Values (Option Pkg-Info)))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
     (define zone : (Option Path-String) (collection-root dir))
-    (define info-ref : (Option Info-Ref) (and zone (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)))
-    (define collection : Any (and info-ref (info-ref 'collection)))
     (and zone
-         info-ref
-         collection
-         (not (eq? collection 'multi))
-         (pkg-info info-ref
-                   zone
-                   (cond [(string? collection) collection]
-                         [else (dirname zone)])))))
-
+         (let ([info-ref (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)])
+           (and info-ref
+                (let ([collection (info-ref 'collection)])
+                  (and collection
+                       (not (eq? collection 'multi))
+                       (pkg-info info-ref
+                                 zone
+                                 (cond [(string? collection) collection]
+                                       [else (dirname zone)])))))))))
+    
 (define collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any)
                                (U False Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
     (define zone : (Option Path-String) (collection-root dir))
-    (define info-ref : (Option Info-Ref) (and zone (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)))
     (and zone
-         info-ref
-         (let ([collection (and info-ref (info-ref 'collection))])
-           (cond [(string? collection) (pkg-info info-ref zone collection)]
-                 [(eq? collection 'use-pkg-name) (pkg-info info-ref zone (dirname zone))]
-                 [else (let subcollection-info ([subdirs : (Listof Path) (directory-list zone #:build? #true)]
-                                                [subinfos : (Listof pkg-info) null])
-                         (cond [(null? subdirs) (cons info-ref (reverse subinfos))]
-                               [else (let ([subinfo (single-collection-info (car subdirs) #:namespace namespace #:bootstrap? bootstrap?)])
-                                       (subcollection-info (cdr subdirs)
-                                                           (cond [(and subinfo) (cons subinfo subinfos)]
-                                                                 [else subinfos])))]))])))))
+         (let ([info-ref (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)])
+           (and info-ref
+                (let ([collection (info-ref 'collection)])
+                  (cond [(string? collection) (pkg-info info-ref zone collection)]
+                        [(eq? collection 'use-pkg-name) (pkg-info info-ref zone (dirname zone))]
+                        [else (let subcollection-info ([subdirs : (Listof Path) (directory-list zone #:build? #true)]
+                                                       [subinfos : (Listof pkg-info) null])
+                                (cond [(null? subdirs) (cons info-ref (reverse subinfos))]
+                                      [else (let ([subinfo (single-collection-info (car subdirs) #:namespace namespace #:bootstrap? bootstrap?)])
+                                              (subcollection-info (cdr subdirs)
+                                                                  (cond [(and subinfo) (cons subinfo subinfos)]
+                                                                        [else subinfos])))]))])))))))
 
 (define collection-root : (->* () (Path-String) (Option Path-String))
   (lambda [[dir (current-directory)]]

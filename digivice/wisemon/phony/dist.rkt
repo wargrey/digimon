@@ -90,5 +90,5 @@
                             maybe-samples)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#;(define dist-phony-goal : Wisemon-Phony
-    (wisemon-make-phony #:name 'dist #:phony make~dist #:desc "Create a distribution file of the source files"))
+#;(define dist-phony-goal : Wisemon-Info-Phony
+    (wisemon-make-info-phony #:name 'dist #:phony make~dist #:desc "Create a distribution file of the source files"))
