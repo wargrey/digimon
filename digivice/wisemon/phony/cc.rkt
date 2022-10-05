@@ -93,6 +93,7 @@
         (cons native.o (c-headers->files (c-include-headers native.c #:check-source? #true)
                                          (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
+      ; TODO: why includes duplicate in spec, but be okay outside the spec
       (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))

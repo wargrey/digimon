@@ -42,7 +42,7 @@
     (unless (cc? compiler)
       (error 'c-compile "no suitable C compiler is found: ~a"
              (c-compiler-candidates compilers)))
-    
+      
     (make-parent-directory* outfile)
     (fg-recon-exec #:env (toolchain-env compiler)
                    'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))

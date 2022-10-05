@@ -105,18 +105,21 @@
           [else (string-append (string lmark) sp (string (or rmark lmark)))])))
 
 (define path-normalize/system : (-> Path-String Path)
-  (lambda [path]
-    (define elements : (Listof (U 'up Path))
-      (for/list ([subpath (in-list (explode-path path))]
-                 #:when (or (path? subpath) (eq? subpath 'up)))
-        subpath))
+  (let ([systype (system-path-convention-type)])
+    (lambda [path]
+      (cond [(string? path)
+             (define separator (if (eq? systype 'unix) "/" "\\"))
+             (define npath (string-replace path #px"(/|\\\\)" separator))
 
-    (cond [(null? elements) (build-path 'same)]
-          [(relative-path? path) (apply build-path elements)]
-          [(not (eq? (system-type 'os) 'windows)) (apply build-path "/" (cdr elements))]
-          [(regexp-match? #px"^(/|\\\\)" path) (apply build-path (current-drive) (cdr elements))]
-          [else (apply build-path (string (string-ref (if (string? path) path (path->string path)) 0) #\:) (cdr elements))])))
+             (string->path
+              (if (eq? systype 'unix)
+                  (if (regexp-match? #px"^\\w:/" npath) (substring npath 2) npath)
 
+                  ;;; TODO: deal with UNC paths. \\?\
+                  (if (regexp-match? #px"^\\\\" npath) (string-append (substring (path->string (current-drive)) 0 2) npath) npath)))]
+            [(eq? (path-convention-type path) systype) path]
+            [else (path-normalize/system (some-system-path->string path))]))))
+  
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
   (lambda [path]
     (cond [(relative-path? path) (if (string? path) (string->path path) path)]

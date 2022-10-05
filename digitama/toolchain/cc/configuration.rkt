@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 
+(require racket/list)
 (require racket/match)
 (require racket/symbol)
 (require racket/format)
@@ -32,11 +33,12 @@
 
 (define c-path-flatten : (-> (Listof C-Toolchain-Path-String) (Listof Path))
   (lambda [dirs]
-    (for/fold ([paths : (Listof Path) null])
-              ([dir (in-list dirs)])
-      (append paths
-              (cond [(list? dir) (map path-normalize/system (cdr dir))]
-                    [else (list (path-normalize/system dir))])))))
+    (remove-duplicates
+     (for/fold ([paths : (Listof Path) null])
+               ([dir (in-list dirs)])
+       (append paths
+               (cond [(list? dir) (map path-normalize/system (cdr dir))]
+                     [else (list (path-normalize/system dir))]))))))
 
 (define c-macro-normalize : (-> C-Compiler-Macro (Listof (Pairof String (Option String))))
   (lambda [D]
