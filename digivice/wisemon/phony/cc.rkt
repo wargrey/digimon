@@ -62,7 +62,7 @@
     (for/fold ([specs : Wisemon-Specification null])
               ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)?$" file)) (current-directory)))])
       (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
-      (define deps.h : (Listof Path) (c-include-headers dep.c))
+      (define deps.h : (Listof Path) (c-include-headers dep.c includes #:topic (current-make-phony-goal)))
       (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
       
       (list* (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
@@ -90,11 +90,11 @@
 
       (define native.o : Path (assert (c-source->object-file native.c lang)))
       (define objects : (Listof Path)
-        (cons native.o (c-headers->files (c-include-headers native.c #:check-source? #true)
+        (cons native.o (c-headers->files (c-include-headers native.c (cc-launcher-info-includes info) #:check-source? #true #:topic (current-make-phony-goal))
                                          (λ [[dep.c : Path]] (c-source->object-file dep.c lang)))))
 
       ; TODO: why includes duplicate in spec, but be okay outside the spec
-      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c))
+      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c (cc-launcher-info-includes info) #:topic (current-make-phony-goal)))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))

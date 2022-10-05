@@ -17,6 +17,7 @@
 
 (require "digitama/system.rkt")
 (require "filesystem.rkt")
+(require "dtrace.rkt")
 
 ; register toolchains
 (require (submod "digitama/toolchain/bin/clang.rkt" register))
@@ -127,8 +128,9 @@
            (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
                  [else (build-path (native-rootdir/compiled c) bname)])))))
 
-(define c-include-headers : (->* (Path-String) (#:check-source? Boolean) (Listof Path))
-  (lambda [c #:check-source? [recur? #false]]
+(define c-include-headers : (->* (Path-String) ((Listof C-Toolchain-Path-String) #:check-source? Boolean #:topic Symbol) (Listof Path))
+  (lambda [c [incdirs null] #:check-source? [recur? #false] #:topic [topic 'c-include-headers]]
+    (define includes : (Listof Path) (filter relative-path? (c-path-flatten incdirs)))
     (let include.h ([entry : Path (if (string? c) (string->path c) c)]
                     [memory : (Listof Path) null])
       (define dirname : (Option Path) (path-only entry))
@@ -136,9 +138,10 @@
             [else (foldl (λ [[include : Bytes] [memory : (Listof Path)]] : (Listof Path)
                            (define maybe-header : (Option (Pairof Bytes (Listof (Option Bytes)))) (regexp-match #px#"\"(.+?)\"" include))
                            (cond [(or (not maybe-header) (null? (cdr maybe-header)) (not (cadr maybe-header))) memory]
-                                 [else (let ([nested.h (simplify-path (build-path dirname (bytes->string/utf-8 (cadr maybe-header))))])
-                                         (cond [(member nested.h memory) memory]
-                                               [(not (file-exists? nested.h)) #| the including files might already been commented out |# memory]
+                                 [else (let* ([nbase.h (bytes->string/utf-8 (cadr maybe-header))]
+                                              [nested.h (c-include-file-path dirname includes nbase.h)])
+                                         (cond [(not nested.h) (dtrace-warning #:topic topic "including file not found: ~a in ~a" nbase.h entry) memory]
+                                               [(member nested.h memory) memory]
                                                [else (let ([memory++ (include.h nested.h (append memory (list nested.h)))])
                                                        (cond [(not recur?) memory++]
                                                              [else ; for executables and shared obejcts

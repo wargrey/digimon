@@ -35,3 +35,13 @@
 (define c-find-binary-path : (-> Symbol (Option Path))
   (lambda [basename]
     (find-executable-path (string-append (symbol->immutable-string basename) binary.ext) #false #false)))
+
+(define c-include-file-path : (-> Path (Listof Path) String (Option Path))
+  (lambda [dirname includes inc.h]
+    (define nested.h (build-path dirname inc.h))
+
+    (cond [(file-exists? nested.h) (simplify-path nested.h)]
+          [else (for/or ([sub (in-list includes)])
+                  (define nested.h (build-path dirname sub inc.h))
+                  (and (file-exists? nested.h)
+                       (simplify-path nested.h)))])))
