@@ -50,34 +50,49 @@
                           [else (cons p (list 'CONSOLE))]))))))
 
 (define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Wisemon-Specification)
-  (lambda [launchers incdirs]
-    (define-values (macros includes)
-      (for/fold ([macros : (Listof C-Compiler-Macro) null]
-                 [includes : (Listof C-Toolchain-Path-String) incdirs])
-                ([launcher (in-list launchers)])
-        (let ([info (cdr launcher)])
-          (values (append macros (cc-launcher-info-macros info))
-                  (append includes (cc-launcher-info-includes info))))))
-    
-    (for/fold ([specs : Wisemon-Specification null])
-              ([dep.c (in-list (find-digimon-files (λ [[file : Path]] (regexp-match? #px"\\.c(pp)?$" file)) (current-directory)))])
-      (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
-      (define deps.h : (Listof Path) (c-include-headers dep.c includes #:topic (current-make-phony-goal)))
-      (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
+  (let ([cpp-src-filter (λ [[file : Path]] : Boolean (regexp-match? #px"\\.c(pp)?$" file))])
+    (lambda [launchers incdirs]
+      (define-values (macros includes)
+        (let-values ([(ms is) (for/fold ([macros : (Listof C-Compiler-Macro) null]
+                                         [includes : (Listof C-Toolchain-Path-String) incdirs])
+                                        ([launcher (in-list launchers)])
+                                (let ([info (cdr launcher)])
+                                  (values (append macros (cc-launcher-info-macros info))
+                                          (append includes (cc-launcher-info-includes info)))))])
+          (values (remove-duplicates ms) (c-path-flatten is))))
+
+      (define dep-rootdirs : (Listof Path)
+        (for/fold ([dirs : (Listof Path) (list (current-directory))])
+                  ([extra (in-list includes)] #:when (relative-path? extra))
+          (define rootdir (simplify-path (build-path (current-directory) extra)))
+          (cond [(member rootdir dirs) dirs]
+                [else (cons rootdir dirs)])))
+
+      (define all-depsrcs : (Listof Path)
+        (remove-duplicates
+         (apply append
+                (for/list : (Listof (Listof Path)) ([dir (in-list dep-rootdirs)] #:when (directory-exists? dir))
+                  (find-digimon-files cpp-src-filter dir)))))
       
-      (list* (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
-                           #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose)
-                                          #:includes includes #:macros macros
-                                          dep.c dep++.o))
-             
-             (cond [(not cpp-file?)
-                    (let ([dep.o (assert (c-source->object-file dep.c 'c))])
-                      (cons (wisemon-spec dep.o #:^ (cons dep.c deps.h)
-                                          #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose)
-                                                         #:includes includes #:macros macros
-                                                         dep.c dep.o))
-                            specs))]
-                   [else specs])))))
+      (for/fold ([specs : Wisemon-Specification null])
+                ([dep.c (in-list all-depsrcs)])
+        (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
+        (define deps.h : (Listof Path) (c-include-headers dep.c includes #:topic (current-make-phony-goal)))
+        (define dep++.o : Path (assert (c-source->object-file dep.c 'cpp)))
+        
+        (list* (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
+                             #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose)
+                                            #:includes includes #:macros macros
+                                            dep.c dep++.o))
+               
+               (cond [(not cpp-file?)
+                      (let ([dep.o (assert (c-source->object-file dep.c 'c))])
+                        (cons (wisemon-spec dep.o #:^ (cons dep.c deps.h)
+                                            #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose)
+                                                           #:includes includes #:macros macros
+                                                           dep.c dep.o))
+                              specs))]
+                     [else specs]))))))
 
 (define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Wisemon-Specification)
   (lambda [launchers incdirs]
