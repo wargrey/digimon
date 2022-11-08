@@ -132,7 +132,8 @@
 
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))) ...
+    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
+              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
@@ -166,16 +167,18 @@
                         (cond [(pair? contents) contents]
                               [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                           (current-digimon))])))
-               (apply author
-                      (map ~a (#%info 'pkg-authors
-                                      (const (list (#%info 'pkg-idun
-                                                           (const (string->symbol digimon-partner)))))))))))]))
+               (when (not noauthor?)
+                 (apply author
+                        (map ~a (#%info 'pkg-authors
+                                        (const (list (#%info 'pkg-idun
+                                                             (const (string->symbol digimon-partner))))))))))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))) ...
+    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
+              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:properties props
+     (syntax/loc stx (handbook-title #:properties props #:hide-author? noauthor?
                       (#%info 'pkg-desc
                               (const (let ([alt-contents (list pre-contents ...)])
                                        (cond [(null? alt-contents) (current-digimon)]
