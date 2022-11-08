@@ -83,7 +83,7 @@
                             [current-digimon (pkg-info-name info)]
                             [current-free-zone zone]
                             [current-directory zone])
-               (dtrace-notice "Open Digimon Zone: ~a" (current-digimon))
+               (dtrace-notice "Enter Digimon Zone: ~a" (current-digimon))
                (begin0 (for/fold ([retcode : Byte 0])
                                  ([phony (in-list phonies)])
                          (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
@@ -95,7 +95,7 @@
                                      retcode)
                                    (custodian-shutdown-all (current-custodian)))))
                        
-                       (dtrace-datum-notice eof "Close Digimon Zone: ~a" (current-digimon))
+                       (dtrace-datum-notice eof "Leave Digimon Zone: ~a" (current-digimon))
                        (thread-wait tracer))))]
           [else
            (let ([tracer (thread (make-racket-log-trace))])
@@ -104,13 +104,13 @@
                                  ([phony (in-list phonies)])
                          (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
                                         [current-custodian (make-custodian)])
-                           (dtrace-notice "Open Free Phony: ~a" (current-make-phony-goal))
+                           (dtrace-notice "Enter Free Phony: ~a" (current-make-phony-goal))
                            (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
                                                    [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
                                      (cond [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) #false) retcode]
                                            [else (dtrace-fatal "fatal: not in a digimon zone") (make-errno)]))
                                    (custodian-shutdown-all (current-custodian))
-                                   (dtrace-notice "Close Free Phony: ~a" (current-make-phony-goal)))))
+                                   (dtrace-notice "Leave Free Phony: ~a" (current-make-phony-goal)))))
                        
                        (dtrace-datum-notice eof "")
                        (thread-wait tracer))))])))
