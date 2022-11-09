@@ -37,35 +37,37 @@
                     [Tamer-Id-ref (format-id #'id "Tamer-~a-ref" (syntax->datum #'Id))]
                     [tamer-id-label (format-id #'id "tamer-default-~a-label" (syntax->datum #'id))]
                     [tamer-id-label-separator (format-id #'id "tamer-default-~a-label-separator" (syntax->datum #'id))]
+                    [tamer-id-label-tail (format-id #'id "tamer-default-~a-label-tail" (syntax->datum #'id))]
                     [tamer-id-label-style (format-id #'id "tamer-default-~a-label-style" (syntax->datum #'id))]
                     [tamer-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
        (syntax/loc stx
          (begin (define tamer-id-label (make-parameter (symbol->immutable-string 'Id)))
-                (define tamer-id-label-separator (make-parameter ": "))
+                (define tamer-id-label-separator (make-parameter " "))
+                (define tamer-id-label-tail (make-parameter ": "))
                 (define tamer-id-label-style (make-parameter 'tt))
                 (define tamer-id-caption-style (make-parameter #false))
                 
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id*
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figuremulti-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id**
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figuremultiwide-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id-here
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) caption
+                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          herefigure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
                 
@@ -79,15 +81,17 @@
                     (tamer-indexed-block-ref 'id:tyle id ref-element
                                              (string-titlecase (tamer-id-label))))))))]))
 
+(define tamer-indexed-block-hide-chapter-index (make-parameter #false))
+
 (define tamer-indexed-block
-  (lambda [id type label sep caption style label-style caption-style target-style make-block anchor]
+  (lambda [id type label sep tail caption style label-style caption-style target-style make-block anchor]
     (define sym:tag (tamer-indexed-block-id->symbol id))
     
     (make-tamer-indexed-traverse-block
      #:latex-anchor anchor
      (λ [type chapter-index current-index]
        (define legend
-         (make-block-legend type sym:tag label sep caption
+         (make-block-legend type sym:tag label sep tail caption
                             chapter-index current-index
                             label-style caption-style target-style))
        (values sym:tag (list (make-block) legend)))
@@ -160,28 +164,29 @@
      (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
 
 (define tamer-indexed-block-elemtag
-  (lambda [id label chapter-index self-index #:separator [sep ": "] #:type [type #false] #:style [style 'tt]]
+  (lambda [id label chapter-index self-index #:separator [sep " "] #:tail [tail ": "] #:type [type #false] #:style [style 'tt]]
     (make-block-label (tamer-indexed-block-id->symbol (or type (string-downcase (~a label))))
                       (tamer-indexed-block-id->symbol id)
-                      label sep
+                      label sep tail
                       chapter-index self-index
                       style #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-label
-  (lambda [type tag label sep chpt-idx0 self-idx label-style target-style]
+  (lambda [type tag label sep tail chpt-idx0 self-idx label-style target-style]
     (define chpt-idx (tamer-block-chapter-label chpt-idx0))
     (make-target-element target-style
                          (make-element label-style
-                                       (cond [(not sep) (format "~a ~a.~a" label chpt-idx self-idx)]
-                                             [else (format "~a ~a.~a~a" label chpt-idx self-idx sep)]))
+                                       (if (tamer-indexed-block-hide-chapter-index)
+                                           (format "~a~a~a~a" label (or sep "") self-idx (or tail ""))
+                                           (format "~a~a~a.~a~a" label (or sep "") chpt-idx self-idx (or tail ""))))
                          (tamer-block-sym:tag->tag type tag))))
 
 (define make-block-legend
-  (lambda [type tag label sep caption chpt-idx self-idx label-style caption-style target-style]
+  (lambda [type tag label sep tail caption chpt-idx self-idx label-style caption-style target-style]
     (make-paragraph centertext-style
                     (list (make-element legend-style
-                                        (list (make-block-label type tag label sep
+                                        (list (make-block-label type tag label sep tail
                                                                 chpt-idx self-idx label-style target-style)
                                               (make-element caption-style caption)))))))
 

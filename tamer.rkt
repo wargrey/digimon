@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
-(provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label)
+(provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
 (provide (except-out (all-from-out racket) abstract))
