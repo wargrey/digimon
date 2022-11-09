@@ -5,7 +5,7 @@
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
 
-(provide (all-from-out racket))
+(provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
 (provide (all-from-out "digitama/tamer/citation.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/texbook.rkt" "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
