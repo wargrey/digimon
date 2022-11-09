@@ -133,7 +133,8 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))) ...
+              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))
+              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
@@ -144,7 +145,7 @@
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
          
          (list (title #:tag "tamer-book"
-                      #:version (~a (#%info 'version (const "Baby")))
+                      #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                       #:style (make-style #false
                                           (foldl (λ [resrcs properties]
                                                    (append properties
@@ -176,9 +177,10 @@
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))) ...
+              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))
+              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:properties props #:hide-author? noauthor?
+     (syntax/loc stx (handbook-title #:properties props #:hide-author? noauthor? #:hide-version? noversion?
                       (#%info 'pkg-desc
                               (const (let ([alt-contents (list pre-contents ...)])
                                        (cond [(null? alt-contents) (current-digimon)]
