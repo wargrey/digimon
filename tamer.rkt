@@ -7,7 +7,8 @@
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
-(provide (all-from-out "digitama/tamer/citation.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/texbook.rkt" "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/citation.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/privacy.rkt"))
+(provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (require racket/hash)
