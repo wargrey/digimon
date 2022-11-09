@@ -29,6 +29,7 @@
 (require "digitama/tamer/manual.rkt")
 (require "digitama/tamer/block.rkt")
 (require "digitama/tamer/texbook.rkt")
+(require "digitama/tamer/privacy.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
