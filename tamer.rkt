@@ -11,6 +11,8 @@
 (provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
+(provide (rename-out [note handbook-note]))
+
 (require racket/hash)
 
 (require scribble/core)
@@ -135,7 +137,7 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))
+              (~optional (~seq #:author pre-empt-author) #:defaults ([pre-empt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
@@ -170,23 +172,23 @@
                         (cond [(pair? contents) contents]
                               [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                           (current-digimon))])))
-               (when (not noauthor?)
-                 (apply author
-                        (map ~a (#%info 'pkg-authors
-                                        (const (list (#%info 'pkg-idun
-                                                             (const (string->symbol digimon-partner))))))))))))]))
+               (or pre-empt-author
+                   (apply author
+                          (map ~a (#%info 'pkg-authors
+                                          (const (list (#%info 'pkg-idun
+                                                               (const (string->symbol digimon-partner))))))))))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:hide-author? noauthor?) #:defaults ([noauthor? #'#false]))
+              (~optional (~seq #:author pre-empt-author) #:defaults ([pre-empt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:properties props #:hide-author? noauthor? #:hide-version? noversion?
-                      (#%info 'pkg-desc
-                              (const (let ([alt-contents (list pre-contents ...)])
-                                       (cond [(null? alt-contents) (current-digimon)]
-                                             [else alt-contents]))))))]))
+     (syntax/loc stx (handbook-title #:properties props #:author pre-empt-author #:hide-version? noversion?
+                                     (#%info 'pkg-desc
+                                             (const (let ([alt-contents (list pre-contents ...)])
+                                                      (cond [(null? alt-contents) (current-digimon)]
+                                                            [else alt-contents]))))))]))
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
@@ -327,8 +329,6 @@
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks references)))))
       references)))
-
-(define handbook-footnote note)
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"

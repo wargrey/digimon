@@ -28,7 +28,7 @@
         ...
         [args ...] #:with [pre-flows] #:λ make-block ...)
      (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->immutable-string (syntax->datum #'id)))))]
-                    [id:tyle (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
+                    [id:type (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id** (format-id #'id "tamer-~a**" (syntax->datum #'id))]
@@ -49,37 +49,37 @@
                 
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
+                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id*
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
+                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figuremulti-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id**
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
+                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          figuremultiwide-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id-here
                   (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:tyle (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
+                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
                                          herefigure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
                 
                 (define tamer-id-ref
                   (lambda [#:elem [ref-element values] id]
-                    (tamer-indexed-block-ref 'id:tyle id ref-element
+                    (tamer-indexed-block-ref 'id:type id ref-element
                                              (string-downcase (tamer-id-label))
                                              (tamer-id-label-separator))))
                 
                 (define Tamer-Id-ref
                   (lambda [#:elem [ref-element values] id]
-                    (tamer-indexed-block-ref 'id:tyle id ref-element
+                    (tamer-indexed-block-ref 'id:type id ref-element
                                              (string-titlecase (tamer-id-label))
                                              (tamer-id-label-separator)))))))]))
 
@@ -200,12 +200,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-block-source
   (lambda [.res]
-    (collection-file-path .res "digimon" "stone")))
+    (collection-file-path .res "digimon" "stone" "typeset")))
 
 (define figure-style-extras
   (list 'never-indents
         (make-css-addition (tamer-block-source "figure.css"))
-        (make-tex-addition (tamer-block-source "figure.tex"))))
+        (make-tex-addition (tamer-block-source "figure.tex"))
+        (make-tex-addition (tamer-block-source "lstlisting.tex"))))
 
 (define figure-target-style
   (make-style #f

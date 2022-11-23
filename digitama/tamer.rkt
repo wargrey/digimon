@@ -68,7 +68,7 @@
   (lambda [basename tamer.res]
     (define local-stone (digimon-path 'stone))
     
-    (remove-duplicates (list (collection-file-path tamer.res "digimon" "stone")
+    (remove-duplicates (list (collection-file-path tamer.res "digimon" "stone" "typeset")
                              (build-path local-stone tamer.res)
                              (build-path local-stone basename tamer.res)))))
 
