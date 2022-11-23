@@ -50,10 +50,10 @@
   (lambda [name layout
                 #:macros macros #:flags flags #:includes includes
                 #:infile [infile cc-default-io-file] #:outfile [outfile cc-default-io-file]
-                #:basename [basename #false] #:env [env #false] #:find-compiler [find-compilter c-find-binary-path]]
+                #:basename [basename #false] #:env [env #false] #:find-compiler [find-compiler c-find-binary-path]]
     (define cc : Symbol (or basename name))
-    (define program : (Option Path) (find-compilter cc))
-    (define program++ : (Option Path) (find-compilter (c-cpp-partner cc)))
+    (define program : (Option Path) (find-compiler cc))
+    (define program++ : (Option Path) (find-compiler (c-cpp-partner cc)))
 
     (when (path? program)
       (hash-set! cc-database name

@@ -74,12 +74,14 @@
                 (define tamer-id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:tyle id ref-element
-                                             (string-downcase (tamer-id-label)))))
+                                             (string-downcase (tamer-id-label))
+                                             (tamer-id-label-separator))))
                 
                 (define Tamer-Id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:tyle id ref-element
-                                             (string-titlecase (tamer-id-label))))))))]))
+                                             (string-titlecase (tamer-id-label))
+                                             (tamer-id-label-separator)))))))]))
 
 (define tamer-indexed-block-hide-chapter-index (make-parameter #false))
 
@@ -98,16 +100,17 @@
      type style)))
 
 (define tamer-indexed-block-ref
-  (lambda [index-type id ref-element label]
+  (lambda [index-type id ref-element label sep]
     (define sym:tag (tamer-indexed-block-id->symbol id))
     
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
-       (define chpt-idx (tamer-block-chapter-label chapter-index))
+       (define chpt-idx (and (not (tamer-indexed-block-hide-chapter-index)) (tamer-block-chapter-label chapter-index)))
        (if (not maybe-index)
-           (racketerror (ref-element (~a label #\space chpt-idx #\. '?)))
+           (racketerror (ref-element (~a label (or sep "") chpt-idx #\. '?)))
            (make-link-element #false
-                              (list (ref-element (~a label #\space chpt-idx #\. maybe-index)))
+                              (list (ref-element (cond [(not chpt-idx) (~a label (or sep "") maybe-index)]
+                                                       [else (~a label (or sep "") chpt-idx #\. maybe-index)])))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
      index-type sym:tag)))
 
@@ -174,12 +177,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-label
   (lambda [type tag label sep tail chpt-idx0 self-idx label-style target-style]
-    (define chpt-idx (tamer-block-chapter-label chpt-idx0))
+    (define chpt-idx (and (not (tamer-indexed-block-hide-chapter-index)) (tamer-block-chapter-label chpt-idx0)))
     (make-target-element target-style
                          (make-element label-style
-                                       (if (tamer-indexed-block-hide-chapter-index)
-                                           (format "~a~a~a~a" label (or sep "") self-idx (or tail ""))
-                                           (format "~a~a~a.~a~a" label (or sep "") chpt-idx self-idx (or tail ""))))
+                                       (if (or chpt-idx)
+                                           (format "~a~a~a.~a~a" label (or sep "") chpt-idx self-idx (or tail ""))
+                                           (format "~a~a~a~a" label (or sep "") self-idx (or tail ""))))
                          (tamer-block-sym:tag->tag type tag))))
 
 (define make-block-legend
@@ -237,7 +240,7 @@
     (define apdx-idx (tamer-appendix-index))
 
     (cond [(not apdx-idx) chpt-idx]
-          [(< chpt-idx apdx-idx) 0 #| It's in the preface |#]
+          [(< chpt-idx apdx-idx) 0 #| We are in the Preface |#]
           [else (integer->char (+ (- chpt-idx apdx-idx) 65))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

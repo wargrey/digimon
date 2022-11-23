@@ -131,13 +131,16 @@
   (let ([&env : (Boxof (Option Environment-Variables)) (box #false)])
     (lambda [basename]
       (or (c-find-binary-path basename)
-          (parameterize ([current-environment-variables (or (unbox &env) (time (msvc-make-envs &env)))])
-            (c-find-binary-path basename))))))
+          (let ([?env (or (unbox &env) (msvc-make-environment-variables &env #false))])
+            (and ?env
+                 (parameterize ([current-environment-variables ?env])
+                   (c-find-binary-path basename))))))))
 
-(define msvc-vcvarsall-path : (-> Path)
+(define msvc-vcvarsall-path : (case-> [True -> Path]
+                                      [Boolean -> (Option Path)])
   (let ([vars.bat : String "vcvarsall.bat"]
         [info-var : Symbol 'msvc-devcmd-dir])
-    (lambda []
+    (lambda [required?]
       (define devcmd-dir (#%info info-var))
       
       (or (for/or : (Option Path) ([devcmd : Any (if (list? devcmd-dir) (in-list devcmd-dir) (in-value devcmd-dir))])
@@ -145,25 +148,25 @@
                  (let ([bat (build-path devcmd vars.bat)])
                    (and (file-exists? bat) bat))))
           (find-executable-path vars.bat)
-          (raise-user-error 'msvc-vcvarsall-path
-                            (string-append "Microsoft makes it really annoying to work with the tool chain from commandline.\n"
-                                           (format "I need the `~a` to set environment variables to satisfy MSVC.\n" vars.bat)
-                                           "Please configure it by either adding its path to PATH, "
-                                           (format "or defining it as `~a` in the `info.rkt`" info-var)))))))
+          (and required?
+               (raise-user-error 'msvc-vcvarsall-path
+                                 (string-append "Microsoft makes it really annoying to work with the tool chain from commandline.\n"
+                                                (format "I need the `~a` to set environment variables to satisfy MSVC.\n" vars.bat)
+                                                "Please configure it by either adding its path to PATH, "
+                                                (format "or defining it as `~a` in the `info.rkt`" info-var))))))))
 
 
-(define msvc-make-envs : (-> (Option (Boxof (Option Environment-Variables))) Environment-Variables)
+(define msvc-make-envs : (-> Path (Boxof (Option Environment-Variables)) Environment-Variables)
   (let* ([env.rktl : String "msvc-env.rktl"]
          [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))])
-    (lambda [&env]
-      (define msvc-env (make-environment-variables))
+    (lambda [vcvarsall.bat &env]
+      (define msvc-env : Environment-Variables (make-environment-variables))
       (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
-      (define vcvarsall.bat : Path (msvc-vcvarsall-path))
-      
+        
       (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
                      #:/dev/stdout /dev/envout
                      #:silent '(stdout)
-                     #:feeds (list (format "~a x64" (path->string/quote (msvc-vcvarsall-path)))
+                     #:feeds (list (format "~a x64" (path->string/quote vcvarsall.bat))
                                    (format "~a ~a"
                                      (path->string/quote (or (find-executable-path "racket")
                                                              (find-system-path 'exec-file)))
@@ -183,16 +186,27 @@
           (when (and (string? var) (string? val))
             (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
             (load-env)))
-
+        
         (unless (not &env)
           (set-box! &env msvc-env))
         msvc-env))))
+
+(define msvc-make-environment-variables : (case-> [(Boxof (Option Environment-Variables)) -> Environment-Variables]
+                                                  [(Boxof (Option Environment-Variables)) Boolean -> (Option Environment-Variables)])
+  (let* ([env.rktl : String "msvc-env.rktl"]
+         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))])
+    (case-lambda
+      [(&env) (msvc-make-envs (msvc-vcvarsall-path #true) &env)]
+      [(&env required?)
+       (let ([vcvarsall.bat (msvc-vcvarsall-path required?)])
+         (and vcvarsall.bat
+              (msvc-make-envs vcvarsall.bat &env)))])))
 
 (define msvc-environment-variables : (-> Environment-Variables)
   (let* ([&msvc-env : (Boxof (Option Environment-Variables)) (box #false)])
     (lambda []
       (or (unbox &msvc-env)
-          (msvc-make-envs &msvc-env)))))
+          (msvc-make-environment-variables &msvc-env)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
