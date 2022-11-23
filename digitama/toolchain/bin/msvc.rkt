@@ -75,7 +75,7 @@
       (string-append (symbol->immutable-string l) ".lib"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define bindir-path : Path (build-path "bin"))
+#;(define bindir-path : Path (build-path "bin"))
 
 (define msvc-macro->string : (-> (Pairof String (Option String)) String)
   (lambda [macro]
@@ -85,7 +85,7 @@
           [(or (string-contains? name "(") (string-contains? body " ")) (string-append "/D\"" name "=" body "\"")]
           [else (string-append "/D" name "=" body)])))
 
-(define msvc-root+arch : (-> (Option (Pairof Path Path)))
+#;(define msvc-root+arch : (-> (Option (Pairof Path Path)))
   (lambda []
     (define cc : (Option Path) (c-find-binary-path msvc-basename))
     (and (path? cc)
@@ -97,7 +97,7 @@
                          (cond [(and (path? name) (equal? name bindir-path)) (cons parent arch)]
                                [else (search-root parent)])))))))))
 
-(define msvc-windows-kit-rootdir : (-> String (Option Path))
+#;(define msvc-windows-kit-rootdir : (-> String (Option Path))
   (lambda [type]
     (define kitroot (#%info 'msvc-kits-rootdir))
     (define version (#%info 'msvc-kits-version))
@@ -127,6 +127,13 @@
     (msvc-search-path "/LIBPATH:" subpath subpaths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define msvc-path : (-> Symbol (Option Path))
+  (let ([&env : (Boxof (Option Environment-Variables)) (box #false)])
+    (lambda [basename]
+      (or (c-find-binary-path basename)
+          (parameterize ([current-environment-variables (or (unbox &env) (time (msvc-make-envs &env)))])
+            (c-find-binary-path basename))))))
+
 (define msvc-vcvarsall-path : (-> Path)
   (let ([vars.bat : String "vcvarsall.bat"]
         [info-var : Symbol 'msvc-devcmd-dir])
@@ -143,55 +150,62 @@
                                            (format "I need the `~a` to set environment variables to satisfy MSVC.\n" vars.bat)
                                            "Please configure it by either adding its path to PATH, "
                                            (format "or defining it as `~a` in the `info.rkt`" info-var)))))))
-  
-(define msvc-environment-variables : (-> Environment-Variables)
+
+
+(define msvc-make-envs : (-> (Option (Boxof (Option Environment-Variables))) Environment-Variables)
   (let* ([env.rktl : String "msvc-env.rktl"]
-         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))]
-         [&msvc-env : (Boxof (Option Environment-Variables)) (box #false)])
+         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))])
+    (lambda [&env]
+      (define msvc-env (make-environment-variables))
+      (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
+      (define vcvarsall.bat : Path (msvc-vcvarsall-path))
+      
+      (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
+                     #:/dev/stdout /dev/envout
+                     #:silent '(stdout)
+                     #:feeds (list (format "~a x64" (path->string/quote (msvc-vcvarsall-path)))
+                                   (format "~a ~a"
+                                     (path->string/quote (or (find-executable-path "racket")
+                                                             (find-system-path 'exec-file)))
+                                     (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice"))))
+                     #:feed-eof "exit")
+      
+      (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
+        (let filter-out ()
+          (define line (read-line /dev/envin))
+          (when (and (string? line) (not (regexp-match? rx:rktl line)))
+            (filter-out)))
+        
+        (let load-env ()
+          (define var (read-line /dev/envin))
+          (define val (read-line /dev/envin))
+          
+          (when (and (string? var) (string? val))
+            (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
+            (load-env)))
+
+        (unless (not &env)
+          (set-box! &env msvc-env))
+        msvc-env))))
+
+(define msvc-environment-variables : (-> Environment-Variables)
+  (let* ([&msvc-env : (Boxof (Option Environment-Variables)) (box #false)])
     (lambda []
       (or (unbox &msvc-env)
-
-          (let ([msvc-env (make-environment-variables)])
-            (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
-            (define vcvarsall.bat : Path (msvc-vcvarsall-path))
-            
-            (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
-                           #:/dev/stdout /dev/envout
-                           #:silent '(stdout)
-                           #:feeds (list (format "~a x64" (path->string/quote (msvc-vcvarsall-path)))
-                                         (format "~a ~a"
-                                           (path->string/quote (or (find-executable-path "racket")
-                                                                   (find-system-path 'exec-file)))
-                                           (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice"))))
-                           #:feed-eof "exit")
-            
-            (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
-              (let filter-out ()
-                (define line (read-line /dev/envin))
-                (when (and (string? line) (not (regexp-match? rx:rktl line)))
-                  (filter-out)))
-              
-              (let load-env ()
-                (define var (read-line /dev/envin))
-                (define val (read-line /dev/envin))
-                
-                (when (and (string? var) (string? val))
-                  (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
-                  (load-env)))
-              
-              (set-box! &msvc-env msvc-env)
-              msvc-env))))))
+          (msvc-make-envs &msvc-env)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
   (c-register-compiler 'msvc '(flags macros includes infile outfile) 
                        #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
                        #:outfile (msvc-make-outfile "Fo")
-                       #:basename msvc-basename #:env msvc-environment-variables)
+                       #:basename msvc-basename #:find-compiler msvc-path
+                       #:env msvc-environment-variables)
   
   (c-register-linker 'msvc '(flags infiles libraries outfile "/link" libpath subsystem ldflags)
                      #:flags msvc-linker-flags #:subsystem msvc-subsystem-flags
                      #:libpaths msvc-linker-libpaths #:libraries msvc-linker-libraries
                      #:outfile (msvc-make-outfile "Fe")
-                     #:basename msvc-basename #:env msvc-environment-variables))
+                     #:basename msvc-basename #:find-linker msvc-path
+                     #:env msvc-environment-variables))
   

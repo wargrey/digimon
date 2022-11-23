@@ -44,16 +44,16 @@
 (define c-register-compiler : (-> Symbol (Listof (U CC-Options String))
                                   #:macros CC-CPP-Macros #:flags CC-Flags #:includes CC-Includes
                                   [#:infile CC-IO-File-Flag] [#:outfile CC-IO-File-Flag]
-                                  [#:basename (Option Symbol)]
+                                  [#:basename (Option Symbol)] [#:find-compiler (-> Symbol (Option Path))]
                                   [#:env (U False Environment-Variables (-> Environment-Variables))]
                                   Void)
   (lambda [name layout
                 #:macros macros #:flags flags #:includes includes
                 #:infile [infile cc-default-io-file] #:outfile [outfile cc-default-io-file]
-                #:basename [basename #false] #:env [env #false]]
+                #:basename [basename #false] #:env [env #false] #:find-compiler [find-compilter c-find-binary-path]]
     (define cc : Symbol (or basename name))
-    (define program : (Option Path) (c-find-binary-path cc))
-    (define program++ : (Option Path) (c-find-binary-path (c-cpp-partner cc)))
+    (define program : (Option Path) (find-compilter cc))
+    (define program++ : (Option Path) (find-compilter (c-cpp-partner cc)))
 
     (when (path? program)
       (hash-set! cc-database name

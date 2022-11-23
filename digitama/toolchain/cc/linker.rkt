@@ -42,17 +42,17 @@
 (define c-register-linker : (-> Symbol (Listof (U LD-Options String))
                                 #:flags LD-Flags #:libpaths LD-Libpaths #:libraries LD-Libraries
                                 [#:subsystem LD-Subsystem] [#:infile LD-IO-File-Flag] [#:outfile LD-IO-File-Flag]
+                                [#:basename (Option Symbol)] [#:find-linker (-> Symbol (Option Path))]
                                 [#:env (U False Environment-Variables (-> Environment-Variables))]
-                                [#:basename (Option Symbol)]
                                 Void)
   (lambda [name layout
                 #:flags flags #:libpaths libpaths #:libraries libraries
                 #:subsystem [subsystem ld-default-no-subsystem-flag]
                 #:infile [infile ld-default-io-file] #:outfile [outfile ld-default-io-file]
-                #:basename [basename #false] #:env [env #false]]
+                #:basename [basename #false] #:find-linker [find-linker c-find-binary-path] #:env [env #false]]
     (define ld : Symbol (or basename name))
-    (define program : (Option Path) (c-find-binary-path ld))
-    (define program++ : (Option Path) (c-find-binary-path (c-cpp-partner ld)))
+    (define program : (Option Path) (find-linker ld))
+    (define program++ : (Option Path) (find-linker (c-cpp-partner ld)))
 
     (when (path? program)
       (hash-set! ld-database name
