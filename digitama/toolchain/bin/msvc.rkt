@@ -131,9 +131,9 @@
   (let ([&env : (Boxof (Option Environment-Variables)) (box #false)])
     (lambda [basename]
       (or (c-find-binary-path basename)
-          (let ([?env (or (unbox &env) (msvc-make-environment-variables &env #false))])
-            (and ?env
-                 (parameterize ([current-environment-variables ?env])
+          (let ([vcvarsall.bat (msvc-vcvarsall-path #false)])
+            (and vcvarsall.bat
+                 (parameterize ([current-environment-variables (msvc-make-envs vcvarsall.bat &env)])
                    (c-find-binary-path basename))))))))
 
 (define msvc-vcvarsall-path : (case-> [True -> Path]
@@ -191,22 +191,11 @@
           (set-box! &env msvc-env))
         msvc-env))))
 
-(define msvc-make-environment-variables : (case-> [(Boxof (Option Environment-Variables)) -> Environment-Variables]
-                                                  [(Boxof (Option Environment-Variables)) Boolean -> (Option Environment-Variables)])
-  (let* ([env.rktl : String "msvc-env.rktl"]
-         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))])
-    (case-lambda
-      [(&env) (msvc-make-envs (msvc-vcvarsall-path #true) &env)]
-      [(&env required?)
-       (let ([vcvarsall.bat (msvc-vcvarsall-path required?)])
-         (and vcvarsall.bat
-              (msvc-make-envs vcvarsall.bat &env)))])))
-
 (define msvc-environment-variables : (-> Environment-Variables)
   (let* ([&msvc-env : (Boxof (Option Environment-Variables)) (box #false)])
     (lambda []
       (or (unbox &msvc-env)
-          (msvc-make-environment-variables &msvc-env)))))
+          (msvc-make-envs (msvc-vcvarsall-path #true) &msvc-env)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
