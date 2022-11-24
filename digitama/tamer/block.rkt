@@ -30,6 +30,7 @@
      (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->immutable-string (syntax->datum #'id)))))]
                     [id:type (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
+                    [tamer-id-type (format-id #'id "tamer-~a-type" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id** (format-id #'id "tamer-~a**" (syntax->datum #'id))]
                     [tamer-id-here (format-id #'id "tamer-~a-here" (syntax->datum #'id))]
@@ -46,29 +47,31 @@
                 (define tamer-id-label-tail (make-parameter ": "))
                 (define tamer-id-label-style (make-parameter 'tt))
                 (define tamer-id-caption-style (make-parameter #false))
+
+                (define tamer-id-type 'id:type)
                 
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         figure-style tamer-jfp-legend-style (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id*
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figuremulti-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         figuremulti-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id**
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figuremultiwide-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         figuremultiwide-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id-here
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         herefigure-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         herefigure-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
                 
                 (define tamer-id-ref
@@ -86,7 +89,7 @@
 (define tamer-indexed-block-hide-chapter-index (make-parameter #false))
 
 (define tamer-indexed-block
-  (lambda [id type label sep tail caption style label-style caption-style target-style make-block anchor]
+  (lambda [id type label sep tail caption style legend-style label-style caption-style target-style make-block anchor]
     (define sym:tag (tamer-indexed-block-id->symbol id))
     
     (make-tamer-indexed-traverse-block
@@ -95,7 +98,7 @@
        (define legend
          (make-block-legend type sym:tag label sep tail caption
                             chapter-index current-index
-                            label-style caption-style target-style))
+                            legend-style label-style caption-style target-style))
        (values sym:tag (list (make-block) legend)))
      type style)))
 
@@ -186,7 +189,7 @@
                          (tamer-block-sym:tag->tag type tag))))
 
 (define make-block-legend
-  (lambda [type tag label sep tail caption chpt-idx self-idx label-style caption-style target-style]
+  (lambda [type tag label sep tail caption chpt-idx self-idx legend-style label-style caption-style target-style]
     (make-paragraph centertext-style
                     (list (make-element legend-style
                                         (list (make-block-label type tag label sep tail
@@ -205,8 +208,7 @@
 (define figure-style-extras
   (list 'never-indents
         (make-css-addition (tamer-block-source "figure.css"))
-        (make-tex-addition (tamer-block-source "figure.tex"))
-        (make-tex-addition (tamer-block-source "lstlisting.tex"))))
+        (make-tex-addition (tamer-block-source "figure.tex"))))
 
 (define figure-target-style
   (make-style #f
@@ -214,14 +216,16 @@
                (make-attributes '((x-target-lift . "Figure")))
                (make-js-addition (tamer-block-source "figure.js")))))
 
+(define marginfigure-style  (make-style "marginfigure" figure-style-extras))
 (define herefigure-style  (make-style "Herefigure" figure-style-extras))
 (define figure-style (make-style "Figure" figure-style-extras))
 (define figuremulti-style (make-style "FigureMulti" figure-style-extras))
 (define figuremultiwide-style (make-style "FigureMultiWide" figure-style-extras))
 
 (define figureinside-style (make-style "FigureInside" figure-style-extras))
-(define legend-style (make-style "Legend" figure-style-extras))
 (define centertext-style (make-style "Centertext" figure-style-extras))
+(define chia-legend-style (make-style "legend" figure-style-extras))
+(define margin-figure-style (make-style "Marginfigure" figure-style-extras))
 
 (define phantomsection (make-paragraph (make-style "phantomsection" null) null))
 (define refstepcounter-style (make-style "refstepcounter" null))
@@ -249,3 +253,4 @@
 (define tamer-center-block-style (make-style "Centerfigure" figure-style-extras))
 (define tamer-left-block-style (make-style "Leftfigure" figure-style-extras))
 (define tamer-right-block-style (make-style "Rightfigure" figure-style-extras))
+(define tamer-jfp-legend-style (make-style "JFPLegend" figure-style-extras))

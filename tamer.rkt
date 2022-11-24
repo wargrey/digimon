@@ -1,9 +1,9 @@
 #lang racket
 
-(provide (all-defined-out))
+(provide (all-defined-out) placeholder-style)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
-(provide tamer-center-block-style tamer-left-block-style tamer-right-block-style)
+(provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -33,6 +33,7 @@
 (require "digitama/tamer/block.rkt")
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
+(require "digitama/tamer/misc.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -53,7 +54,6 @@
 (define #%handbook-properties (make-parameter null))
 
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
-(define placeholder-style (make-style #false null))
 (define subsub*toc-style (make-style #false '(toc)))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
@@ -726,3 +726,10 @@
 (define-tamer-indexed-block figure #:anchor #false
   [#:style [style tamer-center-block-style]] #:with [pre-flows]
   #:λ (make-figure-block style pre-flows))
+
+(define tamer-figure-margin
+  (lambda [id caption #:style [style margin-figure-style] #:legend-style [legend-style chia-legend-style] . pre-flows]
+    (tamer-indexed-block id tamer-figure-type
+                         (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
+                         marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
+                         (λ [] (make-figure-block style pre-flows)) #true)))
