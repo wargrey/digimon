@@ -28,6 +28,7 @@
               [(macosx) (list "-fno-common")]
               [(illumos) (list "-m64")]
               [else null])
+            (list "-fcolor-diagnostics" "-fansi-escape-codes")
             (if (not verbose?) null (list "-v")))))
 
 (define gcc-include-paths : CC-Includes
