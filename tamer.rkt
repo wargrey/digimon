@@ -468,6 +468,13 @@
                                           (for/list ([htag (in-list (reverse (href books#)))])
                                             (make-spec-feature htag (reverse (href htag)))))]))))))
 
+(define tamer-deftech
+  (lambda [#:key [key #false] #:normalize? [normalize? #true] #:tex? [tex? #true] . body]
+    (define main (apply deftech #:key key #:normalize? normalize? #:style? #true body))
+
+    (cond [(not tex?) main]
+          [else (list ($tex:phantomsection) main)])))
+
 (define tamer-elemtag
   (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
     (make-target-element style body `(,type ,tag))))

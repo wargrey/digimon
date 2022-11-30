@@ -111,7 +111,6 @@
   (lambda []
     (texbook-command-block "twocolumn")))
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:phantomsection
   (lambda []
