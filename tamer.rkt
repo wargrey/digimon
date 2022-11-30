@@ -11,7 +11,7 @@
 (provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
-(provide (rename-out [note handbook-note]))
+(provide (rename-out [note handbook-footnote]))
 
 (require racket/hash)
 
@@ -204,6 +204,10 @@
               (tamer-cites ~cites)
               (tamer-cite ~cite)
 
+              (define-footnote ~endnote ~endnote-section)
+              (tamer-endnote ~endnote)
+              (tamer-endnote-section ~endnote-section)
+
               (when (or counter-step?)
                 (tamer-index-story
                  (cons (add1 (car (tamer-index-story)))
@@ -329,6 +333,14 @@
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks references)))))
       references)))
+
+(define handbook-endnote
+  (lambda body
+    (apply (tamer-endnote) body)))
+
+(define handbook-endnotes
+  (lambda []
+    ((tamer-endnote-section))))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"

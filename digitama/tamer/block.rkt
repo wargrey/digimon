@@ -53,7 +53,7 @@
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figure-style tamer-jfp-legend-style (tamer-id-caption-style) target-style
+                                         figure-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
 
                 (define tamer-id*

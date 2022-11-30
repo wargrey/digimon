@@ -28,6 +28,9 @@
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
 (define tamer-reference (make-parameter void))
+
+(define tamer-endnote (make-parameter void))
+(define tamer-endnote-section (make-parameter void))
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-story->tag stx)
