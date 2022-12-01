@@ -7,11 +7,15 @@
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
-(provide (all-from-out "digitama/tamer/citation.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/privacy.rkt"))
+(provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
+(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
 (provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (provide (rename-out [note handbook-footnote]))
+(provide (rename-out [tamer-deftech tamer-defterm]))
+(provide (rename-out [tamer-deftech handbook-deftech]))
+(provide (rename-out [tamer-deftech handbook-defterm]))
 
 (require racket/hash)
 
@@ -28,6 +32,7 @@
 
 (require (for-label racket))
 
+(require "digitama/tamer/backend.rkt")
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
 (require "digitama/tamer/block.rkt")
@@ -106,17 +111,6 @@
 (define subcite
   (lambda keys
     (subscript (apply cite keys))))
-
-(define handbook-renderer?
-  (lambda [get render]
-    (and (memq render
-               (cond [(procedure? get) (get 'scribble:current-render-mode null)]
-                     [else (send get current-render-mode)]))
-         #true)))
-
-(define handbook-latex-renderer?
-  (lambda [get]
-    (handbook-renderer? get 'latex)))
 
 (define handbook-prefab-style
   (lambda properties
@@ -374,7 +368,7 @@
   (lambda []
     (make-traverse-block
      (λ [get set!]
-       (if (false? (handbook-renderer? get 'markdown))
+       (if (false? (handbook-markdown-renderer? get))
            (table-of-contents)
            (make-delayed-block
             (λ [render% pthis _]
@@ -481,11 +475,9 @@
                                             (make-spec-feature htag (reverse (href htag)))))]))))))
 
 (define tamer-deftech
-  (lambda [#:key [key #false] #:normalize? [normalize? #true] #:tex? [tex? #true] . body]
-    (define main (apply deftech #:key key #:normalize? normalize? #:style? #true body))
-
-    (cond [(not tex?) main]
-          [else (list ($tex:phantomsection) main)])))
+  (lambda [#:key [key #false] #:normalize? [normalize? #true] . body]
+    (list ($tex:phantomsection)
+          (apply deftech #:key key #:normalize? normalize? #:style? #true body))))
 
 (define tamer-elemtag
   (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
@@ -504,7 +496,7 @@
     
     (make-traverse-block
      (λ [get set!]
-       (if (handbook-renderer? get 'markdown)
+       (if (handbook-markdown-renderer? get)
            (para (literal "---"))
            (make-delayed-block
             (λ [render% pthis infobase]

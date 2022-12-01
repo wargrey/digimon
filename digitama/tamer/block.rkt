@@ -13,6 +13,7 @@
 (require scribble/latex-properties)
 
 (require "../tamer.rkt")
+(require "backend.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -135,7 +136,7 @@
 
          (define maybe-anchor
            (and anchor?
-                (memq 'latex (get 'scribble:current-render-mode null))
+                (handbook-latex-renderer? get)
                 (cond [(eq? anchor? #true) phantomsection]
                       [else (make-paragraph refstepcounter-style
                                             (list (~a anchor?)))])))
