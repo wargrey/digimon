@@ -72,7 +72,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))
   (lambda [info-ref]
-    (define maybe-samples (info-ref 'samples (λ [] null)))
+    (define maybe-samples (info-ref 'literacy-samples (λ [] null)))
     (cond [(not (list? maybe-samples)) (raise-user-error 'info.rkt "malformed `samples`: ~a" maybe-samples)]
           [else (filter-map (λ [sample]
                               (if (and (pair? sample) (path-string? (car sample)))
