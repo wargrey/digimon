@@ -73,7 +73,7 @@
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))
   (lambda [info-ref]
     (define maybe-samples (info-ref 'literacy-samples (λ [] null)))
-    (cond [(not (list? maybe-samples)) (raise-user-error 'info.rkt "malformed `samples`: ~a" maybe-samples)]
+    (cond [(not (list? maybe-samples)) (raise-user-error 'info.rkt "malformed `literacy-samples`: ~a" maybe-samples)]
           [else (filter-map (λ [sample]
                               (if (and (pair? sample) (path-string? (car sample)))
                                   (let* ([sample.scrbl (build-path (current-directory) (car sample))]
@@ -84,9 +84,9 @@
                                                  [(list) (cons 0 #false)]
                                                  [(list (? index? endp1)) (cons 0 endp1)]
                                                  [(list (? index? start) (? index? endp1)) (cons start endp1)]
-                                                 [(list (? index? start) '_) (cons start #false)]
-                                                 [_ (raise-user-error 'info.rkt "malformed `sample`: ~a" sample)]))))
-                                  (raise-user-error 'info.rkt "malformed `sample`: ~a" sample)))
+                                                 [(list (? index? start) _) (cons start #false)]
+                                                 [_ (raise-user-error 'info.rkt "malformed `literacy-sample`: ~a" sample)]))))
+                                  (raise-user-error 'info.rkt "malformed `literacy-sample`: ~a" sample)))
                             maybe-samples)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
