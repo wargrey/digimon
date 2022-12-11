@@ -3,18 +3,18 @@
 (provide (all-defined-out))
 (provide Tex-Post-Exec Tex-Preamble-Filter)
 
-(require "renderer.rkt")
+(require "engine.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define latex-database : (HashTable Symbol Tex-Renderer) (make-hasheq))
+(define latex-database : (HashTable Symbol Tex-Engine) (make-hasheq))
 
-(define tex-register-renderer : (->* (Symbol)
-                                     (Bytes #:filter (Option Tex-Preamble-Filter)
-                                            #:post-exec (Option Tex-Post-Exec)
-                                            #:basename (Option Symbol)) Void)
+(define tex-register-engine : (->* (Symbol)
+                                   (Bytes #:filter (Option Tex-Preamble-Filter)
+                                          #:post-exec (Option Tex-Post-Exec)
+                                          #:basename (Option Symbol)) Void)
   (lambda [name [ext #".pdf"] #:filter [filter #false] #:post-exec [exec #false] #:basename [basename #false]]
     (define program : (Option Path) (tex-find-binary-path (or basename name)))
     
     (when (path? program)
       (hash-set! latex-database name
-                 (make-tex-renderer program ext filter exec)))))
+                 (make-tex-engine program ext filter exec)))))

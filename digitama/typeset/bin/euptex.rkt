@@ -3,7 +3,7 @@
 (require racket/path)
 
 (require "../tex.rkt")
-(require "../renderer.rkt")
+(require "../engine.rkt")
 
 (require "../../exec.rkt")
 
@@ -23,4 +23,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
-  (tex-register-renderer 'uplatex #:post-exec euptex-post-exec))
+  (tex-register-engine 'uplatex #:post-exec euptex-post-exec))

@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 (provide (all-from-out "../exec.rkt"))
 
-(require "renderer.rkt")
+(require "engine.rkt")
 
 (require "../exec.rkt")
 (require "../system.rkt")
@@ -12,11 +12,11 @@
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-exec : (-> Symbol Tex-Renderer Path-String Path-String Byte Path)
+(define tex-exec : (-> Symbol Tex-Engine Path-String Path-String Byte Path)
   (lambda [renderer latex TEXNAME.tex dest-dir retry]
-    (define post-exec : (Option Tex-Post-Exec) (tex-renderer-post-exec latex))
+    (define post-exec : (Option Tex-Post-Exec) (tex-engine-post-exec latex))
     (define TEXNAME : Path (assert (file-name-from-path TEXNAME.tex) path?))
-    (define TEXNAME.ext : Path (build-path dest-dir (path-replace-extension TEXNAME (tex-renderer-extension latex))))
+    (define TEXNAME.ext : Path (build-path dest-dir (path-replace-extension TEXNAME (tex-engine-extension latex))))
     (define TEXNAME.log : Path (build-path dest-dir (path-replace-extension TEXNAME #".log")))
     (define log-timestamp : Natural (file-mtime TEXNAME.log))
     (define -output-directory : String (format "-output-directory=~a" dest-dir))
@@ -28,7 +28,7 @@
     (parameterize ([current-directory dest-dir])
       (let rerun ([times : Natural 1])
         (fg-recon-exec (string->symbol (format "~a[~a]" renderer times))
-                       (tex-renderer-program latex)
+                       (tex-engine-program latex)
                        (list (list "-interaction=batchmode")
                              (list -output-directory)
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]

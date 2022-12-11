@@ -3,7 +3,7 @@
 (require racket/path)
 
 (require "../tex.rkt")
-(require "../renderer.rkt")
+(require "../engine.rkt")
 
 (require "../../exec.rkt")
 
@@ -26,5 +26,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
-  (tex-register-renderer 'latex #:post-exec latex-post-exec)
-  (tex-register-renderer 'pdflatex))
+  (tex-register-engine 'latex #:post-exec latex-post-exec)
+  (tex-register-engine 'pdflatex))

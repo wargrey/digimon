@@ -4,4 +4,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
-  (tex-register-renderer 'lualatex #:filter #false))
+  (tex-register-engine 'lualatex #:filter #false))

@@ -12,4 +12,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
-  (tex-register-renderer 'xelatex #:filter xetex-preamble-filter))
+  (tex-register-engine 'xelatex #:filter xetex-preamble-filter))

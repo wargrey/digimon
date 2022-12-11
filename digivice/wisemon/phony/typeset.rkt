@@ -24,14 +24,19 @@
  [handbook-metainfo (-> Path-String String (Values String String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Tex-Info (Pairof Path (List Symbol (Option String) (Listof (U Regexp Byte-Regexp)))))
+(struct tex-info
+  ([path : Path]
+   [engine : (Option Symbol)]
+   [name : (Option String)]
+   [dependencies : (Listof (U Regexp Byte-Regexp))]
+   [extra-argv : (Listof String)])
+  #:type-name Tex-Info)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typesettings : (->* (Info-Ref)
-                                         ((Option (-> (Listof Symbol))) #:name Symbol #:fallback (Option Symbol) #:info-id Symbol #:silent? Boolean)
+                                         ((Option (-> (Listof Symbol))) #:name Symbol #:info-id Symbol)
                                          (Listof Tex-Info))
-  (lambda [#:name [name the-name] #:info-id [symid 'typesettings] #:fallback [?fallback #true] #:silent? [silent? #false]
-           info-ref [list-renderers #false]]
+  (lambda [#:name [name the-name] #:info-id [symid 'typesettings] info-ref [list-engines #false]]
     (define maybe-typesettings (info-ref symid (λ [] null)))
     
     (unless (list? maybe-typesettings)
@@ -42,16 +47,7 @@
        (if (and (pair? typesetting) (path-string? (car typesetting)))
            (let ([setting.scrbl (build-path (current-directory) (path-normalize/system (car typesetting)))])
              (and (file-exists? setting.scrbl)
-                  (let-values ([(?renderer ?alt-name dependencies) (typeset-filter-renderer (cdr typesetting) (or list-renderers tex-list-renderers))])
-                    (cond [(and ?renderer) (cons setting.scrbl (list ?renderer ?alt-name dependencies))]
-                          [(and ?fallback)
-                           (let ([fallback-renderer (if (symbol? ?fallback) ?fallback tex-fallback-renderer)])
-                             (when (not silent?)
-                               (dtrace-note #:topic name #:prefix? #false
-                                            "~a ~a: no suitable renderer is found, use `~a` instead"
-                                            name (current-make-phony-goal) fallback-renderer))
-                             (cons setting.scrbl (list fallback-renderer ?alt-name dependencies)))]
-                          [else #false]))))
+                  (typeset-filter-texinfo setting.scrbl (cdr typesetting) (or list-engines tex-list-engines))))
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
@@ -63,9 +59,10 @@
 
     (for/fold ([specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
-      (define-values (TEXNAME.scrbl renderer maybe-name regexps) (values (car typesetting) (cadr typesetting) (caddr typesetting) (cadddr typesetting)))
+      (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
+      (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
-      (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension renderer #:fallback tex-fallback-renderer))))
+      (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
       (define TEXNAME.tex (path-replace-extension TEXNAME.ext #".tex"))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
       (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
@@ -74,8 +71,13 @@
       (define load.tex (build-path this-stone "load.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
       (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
-      (define stone-deps (if (pair? regexps) (find-digimon-files (make-regexps-filter regexps) local-stone) null))
+      (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-stone) null))
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
+
+      (unless (tex-info-engine typesetting)
+        (dtrace-note #:topic the-name #:prefix? #false
+                     "~a ~a: no suitable engine is found, use `~a` instead"
+                     the-name (current-make-phony-goal) tex-fallback-engine))
       
       (append specs
               (if (and raw-tex?)
@@ -83,20 +85,20 @@
                                       (define dest-dir : Path (assert (path-only TEXNAME.ext)))
                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                       
-                                      (typeset-note renderer maybe-name TEXNAME.scrbl)
+                                      (typeset-note engine maybe-name TEXNAME.scrbl)
                                         
-                                      (let ([TEXNAME.ext (tex-render renderer TEXNAME.scrbl dest-dir #:fallback tex-fallback-renderer #:enable-filter #false)])
+                                      (let ([TEXNAME.ext (tex-render engine TEXNAME.scrbl dest-dir #:fallback tex-fallback-engine #:enable-filter #false)])
                                         (unless (not maybe-name)
                                           (let* ([ext (path-get-extension TEXNAME.ext)]
                                                  [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
-                                            (fg-recon-mv renderer TEXNAME.ext target.ext))))))
+                                            (fg-recon-mv engine TEXNAME.ext target.ext))))))
                   
                   (list (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
                                       (define dest-dir : Path (assert (path-only TEXNAME.tex)))
                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                       (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
                                         
-                                      (typeset-note renderer maybe-name TEXNAME.scrbl)
+                                      (typeset-note engine maybe-name TEXNAME.scrbl)
                                         
                                       (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
                                             [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
@@ -107,7 +109,7 @@
                                           (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
                                           
                                           (when (file-exists? load.tex)
-                                            (dtrace-debug "~a ~a: load hook: ~a" the-name renderer load.tex)
+                                            (dtrace-debug "~a ~a: load hook: ~a" the-name engine load.tex)
                                             
                                             (eval '(require scribble/core scribble/latex-properties))
                                             (eval `(define (tex:replace-property p)
@@ -136,9 +138,9 @@
                                             (eval `(define (dynamic-load-character-conversions hook.rktl)
                                                      (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
                                                        (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
-                                            (fg-recon-eval renderer `(dynamic-load-character-conversions ,hook.rktl)))
+                                            (fg-recon-eval engine `(dynamic-load-character-conversions ,hook.rktl)))
                                             
-                                          (fg-recon-eval renderer `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
+                                          (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
 
                         (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
                                       (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
@@ -146,21 +148,21 @@
 
                                       (define (hypersetup [/dev/stdout : Output-Port]) : Void
                                         (displayln "\\hypersetup{" /dev/stdout)
-                                        (dtrace-debug "~a ~a: title: ~a" the-name renderer title)
+                                        (dtrace-debug "~a ~a: title: ~a" the-name engine title)
                                         (fprintf /dev/stdout "  pdftitle={~a},~n" title)
-                                        (dtrace-debug "~a ~a: authors: ~a" the-name renderer authors)
+                                        (dtrace-debug "~a ~a: authors: ~a" the-name engine authors)
                                         (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
                                         (displayln "}" /dev/stdout)
                                         (newline /dev/stdout))
                                       
                                       (unless (directory-exists? dest-dir)
-                                        (fg-recon-mkdir renderer dest-dir))
+                                        (fg-recon-mkdir engine dest-dir))
                                       
-                                      (fg-recon-save-file renderer pdfinfo.tex hypersetup))
+                                      (fg-recon-save-file engine pdfinfo.tex hypersetup))
 
                         (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
-                                      (tex-render #:fallback tex-fallback-renderer #:enable-filter #true
-                                                  renderer TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
+                                      (tex-render #:fallback tex-fallback-engine #:enable-filter #true
+                                                  engine TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
     
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
@@ -172,27 +174,33 @@
     (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define typeset-filter-renderer : (-> Any (-> (Listof Symbol)) (Values (Option Symbol) (Option String) (Listof (U Regexp Byte-Regexp))))
-  (lambda [argv list-renderers]
-    (define candidates : (Listof Symbol) (list-renderers))
-    (define-values (maybe-renderers rest) (partition symbol? (if (list? argv) argv (list argv))))
-    (define maybe-names (filter string? rest))
-
-    (values (let check : (Option Symbol) ([renderers : (Listof Symbol) maybe-renderers])
-              (and (pair? renderers)
-                   (cond [(memq (car renderers) candidates) (car renderers)]
-                         [else (check (cdr renderers))])))
-            (and (pair? maybe-names) (car maybe-names))
-            (filter typeset-regexp? rest))))
+(define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))
+  (lambda [setting.scrbl argv list-engines]
+    (define candidates : (Listof Symbol) (list-engines))
+    (let*-values ([(maybe-engines rest) (partition symbol? (if (list? argv) argv (list argv)))]
+                  [(maybe-names rest) (partition string? rest)]
+                  [(dependencies rest) (partition typeset-regexp? rest)])
+      (tex-info setting.scrbl
+                (let check : (Option Symbol) ([engines : (Listof Symbol) maybe-engines])
+                  (and (pair? engines)
+                       (cond [(memq (car engines) candidates) (car engines)]
+                             [else (check (cdr engines))])))
+                (and (pair? maybe-names) (car maybe-names))
+                dependencies
+                (for/fold ([argv : (Listof String) null])
+                          ([arg (in-list rest)])
+                  (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]
+                        [(vector? arg) (append argv (for/list : (Listof String) ([a (in-vector arg)]) (format "~a" a)))]
+                        [else argv]))))))
 
 (define typeset-note : (-> Symbol (Option String) Path Void)
-  (lambda [renderer maybe-name TEXNAME.scrbl]
+  (lambda [engine maybe-name TEXNAME.scrbl]
     (if (not maybe-name)
-        (dtrace-note "~a ~a: ~a" the-name renderer TEXNAME.scrbl)
-        (dtrace-note "~a ~a: ~a [~a]" the-name renderer TEXNAME.scrbl maybe-name))))
+        (dtrace-note "~a ~a: ~a" the-name engine TEXNAME.scrbl)
+        (dtrace-note "~a ~a: ~a [~a]" the-name engine TEXNAME.scrbl maybe-name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-fallback-renderer 'latex)
+(define tex-fallback-engine : Symbol 'latex)
 
 (define typeset-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))
   (lambda [v]
