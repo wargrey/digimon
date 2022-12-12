@@ -97,7 +97,7 @@
                        
                        (dtrace-datum-notice eof "Leave Digimon Zone: ~a" (current-digimon))
                        (thread-wait tracer))))]
-          [else
+          [else ; some phonies allow non-package projects
            (let ([tracer (thread (make-racket-log-trace))])
              (parameterize ([current-make-real-targets reals])
                (begin0 (for/fold ([retcode : Byte 0])

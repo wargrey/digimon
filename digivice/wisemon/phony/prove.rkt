@@ -26,9 +26,14 @@
               (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (path-normalize/system (car handbook)))]
                     [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))))
 
-(define make-prove-specs : (-> Info-Ref Wisemon-Specification)
+(define make-prove-specs : (-> (Option Info-Ref) Wisemon-Specification)
   (lambda [info-ref]
-    (for/list : Wisemon-Specification ([handbook.scrbl (in-list (append (find-digimon-handbooks info-ref) (current-make-real-targets)))])
+    (define handbooks : (Listof Path)
+      (let ([info-targets (if (not info-ref) null (find-digimon-handbooks info-ref))]
+            [real-targets (current-make-real-targets)])
+        (append info-targets real-targets)))
+    
+    (for/list : Wisemon-Specification ([handbook.scrbl (in-list handbooks)])
       (wisemon-spec handbook.scrbl #:-
                     (define pwd : (Option Path) (path-only handbook.scrbl))
                     (when (and pwd (directory-exists? pwd))
@@ -55,13 +60,14 @@
                                                #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                               (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
 
-(define make~prove : Make-Info-Phony
+(define make~prove : Make-Free-Phony
   (lambda [digimon info-ref]
-    (wisemon-make (make-native-library-specs info-ref))
-    (wisemon-compile (current-directory) digimon info-ref)
+    (unless (not info-ref)
+      (wisemon-make (make-native-library-specs info-ref))
+      (wisemon-compile (current-directory) digimon info-ref))
 
     (wisemon-make (make-prove-specs info-ref) (current-make-real-targets) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define prove-phony-goal : Wisemon-Phony
-  (wisemon-make-info-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))
+  (wisemon-make-free-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))
