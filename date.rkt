@@ -8,6 +8,15 @@
 (require racket/fixnum)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define s/min : Byte 60)
+(define s/hour : Index 3600)
+(define s/day : Nonnegative-Fixnum 86400)
+
+(define floor-seconds : (-> Natural Natural Natural)
+  (lambda [s span]
+    (assert (- s (remainder s span)) exact-nonnegative-integer?)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define current-microseconds : (-> Fixnum)
   (lambda []
     (fl->fx (real->double-flonum (* (current-inexact-milliseconds) 1000)))))
