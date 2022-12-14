@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) s/day)
 
 (require racket/string)
 
@@ -14,33 +14,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git:%at : String "--pretty=format:%at")
 
-(define git-numstat-exec : (-> Boolean Path String * (Listof Git-Numstat))
-  (lambda [day? git . args]
-    (parameterize ([subprocess-group-enabled #true]
-                   [current-custodian (make-custodian)]
-                   [current-subprocess-custodian-mode 'kill])
-      (begin0
-        (let-values ([(git.exe /dev/gitin _do _de) (apply subprocess #false #false #false git args)])
-          (let pretty-numstat ([timestamp : Any (number->string (current-seconds))]
-                               [tats : (Listof Git-Numstat) null])
-            (cond [(not (string? timestamp)) (reverse tats)]
-                  [else (let numstat ([stats : (Listof Git-Numstat-Line) null])
-                          (define +-path (read-line /dev/gitin))
-                          (define tokens (if (eof-object? +-path) null (git-numstat-line-split +-path)))
-                          (cond [(= (length tokens) 3)
-                                 (let ([insertion (string->natural (car tokens))]
-                                       [deletion (string->natural (cadr tokens))])
-                                   (numstat (if (and insertion deletion) (cons (list insertion deletion (caddr tokens)) stats) stats)))]
-                                [(null? tokens)
-                                 (let ([ts (string->natural timestamp)])
-                                   (pretty-numstat (read-line /dev/gitin)
-                                                   (cond [(not ts) tats]
-                                                         [(and day?) (cons ((inst cons Natural (Listof Git-Numstat-Line)) (floor-seconds ts s/day) (reverse stats)) tats)]
-                                                         [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) ts (reverse stats)) tats)])))]
-                                [else ;;; another timestamp follows closely, rarely happen, is `git filter-branch` the root cause?
-                                 (pretty-numstat +-path tats)]))])))
-        (custodian-shutdown-all (current-custodian))))))
+(define git-numstat-make-fold : (-> (Option Natural) (-> String (Listof Git-Numstat) (Listof Git-Numstat)))
+  (lambda [group-span:s]
+    (define make-empty-numstat : (-> Natural Git-Numstat)
+      (lambda [timestamp]
+        (cons (cond [(not group-span:s) timestamp]
+                    [else (floor-seconds timestamp group-span:s)])
+              null)))
+    
+    (λ [line stats]
+      (define-values (#{self : Git-Numstat} rest)
+        (cond [(pair? stats) (values (car stats) (cdr stats))]
+              [else (values (make-empty-numstat (max (current-seconds) 0)) null)]))
+      
+      (define tokens : (Listof String) (git-numstat-line-split line))
+      
+      (cond [(= (length tokens) 3)
+             (let ([insertion (string->natural (car tokens))]
+                   [deletion (string->natural (cadr tokens))])
+               (cond [(and insertion deletion)
+                      (let ([self++ ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons (list insertion deletion (caddr tokens)) (cdr self)))])
+                        (cons self++ rest))]
+                     [else (cons self rest)]))]
+            [(pair? tokens)
+             ;;; another timestamp follows closely, rarely happens. or,
+             ;;; `git log` always provides timestamps whereas `git diff` doesn't
+             (let ([timestamp (string->natural line)])
+               (cond [(not timestamp) '#:deadcode (cons self rest)]
+                     [(null? (cdr self)) (cons (make-empty-numstat timestamp) rest)]
+                     [else (cons (make-empty-numstat timestamp) (cons self rest))]))]
+            [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (reverse (cdr self))) rest)]))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-line-split : (-> String (Listof String))
   (lambda [line]
     ; Note: lines like `59 53 {src.ext => renamed.ext}` are only produced by `git diff`

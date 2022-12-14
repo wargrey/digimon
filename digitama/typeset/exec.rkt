@@ -33,7 +33,6 @@
                              (list -output-directory)
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                          [else (path->string TEXNAME.tex)])))
-                       digimon-system
                        (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer]]
                          (define log-now (file-mtime TEXNAME.log))
                          (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
@@ -51,7 +50,7 @@
                   [else (rerun (+ times 1))])))))
     
     (cond [(not post-exec) TEXNAME.ext]
-          [else (post-exec renderer TEXNAME.ext digimon-system)])))
+          [else (post-exec renderer TEXNAME.ext)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-log-cat : (-> Symbol Path Void)

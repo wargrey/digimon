@@ -20,16 +20,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdin 'stdout 'stderr))
 
-(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)) Symbol)
-                             ((Option (-> Symbol Path Natural Void))
-                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
-                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                              #:env (U False Environment-Variables (-> Environment-Variables)))
-                             Void)
-  (lambda [#:silent [silents null] #:env [alt-env #false]
-           #:feeds [feeds null] #:feed-eof [feed-eof eof]
+(define fg-recon-exec* : (All (a) (->* (Symbol Path (Listof (Listof String)) (-> String a a) a)
+                                       ((Option (-> Symbol Path Natural Void))
+                                        #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
+                                        #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                                        #:env (U False Environment-Variables (-> Environment-Variables)))
+                                       a))
+  (lambda [#:silent [silents null] #:env [alt-env #false] #:feeds [feeds null] #:feed-eof [feed-eof eof]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-           operation program options system [on-error-do #false]]
+           operation program options stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -46,8 +45,8 @@
 
       (dtrace-info #:topic operation "~a ~a" program (string-join args))
 
-      (define status : (U 'running Natural exn)
-        (with-handlers ([exn? (λ [[e : exn]] e)])
+      (define-values (status datum:out)
+        (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
             (cond [(not subenv) (apply subprocess #false #false #false program args)]
                   [else (parameterize ([current-environment-variables subenv])
@@ -57,13 +56,13 @@
             (thread (λ [] (with-handlers ([exn:break? void])
                             (let wait-feed-loop ([rest : (Listof Any) feeds])
                               (cond [(pair? rest)
-                                     (let ([datum (car rest)])
-                                       (cond [(eof-object? datum) (close-output-port /dev/subout)]
+                                     (let ([datum:in (car rest)])
+                                       (cond [(eof-object? datum:in) (close-output-port /dev/subout)]
                                              [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
                                                      (when (eq? e /dev/subout)
                                                        (when (not stdin-silent?)
-                                                         (dtrace-note (format "~a" datum) #:topic operation))
-                                                       (displayln datum /dev/subout)
+                                                         (dtrace-note (format "~a" datum:in) #:topic operation))
+                                                       (displayln datum:in /dev/subout)
                                                        (flush-output /dev/subout)
                                                        (wait-feed-loop (cdr rest))))]))]
                                     [(string? feed-eof)
@@ -72,29 +71,32 @@
                                          (displayln feed-eof /dev/subout)
                                          (flush-output /dev/subout)))]
                                     [else (close-output-port /dev/subout)]))))))
-          
-          (let wait-dtrace-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
-                                 [errin-evt : (Rec x (Evtof x)) /dev/errin])
-            (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
-            
-            (cond [(eq? e /dev/outin)
-                   (let ([line (read-line /dev/outin)])
-                     (cond [(eof-object? line) (wait-dtrace-loop never-evt errin-evt)]
-                           [else (unless (not /dev/stdout) (displayln line /dev/stdout))
-                                 (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
-                                 (wait-dtrace-loop outin-evt errin-evt)]))]
-                  
-                  [(eq? e /dev/errin)
-                   (let ([line (read-line /dev/errin)])
-                     (cond [(eof-object? line) (wait-dtrace-loop outin-evt never-evt)]
-                           [else (unless (not /dev/stderr) (displayln line /dev/stderr))
-                                 (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
-                                       [else (displayln line /dev/byterr)])
-                                 (wait-dtrace-loop outin-evt errin-evt)]))]))
+
+          (define final-datum : a
+            (let wait-fold-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
+                                 [errin-evt : (Rec x (Evtof x)) /dev/errin]
+                                 [datum : a initial-datum])
+              (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
+              
+              (cond [(eq? e /dev/outin)
+                     (let ([line (read-line /dev/outin)])
+                       (cond [(eof-object? line) (wait-fold-loop never-evt errin-evt datum)]
+                             [else (unless (not /dev/stdout) (displayln line /dev/stdout))
+                                   (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
+                                   (wait-fold-loop outin-evt errin-evt (stdout-fold line datum))]))]
+                    
+                    [(eq? e /dev/errin)
+                     (let ([line (read-line /dev/errin)])
+                       (cond [(eof-object? line) (wait-fold-loop outin-evt never-evt datum)]
+                             [else (unless (not /dev/stderr) (displayln line /dev/stderr))
+                                   (cond [(not stderr-silent?) (dtrace-error line #:topic operation #:prefix? #false)]
+                                         [else (displayln line /dev/byterr)])
+                                   (wait-fold-loop outin-evt errin-evt datum)]))]
+                    [else datum])))
 
           (thread-wait ghostcat)
           (subprocess-wait /usr/bin/$0)
-          (subprocess-status /usr/bin/$0)))
+          (values (subprocess-status /usr/bin/$0) final-datum)))
 
       (cond [(exact-integer? status)
              (unless (eq? status 0)
@@ -108,8 +110,26 @@
                (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
             [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))])
       
-      (custodian-shutdown-all (current-custodian)))))
+      (custodian-shutdown-all (current-custodian))
+      datum:out)))
 
+(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)))
+                             ((Option (-> Symbol Path Natural Void))
+                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                              #:env (U False Environment-Variables (-> Environment-Variables)))
+                             Void)
+  (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
+    (lambda [#:silent [silents null] #:env [alt-env #false]
+             #:feeds [feeds null] #:feed-eof [feed-eof eof]
+             #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+             operation program options [on-error-do #false]]
+      ((inst fg-recon-exec* Void)
+       #:silent silents #:feeds feeds #:feed-eof feed-eof
+       #:env alt-env #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
+       operation program options stdout-void (void) on-error-do))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-eval : (->* (Symbol Any) (Namespace) AnyValues)
   (lambda [operation s-expr [ns (current-namespace)]]
     (dtrace-info #:topic operation "eval: ~a" s-expr)

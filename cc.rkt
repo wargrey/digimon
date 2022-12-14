@@ -55,8 +55,7 @@
                        [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
-                       [else (if (string? layout) (list layout) null)]))
-                   digimon-system)))
+                       [else (if (string? layout) (list layout) null)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-linker : (->* () ((Option (Listof Symbol))) (Option LD))
@@ -96,8 +95,7 @@
                                         [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
                                                               ((ld-infile linker) f digimon-system cpp?)))])]
                        [(outfile) ((ld-outfile linker) outfile digimon-system cpp?)]
-                       [else (if (string? layout) (list layout) null)]))
-                   digimon-system)))
+                       [else (if (string? layout) (list layout) null)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-source->object-file : (->* (Path-String) ((Option Symbol)) (Option Path))

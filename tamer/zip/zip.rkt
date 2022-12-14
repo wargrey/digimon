@@ -74,8 +74,7 @@
       (fg-recon-exec shname sh
                      (map (λ [[arg : Path-String]]
                             (list (if (string? arg) arg (path->string arg))))
-                          argv)
-                     'whatever))))
+                          argv)))))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]

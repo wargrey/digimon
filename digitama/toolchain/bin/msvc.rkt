@@ -163,7 +163,7 @@
       (define msvc-env : Environment-Variables (make-environment-variables))
       (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
         
-      (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null digimon-system
+      (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null
                      #:/dev/stdout /dev/envout
                      #:silent '(stdout)
                      #:feeds (list (format "~a x64" (path->string/quote vcvarsall.bat))

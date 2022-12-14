@@ -6,6 +6,7 @@
 (require racket/port)
 
 (require "digitama/git.rkt")
+(require "digitama/exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-root : (->* () (Path-String) (Option Path-String))
@@ -19,5 +20,6 @@
   (lambda [#:group-by-day? [day? #true]]
     (define git (find-executable-path "git"))
     (cond [(or (not (git-root)) (not git)) null]
-          [else (append (git-numstat-exec day? git "diff" "--numstat")
-                        (git-numstat-exec day? git "log" git:%at "--numstat" "--no-merges"))])))
+          [else (let ([numstat-fold (git-numstat-make-fold (and day? s/day))])
+                  (reverse (fg-recon-exec* 'git-numstat git (list (list "log") (list git:%at "--numstat" "--no-merges")) numstat-fold
+                                           (fg-recon-exec* 'git-numstat git (list (list "diff") (list "--numstat")) numstat-fold null))))])))

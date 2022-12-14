@@ -6,7 +6,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Preamble-Filter (-> String Any (Values (U String (Listof String) False) Any)))
-(define-type Tex-Post-Exec (-> Symbol Path Symbol Path))
+(define-type Tex-Post-Exec (-> Symbol Path Path))
 
 (struct tex-engine
   ([program : Path]
