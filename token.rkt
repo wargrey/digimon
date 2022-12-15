@@ -15,7 +15,7 @@
  [port-next-location (-> Port (Values Positive-Integer Natural Positive-Integer))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Syn-Token-StdIn (U Input-Port Path-String Bytes))
+(define-type Syn-Token-Stdin (U Input-Port Path-String Bytes))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-token-interface stx)
@@ -195,7 +195,7 @@
                            (log-message logger level topic (format "~a @~a" eof-msg property-msg) errobj))]))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define syn-token-stdin->port : (->* (Syn-Token-StdIn Regexp Any) ((U String Symbol False)) Input-Port)
+(define syn-token-stdin->port : (->* (Syn-Token-Stdin Regexp Any) ((U String Symbol False)) Input-Port)
   (lambda [/dev/stdin rx.ext basename [port-name #false]]
     (cond [(port? /dev/stdin) /dev/stdin]
           [(path? /dev/stdin) (open-input-file /dev/stdin)]
