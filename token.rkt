@@ -213,6 +213,12 @@
           [(string? src) (string->symbol src)]
           [else (string->symbol (format "~a" src))])))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define syn-token-skip-whitespace : (-> Input-Port Void)
+  (lambda [/dev/stdin]
+    (regexp-match-positions #px"^\\s*" /dev/stdin)
+    (void)))
+
 (define syn-token-port-skip-lang-line : (-> Input-Port Void)
   (lambda [/dev/stdin]
     (let skip ()
@@ -227,9 +233,19 @@
               [(eq? ch #\;) (read-line /dev/stdin) (skip)]
               [(char-whitespace? ch) (regexp-match-positions #px"^\\s+" /dev/stdin) (skip)])))
       
-    (regexp-match-positions #px"^\\s*" /dev/stdin)
-    (void)))
+    (syn-token-skip-whitespace /dev/stdin)))
 
+(define syn-token-peek-char : (-> Input-Port (U EOF Char))
+  (lambda [/dev/stdin]
+    (syn-token-skip-whitespace /dev/stdin)
+    (peek-char /dev/stdin)))
+
+(define syn-token-read-char : (-> Input-Port (U EOF Char))
+  (lambda [/dev/stdin]
+    (syn-token-skip-whitespace /dev/stdin)
+    (read-char /dev/stdin)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define syn-token-fallback-charset : (-> Bytes String)
   (lambda [from]
     (define CHARSET : String (string-upcase (bytes->string/utf-8 from)))
