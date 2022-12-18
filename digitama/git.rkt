@@ -8,11 +8,17 @@
 (require "../number.rkt")
 (require "../date.rkt")
 
+(require "exec.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Git-Numstat-Line (List Natural Natural (U String (Pairof String String))))
 (define-type Git-Numstat (Pairof Natural (Listof Git-Numstat-Line)))
 
+(define-type Git-Date-Datum (U Integer String date))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define git-silents : (Listof Exec-Silent) (list 'stdout 'stderr))
+
 (define git:%at : String "--pretty=format:%at")
 (define px:rename:normal : Regexp #px"[{](.+) => (.+)[}]")
 (define px:rename:sub : Regexp #px"/[{] => (.+)[}]")
@@ -71,4 +77,11 @@
                [else #false]))]
       [(list a d f ...) (list a d (string-join f " "))]
       [_ #false])))
-  
+
+(define git-numstat-date-option : (-> String Git-Date-Datum Boolean (Listof String))
+  (lambda [opt d local?]
+    (list (string-append "--" opt "="
+                         (cond [(string? d) d]
+                               [(date? d) (date->string d local?)]
+                               [(> d 0) (date->string (seconds->date d local?) local?)]
+                               [else (string-append (number->string (- d)) " days ago")])))))
