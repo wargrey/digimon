@@ -100,6 +100,31 @@
     (string->symbol (keyword->immutable-string k))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define symbol->bytes : (-> Symbol Bytes)
+  (lambda [s]
+    (string->bytes/utf-8 (symbol->immutable-string s))))
+
+(define keyword->bytes : (-> Keyword Bytes)
+  (lambda [s]
+    (string->bytes/utf-8 (keyword->immutable-string s))))
+
+(define bytes->symbol : (-> Bytes Symbol)
+  (lambda [s]
+    (string->symbol (bytes->string/utf-8 s))))
+
+(define bytes->keyword : (-> Bytes Keyword)
+  (lambda [s]
+    (string->keyword (bytes->string/utf-8 s))))
+
+(define symbol->path : (-> Symbol Path)
+  (lambda [s]
+    (string->path (symbol->immutable-string s))))
+
+(define keyword->path : (-> Keyword Path)
+  (lambda [s]
+    (string->path (keyword->immutable-string s))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define symbol-join : (->* ((Listof Symbol)) (String #:before-first String #:before-last String #:after-last String) String)
   (lambda [symbols [sep " "] #:before-first [bf ""] #:before-last [bl sep] #:after-last [al ""]]
     (string-join #:before-first bf #:before-last bl #:after-last al
