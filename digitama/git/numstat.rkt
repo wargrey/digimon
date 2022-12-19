@@ -5,10 +5,10 @@
 (require racket/string)
 (require racket/match)
 
-(require "../number.rkt")
-(require "../date.rkt")
+(require "../../number.rkt")
+(require "../../date.rkt")
 
-(require "exec.rkt")
+(require "../exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Git-Numstat-Line (List Natural Natural (U String (Pairof String String))))
@@ -23,6 +23,15 @@
 (define px:rename:normal : Regexp #px"[{](.+) => (.+)[}]")
 (define px:rename:sub : Regexp #px"/[{] => (.+)[}]")
 (define px:rename:sup : Regexp #px"[{](.+) => [}]/")
+
+(define current-git-procedure : (Parameterof Any) (make-parameter 'git-numstat))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define git-numstat-exec : (-> Path (Listof (Listof String)) (-> String (Listof Git-Numstat) (Listof Git-Numstat)) (Listof Git-Numstat) (Listof Git-Numstat))
+  (lambda [git options numstat-fold initial]
+    ((inst fg-recon-exec* (Listof Git-Numstat))
+     #:silent git-silents (current-git-procedure)
+     git options numstat-fold initial)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-make-fold : (-> (Option Natural) (-> String (Listof Git-Numstat) (Listof Git-Numstat)))
@@ -84,4 +93,4 @@
                          (cond [(string? d) d]
                                [(date? d) (date->string d local?)]
                                [(> d 0) (date->string (seconds->date d local?) local?)]
-                               [else (string-append (number->string (- d)) " days ago")])))))
+                               [else (string-append "'" (number->string (- d)) " days ago'")])))))

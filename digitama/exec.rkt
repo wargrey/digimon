@@ -8,6 +8,7 @@
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
 (require "../format.rkt")
+(require "../symbol.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
@@ -20,7 +21,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdin 'stdout 'stderr))
 
-(define fg-recon-exec* : (All (a) (->* (Symbol Path (Listof (Listof String)) (-> String a a) a)
+(define fg-recon-exec* : (All (a) (->* (Any Path (Listof (Listof String)) (-> String a a) a)
                                        ((Option (-> Symbol Path Natural Void))
                                         #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
                                         #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
@@ -28,7 +29,7 @@
                                        a))
   (lambda [#:silent [silents null] #:env [alt-env #false] #:feeds [feeds null] #:feed-eof [feed-eof eof]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-           operation program options stdout-fold initial-datum [on-error-do #false]]
+           operation:any program options stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -37,6 +38,7 @@
       (define stdin-silent? : Boolean (and (memq 'stdin silents) #true))
       (define stdout-silent? : Boolean (and (memq 'stdout silents) #true))
       (define stderr-silent? : Boolean (and (memq 'stderr silents) #true))
+      (define operation : Symbol (datum-name operation:any))
 
       (define subenv : (Option Environment-Variables)
         (cond [(not alt-env) #false]
