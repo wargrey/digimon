@@ -11,7 +11,7 @@
 (require "../exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Git-Numstat-Line (List Natural Natural (U String (Pairof String String))))
+(define-type Git-Numstat-Line (Immutable-Vector Natural Natural (U String (Pairof String String))))
 (define-type Git-Numstat (Pairof Natural (Listof Git-Numstat-Line)))
 
 (define-type Git-Date-Datum (U Integer String date))
@@ -52,7 +52,7 @@
                (let ([insertion (string->natural (car tokens))]
                      [deletion (string->natural (cadr tokens))])
                  (cond [(and insertion deletion)
-                        (let ([self++ ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons (list insertion deletion (caddr tokens)) (cdr self)))])
+                        (let ([self++ ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons (vector-immutable insertion deletion (caddr tokens)) (cdr self)))])
                           (cons self++ rest))]
                        [else (cons self rest)]))]
               [(string? tokens)
@@ -66,7 +66,7 @@
                (let ([insertion (string->natural (vector-ref tokens 0))]
                      [deletion (string->natural (vector-ref tokens 1))])
                  (cond [(and insertion deletion)
-                        (let ([self++ ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons (list insertion deletion (vector-ref tokens 2)) (cdr self)))])
+                        (let ([self++ ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons (vector-immutable insertion deletion (vector-ref tokens 2)) (cdr self)))])
                           (cons self++ rest))]
                        [else (cons self rest)]))]
               [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (reverse (cdr self))) rest)])))))

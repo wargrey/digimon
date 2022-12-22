@@ -10,8 +10,8 @@
                     unsafe-vector*-ref unsafe-vector*-set!
                     unsafe-bytes-ref unsafe-bytes-set! unsafe-bytes-copy!))
 
-(require "debug/ops.rkt")
-(provide (all-from-out "debug/ops.rkt"))
+(require "release/ops.rkt")
+(provide (all-from-out "release/ops.rkt"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Racket `bitwise-not` always returns a negative number for natural.

@@ -10,25 +10,26 @@
 ;;; https://github.com/github/linguist/tree/master/lib/linguist/applications.yml
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Language-Extensions (Pairof Bytes (Listof Bytes)))
-(define-type Language-Misc-Datum (U String Symbol (Pairof Symbol (Listof Symbol)) (Pairof String (Listof String))))
+(define-type Github-Language-Extensions (Pairof Bytes (Listof Bytes)))
+(define-type Github-Language-Misc-Datum (U String Symbol (Pairof Symbol (Listof Symbol)) (Pairof String (Listof String))))
 
 (define px:name-label : PRegexp #px"^(\\S[^:]*):")
 (define px:property-label : PRegexp #px"^\\s+(\\w+):")
 (define px:array : PRegexp #px"^\\s+[-]")
 
 (struct github-language
-  ([id : Natural]
+  ([id : Index]
    [name : String]
    [type : Symbol]
-   [extensions : Language-Extensions]
+   [extensions : Github-Language-Extensions]
    [color : (Option Keyword)]
-   [misc : (Immutable-HashTable Symbol Language-Misc-Datum)])
+   [parent : (Option String)]
+   [misc : (Immutable-HashTable Symbol Github-Language-Misc-Datum)])
   #:type-name Github-Language
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-reader read-language-metainfos #:+ (Listof Github-Language)
+(define-file-reader read-language-metainfos #:+ (Immutable-HashTable Index Github-Language)
   (lambda [/dev/ymlin src]
     (let skip-comment ()
       (define line (read-line /dev/ymlin))
@@ -38,11 +39,11 @@
               [(string-prefix? line "#") (skip-comment)]
               [else (skip-comment)])))
     
-    (let language-fold ([langs : (Listof Github-Language) null])
+    (let language-fold ([langs : (Immutable-HashTable Index Github-Language) (hasheq)])
       (define lang : (Option Github-Language) (linguist-read-language /dev/ymlin))
       
-      (cond [(not lang) (reverse langs)]
-            [else (language-fold (cons lang langs))]))))
+      (cond [(not lang) langs]
+            [else (language-fold (hash-set langs (github-language-id lang) lang))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define linguist-read-language : (-> Input-Port (Option Github-Language))
@@ -53,19 +54,21 @@
          (let read-language ([id : Index 0]
                              [name : String (bytes->string/utf-8 maybe-name)]
                              [type : Symbol 'programming]
-                             [extensions : Language-Extensions (list #"")]
+                             [extensions : Github-Language-Extensions (list #"")]
                              [color : (Option Keyword) #false]
-                             [misc : (Immutable-HashTable Symbol Language-Misc-Datum) (hasheq)])
+                             [group : (Option String) #false]
+                             [misc : (Immutable-HashTable Symbol Github-Language-Misc-Datum) (hasheq)])
            (define maybe-field : (Option Bytes)
              (let ([leading-char (peek-char /dev/ymlin)])
                (and (char? leading-char) (char-whitespace? leading-char)
                     (linguist-read-label /dev/ymlin px:property-label #false))))
            
-           (cond [(not maybe-field) (github-language id name type extensions color misc)]
-                 [(bytes=? maybe-field #"language_id") (read-language (linguist-read/line* /dev/ymlin index?) name type extensions color misc)]
-                 [(bytes=? maybe-field #"type") (read-language id name (linguist-read/line* /dev/ymlin symbol?) extensions color misc)]
-                 [(bytes=? maybe-field #"color") (read-language id name type extensions (linguist-read/line* /dev/ymlin string? linguist-string->color) misc)]
-                 [(bytes=? maybe-field #"extensions") (read-language id name type (linguist-read-array /dev/ymlin string->bytes/utf-8 symbol->bytes) color misc)]
+           (cond [(not maybe-field) (github-language id name type extensions color group misc)]
+                 [(bytes=? maybe-field #"language_id") (read-language (linguist-read/line* /dev/ymlin index?) name type extensions color group misc)]
+                 [(bytes=? maybe-field #"type") (read-language id name (linguist-read/line* /dev/ymlin symbol?) extensions color group misc)]
+                 [(bytes=? maybe-field #"color") (read-language id name type extensions (linguist-read/line* /dev/ymlin string? linguist-string->color) group misc)]
+                 [(bytes=? maybe-field #"extensions") (read-language id name type (linguist-read-array /dev/ymlin string->bytes/utf-8 symbol->bytes) color group misc)]
+                 [(bytes=? maybe-field #"group") (read-language id name type extensions color (string-trim (assert (read-line /dev/ymlin) string?)) misc)]
                  [else (let* ([fname (bytes->symbol maybe-field)]
                               [value (case fname
                                        [(interpreters) (linguist-read-array /dev/ymlin string->symbol (inst values Symbol Symbol))]
@@ -73,9 +76,9 @@
                                        [(ace_mode codemirror_mode codemirror_mode_type tm_scope) (linguist-read/line* /dev/ymlin symbol?)]
                                        [(filenames) (linguist-read-array /dev/ymlin (inst values String String) symbol->immutable-string)]
                                        [(wrap) (linguist-read/line* /dev/ymlin symbol?)]
-                                       [(group fs_name) (assert (read-line /dev/ymlin) string?)]
+                                       [(fs_name) (string-trim (assert (read-line /dev/ymlin) string?))]
                                        [else (void (read-line /dev/ymlin))])])
-                         (read-language id name type extensions color (if (void? value) misc (hash-set misc fname value))))])))))
+                         (read-language id name type extensions color group (if (void? value) misc (hash-set misc fname value))))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define linguist-read-label : (-> Input-Port PRegexp Boolean (Option Bytes))
