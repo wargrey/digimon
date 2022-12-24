@@ -91,11 +91,16 @@
   (lambda [languages ext types]
     (let it ([pos : (Option Integer) (hash-iterate-first languages)]
              [ids : (Listof Index) null])
-      (cond [(not pos) (and (pair? ids) (apply min ids))]
-            [else (let-values ([(lang-id metainfo) (hash-iterate-key+value languages pos)])
-                    (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
-                          [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
-                          [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))]))))
+      (if (not pos)
+
+          ; TODO: heuristically guessing the actual language is difficult for (re-)moved files
+          (and (pair? ids)
+               (apply min ids))
+
+          (let-values ([(lang-id metainfo) (hash-iterate-key+value languages pos)])
+            (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
+                  [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
+                  [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))))))
 
 (define github-lookup-parent : (-> (Immutable-HashTable Index Github-Language) String (Option Github-Language))
   (lambda [languages parent]

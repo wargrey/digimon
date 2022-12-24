@@ -5,6 +5,8 @@
 (require racket/string)
 (require racket/match)
 
+(require "parameter.rkt")
+
 (require "../../number.rkt")
 (require "../../date.rkt")
 
@@ -15,17 +17,7 @@
 (define-type Git-Numstat (Pairof Natural (Listof Git-Numstat-Line)))
 
 (define-type Git-Date-Datum (U Integer String date))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-silents : (Listof Exec-Silent) (list 'stderr))
-
-(define git:%at : String "--pretty=format:%at")
-(define px:rename:normal : Regexp #px"[{]?([^{]+) => ([^}]+)[}]?")
-(define px:rename:sub : Regexp #px"/[{] => ([^}]+)[}]")
-(define px:rename:sup : Regexp #px"[{]([^{]+) => [}]/")
-(define px:submodule:status : Regexp #px"^\\s?\\S+\\s([^(]+)\\s[(][^)]+[)]$")
-
-(define current-git-procedure : (Parameterof Any) (make-parameter 'git-numstat))
+(define-type Git-Match-Datum (U Regexp Byte-Regexp String (Listof (U Regexp Byte-Regexp String))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-exec : (-> Path (Listof (Listof String)) (-> String (Listof Git-Numstat) (Listof Git-Numstat)) (Listof Git-Numstat) (Listof Git-Numstat))
@@ -33,14 +25,6 @@
     ((inst fg-recon-exec* (Listof Git-Numstat))
      #:silent git-silents (current-git-procedure)
      git options numstat-fold initial)))
-
-(define git-submodule-list : (-> Path (Listof String))
-  (lambda [git]
-    (reverse
-     ((inst fg-recon-exec* (Listof String))
-      #:silent git-silents (current-git-procedure)
-      git (list (list "submodule" "status"))
-      git-submodule-name-fold null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-make-fold : (-> (Option Natural) (Option String) (-> String (Listof Git-Numstat) (Listof Git-Numstat)))
@@ -92,13 +76,6 @@
                        [else (cons self rest)]))]
               [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (reverse (cdr self))) rest)])))))
 
-(define git-submodule-name-fold : (-> String (Listof String) (Listof String))
-  (lambda [line names]
-    (define maybe-name (regexp-match px:submodule:status line))
-    
-    (cond [(not maybe-name) names]
-          [else (cons (assert (cadr maybe-name)) names)])))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numatat-merge : (-> (Listof Git-Numstat) (Listof Git-Numstat) Boolean (Listof Git-Numstat))
   (lambda [lstats rstats reverse?]
@@ -111,11 +88,21 @@
             [else (let*-values ([(lstat lrest) (values (car lstats) (cdr lstats))]
                                 [(rstat rrest) (values (car rstats) (cdr rstats))]
                                 [(lself rself) (values (car lstat) (car rstat))])
-                    (cond [(lt? lself rself) (merge lstats rrest (cons rstat stats))]
-                          [(not (= lself rself)) (merge lrest rstats (cons lstat stats))]
-                          [else (let ([self ((inst cons Natural (Listof Git-Numstat-Line)) lself (append (cdr lstat) (cdr rstat)))])
-                                  (merge lrest rrest (cons self stats)))]))]))))
+                    (cond [(lt? lself rself) (merge lrest rstats (cons lstat stats))]
+                          [(not (= lself rself)) (merge lstats rrest (cons rstat stats))]
+                          [else ; NOTE: the numstat list is currently in reverse order since `numstat-fold` doesn't have chance to reverse them
+                           (let ([self ((inst cons Natural (Listof Git-Numstat-Line)) lself (append (cdr rstat) (cdr lstat)))])
+                             (merge lrest rrest (cons self stats)))]))]))))
 
+(define git-numstat-ignore? : (-> String Git-Match-Datum Boolean)
+  (lambda [name pattern]
+    (cond [(regexp? pattern) (regexp-match? pattern name)]
+          [(string? pattern) (string=? pattern name)]
+          [(byte-regexp? pattern) (regexp-match? pattern name)]
+          [else (for/or : Boolean ([p (in-list pattern)])
+                  (git-numstat-ignore? name p))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-line-split : (-> String (U False String (List String String String) (Vector String String (Pairof String String))))
   (lambda [line]
     ; TODO: seriously deal with spaces in filename

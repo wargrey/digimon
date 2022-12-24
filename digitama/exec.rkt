@@ -74,42 +74,30 @@
                                          (flush-output /dev/subout)))]
                                     [else (close-output-port /dev/subout)]))))))
 
-          (define (deal-with-outin-line [line : String]) : Void
-            (unless (not /dev/stdout)
-              (displayln line /dev/stdout))
-            (when (not stdout-silent?)
-              (dtrace-note line #:topic operation #:prefix? #false)))
-
-          (define (deal-with-errin-line [line : String]) : Void
-            (unless (not /dev/stderr)
-              (displayln line /dev/stderr))
-            (if (not stderr-silent?)
-                (dtrace-error line #:topic operation #:prefix? #false)
-                (displayln line /dev/byterr)))
-
           (define final-datum : a
             (let wait-fold-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                  [errin-evt : (Rec x (Evtof x)) /dev/errin]
                                  [datum : a initial-datum])
-              (define e (sync/enable-break outin-evt errin-evt /usr/bin/$0))
-              
-              (cond [(eq? e /dev/outin)
-                     (let ([line (read-line /dev/outin)])
-                       (cond [(eof-object? line) (wait-fold-loop never-evt errin-evt datum)]
-                             [else (deal-with-outin-line line)
-                                   (wait-fold-loop outin-evt errin-evt (stdout-fold line datum))]))]
-                    
-                    [(eq? e /dev/errin)
-                     (let ([line (read-line /dev/errin)])
-                       (cond [(eof-object? line) (wait-fold-loop outin-evt never-evt datum)]
-                             [else (deal-with-errin-line line)
-                                   (wait-fold-loop outin-evt errin-evt datum)]))]
-                    [else ; subprocess exits, don't forget to check buffers of its file-stream ports
-                     (for-each deal-with-errin-line (port->lines /dev/errin))
-                     (for/fold ([datum : a datum])
-                               ([line (in-port read-line /dev/outin)])
-                       (deal-with-outin-line line)
-                       (stdout-fold line datum))])))
+              (if (not (eq? outin-evt errin-evt))
+                  (let ([e (sync/enable-break outin-evt errin-evt)])             
+                    (if (eq? e /dev/outin)
+                        (let ([line (read-line /dev/outin)])
+                          (if (eof-object? line)
+                              (wait-fold-loop never-evt errin-evt datum)
+                              (begin (unless (not /dev/stdout) (displayln line /dev/stdout))
+                                     (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
+                                     (wait-fold-loop outin-evt errin-evt (stdout-fold line datum)))))
+                        (let ([line (read-line /dev/errin)])
+                          (if (eof-object? line)
+                              (wait-fold-loop outin-evt never-evt datum)
+                              (begin (unless (not /dev/stderr) (displayln line /dev/stderr))
+                                     (if (not stderr-silent?)
+                                         (dtrace-error line #:topic operation #:prefix? #false)
+                                         (displayln line /dev/byterr))
+                                     (wait-fold-loop outin-evt errin-evt datum))))))
+
+                  ; implies both `always-evt`
+                  datum)))
 
           (thread-wait ghostcat)
           (subprocess-wait /usr/bin/$0)
