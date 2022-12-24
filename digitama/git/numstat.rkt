@@ -17,14 +17,13 @@
 (define-type Git-Date-Datum (U Integer String date))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-silents : (Listof Exec-Silent) (list 'stdout 'stderr))
+(define git-silents : (Listof Exec-Silent) (list 'stderr))
 
 (define git:%at : String "--pretty=format:%at")
-(define px:rename:normal : Regexp #px"[{]?(.+) => (.+)[}]?")
-(define px:rename:sub : Regexp #px"/[{] => (.+)[}]")
-(define px:rename:sup : Regexp #px"[{](.+) => [}]/")
+(define px:rename:normal : Regexp #px"[{]?([^{]+) => ([^}]+)[}]?")
+(define px:rename:sub : Regexp #px"/[{] => ([^}]+)[}]")
+(define px:rename:sup : Regexp #px"[{]([^{]+) => [}]/")
 (define px:submodule:status : Regexp #px"^\\s?\\S+\\s([^(]+)\\s[(][^)]+[)]$")
-(define px:submodule:sync : Regexp #px"^[^']+'([^.]+)'$")
 
 (define current-git-procedure : (Parameterof Any) (make-parameter 'git-numstat))
 

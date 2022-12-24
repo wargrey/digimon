@@ -62,12 +62,15 @@
                   (define (git-numstat-recursive [rootdir : Path] [subpath/ : (Option String)]) : (Listof Git-Numstat)
                     (parameterize ([current-directory rootdir])
                       (dtrace-note #:topic (current-git-procedure) "cd ~a" rootdir)
-                      (for/fold ([stats : (Listof Git-Numstat) (git-numstat rootdir subpath/)])
-                                ([subname (in-list (git-submodule-list git))])
-                        (define subrootdir : Path (build-path rootdir (path-normalize/system subname)))
-                        (define submodpath : String (if (not subpath/) (string-append subname "/") (string-append subpath/ subname "/")))
 
-                        (git-numatat-merge stats (git-numstat-recursive subrootdir submodpath) git-reverse?))))
+                      (if (file-exists? (build-path rootdir ".gitmodules"))
+                          (for/fold ([stats : (Listof Git-Numstat) (git-numstat rootdir subpath/)])
+                                    ([subname (in-list (git-submodule-list git))])
+                            (define subrootdir : Path (build-path rootdir (path-normalize/system subname)))
+                            (define submodpath : String (if (not subpath/) (string-append subname "/") (string-append subpath/ subname "/")))
+                            
+                            (git-numatat-merge stats (git-numstat-recursive subrootdir submodpath) git-reverse?))
+                          (git-numstat rootdir subpath/))))
 
                   ((if rkt-reverse? reverse values)
                    (cond [(not recursive?) (git-numstat rootdir #false)]
@@ -91,4 +94,4 @@
 
       (git-numstats->langstat numstats types grouping-opt))))
 
-(git-langstat #:since -30 "/Users/wargrey/Laboratory/YouthLanguage")
+(git-langstat #:since -30 "/Users/wargrey/Laboratory/YouthLanguage/racket/digitama/big-bang")

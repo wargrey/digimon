@@ -146,5 +146,11 @@
 
 (define github-fork-id : (-> Github-Language Index Index)
   (lambda [lang idx]
-    (unsafe-idx+ (unsafe-idxlshift (+ idx 1) 32)
+    ; Suppose github won't use numbers that greater than
+    ;   #xFFFFFFFF (32bit maximum natural, 4294967295 in decimal)
+    ;   as language ids.
+    ; So, we choose 5000000000 as the base number for forked languages
+    ;   so that we could easily figure out the forking ones before
+    ;   printing them as hexadecimals
+    (unsafe-idx+ (unsafe-idx* (+ idx 5) 1000000000)
                  (github-language-id lang))))
