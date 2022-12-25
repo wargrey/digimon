@@ -20,20 +20,20 @@
    [type : Symbol]
    [color : (Option Keyword)]
    [extensions : Github-Language-Extensions]
-   [contents : (Listof Git-Datum)])
-  #:type-name Git-Languageof
+   [content : Git-Datum])
+  #:type-name Git-Language-With
   #:transparent)
 
 (define git-default-subgroups : Git-Langstat-Grouping-Option '(["Scribble" . #".scrbl"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-numstats->langstat : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Languageof Git-Numstat)))
-  (let ([initial-stat : (Immutable-HashTable Index (Git-Languageof Git-Numstat)) (hasheq)]
+(define git-numstats->langstat : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))))
+  (let ([initial-stat : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (hasheq)]
         [initial-substat : (Immutable-HashTable Index (Listof Git-Numstat-Line)) (hasheq)])
     (lambda [numstats types grouping-opt]
       (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
       
-      (for/fold ([stats : (Immutable-HashTable Index (Git-Languageof Git-Numstat)) initial-stat])
+      (for/fold ([stats : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) initial-stat])
                 ([numstat (in-list numstats)])
         (define substats : (Immutable-HashTable Index (Listof Git-Numstat-Line))
           (for/fold ([substats : (Immutable-HashTable Index (Listof Git-Numstat-Line)) initial-substat])
@@ -48,36 +48,59 @@
                   [(github-identify-language languages ext types)
                    => (λ [[id : Index]] (hash-set substats id (cons num-line (hash-ref substats id (inst list Git-Numstat-Line)))))]
                   [else substats])))
-        (for/fold ([stats : (Immutable-HashTable Index (Git-Languageof Git-Numstat)) stats])
+        (for/fold ([stats : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) stats])
                   ([(sub-id substat) (in-hash substats)])
           (define this-numstat : Git-Numstat ((inst cons Natural (Listof Git-Numstat-Line)) (car numstat) substat))
           (if (hash-has-key? stats sub-id)
               (let ([lang (hash-ref stats sub-id)])
-                (hash-set stats sub-id (struct-copy git-language lang [contents (cons this-numstat (git-language-contents lang))])))
+                (hash-set stats sub-id (struct-copy git-language lang [content (cons this-numstat (git-language-content lang))])))
               (let-values ([(lang all-extensions) (github-language-group languages sub-id (eq? grouping-opt #true))])
                 (hash-set stats (github-language-id lang)
                           (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
                                         (github-language-color lang) all-extensions (list this-numstat))))))))))
 
-(define git-files->langfiles : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Languageof Git-File)))
-  (let ([initial-langfiles : (Immutable-HashTable Index (Git-Languageof Git-File)) (hasheq)])
+(define git-files->langfiles : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-File))))
+  (let ([initial-langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) (hasheq)])
     (lambda [files types grouping-opt]
       (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
       
-      (for/fold ([langfiles : (Immutable-HashTable Index (Git-Languageof Git-File)) initial-langfiles])
+      (for/fold ([langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) initial-langfiles])
                 ([blob (in-list files)])
         (define ext (path-get-extension (git-file-pathname blob)))
         (cond [(not ext) langfiles]
-              [(or (git-identify-language langfiles ext) (github-identify-language languages ext types))
+              [(or (git-identify-language langfiles ext)
+                   (github-identify-language languages ext types))
                => (λ [[id : Index]]
                     (if (hash-has-key? langfiles id)
                         (let ([lang (hash-ref langfiles id)])
-                          (hash-set langfiles id (struct-copy git-language lang [contents (cons blob (git-language-contents lang))])))
+                          (hash-set langfiles id (struct-copy git-language lang [content (cons blob (git-language-content lang))])))
                         (let-values ([(lang all-extensions) (github-language-group languages id (eq? grouping-opt #true))])
                           (hash-set langfiles (github-language-id lang)
                                     (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
                                                   (github-language-color lang) all-extensions (list blob))))))]
               [else langfiles])))))
+
+(define git-files->langsizes : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With Natural)))
+  (let ([initial-langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) (hasheq)])
+    (lambda [files types grouping-opt]
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
+      
+      (for/fold ([langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) initial-langsizes])
+                ([blob (in-list files)])
+        (define ext (path-get-extension (git-file-pathname blob)))
+        (cond [(not ext) langsizes]
+              [(or (git-identify-language langsizes ext)
+                   (github-identify-language languages ext types))
+               => (λ [[id : Index]]
+                    (if (hash-has-key? langsizes id)
+                        (let* ([lang (hash-ref langsizes id)]
+                               [total (git-language-content lang)])
+                          (hash-set langsizes id (struct-copy git-language lang [content (+ total (git-file-size blob))])))
+                        (let-values ([(lang all-extensions) (github-language-group languages id (eq? grouping-opt #true))])
+                          (hash-set langsizes (github-language-id lang)
+                                    (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
+                                                  (github-language-color lang) all-extensions (git-file-size blob))))))]
+              [else langsizes])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define github-load-language : (-> Git-Langstat-Grouping-Option (Immutable-HashTable Index Github-Language))
@@ -90,8 +113,8 @@
     (cond [(pair? grouping-opt) (time (github-fork languages0 grouping-opt))]
           [else languages0])))
 
-(define git-identify-language : (All (T) (case-> [(Immutable-HashTable Index (Git-Languageof T)) Bytes -> (Option Index)]
-                                                 [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)]))
+(define git-identify-language : (All (Git-Datum) (case-> [(Immutable-HashTable Index (Git-Language-With Git-Datum)) Bytes -> (Option Index)]
+                                                         [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)]))
   (case-lambda
     [(stats ext)
      (let it ([pos : (Option Integer) (hash-iterate-first stats)])

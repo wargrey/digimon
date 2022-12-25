@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
-(provide (struct-out Git-Languageof))
+(provide (struct-out Git-Language-With))
 
 (require racket/path)
 (require racket/port)
@@ -86,7 +86,7 @@
 (define git-list-langtree : (->* ()
                                  (Path-String #:treeish String #:types (Listof Symbol)#:grouping-option Git-Langstat-Grouping-Option
                                               #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
-                                 (Immutable-HashTable Index (Git-Languageof Git-File)))
+                                 (Immutable-HashTable Index (Git-Language-With (Listof Git-File))))
   (lambda [#:treeish [treeish "HEAD"] #:types [types null] #:grouping-option [grouping-opt git-default-subgroups]
            #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
            [dir (current-directory)]]
@@ -94,6 +94,18 @@
       (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore))
 
       (git-files->langfiles files types grouping-opt))))
+
+(define git-list-langsize : (->* ()
+                                 (Path-String #:treeish String #:types (Listof Symbol)#:grouping-option Git-Langstat-Grouping-Option
+                                              #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
+                                 (Immutable-HashTable Index (Git-Language-With Natural)))
+  (lambda [#:treeish [treeish "HEAD"] #:types [types null] #:grouping-option [grouping-opt git-default-subgroups]
+           #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
+           [dir (current-directory)]]
+    (parameterize ([current-git-procedure git-list-langsize])
+      (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore))
+
+      (git-files->langsizes files types grouping-opt))))
 
 (define git-numstat : (->* ()
                            (Path-String #:group-by-day? Boolean #:no-renames? Boolean #:since (Option Git-Date-Datum) #:until (Option Git-Date-Datum) #:localtime? Boolean
@@ -149,7 +161,7 @@
                                          #:n (Option Natural) #:authors (U String (Listof String)) #:committers (U String (Listof String)) #:with-diff? Boolean
                                          #:grouping-option Git-Langstat-Grouping-Option #:types (Listof Symbol) #:reverse? Boolean #:recursive? Boolean
                                          #:ignore-submodule Git-Match-Datum)
-                            (Immutable-HashTable Index (Git-Languageof Git-Numstat)))
+                            (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))))
   (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #false]
            #:n [n #false] #:authors [authors null] #:committers [committers null] #:with-diff? [diff? (and (null? authors) (null? committers) (not until))]
            #:grouping-option [grouping-opt git-default-subgroups] #:types [types null] #:reverse? [reverse? #false] #:recursive? [recursive? #true]
