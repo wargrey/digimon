@@ -8,6 +8,9 @@
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Git-Match-Datum (U Regexp Byte-Regexp String (Listof (U Regexp Byte-Regexp String))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-submodule-list : (-> Path (Listof String))
   (lambda [git]
     (reverse
@@ -25,6 +28,14 @@
           [else (cons (assert (cadr maybe-path)) paths)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define git-submodule-ignore? : (-> String Git-Match-Datum Boolean)
+  (lambda [name pattern]
+    (cond [(regexp? pattern) (regexp-match? pattern name)]
+          [(string? pattern) (string=? pattern name)]
+          [(byte-regexp? pattern) (regexp-match? pattern name)]
+          [else (for/or : Boolean ([p (in-list pattern)])
+                  (git-submodule-ignore? name p))])))
+
 (define git-submodule-rootdir-concat : (-> Path String Path)
   (lambda [rootdir subname]
     (build-path rootdir (path-normalize/system subname))))

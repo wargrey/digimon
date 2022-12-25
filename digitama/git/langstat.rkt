@@ -6,6 +6,7 @@
 
 (require "linguist.rkt")
 (require "numstat.rkt")
+(require "lstree.rkt")
 
 (require "../system.rkt")
 (require "../unsafe/ops.rkt")
@@ -13,31 +14,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Git-Langstat-Grouping-Option (U Boolean (Listof (Pairof String (U Bytes Github-Language-Extensions)))))
 
-(struct git-language
+(struct (T) git-language
   ([id : Index]
    [name : String]
    [type : Symbol]
    [color : (Option Keyword)]
    [extensions : Github-Language-Extensions]
-   [lines : (Listof Git-Numstat)])
+   [lines : (Listof T)])
   #:type-name Git-Language
   #:transparent)
 
+(define git-default-subgroups : Git-Langstat-Grouping-Option '(["Scribble" . #".scrbl"]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-numstats->langstat : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index Git-Language))
-  (let ([initial-stat : (Immutable-HashTable Index Git-Language) (hasheq)]
+(define git-numstats->langstat : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language Git-Numstat)))
+  (let ([initial-stat : (Immutable-HashTable Index (Git-Language Git-Numstat)) (hasheq)]
         [initial-substat : (Immutable-HashTable Index (Listof Git-Numstat-Line)) (hasheq)])
     (lambda [numstats types grouping-opt]
-      (define languages0 : (Immutable-HashTable Index Github-Language)
-        (read-language-metainfos* #:count-lines? #false
-                                  (parameterize ([current-digimon "digimon"])
-                                    (digimon-path 'language "github.yml"))))
-
-      (define languages : (Immutable-HashTable Index Github-Language)
-        (cond [(pair? grouping-opt) (time (github-fork languages0 grouping-opt))]
-              [else languages0]))
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
       
-      (for/fold ([stats : (Immutable-HashTable Index Git-Language) initial-stat])
+      (for/fold ([stats : (Immutable-HashTable Index (Git-Language Git-Numstat)) initial-stat])
                 ([numstat (in-list numstats)])
         (define substats : (Immutable-HashTable Index (Listof Git-Numstat-Line))
           (for/fold ([substats : (Immutable-HashTable Index (Listof Git-Numstat-Line)) initial-substat])
@@ -52,27 +48,50 @@
                   [(github-identify-language languages ext types)
                    => (λ [[id : Index]] (hash-set substats id (cons num-line (hash-ref substats id (inst list Git-Numstat-Line)))))]
                   [else substats])))
-        (for/fold ([stats : (Immutable-HashTable Index Git-Language) stats])
+        (for/fold ([stats : (Immutable-HashTable Index (Git-Language Git-Numstat)) stats])
                   ([(sub-id substat) (in-hash substats)])
           (define this-numstat : Git-Numstat ((inst cons Natural (Listof Git-Numstat-Line)) (car numstat) substat))
           (if (hash-has-key? stats sub-id)
               (let ([lang (hash-ref stats sub-id)])
                 (hash-set stats sub-id (struct-copy git-language lang [lines (cons this-numstat (git-language-lines lang))])))
-              (let ([self-lang (hash-ref languages sub-id)])
-                (define-values (lang all-extensions)
-                  (cond [(eq? grouping-opt #true)
-                         (let* ([maybe-parent (github-language-parent (hash-ref languages sub-id))]
-                                [parent-lang (and maybe-parent (github-lookup-parent languages maybe-parent))])
-                           (cond [(not parent-lang) (values self-lang (github-language-extensions self-lang))]
-                                 [else (values parent-lang (append (github-language-extensions self-lang) (github-language-extensions parent-lang)))]))]
-                        [else (values self-lang (github-language-extensions self-lang))]))
+              (let-values ([(lang all-extensions) (github-language-group languages sub-id (eq? grouping-opt #true))])
                 (hash-set stats (github-language-id lang)
                           (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
                                         (github-language-color lang) all-extensions (list this-numstat))))))))))
 
+(define git-files->langfiles : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language Git-File)))
+  (let ([initial-langfiles : (Immutable-HashTable Index (Git-Language Git-File)) (hasheq)])
+    (lambda [files types grouping-opt]
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
+      
+      (for/fold ([langfiles : (Immutable-HashTable Index (Git-Language Git-File)) initial-langfiles])
+                ([blob (in-list files)])
+        (define ext (path-get-extension (git-file-pathname blob)))
+        (cond [(not ext) langfiles]
+              [(or (git-identify-language langfiles ext) (github-identify-language languages ext types))
+               => (λ [[id : Index]]
+                    (if (hash-has-key? langfiles id)
+                        (let ([lang (hash-ref langfiles id)])
+                          (hash-set langfiles id (struct-copy git-language lang [lines (cons blob (git-language-lines lang))])))
+                        (let-values ([(lang all-extensions) (github-language-group languages id (eq? grouping-opt #true))])
+                          (hash-set langfiles (github-language-id lang)
+                                    (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
+                                                  (github-language-color lang) all-extensions (list blob))))))]
+              [else langfiles])))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-identify-language : (case-> [(Immutable-HashTable Index Git-Language) Bytes -> (Option Index)]
-                                        [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)])
+(define github-load-language : (-> Git-Langstat-Grouping-Option (Immutable-HashTable Index Github-Language))
+  (lambda [grouping-opt]
+    (define languages0 : (Immutable-HashTable Index Github-Language)
+      (read-language-metainfos* #:count-lines? #false
+                                (parameterize ([current-digimon "digimon"])
+                                  (digimon-path 'language "github.yml"))))
+    
+    (cond [(pair? grouping-opt) (time (github-fork languages0 grouping-opt))]
+          [else languages0])))
+
+(define git-identify-language : (All (T) (case-> [(Immutable-HashTable Index (Git-Language T)) Bytes -> (Option Index)]
+                                                 [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)]))
   (case-lambda
     [(stats ext)
      (let it ([pos : (Option Integer) (hash-iterate-first stats)])
@@ -101,6 +120,17 @@
             (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
                   [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
                   [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))))))
+
+(define github-language-group : (-> (Immutable-HashTable Index Github-Language) Natural Boolean (Values Github-Language Github-Language-Extensions))
+  (lambda [languages id grouping?]
+    (define self-lang : Github-Language (hash-ref languages id))
+    
+    (if (and grouping?)
+        (let* ([maybe-parent (github-language-parent self-lang)]
+               [parent-lang (and maybe-parent (github-lookup-parent languages maybe-parent))])
+          (cond [(not parent-lang) (values self-lang (github-language-extensions self-lang))]
+                [else (values parent-lang (append (github-language-extensions self-lang) (github-language-extensions parent-lang)))]))
+        (values self-lang (github-language-extensions self-lang)))))
 
 (define github-lookup-parent : (-> (Immutable-HashTable Index Github-Language) String (Option Github-Language))
   (lambda [languages parent]

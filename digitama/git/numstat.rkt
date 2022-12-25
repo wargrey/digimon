@@ -17,7 +17,6 @@
 (define-type Git-Numstat (Pairof Natural (Listof Git-Numstat-Line)))
 
 (define-type Git-Date-Datum (U Integer String date))
-(define-type Git-Match-Datum (U Regexp Byte-Regexp String (Listof (U Regexp Byte-Regexp String))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-exec : (-> Path (Listof (Listof String)) (-> String (Listof Git-Numstat) (Listof Git-Numstat)) (Listof Git-Numstat) (Listof Git-Numstat))
@@ -94,18 +93,9 @@
                            (let ([self ((inst cons Natural (Listof Git-Numstat-Line)) lself (append (cdr rstat) (cdr lstat)))])
                              (merge lrest rrest (cons self stats)))]))]))))
 
-(define git-numstat-ignore? : (-> String Git-Match-Datum Boolean)
-  (lambda [name pattern]
-    (cond [(regexp? pattern) (regexp-match? pattern name)]
-          [(string? pattern) (string=? pattern name)]
-          [(byte-regexp? pattern) (regexp-match? pattern name)]
-          [else (for/or : Boolean ([p (in-list pattern)])
-                  (git-numstat-ignore? name p))])))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numstat-line-split : (-> String (U False String (List String String String) (Vector String String (Pairof String String))))
   (lambda [line]
-    ; TODO: seriously deal with spaces in filename
     (match (string-split line)
       [(list a d f) (list a d f)]
       [(list ts) ts]
@@ -115,7 +105,7 @@
                [(regexp-match? px:rename:sub raw) (vector a d (cons (regexp-replace px:rename:sub raw "") (regexp-replace px:rename:sub raw "/\\1")))]
                [(regexp-match? px:rename:sup raw) (vector a d (cons (regexp-replace px:rename:sup raw "\\1/") (regexp-replace px:rename:sup raw "")))]
                [else #false]))]
-      [(list a d f ...) (list a d (string-join f " "))]
+      [(list a d f ...) (list a d (regexp-replace px:spaced-fname:numstat line "\\1"))]
       [_ #false])))
 
 (define git-numstat-date-option : (-> String Git-Date-Datum Boolean (Listof String))
