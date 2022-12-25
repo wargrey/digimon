@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
-(provide (struct-out Git-Language))
+(provide (struct-out Git-Languageof))
 
 (require racket/path)
 (require racket/port)
@@ -86,7 +86,7 @@
 (define git-list-langtree : (->* ()
                                  (Path-String #:treeish String #:types (Listof Symbol)#:grouping-option Git-Langstat-Grouping-Option
                                               #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
-                                 (Immutable-HashTable Index (Git-Language Git-File)))
+                                 (Immutable-HashTable Index (Git-Languageof Git-File)))
   (lambda [#:treeish [treeish "HEAD"] #:types [types null] #:grouping-option [grouping-opt git-default-subgroups]
            #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
            [dir (current-directory)]]
@@ -149,7 +149,7 @@
                                          #:n (Option Natural) #:authors (U String (Listof String)) #:committers (U String (Listof String)) #:with-diff? Boolean
                                          #:grouping-option Git-Langstat-Grouping-Option #:types (Listof Symbol) #:reverse? Boolean #:recursive? Boolean
                                          #:ignore-submodule Git-Match-Datum)
-                            (Immutable-HashTable Index (Git-Language Git-Numstat)))
+                            (Immutable-HashTable Index (Git-Languageof Git-Numstat)))
   (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #false]
            #:n [n #false] #:authors [authors null] #:committers [committers null] #:with-diff? [diff? (and (null? authors) (null? committers) (not until))]
            #:grouping-option [grouping-opt git-default-subgroups] #:types [types null] #:reverse? [reverse? #false] #:recursive? [recursive? #true]
@@ -163,5 +163,3 @@
                      dir))
 
       (git-numstats->langstat numstats types grouping-opt))))
-
-(git-list-langtree "/Users/wargrey/Laboratory/YouthLanguage/racket")
