@@ -17,13 +17,17 @@
 (require racket/pretty)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~n_w : (-> Integer String String)
-  (lambda [count word]
-    (format "~a ~a" count (plural count word))))
+(define ~n_w : (->* (Integer String) (Boolean) String)
+  (lambda [count word [format-count? #true]]
+    (format "~a ~a"
+      (if format-count? (~integer count) count)
+      (plural count word))))
 
-(define ~w=n : (-> Integer String String)
-  (lambda [count word]
-    (format "~a=~a" (plural count word) count)))
+(define ~w=n : (->* (Integer String) (Boolean) String)
+  (lambda [count word [format-count? #true]]
+    (format "~a=~a"
+      (plural count word)
+      (if format-count? (~integer count) count))))
 
 (define ~% : (-> Real [#:precision (U Integer (List '= Integer))] String)
   (lambda [% #:precision [prcs '(= 2)]]
@@ -101,6 +105,16 @@
          (cond [(char-graphic? ch) ch]
                [(char-whitespace? ch) #\space]
                [else fallback]))]))
+
+(define ~integer : (-> Integer String)
+  (lambda [i]
+    (cond [(< i 0) (string-append "-" (~integer (- i)))]
+          [(< i 1000) (number->string i)]
+          [else (let integer->string ([head : Natural (quotient i 1000)]
+                                      [tail : String (string-append "," (~r (remainder i 1000) #:min-width 3 #:pad-string "0"))])
+                  (cond [(< head 1000) (string-append (number->string head) tail)]
+                        [else (let-values ([(q r) (quotient/remainder head 1000)])
+                                (integer->string q (string-append "," (~r r #:min-width 3) tail)))]))])))
 
 (define ~string : (-> String (Listof Any) String)
   (lambda [msgfmt argl]

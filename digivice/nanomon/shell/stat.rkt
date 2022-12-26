@@ -26,8 +26,8 @@
     (define-values (additions deletions) (git-numstats->additions+deletions* all-numstats))
 
     (printf "~a in total, source: ~a ~a(~a) " (~size total-size) (~n_w src-file "file") (~size src-size) (~% (/ src-size total-size)))
-    (echof "+~a " additions #:fgcolor 'green)
-    (echof "-~a~n" deletions #:fgcolor 'red)
+    (echof "+~a " (~integer additions) #:fgcolor 'green)
+    (echof "-~a~n" (~integer deletions) #:fgcolor 'red)
     
     (echof "====================================================================================================~n" #:fgcolor 'darkgrey)
 
@@ -40,8 +40,8 @@
       
       (printf "~a: ~a " (git-language-name lang) (~n_w (length (git-language-content (hash-ref lang-files id))) "file"))
       (echof "~a " (~n_w (- adds dels) "line") #:fgcolor 'darkgrey)
-      (echof "+~a " adds #:fgcolor 'green)
-      (echof "-~a " dels #:fgcolor 'red)
+      (echof "+~a " (~integer adds) #:fgcolor 'green)
+      (echof "-~a " (~integer dels) #:fgcolor 'red)
       (echof "~a " (~% (/ size src-size)) #:fgcolor 'yellow)
       (printf "~n"))
     
