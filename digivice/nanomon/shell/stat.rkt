@@ -20,12 +20,12 @@
     (define lang-sizes : (Immutable-HashTable Index (Git-Language-With Natural)) (git-files->langsizes all-files null git-default-subgroups))
     (define lang-stats : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (git-numstats->langstats all-numstats null git-default-subgroups))
 
-    (define total-file : Natural (for/fold ([count : Natural 0]) ([lf (in-hash-values lang-files)]) (+ count (length (git-language-content lf)))))
     (define total-size : Natural (apply + (map git-file-size all-files)))
+    (define src-file : Natural (for/fold ([count : Natural 0]) ([lf (in-hash-values lang-files)]) (+ count (length (git-language-content lf)))))
     (define src-size : Natural (apply + (map (inst git-language-content Natural) (hash-values lang-sizes))))
     (define-values (additions deletions) (git-numstats->additions+deletions* all-numstats))
 
-    (printf "~a in total, source: ~a ~a(~a) " (~size total-size) (~n_w total-file "file") (~size src-size) (~% (/ src-size total-size)))
+    (printf "~a in total, source: ~a ~a(~a) " (~size total-size) (~n_w src-file "file") (~size src-size) (~% (/ src-size total-size)))
     (echof "+~a " additions #:fgcolor 'green)
     (echof "-~a~n" deletions #:fgcolor 'red)
     
