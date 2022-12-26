@@ -156,7 +156,7 @@
     [(stats ext languages)
      (let it ([pos : (Option Integer) (hash-iterate-first stats)]
               [ids : (Listof Index) null])
-       (cond [(not pos) (displayln ids) (git-select-id ids)]
+       (cond [(not pos) (git-select-id ids)]
              [else (let ([lang-id (hash-iterate-key stats pos)])
                      (if (member ext (github-language-extensions (hash-ref languages lang-id)))
                          (it (hash-iterate-next stats pos) (cons lang-id ids))
