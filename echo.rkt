@@ -64,8 +64,9 @@
 
 (define term-echo : (-> Output-Port String Term-Color Term-Color (Listof Symbol) Void)
   (lambda [/dev/stdout rawmsg fg bg attrs]
-    (display (if (terminal-port? /dev/stdout) (term-colorize fg bg attrs rawmsg) rawmsg)
-             /dev/stdout)))
+    (fprintf /dev/stdout
+             (cond [(not (terminal-port? /dev/stdout)) rawmsg]
+                   [else (term-colorize fg bg attrs rawmsg)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
@@ -79,10 +80,10 @@
 (define fechof : (-> Output-Port String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [/dev/stdout msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (define rawmsg : String (~string msgfmt vals))
-    (define colorize? (terminal-port? /dev/stdout))
 
-    (display (if colorize? (term-colorize fg bg attrs rawmsg) rawmsg)
-             /dev/stdout)))
+    (fprintf /dev/stdout
+             (cond [(not (terminal-port? /dev/stdout)) rawmsg]
+                   [else (term-colorize fg bg attrs rawmsg)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-esc esc-save [] "\033[s")

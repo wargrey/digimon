@@ -7,7 +7,7 @@
 (require "../shell.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell~exec : (-> Path Thread Any)
+(define shell~~exec : (-> Path Thread Any)
   (lambda [path env-thread]
     (parameterize ([current-namespace (make-gui-namespace)]
                    [global-port-print-handler pretty-print])
@@ -21,5 +21,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell
-  (nanomon-make-shell #:name 'exec #:shell shell~exec
+  (nanomon-make-shell #:name 'exec #:shell shell~~exec
                       #:desc "Run lang's `main` submodule"))

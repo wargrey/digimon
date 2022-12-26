@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
-(provide (struct-out Git-Language-With))
+(provide (struct-out Git-Language-With) (struct-out Git-File))
 
 (require racket/path)
 (require racket/port)
@@ -33,7 +33,7 @@
     (define rootdir : (Option Path) (git-root dir))
     (or (and rootdir git
              (parameterize ([current-git-procedure git-submodules])
-               (cond [(not recursive?) (git-submodule-list git)]
+               (cond [(not recursive?) (map (inst car String String) (git-submodule-list git))]
                      [else (let list-submodule : (Option (Listof String)) ([rootdir : Path rootdir]
                                                                            [subpath/ : (Option String) #false])
                              (dtrace-note #:topic (current-git-procedure) "cd ~a" rootdir)
@@ -42,10 +42,10 @@
                                   (parameterize ([current-directory rootdir])
                                     (let ([submodules (git-submodule-list git)])
                                       (for/fold ([submodules : (Listof String) (for/list ([subname (in-list submodules)])
-                                                                                 (git-submodule-path-concat subpath/ subname))])
+                                                                                 (git-submodule-path-concat subpath/ (car subname)))])
                                                 ([subname (in-list submodules)])
-                                        (define subrootdir : Path (git-submodule-rootdir-concat rootdir subname))
-                                        (define submodpath : String (git-submodule-path-concat subpath/ subname))
+                                        (define subrootdir : Path (git-submodule-rootdir-concat rootdir (car subname)))
+                                        (define submodpath : String (git-submodule-path-concat subpath/ (car subname)))
                                         (define subpaths : (Option (Listof String)) (list-submodule subrootdir submodpath))
                                         
                                         (cond [(or (not subpaths) (null? subpaths)) submodules]
@@ -53,7 +53,7 @@
         null)))
 
 (define git-list-tree : (->* () (Path-String #:treeish String #:reverse? Boolean #:recursive? Boolean #:ignore-submodule Git-Match-Datum) (Listof Git-File))
-  (lambda [[dir (current-directory)] #:treeish [treeish "HEAD"] #:reverse? [reverse? #true] #:recursive? [recursive? #true] #:ignore-submodule [ignore null]]
+  (lambda [[dir (current-directory)] #:treeish [treeish "HEAD"] #:reverse? [reverse? #false] #:recursive? [recursive? #true] #:ignore-submodule [ignore null]]
     (define git (find-executable-path "git"))
     (define rootdir : (Option Path) (git-root dir))
     (or (and rootdir git
@@ -71,8 +71,8 @@
                      (if (file-exists? (build-path rootdir ".gitmodules"))
                          (for/fold ([files : (Listof Git-File) (git-lstree rootdir subpath/)])
                                    ([subname (in-list (git-submodule-list git))])
-                           (define subrootdir : Path (git-submodule-rootdir-concat rootdir subname))
-                           (define submodpath : String (git-submodule-path-concat subpath/ subname))
+                           (define subrootdir : Path (git-submodule-rootdir-concat rootdir (car subname)))
+                           (define submodpath : String (git-submodule-path-concat subpath/ (car subname)))
                            
                            (cond [(git-submodule-ignore? submodpath ignore) files]
                                  [else (append (git-lstree-recursive subrootdir submodpath) files)]))
@@ -144,8 +144,8 @@
                         (if (file-exists? (build-path rootdir ".gitmodules"))
                             (for/fold ([stats : (Listof Git-Numstat) (git-numstat rootdir subpath/)])
                                       ([subname (in-list (git-submodule-list git))])
-                              (define subrootdir : Path (git-submodule-rootdir-concat rootdir subname))
-                              (define submodpath : String (git-submodule-path-concat subpath/ subname))
+                              (define subrootdir : Path (git-submodule-rootdir-concat rootdir (car subname)))
+                              (define submodpath : String (git-submodule-path-concat subpath/ (car subname)))
                               
                               (cond [(git-submodule-ignore? submodpath ignore) stats]
                                     [else (let ([subnumstats (git-numstat-recursive subrootdir submodpath)])
@@ -174,4 +174,4 @@
                      #:recursive? recursive? #:ignore-submodule ignore #:git-reverse? reverse? #:rkt-reverse? #false
                      dir))
 
-      (git-numstats->langstat numstats types grouping-opt))))
+      (git-numstats->langstats numstats types grouping-opt))))

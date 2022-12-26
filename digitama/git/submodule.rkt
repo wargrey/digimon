@@ -11,21 +11,28 @@
 (define-type Git-Match-Datum (U Regexp Byte-Regexp String (Listof (U Regexp Byte-Regexp String))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-submodule-list : (-> Path (Listof String))
+(define git-submodule-list : (-> Path (Listof (Pairof String String)))
   (lambda [git]
     (reverse
-     ((inst fg-recon-exec* (Listof String))
+     ((inst fg-recon-exec* (Listof (Pairof String String)))
       #:silent git-silents (current-git-procedure)
       git (list (list "submodule" "status"))
       git-submodule-path-fold null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-submodule-path-fold : (-> String (Listof String) (Listof String))
+(define git-submodule-path-fold : (-> String (Listof (Pairof String String)) (Listof (Pairof String String)))
   (lambda [line paths]
-    (define maybe-path (regexp-match px:submodule:status line))
-    
-    (cond [(not maybe-path) paths]
-          [else (cons (assert (cadr maybe-path)) paths)])))
+    (define modline (regexp-match px:submodule:status line))
+
+    ; TODO: How to deal with submodules referring to the same repository
+
+    (or (and modline
+             (let ([modsha (cadr modline)]
+                   [modpath (caddr modline)])
+               (and modsha modpath
+                    (not (member modsha (map (inst cdr String String) paths)))
+                    (cons (cons modpath modsha) paths))))
+        paths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-submodule-ignore? : (-> String Git-Match-Datum Boolean)

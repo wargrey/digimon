@@ -27,7 +27,7 @@
 (define git-default-subgroups : Git-Langstat-Grouping-Option '(["Scribble" . #".scrbl"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-numstats->langstat : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))))
+(define git-numstats->langstats : (-> (Listof Git-Numstat) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))))
   (let ([initial-stat : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (hasheq)]
         [initial-substat : (Immutable-HashTable Index (Listof Git-Numstat-Line)) (hasheq)])
     (lambda [numstats types grouping-opt]
@@ -58,6 +58,29 @@
                 (hash-set stats (github-language-id lang)
                           (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
                                         (github-language-color lang) all-extensions (list this-numstat))))))))))
+
+(define git-numstats->additions+deletions : (-> (Listof Git-Numstat) (Listof (Pairof Natural (Pairof Natural Natural))))
+  (lambda [numstats]
+    (for/fold ([addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural))) null])
+              ([numstat (in-list (reverse numstats))])
+      (define-values (adds dels)
+        (for/fold ([adds : Natural 0] [dels : Natural 0])
+                  ([line (in-list (cdr numstat))])
+          (values (+ adds (vector-ref line 0))
+                  (+ dels (vector-ref line 1)))))
+      (cons (cons (car numstat)
+                  (cons adds dels))
+            addition.deletions))))
+
+(define git-numstats->additions+deletions* : (-> (Listof Git-Numstat) (Values Natural Natural))
+  (lambda [numstats]
+    (define addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural)))
+      (git-numstats->additions+deletions numstats))
+
+    (for/fold ([additions : Natural 0] [deletions : Natural 0])
+              ([ts.add.del (in-list addition.deletions)])
+      (values (+ additions (cadr ts.add.del))
+              (+ deletions (cddr ts.add.del))))))
 
 (define git-files->langfiles : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-File))))
   (let ([initial-langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) (hasheq)])
@@ -110,39 +133,44 @@
                                 (parameterize ([current-digimon "digimon"])
                                   (digimon-path 'language "github.yml"))))
     
-    (cond [(pair? grouping-opt) (time (github-fork languages0 grouping-opt))]
+    (cond [(pair? grouping-opt) (github-fork languages0 grouping-opt)]
           [else languages0])))
+
+(define git-select-id : (-> (Listof Index) (Option Index))
+  (lambda [ids]
+    ; TODO: heuristically guessing the actual language is difficult for (re-)moved files
+    (and (pair? ids)
+         (apply min ids))))
 
 (define git-identify-language : (All (Git-Datum) (case-> [(Immutable-HashTable Index (Git-Language-With Git-Datum)) Bytes -> (Option Index)]
                                                          [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)]))
   (case-lambda
     [(stats ext)
-     (let it ([pos : (Option Integer) (hash-iterate-first stats)])
-       (cond [(not pos) #false]
+     (let it ([pos : (Option Integer) (hash-iterate-first stats)]
+              [ids : (Listof Index) null])
+       (cond [(not pos) (git-select-id ids)]
              [else (let-values ([(lang-id metainfo) (hash-iterate-key+value stats pos)])
-                     (cond [(member ext (git-language-extensions metainfo)) lang-id]
-                           [else (it (hash-iterate-next stats pos))]))]))]
+                     (if (member ext (git-language-extensions metainfo))
+                         (it (hash-iterate-next stats pos) (cons lang-id ids))
+                         (it (hash-iterate-next stats pos) ids)))]))]
     [(stats ext languages)
-     (let it ([pos : (Option Integer) (hash-iterate-first stats)])
-       (cond [(not pos) #false]
+     (let it ([pos : (Option Integer) (hash-iterate-first stats)]
+              [ids : (Listof Index) null])
+       (cond [(not pos) (displayln ids) (git-select-id ids)]
              [else (let ([lang-id (hash-iterate-key stats pos)])
-                     (cond [(member ext (github-language-extensions (hash-ref languages lang-id))) lang-id]
-                           [else (it (hash-iterate-next stats pos))]))]))]))
+                     (if (member ext (github-language-extensions (hash-ref languages lang-id)))
+                         (it (hash-iterate-next stats pos) (cons lang-id ids))
+                         (it (hash-iterate-next stats pos) ids)))]))]))
 
 (define github-identify-language : (-> (Immutable-HashTable Index Github-Language) Bytes (Listof Symbol) (Option Index))
   (lambda [languages ext types]
     (let it ([pos : (Option Integer) (hash-iterate-first languages)]
              [ids : (Listof Index) null])
-      (if (not pos)
-
-          ; TODO: heuristically guessing the actual language is difficult for (re-)moved files
-          (and (pair? ids)
-               (apply min ids))
-
-          (let-values ([(lang-id metainfo) (hash-iterate-key+value languages pos)])
-            (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
-                  [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
-                  [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))))))
+      (cond [(not pos) (git-select-id ids)]
+            [else (let-values ([(lang-id metainfo) (hash-iterate-key+value languages pos)])
+                    (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
+                          [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
+                          [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))]))))
 
 (define github-language-group : (-> (Immutable-HashTable Index Github-Language) Natural Boolean (Values Github-Language Github-Language-Extensions))
   (lambda [languages id grouping?]

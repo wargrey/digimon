@@ -11,7 +11,8 @@
 
 (require "../../../token.rkt")
 
-(define shell~colorize : (-> Path Thread Any)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define shell~~colorize : (-> Path Thread Any)
   (lambda [path env-thread]
     (define alt-lang : (Option String) (nanomon-lang))
 
@@ -28,5 +29,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define colorize-shell : Nanomon-Shell
-  (nanomon-make-shell #:name 'colorize #:shell shell~colorize
+  (nanomon-make-shell #:name 'colorize #:shell shell~~colorize
                       #:desc "Run with the DrRacket color lexer"))
