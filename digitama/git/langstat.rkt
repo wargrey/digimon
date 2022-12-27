@@ -5,6 +5,7 @@
 (require racket/path)
 
 (require "linguist/languages.rkt")
+(require "linguist/documentation.rkt")
 
 (require "numstat.rkt")
 (require "lstree.rkt")
@@ -32,7 +33,8 @@
   (let ([initial-stat : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (hasheq)]
         [initial-substat : (Immutable-HashTable Index (Listof Git-Numstat-Line)) (hasheq)])
     (lambda [numstats types grouping-opt]
-      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
       
       (for/fold ([stats : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) initial-stat])
                 ([numstat (in-list numstats)])
@@ -42,6 +44,7 @@
             (define filename (let ([fn (vector-ref num-line 2)]) (if (pair? fn) (cdr fn) fn)))
             (define ext (path-get-extension filename))
             (cond [(not ext) substats]
+                  [(github-doc-source? filename doc-regexps) substats]
                   [(git-identify-language stats ext)
                    => (λ [[id : Index]] (hash-set substats id (cons num-line (hash-ref substats id (inst list Git-Numstat-Line)))))]
                   [(git-identify-language substats ext languages)
@@ -86,12 +89,15 @@
 (define git-files->langfiles : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With (Listof Git-File))))
   (let ([initial-langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) (hasheq)])
     (lambda [files types grouping-opt]
-      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
       
       (for/fold ([langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) initial-langfiles])
                 ([blob (in-list files)])
-        (define ext (path-get-extension (git-file-pathname blob)))
+        (define filename (git-file-pathname blob))
+        (define ext (path-get-extension filename))
         (cond [(not ext) langfiles]
+              [(github-doc-source? filename doc-regexps) langfiles]
               [(or (git-identify-language langfiles ext)
                    (github-identify-language languages ext types))
                => (λ [[id : Index]]
@@ -107,12 +113,15 @@
 (define git-files->langsizes : (-> (Listof Git-File) (Listof Symbol) Git-Langstat-Grouping-Option (Immutable-HashTable Index (Git-Language-With Natural)))
   (let ([initial-langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) (hasheq)])
     (lambda [files types grouping-opt]
-      (define languages : (Immutable-HashTable Index Github-Language) (github-load-language grouping-opt))
+      (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
       
       (for/fold ([langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) initial-langsizes])
                 ([blob (in-list files)])
-        (define ext (path-get-extension (git-file-pathname blob)))
+        (define filename (git-file-pathname blob))
+        (define ext (path-get-extension filename))
         (cond [(not ext) langsizes]
+              [(github-doc-source? filename doc-regexps) langsizes]
               [(or (git-identify-language langsizes ext)
                    (github-identify-language languages ext types))
                => (λ [[id : Index]]
@@ -127,7 +136,7 @@
               [else langsizes])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define github-load-language : (-> Git-Langstat-Grouping-Option (Immutable-HashTable Index Github-Language))
+(define github-load-languages : (-> Git-Langstat-Grouping-Option (Immutable-HashTable Index Github-Language))
   (lambda [grouping-opt]
     (define languages0 : (Immutable-HashTable Index Github-Language)
       (read-language-metainfos* #:count-lines? #false
@@ -137,6 +146,13 @@
     (cond [(pair? grouping-opt) (github-fork languages0 grouping-opt)]
           [else languages0])))
 
+(define github-load-documentation : (-> (Listof PRegexp))
+  (lambda []
+    (read-documentation-regexps* #:count-lines? #false
+                                 (parameterize ([current-digimon "digimon"])
+                                   (digimon-path 'linguist "documentation.yml")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-select-id : (-> (Listof Index) (Option Index))
   (lambda [ids]
     ; TODO: heuristically guessing the actual language is difficult for (re-)moved files
@@ -231,6 +247,13 @@
                    [else (values (cons (struct-copy github-language lang [extensions pexts]) forks) sofni)])]
             [else (values null children)]))))
 
+
+(define github-doc-source? : (-> String (Listof PRegexp) Boolean)
+  (lambda [filename doc-regexps]
+    (for/or : Boolean ([px (in-list doc-regexps)])
+      (regexp-match? px filename))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define github-fork-id : (-> Github-Language Index Index)
   (lambda [lang idx]
     ; Suppose github won't use numbers that greater than
