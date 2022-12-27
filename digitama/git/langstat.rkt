@@ -5,7 +5,7 @@
 (require racket/path)
 
 (require "linguist/languages.rkt")
-(require "linguist/documentation.rkt")
+(require "linguist/generatable.rkt")
 
 (require "numstat.rkt")
 (require "lstree.rkt")
@@ -34,7 +34,8 @@
         [initial-substat : (Immutable-HashTable Index (Listof Git-Numstat-Line)) (hasheq)])
     (lambda [numstats types grouping-opt]
       (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
-      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentations))
+      (define generated-regexps : (Listof PRegexp) (github-load-vendors))
       
       (for/fold ([stats : (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) initial-stat])
                 ([numstat (in-list numstats)])
@@ -44,7 +45,8 @@
             (define filename (let ([fn (vector-ref num-line 2)]) (if (pair? fn) (cdr fn) fn)))
             (define ext (path-get-extension filename))
             (cond [(not ext) substats]
-                  [(github-doc-source? filename doc-regexps) substats]
+                  [(github-excluded-source? filename doc-regexps) substats]
+                  [(github-excluded-source? filename generated-regexps) substats]
                   [(git-identify-language stats ext)
                    => (λ [[id : Index]] (hash-set substats id (cons num-line (hash-ref substats id (inst list Git-Numstat-Line)))))]
                   [(git-identify-language substats ext languages)
@@ -90,14 +92,16 @@
   (let ([initial-langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) (hasheq)])
     (lambda [files types grouping-opt]
       (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
-      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentations))
+      (define generated-regexps : (Listof PRegexp) (github-load-vendors))
       
       (for/fold ([langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) initial-langfiles])
                 ([blob (in-list files)])
         (define filename (git-file-pathname blob))
         (define ext (path-get-extension filename))
         (cond [(not ext) langfiles]
-              [(github-doc-source? filename doc-regexps) langfiles]
+              [(github-excluded-source? filename doc-regexps) langfiles]
+              [(github-excluded-source? filename generated-regexps) langfiles]
               [(or (git-identify-language langfiles ext)
                    (github-identify-language languages ext types))
                => (λ [[id : Index]]
@@ -114,14 +118,16 @@
   (let ([initial-langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) (hasheq)])
     (lambda [files types grouping-opt]
       (define languages : (Immutable-HashTable Index Github-Language) (github-load-languages grouping-opt))
-      (define doc-regexps : (Listof PRegexp) (github-load-documentation))
+      (define doc-regexps : (Listof PRegexp) (github-load-documentations))
+      (define generated-regexps : (Listof PRegexp) (github-load-vendors))
       
       (for/fold ([langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) initial-langsizes])
                 ([blob (in-list files)])
         (define filename (git-file-pathname blob))
         (define ext (path-get-extension filename))
         (cond [(not ext) langsizes]
-              [(github-doc-source? filename doc-regexps) langsizes]
+              [(github-excluded-source? filename doc-regexps) langsizes]
+              [(github-excluded-source? filename generated-regexps) langsizes]
               [(or (git-identify-language langsizes ext)
                    (github-identify-language languages ext types))
                => (λ [[id : Index]]
@@ -146,11 +152,17 @@
     (cond [(pair? grouping-opt) (github-fork languages0 grouping-opt)]
           [else languages0])))
 
-(define github-load-documentation : (-> (Listof PRegexp))
+(define github-load-documentations : (-> (Listof PRegexp))
   (lambda []
-    (read-documentation-regexps* #:count-lines? #false
-                                 (parameterize ([current-digimon "digimon"])
-                                   (digimon-path 'linguist "documentation.yml")))))
+    (read-pathname-regexps* #:count-lines? #false
+                            (parameterize ([current-digimon "digimon"])
+                              (digimon-path 'linguist "documentation.yml")))))
+
+(define github-load-vendors : (-> (Listof PRegexp))
+  (lambda []
+    (read-pathname-regexps* #:count-lines? #false
+                            (parameterize ([current-digimon "digimon"])
+                              (digimon-path 'linguist "vendor.yml")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-select-id : (-> (Listof Index) (Option Index))
@@ -248,9 +260,9 @@
             [else (values null children)]))))
 
 
-(define github-doc-source? : (-> String (Listof PRegexp) Boolean)
-  (lambda [filename doc-regexps]
-    (for/or : Boolean ([px (in-list doc-regexps)])
+(define github-excluded-source? : (-> String (Listof PRegexp) Boolean)
+  (lambda [filename regexps]
+    (for/or : Boolean ([px (in-list regexps)])
       (regexp-match? px filename))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

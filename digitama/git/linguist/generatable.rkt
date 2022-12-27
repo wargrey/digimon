@@ -7,9 +7,10 @@
 (require racket/string)
 
 ;;; https://github.com/github/linguist/tree/master/lib/linguist/documentation.yml
+;;; https://github.com/github/linguist/tree/master/lib/linguist/vendor.yml
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-file-reader read-documentation-regexps #:+ (Listof PRegexp)
+(define-file-reader read-pathname-regexps #:+ (Listof PRegexp)
   (lambda [/dev/ymlin src]
     (let regexp-fold ([regexps : (Listof PRegexp) null])
       (define line (read-line /dev/ymlin))
