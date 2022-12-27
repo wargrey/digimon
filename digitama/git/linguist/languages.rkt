@@ -2,12 +2,12 @@
 
 (provide (all-defined-out))
 
-(require "../../symbol.rkt")
-(require "../../filesystem.rkt")
+(require "../../../symbol.rkt")
+(require "../../../filesystem.rkt")
 
 (require racket/string)
 
-;;; https://github.com/github/linguist/tree/master/lib/linguist/applications.yml
+;;; https://github.com/github/linguist/tree/master/lib/linguist/languages.yml
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Github-Language-Extensions (Pairof Bytes (Listof Bytes)))

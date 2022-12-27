@@ -27,9 +27,11 @@
 
     (printf "~a in total, source: ~a ~a(~a) " (~size total-size) (~n_w src-file "file") (~size src-size) (~% (/ src-size total-size)))
     (echof "+~a " (~integer additions) #:fgcolor 'green)
-    (echof "-~a~n" (~integer deletions) #:fgcolor 'red)
+    (echof "-~a" (~integer deletions) #:fgcolor 'red)
+    (newline)
     
-    (echof "====================================================================================================~n" #:fgcolor 'darkgrey)
+    (echof "====================================================================================================" #:fgcolor 'darkgrey)
+    (newline)
 
     (for ([lang (in-list ((inst sort (Git-Language-With Natural) Natural) (hash-values lang-sizes) >= #:key (inst git-language-content Natural)))])
       (define id (git-language-id lang))
@@ -43,7 +45,7 @@
       (echof "+~a " (~integer adds) #:fgcolor 'green)
       (echof "-~a " (~integer dels) #:fgcolor 'red)
       (echof "~a " (~% (/ size src-size)) #:fgcolor 'yellow)
-      (printf "~n"))
+      (newline))
     
     (thread-send env-thread 0)))
 

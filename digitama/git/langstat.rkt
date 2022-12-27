@@ -4,7 +4,8 @@
 
 (require racket/path)
 
-(require "linguist.rkt")
+(require "linguist/languages.rkt")
+
 (require "numstat.rkt")
 (require "lstree.rkt")
 
@@ -131,7 +132,7 @@
     (define languages0 : (Immutable-HashTable Index Github-Language)
       (read-language-metainfos* #:count-lines? #false
                                 (parameterize ([current-digimon "digimon"])
-                                  (digimon-path 'language "github.yml"))))
+                                  (digimon-path 'linguist "languages.yml"))))
     
     (cond [(pair? grouping-opt) (github-fork languages0 grouping-opt)]
           [else languages0])))
