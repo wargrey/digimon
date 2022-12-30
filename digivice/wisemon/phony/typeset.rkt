@@ -29,6 +29,7 @@
    [engine : (Option Symbol)]
    [name : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
+   [always-make? : Boolean]
    [extra-argv : (Listof String)])
   #:type-name Tex-Info)
 
@@ -53,6 +54,7 @@
 
 (define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
+    (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
     (define local-stone : Path (digimon-path 'stone))
     (define local-tamer.tex (build-path local-stone "tamer.tex"))
@@ -73,6 +75,15 @@
       (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
       (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-stone) null))
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
+
+      (when (tex-info-always-make? typesetting)
+        (define msecs (sub1 (file-or-directory-modify-seconds TEXNAME.scrbl)))
+
+        (when (> msecs 0)
+          (when (file-exists? TEXNAME.ext)
+            (file-or-directory-modify-seconds TEXNAME.ext msecs))
+          (when (file-exists? TEXNAME.tex)
+            (file-or-directory-modify-seconds TEXNAME.tex msecs))))
 
       (unless (tex-info-engine typesetting)
         (dtrace-note #:topic the-name #:prefix? #false
@@ -178,6 +189,7 @@
   (lambda [setting.scrbl argv list-engines]
     (define candidates : (Listof Symbol) (list-engines))
     (let*-values ([(maybe-engines rest) (partition symbol? (if (list? argv) argv (list argv)))]
+                  [(tags rest) (partition keyword? rest)]
                   [(maybe-names rest) (partition string? rest)]
                   [(dependencies rest) (partition typeset-regexp? rest)])
       (tex-info setting.scrbl
@@ -187,6 +199,7 @@
                              [else (check (cdr engines))])))
                 (and (pair? maybe-names) (car maybe-names))
                 dependencies
+                (and (memq '#:always-make tags) #true)
                 (for/fold ([argv : (Listof String) null])
                           ([arg (in-list rest)])
                   (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]

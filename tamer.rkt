@@ -131,7 +131,7 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:author pre-empt-author) #:defaults ([pre-empt-author #'#false]))
+              (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
@@ -166,7 +166,7 @@
                         (cond [(pair? contents) contents]
                               [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                           (current-digimon))])))
-               (or pre-empt-author
+               (or pre-empty-author
                    (apply author
                           (map ~a (#%info 'pkg-authors
                                           (const (list (#%info 'pkg-idun
@@ -175,10 +175,10 @@
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:author pre-empt-author) #:defaults ([pre-empt-author #'#false]))
+              (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:properties props #:author pre-empt-author #:hide-version? noversion?
+     (syntax/loc stx (handbook-title #:properties props #:author pre-empty-author #:hide-version? noversion?
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
