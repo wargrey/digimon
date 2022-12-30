@@ -4,6 +4,7 @@
 
 (require racket/format)
 (require racket/symbol)
+(require racket/string)
 
 (require scribble/manual)
 (require scriblib/autobib)
@@ -25,7 +26,7 @@
        (define key
          (let ([request-for-comments (number->string number)])
            (in-bib (make-bib #:title title
-                             #:author author
+                             #:author (bib-entry~author author)
                              #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                              #:url (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
                              #:date date
@@ -38,7 +39,7 @@
     
     (bib-entry #:key      (bib-entry~key key (λ [] (string-append "RFC" request-for-comments)))
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:date     (bib-entry~date date)
                #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                #:url      (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
@@ -60,7 +61,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:location (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
                                             [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)])
                            #:date date
@@ -75,7 +76,7 @@
                #:edition [edition #false] #:chapter [chapter #false] #:series [series #false] #:pages [pages #false] #:volume [volume #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:location (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
                                 [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)])
                #:date     (bib-entry~date date)
@@ -97,7 +98,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:location (proceedings-location location #:pages pages #:series series #:volume volume)
                            #:date date
                            #:url url
@@ -110,7 +111,7 @@
                #:number [number #false] #:pages [pages #false] #:volume [volume #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:location (proceedings-location location #:pages pages #:number number #:volume volume)
                #:date     (bib-entry~date date)
                #:url      url
@@ -130,7 +131,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:location (journal-location location #:pages pages #:number number #:volume volume)
                            #:date date
                            #:url url
@@ -143,7 +144,7 @@
                #:volume [volume #false] #:number [number #false] #:pages [pages #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:location (journal-location location #:pages pages #:number number #:volume volume)
                #:date     (bib-entry~date date)
                #:url      url
@@ -161,7 +162,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:location (dissertation-location #:institution institution #:degree degree)
                            #:date date
                            #:url url
@@ -173,7 +174,7 @@
                #:date [date #false] #:note [note #false] #:url [url #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:location (dissertation-location #:institution institution #:degree degree)
                #:date     (bib-entry~date date)
                #:url      url
@@ -191,7 +192,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:location (techrpt-location #:institution institution #:number number)
                            #:date date
                            #:url url
@@ -203,7 +204,7 @@
                #:date [date #false] #:note [note #false] #:url [url #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:location (techrpt-location #:institution institution #:number number)
                #:date     (bib-entry~date date)
                #:url      url
@@ -220,7 +221,7 @@
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
-                           #:author author
+                           #:author (bib-entry~author author)
                            #:url url
                            #:date date
                            #:note note)
@@ -230,7 +231,7 @@
   (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:author   author
+               #:author   (bib-entry~author author)
                #:date     (bib-entry~date date)
                #:url      url
                #:note     note)))
@@ -248,3 +249,9 @@
     (cond [(string? date) date]
           [(number? date) (number->string date)]
           [else #false])))
+
+(define bib-entry~author
+  (lambda [author]
+    (cond [(list? author) (string-join author ", " #:before-last " and ")]
+          [else author])))
+
