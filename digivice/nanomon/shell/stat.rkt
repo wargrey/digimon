@@ -26,8 +26,8 @@
     (define-values (additions deletions) (git-numstats->additions+deletions* all-numstats))
 
     (printf "~a in total, source: ~a ~a(~a) " (~size total-size) (~n_w src-file "file") (~size src-size) (~% (/ src-size total-size)))
-    (echof "+~a " (~integer additions) #:fgcolor 'green)
-    (echof "-~a" (~integer deletions) #:fgcolor 'red)
+    (echof "~a++ " (~integer additions) #:fgcolor 'green)
+    (echof "~a--" (~integer deletions) #:fgcolor 'red)
     (newline)
     
     (echof "====================================================================================================" #:fgcolor 'darkgrey)
@@ -41,10 +41,10 @@
               [else (git-numstats->additions+deletions* (git-language-content (hash-ref lang-stats id)))]))
       
       (printf "~a: ~a " (git-language-name lang) (~n_w (length (git-language-content (hash-ref lang-files id))) "file"))
+      (echof "~a++ " (~integer adds) #:fgcolor 'green)
+      (echof "~a-- " (~integer dels) #:fgcolor 'red)
+      (echof "~a (~a) " (~% (/ size src-size)) (~size size) #:fgcolor 'yellow)
       (echof "~a " (~n_w (- adds dels) "line") #:fgcolor 'darkgrey)
-      (echof "+~a " (~integer adds) #:fgcolor 'green)
-      (echof "-~a " (~integer dels) #:fgcolor 'red)
-      (echof "~a " (~% (/ size src-size)) #:fgcolor 'yellow)
       (newline))
     
     (thread-send env-thread 0)))
