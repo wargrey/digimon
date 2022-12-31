@@ -77,8 +77,9 @@
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   (bib-entry~author author)
-               #:location (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
-                                [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)])
+               #:location (and (or edition publisher chapter)
+                               (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
+                                     [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)]))
                #:date     (bib-entry~date date)
                #:url      url
                #:note     note
