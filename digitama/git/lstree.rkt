@@ -27,8 +27,8 @@
      git options tree-fold initial)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-file-make-fold : (-> (Option String) (-> String (Listof Git-File) (Listof Git-File)))
-  (lambda [subpath/]
+(define git-file-make-fold : (-> (Option String) Git-Match-Datum (-> String (Listof Git-File) (Listof Git-File)))
+  (lambda [subpath/ filter]
     (define filename-concat : (-> String String)
       (cond [(not subpath/) values]
             [else (λ [[fname : String]]
@@ -39,16 +39,17 @@
       
       (match (string-split line)
         [(list sperm type sha ssize file)
-         (let ([size (string->natural ssize)])
+         (let ([size (string->natural ssize)]
+               [full-pathname (filename-concat file)])
            (cond [(not size) files] ; submodule path
-                 [else (cons (git-file (filename-concat file) size
-                                       (assert (string->index sperm 8))
-                                       (string->bytes/utf-8 sha))
+                 [(not (git-path-match? full-pathname filter #:match-for-empty? #true)) files]
+                 [else (cons (git-file full-pathname size (assert (string->index sperm 8)) (string->bytes/utf-8 sha))
                              files)]))]
         [(list sperm type sha ssize file ...)
-         (let ([size (string->natural ssize)])
+         (let ([size (string->natural ssize)]
+               [full-pathname (filename-concat (regexp-replace px:spaced-fname:ls-tree line "\\1"))])
            (cond [(not size) files] ; submodule path
-                 [else (cons (git-file (filename-concat (regexp-replace px:spaced-fname:ls-tree line "\\1"))
-                                       size (assert (string->index sperm 8)) (string->bytes/utf-8 sha))
+                 [(not (git-path-match? full-pathname filter #:match-for-empty? #true)) files]
+                 [else (cons (git-file full-pathname size (assert (string->index sperm 8)) (string->bytes/utf-8 sha))
                              files)]))]
         [deadcode files]))))

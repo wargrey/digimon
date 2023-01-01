@@ -52,8 +52,13 @@
                                               [else (append submodules subpaths)]))))))])))
         null)))
 
-(define git-list-tree : (->* () (Path-String #:treeish String #:reverse? Boolean #:recursive? Boolean #:ignore-submodule Git-Match-Datum) (Listof Git-File))
-  (lambda [[dir (current-directory)] #:treeish [treeish "HEAD"] #:reverse? [reverse? #false] #:recursive? [recursive? #true] #:ignore-submodule [ignore null]]
+(define git-list-tree : (->* ()
+                             (Path-String #:treeish String #:reverse? Boolean #:recursive? Boolean
+                                          #:ignore-submodule Git-Match-Datum #:filter Git-Match-Datum)
+                             (Listof Git-File))
+  ; TODO: work with `git status --short`
+  (lambda [[dir (current-directory)] #:treeish [treeish "HEAD"] #:reverse? [reverse? #false] #:recursive? [recursive? #true]
+                                     #:ignore-submodule [ignore null] #:filter [filter null]]
     (define git (find-executable-path "git"))
     (define rootdir : (Option Path) (git-root dir))
     (or (and rootdir git
@@ -62,7 +67,7 @@
                  (define (git-lstree [rootdir : Path] [subpath/ : (Option String)]) : (Listof Git-File)
                    (parameterize ([current-directory rootdir])
                      (git-lstree-exec git (list opt:lstree (list treeish))
-                                      (git-file-make-fold subpath/) null)))
+                                      (git-file-make-fold subpath/ filter) null)))
                  
                  (define (git-lstree-recursive [rootdir : Path] [subpath/ : (Option String)]) : (Listof Git-File)
                    (parameterize ([current-directory rootdir])
@@ -74,7 +79,7 @@
                            (define subrootdir : Path (git-submodule-rootdir-concat rootdir (car subname)))
                            (define submodpath : String (git-submodule-path-concat subpath/ (car subname)))
                            
-                           (cond [(git-submodule-ignore? submodpath ignore) files]
+                           (cond [(git-path-match? submodpath ignore #:match-for-empty? #false) files]
                                  [else (append (git-lstree-recursive subrootdir submodpath) files)]))
                          (git-lstree rootdir subpath/))))
                  
@@ -85,36 +90,36 @@
 
 (define git-list-langtree : (->* ()
                                  (Path-String #:treeish String #:types (Listof Symbol)#:grouping-option Git-Langstat-Grouping-Option
-                                              #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
+                                              #:recursive? Boolean #:ignore-submodule Git-Match-Datum #:filter Git-Match-Datum)
                                  (Immutable-HashTable Index (Git-Language-With (Listof Git-File))))
   (lambda [#:treeish [treeish "HEAD"] #:types [types null] #:grouping-option [grouping-opt git-default-subgroups]
-           #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
+           #:recursive? [recursive? #true] #:ignore-submodule [ignore null] #:filter [filter null]
            [dir (current-directory)]]
     (parameterize ([current-git-procedure git-list-langtree])
-      (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore))
+      (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore #:filter filter))
 
       (git-files->langfiles files types grouping-opt))))
 
 (define git-list-langsize : (->* ()
                                  (Path-String #:treeish String #:types (Listof Symbol)#:grouping-option Git-Langstat-Grouping-Option
-                                              #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
+                                              #:recursive? Boolean #:ignore-submodule Git-Match-Datum #:filter Git-Match-Datum)
                                  (Immutable-HashTable Index (Git-Language-With Natural)))
   (lambda [#:treeish [treeish "HEAD"] #:types [types null] #:grouping-option [grouping-opt git-default-subgroups]
-           #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
+           #:recursive? [recursive? #true] #:ignore-submodule [ignore null] #:filter [filter null]
            [dir (current-directory)]]
     (parameterize ([current-git-procedure git-list-langsize])
-      (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore))
+      (define files : (Listof Git-File) (git-list-tree dir #:treeish treeish #:recursive? recursive? #:ignore-submodule ignore #:filter filter))
 
       (git-files->langsizes files types grouping-opt))))
 
 (define git-numstat : (->* ()
                            (Path-String #:group-by-day? Boolean #:no-renames? Boolean #:since (Option Git-Date-Datum) #:until (Option Git-Date-Datum) #:localtime? Boolean
                                         #:n (Option Natural) #:authors (U String (Listof String)) #:committers (U String (Listof String)) #:with-diff? Boolean
-                                        #:git-reverse? Boolean #:rkt-reverse? Boolean #:recursive? Boolean #:ignore-submodule Git-Match-Datum)
+                                        #:git-reverse? Boolean #:rkt-reverse? Boolean #:recursive? Boolean #:ignore-submodule Git-Match-Datum #:filter Git-Match-Datum)
                            (Listof Git-Numstat))
-  (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #false]
+  (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #true]
            #:n [n #false] #:authors [authors null] #:committers [committers null] #:with-diff? [diff? (and (null? authors) (null? committers) (not until))]
-           #:git-reverse? [git-reverse? #false] #:rkt-reverse? [rkt-reverse? #true] #:recursive? [recursive? #true] #:ignore-submodule [ignore null]
+           #:git-reverse? [git-reverse? #false] #:rkt-reverse? [rkt-reverse? #true] #:recursive? [recursive? #true] #:ignore-submodule [ignore null] #:filter [filter null]
            [dir (current-directory)]]
     (define git (find-executable-path "git"))
     (define rootdir : (Option Path) (git-root dir))
@@ -131,7 +136,7 @@
                     
                     (define (git-numstat [rootdir : Path] [subpath/ : (Option String)]) : (Listof Git-Numstat)
                       (parameterize ([current-directory rootdir])
-                        (define numstat-fold (git-numstat-make-fold (and day? s/day) subpath/))
+                        (define numstat-fold (git-numstat-make-fold (and day? s/day) subpath/ filter))
                         
                         (git-numstat-exec git (list opt:log opt:n opt:since opt:until opt:reverse opt:rename opt:author opt:committer) numstat-fold
                                           (cond [(and diff?) (git-numstat-exec git (list (list "diff" "--numstat") opt:rename) numstat-fold null)]
@@ -147,7 +152,7 @@
                               (define subrootdir : Path (git-submodule-rootdir-concat rootdir (car subname)))
                               (define submodpath : String (git-submodule-path-concat subpath/ (car subname)))
                               
-                              (cond [(git-submodule-ignore? submodpath ignore) stats]
+                              (cond [(git-path-match? submodpath ignore #:match-for-empty? #false) stats]
                                     [else (let ([subnumstats (git-numstat-recursive subrootdir submodpath)])
                                             (git-numatat-merge stats subnumstats git-reverse?))]))
                             (git-numstat rootdir subpath/))))
@@ -160,18 +165,19 @@
                             (Path-String #:group-by-day? Boolean #:no-renames? Boolean #:since (Option Git-Date-Datum) #:until (Option Git-Date-Datum) #:localtime? Boolean 
                                          #:n (Option Natural) #:authors (U String (Listof String)) #:committers (U String (Listof String)) #:with-diff? Boolean
                                          #:grouping-option Git-Langstat-Grouping-Option #:types (Listof Symbol) #:reverse? Boolean #:recursive? Boolean
-                                         #:ignore-submodule Git-Match-Datum)
+                                         #:ignore-submodule Git-Match-Datum #:filter Git-Match-Datum)
                             (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))))
-  (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #false]
+  (lambda [#:no-renames? [no-renames? #false] #:group-by-day? [day? #true] #:since [since #false] #:until [until #false] #:localtime? [localtime? #true]
            #:n [n #false] #:authors [authors null] #:committers [committers null] #:with-diff? [diff? (and (null? authors) (null? committers) (not until))]
            #:grouping-option [grouping-opt git-default-subgroups] #:types [types null] #:reverse? [reverse? #false] #:recursive? [recursive? #true]
-           #:ignore-submodule [ignore null]
+           #:ignore-submodule [ignore null] #:filter [filter null]
            [dir (current-directory)]]
     (parameterize ([current-git-procedure git-langstat])
       (define numstats : (Listof Git-Numstat)
         (git-numstat #:no-renames? no-renames? #:with-diff? diff? #:authors authors #:committers committers
                      #:group-by-day? day? #:since since #:until until #:localtime? localtime? #:n n
-                     #:recursive? recursive? #:ignore-submodule ignore #:git-reverse? reverse? #:rkt-reverse? #false
+                     #:recursive? recursive? #:ignore-submodule ignore #:filter filter
+                     #:git-reverse? reverse? #:rkt-reverse? #false
                      dir))
 
       (git-numstats->langstats numstats types grouping-opt))))

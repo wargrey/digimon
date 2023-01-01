@@ -26,8 +26,8 @@
      git options numstat-fold initial)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define git-numstat-make-fold : (-> (Option Natural) (Option String) (-> String (Listof Git-Numstat) (Listof Git-Numstat)))
-  (lambda [group-span:s subpath/]
+(define git-numstat-make-fold : (-> (Option Natural) (Option String) Git-Match-Datum (-> String (Listof Git-Numstat) (Listof Git-Numstat)))
+  (lambda [group-span:s subpath/ filter]
     (define adjust-timestamp : (case-> [Natural -> Natural]
                                        [(Option Natural) -> (Option Natural)])
       (λ [timestamp]
@@ -35,15 +35,18 @@
              (cond [(not group-span:s) timestamp]
                    [else (floor-seconds timestamp group-span:s)]))))
 
-    (define adjust-path : (-> (U String (Pairof String String)) (U String (Pairof String String)))
-      (cond [(not subpath/) values]
-            [else (λ [path] (cond [(string? path) (string-append subpath/ path)]
-                                  [else (cons (string-append subpath/ (car path))
-                                              (string-append subpath/ (cdr path)))]))]))
+    (define (filter-path? [path : (U String (Pairof String String))]) : (Option (U String (Pairof String String)))
+      (cond [(string? path) (and (git-path-match? path filter #:match-for-empty? #true) path)]
+            [else (and (git-path-match? (cdr path) filter #:match-for-empty? #true) path)]))
 
-    (define make-empty-numstat : (-> Natural Git-Numstat)
-      (λ [timestamp]
-        (cons timestamp null)))
+    (define filter-map-path : (-> (U String (Pairof String String)) (Option (U String (Pairof String String))))
+      (cond [(not subpath/) filter-path?]
+            [else (λ [path] (filter-path? (cond [(string? path) (string-append subpath/ path)]
+                                                [else (cons (string-append subpath/ (car path))
+                                                            (string-append subpath/ (cdr path)))])))]))
+
+    (define (make-empty-numstat [timestamp : Natural]) : Git-Numstat
+      (cons timestamp null))
 
     (λ [line stats]
       (define-values (self rest)
@@ -53,9 +56,10 @@
       (let ([tokens (git-numstat-line-split line)])
         (cond [(list? tokens) ; normal
                (let ([insertion (string->natural (car tokens))]
-                     [deletion (string->natural (cadr tokens))])
-                 (cond [(and insertion deletion)
-                        (let ([num-line (vector-immutable insertion deletion (adjust-path (caddr tokens)))])
+                     [deletion (string->natural (cadr tokens))]
+                     [pathname (filter-map-path (caddr tokens))])
+                 (cond [(and insertion deletion pathname)
+                        (let ([num-line (vector-immutable insertion deletion pathname)])
                           (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons num-line (cdr self))) rest))]
                        [else (cons self rest)]))]
               [(string? tokens)
@@ -68,9 +72,10 @@
                        [else (cons (make-empty-numstat timestamp) (cons self rest))]))]
               [(vector? tokens) ; rename
                (let ([insertion (string->natural (vector-ref tokens 0))]
-                     [deletion (string->natural (vector-ref tokens 1))])
-                 (cond [(and insertion deletion)
-                        (let ([rename-num-line (vector-immutable insertion deletion (adjust-path (vector-ref tokens 2)))])
+                     [deletion (string->natural (vector-ref tokens 1))]
+                     [pathname (filter-map-path (vector-ref tokens 2))])
+                 (cond [(and insertion deletion pathname)
+                        (let ([rename-num-line (vector-immutable insertion deletion pathname)])
                           (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (cons rename-num-line (cdr self))) rest))]
                        [else (cons self rest)]))]
               [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (reverse (cdr self))) rest)])))))
