@@ -19,6 +19,7 @@
 
 (require racket/hash)
 
+(require scribble/lp2)
 (require scribble/core)
 (require scribble/example)
 (require scribble/manual)
@@ -272,6 +273,12 @@
      (syntax/loc stx
        (handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras
                               modpath contents ...))]))
+
+(define-syntax (handbook-chunk stx)
+  (syntax-parse stx #:literals []
+    [(_ id contents ...)
+     (syntax/loc stx (begin ($tex:phantomsection)
+                            (chunk id contents ...)))]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
