@@ -38,7 +38,7 @@
       (define stdin-silent? : Boolean (and (memq 'stdin silents) #true))
       (define stdout-silent? : Boolean (and (memq 'stdout silents) #true))
       (define stderr-silent? : Boolean (and (memq 'stderr silents) #true))
-      (define operation : Symbol (datum-name operation:any))
+      (define operation : Symbol (datum-name operation:any #:no-prefix-for-symbol-datum? #true))
 
       (define subenv : (Option Environment-Variables)
         (cond [(not alt-env) #false]
