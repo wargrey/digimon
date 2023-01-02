@@ -45,13 +45,16 @@
                                                 [else (cons (string-append subpath/ (car path))
                                                             (string-append subpath/ (cdr path)))])))]))
 
+    (define (make-now-numstat) : Git-Numstat
+      (cons (adjust-timestamp (max (current-seconds) 0)) null))
+    
     (define (make-empty-numstat [timestamp : Natural]) : Git-Numstat
       (cons timestamp null))
 
     (λ [line stats]
       (define-values (self rest)
         (cond [(pair? stats) (values (car stats) (cdr stats))]
-              [else (values (make-empty-numstat (adjust-timestamp (max (current-seconds) 0))) null)]))
+              [else (values (make-now-numstat) null)]))
       
       (let ([tokens (git-numstat-line-split line)])
         (cond [(list? tokens) ; normal
