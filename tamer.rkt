@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out) placeholder-style)
+(provide (all-defined-out) placeholder-style tamer-story-disable-submodule)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
@@ -433,29 +433,34 @@
 
 (define-syntax (tamer-action stx)
   (syntax-parse stx #:literals []
-    [(_ (~optional (~seq #:label label) #:defaults ([label #'#false]))
+    [(_ (~alt (~optional (~seq #:label label) #:defaults ([label #'#false]))
+              (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
         s-exps ...)
-     (syntax/loc stx
-       (let ([this-story (tamer-story)])
-         (define example-label
-           (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
-                 [else label]))
-         (tamer-zone-reference this-story (tamer-story-lang+modules))
-         (make-traverse-block
-          (λ [get set!]
-            (define repl (examples #:label example-label #:eval (tamer-zone-ref this-story) s-exps ...))
-            (tamer-zone-destory this-story #true)
-            repl))))]))
+     (with-syntax ([(hidden-mods ...) #'hidden-requires])
+       (syntax/loc stx
+         (let ([this-story (tamer-story)])
+           (define example-label
+             (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
+                   [else label]))
+           (tamer-zone-reference this-story (tamer-story-lang+modules))
+           (make-traverse-block
+            (λ [get set!]
+              (let ([zeval (tamer-zone-ref this-story)])
+                (examples #:label #false #:eval zeval #:hidden (require hidden-mods)) ...
+                (begin0 (examples #:label example-label #:eval zeval s-exps ...)
+                        (tamer-zone-destory this-story #true))))))))]))
 
 (define-syntax (tamer-answer stx)
-  (syntax-case stx []
-    [(_ exprs ...)
-     (syntax/loc stx (tamer-action #:label 'answer exprs ...))]))
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
+        exprs ...)
+     (syntax/loc stx (tamer-action #:label 'answer #:requires hidden-requires exprs ...))]))
 
 (define-syntax (tamer-solution stx)
-  (syntax-case stx []
-    [(_ exprs ...)
-     (syntax/loc stx (tamer-action #:label 'solution exprs ...))]))
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
+        exprs ...)
+     (syntax/loc stx (tamer-action #:label 'solution #:requires hidden-requires exprs ...))]))
 
 (define tamer-story-space
   (lambda []
