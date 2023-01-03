@@ -4,7 +4,8 @@
 (define pkg-desc "Lorem Ipsum")
 
 (define build-deps '("scribble-lib" "racket-doc"))
-(define deps '("base" "gui-lib" "typed-racket-lib" "typed-racket-more"
+(define deps '("w3s"
+               "base" "gui-lib" "typed-racket-lib" "typed-racket-more"
                       "racket-index" "sandbox-lib" "scribble-lib" "math-lib"))
 
 (define version "1.0")
