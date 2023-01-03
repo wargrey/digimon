@@ -32,7 +32,8 @@
   (lambda [system cpp?]
     (list (cons (format "__~a__" system) #false)
           (cons "__lambda__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
-          (cons "__ffi__" (if (eq? system 'windows) "__declspec(dllexport)" "")))))
+          (cons "__ffi__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
+          (cons "__ZONE__" (string-append "\"" (path->string (current-directory)) "\"")))))
 
 (define cc-default-io-file : CC-IO-File-Flag
   (lambda [src system cpp?]
