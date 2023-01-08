@@ -471,6 +471,21 @@
     (namespace-variable-value id #true #false
                               (tamer-story-space))))
 
+(define tamer-apply
+  (lambda [id . argv]
+    (define f (tamer-require id))
+
+    (apply f argv)))
+
+(define tamer-datum
+  (lambda [id . argv]
+    (define v (tamer-require id))
+    (define datum
+      (cond [(procedure? v) (apply v argv)]
+            [else v]))
+
+    (racket #,datum)))
+
 (define tamer-prove
   (lambda []
     (spec-prove
