@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out) placeholder-style tamer-story-disable-submodule)
+(provide (all-defined-out) placeholder-style tamer-story-disable-submodule tamer-story-submodule-name)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)

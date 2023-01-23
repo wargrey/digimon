@@ -21,6 +21,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-story (make-parameter #false))
 (define tamer-story-disable-submodule (make-parameter #false))
+(define tamer-story-submodule-name (make-parameter 'tamer))
 
 (define tamer-story-lang+modules (make-parameter null))
 (define tamer-story-private-modules (make-parameter null))
@@ -49,7 +50,7 @@
 (define tamer-story->modpath
   (lambda [story-path]
     (cond [(tamer-story-disable-submodule) story-path]
-          [else `(submod ,story-path tamer)])))
+          [else `(submod ,story-path ,(tamer-story-submodule-name))])))
 
 (define tamer-story->module
   (lambda [story [use-tamer? #true]]
