@@ -84,6 +84,30 @@
               [else (cons ((inst cons Natural (Listof Git-Numstat-Line)) (car self) (reverse (cdr self))) rest)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define git-numstats->additions+deletions : (-> (Listof Git-Numstat) (Listof (Pairof Natural (Pairof Natural Natural))))
+  (lambda [numstats]
+    (for/fold ([addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural))) null])
+              ([numstat (in-list (reverse numstats))])
+      (define-values (adds dels)
+        (for/fold ([adds : Natural 0] [dels : Natural 0])
+                  ([line (in-list (cdr numstat))])
+          (values (+ adds (vector-ref line 0))
+                  (+ dels (vector-ref line 1)))))
+      (cons (cons (car numstat)
+                  (cons adds dels))
+            addition.deletions))))
+
+(define git-numstats->additions+deletions* : (-> (Listof Git-Numstat) (Values Natural Natural))
+  (lambda [numstats]
+    (define addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural)))
+      (git-numstats->additions+deletions numstats))
+
+    (for/fold ([additions : Natural 0] [deletions : Natural 0])
+              ([ts.add.del (in-list addition.deletions)])
+      (values (+ additions (cadr ts.add.del))
+              (+ deletions (cddr ts.add.del))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-numatat-merge : (-> (Listof Git-Numstat) (Listof Git-Numstat) Boolean (Listof Git-Numstat))
   (lambda [lstats rstats reverse?]
     (define lt? (if reverse? > <))

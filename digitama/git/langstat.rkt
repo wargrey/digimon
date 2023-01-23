@@ -65,23 +65,18 @@
                           (git-language (github-language-id lang) (github-language-name lang) (github-language-type lang)
                                         (github-language-color lang) all-extensions (list this-numstat))))))))))
 
-(define git-numstats->additions+deletions : (-> (Listof Git-Numstat) (Listof (Pairof Natural (Pairof Natural Natural))))
-  (lambda [numstats]
+(define git-langstats->additions+deletions : (-> (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (Listof (Pairof Natural (Pairof Natural Natural))))
+  (lambda [langstats]
     (for/fold ([addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural))) null])
-              ([numstat (in-list (reverse numstats))])
-      (define-values (adds dels)
-        (for/fold ([adds : Natural 0] [dels : Natural 0])
-                  ([line (in-list (cdr numstat))])
-          (values (+ adds (vector-ref line 0))
-                  (+ dels (vector-ref line 1)))))
-      (cons (cons (car numstat)
-                  (cons adds dels))
-            addition.deletions))))
+              ([numstats (in-hash-values langstats)])
+      (append addition.deletions
+              (git-numstats->additions+deletions
+               (git-language-content numstats))))))
 
-(define git-numstats->additions+deletions* : (-> (Listof Git-Numstat) (Values Natural Natural))
-  (lambda [numstats]
+(define git-langstats->additions+deletions* : (-> (Immutable-HashTable Index (Git-Language-With (Listof Git-Numstat))) (Values Natural Natural))
+  (lambda [langstats]
     (define addition.deletions : (Listof (Pairof Natural (Pairof Natural Natural)))
-      (git-numstats->additions+deletions numstats))
+      (git-langstats->additions+deletions langstats))
 
     (for/fold ([additions : Natural 0] [deletions : Natural 0])
               ([ts.add.del (in-list addition.deletions)])

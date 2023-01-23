@@ -9,6 +9,7 @@
 (require "../../../git.rkt")
 (require "../../../echo.rkt")
 
+(require "../../../digitama/git/numstat.rkt")
 (require "../../../digitama/git/langstat.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
