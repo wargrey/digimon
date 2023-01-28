@@ -4,9 +4,6 @@
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
 (provide (struct-out Git-Language-With) (struct-out Git-File))
 
-(require racket/path)
-(require racket/port)
-
 (require "dtrace.rkt")
 (require "filesystem.rkt")
 

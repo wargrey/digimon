@@ -20,12 +20,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdin 'stdout 'stderr))
+(define-type Maybe-Alt-Env (U False Environment-Variables (-> Environment-Variables)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)))
+                             ((Option (-> Symbol Path Natural Void))
+                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
+                             Void)
+  (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
+    (lambda [#:silent [silents null] #:env [alt-env #false]
+             #:feeds [feeds null] #:feed-eof [feed-eof eof]
+             #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+             operation program options [on-error-do #false]]
+      ((inst fg-recon-exec* Void)
+       #:silent silents #:feeds feeds #:feed-eof feed-eof
+       #:env alt-env #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
+       operation program options stdout-void (void) on-error-do))))
 
 (define fg-recon-exec* : (All (a) (->* (Any Path (Listof (Listof String)) (-> String a a) a)
                                        ((Option (-> Symbol Path Natural Void))
-                                        #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
-                                        #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                                        #:env (U False Environment-Variables (-> Environment-Variables)))
+                                        #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String) #:env Maybe-Alt-Env
+                                        #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                        a))
   (lambda [#:silent [silents null] #:env [alt-env #false] #:feeds [feeds null] #:feed-eof [feed-eof eof]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
@@ -33,26 +49,17 @@
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
-      (define args : (Listof String) (apply append options))
+      (define operation : Symbol (datum-name operation:any #:no-prefix-for-symbol-datum? #true))
       (define /dev/byterr : Output-Port (open-output-bytes))
       (define stdin-silent? : Boolean (and (memq 'stdin silents) #true))
       (define stdout-silent? : Boolean (and (memq 'stdout silents) #true))
       (define stderr-silent? : Boolean (and (memq 'stderr silents) #true))
-      (define operation : Symbol (datum-name operation:any #:no-prefix-for-symbol-datum? #true))
-
-      (define subenv : (Option Environment-Variables)
-        (cond [(not alt-env) #false]
-              [(environment-variables? alt-env) alt-env]
-              [else (alt-env)]))
-
-      (dtrace-info #:topic operation "~a ~a" program (string-join args))
+      
 
       (define-values (status datum:out)
         (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (cond [(not subenv) (apply subprocess #false #false #false program args)]
-                  [else (parameterize ([current-environment-variables subenv])
-                          (apply subprocess #false #false #false program args))]))
+            (fg-recon-fork operation program options alt-env #false #false #false))
 
           (define ghostcat : Thread
             (thread (λ [] (with-handlers ([exn:break? void])
@@ -103,36 +110,38 @@
           (subprocess-wait /usr/bin/$0)
           (values (subprocess-status /usr/bin/$0) final-datum)))
 
-      (cond [(exact-integer? status)
-             (unless (eq? status 0)
-               (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
-                 (when (> (bytes-length maybe-errmsg) 0)
-                   (dtrace-error (bytes->string/utf-8 maybe-errmsg) #:topic operation #:prefix? #false)))
-               
-               ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
-               (custodian-shutdown-all (current-custodian))
-               
-               (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
-            [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))])
-      
-      (custodian-shutdown-all (current-custodian))
+      (fg-recon-handle-status operation program status /dev/byterr on-error-do)
       datum:out)))
 
-(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)))
-                             ((Option (-> Symbol Path Natural Void))
-                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
-                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                              #:env (U False Environment-Variables (-> Environment-Variables)))
-                             Void)
-  (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
-    (lambda [#:silent [silents null] #:env [alt-env #false]
-             #:feeds [feeds null] #:feed-eof [feed-eof eof]
-             #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-             operation program options [on-error-do #false]]
-      ((inst fg-recon-exec* Void)
-       #:silent silents #:feeds feeds #:feed-eof feed-eof
-       #:env alt-env #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
-       operation program options stdout-void (void) on-error-do))))
+(define fg-recon-exec/pipe : (->* (Any Path (Listof (Listof String)))
+                                  ((Option (-> Symbol Path Natural Void))
+                                   #:/dev/stdin (Option Input-Port) #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
+                                  Bytes)
+  (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+           operation:any program options [on-error-do #false]]
+    (parameterize ([subprocess-group-enabled #true]
+                   [current-subprocess-custodian-mode 'kill]
+                   [current-custodian (make-custodian)])
+      (define operation : Symbol (datum-name operation:any #:no-prefix-for-symbol-datum? #true))
+      (define /dev/bytout : Output-Port (open-output-bytes))
+      (define /dev/byterr : Output-Port (open-output-bytes))
+
+      (define status
+        (with-handlers ([exn? (λ [[e : exn]] e)])
+          (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
+            (fg-recon-fork operation program options alt-env /dev/stdin /dev/stdout /dev/stderr))
+
+          (define-values (ghostcat/out ghostcat/err)
+            (values (thread (λ [] (when (input-port? /dev/outin) (copy-port /dev/outin /dev/bytout))))
+                    (thread (λ [] (when (input-port? /dev/errin) (copy-port /dev/errin /dev/byterr))))))
+
+          (thread-wait ghostcat/out)
+          (thread-wait ghostcat/err)
+          (subprocess-wait /usr/bin/$0)
+          (subprocess-status /usr/bin/$0)))
+
+      (fg-recon-handle-status operation program status /dev/byterr on-error-do)
+      (get-output-bytes /dev/bytout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-eval : (->* (Symbol Any) (Namespace) AnyValues)
@@ -212,8 +221,40 @@
       (fg-cat operation file /dev/stdout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define fg-recon-fork : (case-> [Symbol Path (Listof (Listof String)) Maybe-Alt-Env False False False -> (Values Subprocess Input-Port Output-Port Input-Port)]
+                                [Symbol Path (Listof (Listof String)) Maybe-Alt-Env (Option Input-Port) (Option Output-Port) (Option Output-Port)
+                                        -> (Values Subprocess (Option Input-Port) (Option Output-Port) (Option Input-Port))])
+  (lambda [operation program options alt-env /dev/stdin /dev/stdout /dev/stderr]
+    (define args : (Listof String) (apply append options))
+
+    (define subenv : (Option Environment-Variables)
+      (cond [(not alt-env) #false]
+            [(environment-variables? alt-env) alt-env]
+            [else (alt-env)]))
+    
+    (dtrace-info #:topic operation "~a ~a" program (string-join args))
+    
+    (cond [(not subenv) (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args)]
+          [else (parameterize ([current-environment-variables subenv])
+                  (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args))])))
+
 (define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)
   (lambda [operation e [clean void]]
     (cond [(exn:recon? e) (dtrace-note #:topic operation (exn-message e))]
           [(exn:fail? e) (clean) (raise e)]
           [else #;(exn:break? e) (clean)])))
+
+(define fg-recon-handle-status : (-> Symbol Path (U Natural exn 'running) Output-Port (Option (-> Symbol Path Natural Void)) Void)
+  (lambda [operation program status /dev/byterr on-error-do]
+    (cond [(exact-integer? status)
+           (unless (eq? status 0)
+             (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
+               (when (> (bytes-length maybe-errmsg) 0)
+                 (dtrace-error (bytes->string/utf-8 maybe-errmsg) #:topic operation #:prefix? #false)))
+             
+             ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
+             (custodian-shutdown-all (current-custodian))
+             
+             (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
+          [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))]
+          [else (custodian-shutdown-all (current-custodian))])))

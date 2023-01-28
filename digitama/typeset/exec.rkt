@@ -6,7 +6,6 @@
 (require "engine.rkt")
 
 (require "../exec.rkt")
-(require "../system.rkt")
 
 (require "../../dtrace.rkt")
 (require "../../filesystem.rkt")
