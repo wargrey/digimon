@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/list)
-
 (require "../../../digitama/graphviz.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../dtrace.rkt")
@@ -12,10 +10,6 @@
 (require "../path.rkt")
 (require "../spec.rkt")
 (require "../phony.rkt")
-
-(require/typed
- "../../../digitama/tamer.rkt"
- [handbook-metainfo (-> Path-String String (Values String String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-dot-specs : (-> Info-Ref Wisemon-Specification)
