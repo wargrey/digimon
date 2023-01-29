@@ -29,10 +29,10 @@
                   (let ([dst-bytes (fg-recon-exec/pipe operation dot options)])
                     (unless (not outfile)
                       (if (output-port? outfile)
-                          (displayln dst-bytes outfile)
+                          (write-bytes dst-bytes outfile)
                           (call-with-output-file* outfile #:exists 'truncate/replace
-                            (λ [[/dev/dotout : Output-Port]] : Void
-                              (displayln dst-bytes /dev/dotout)))))
+                            (λ [[/dev/dotout : Output-Port]] : Index
+                              (write-bytes dst-bytes /dev/dotout)))))
                     dst-bytes))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
