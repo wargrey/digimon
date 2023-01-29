@@ -4,6 +4,7 @@
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
+(provide graphviz (rename-out [dot? graphviz?]))
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -40,6 +41,7 @@
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
 (require "digitama/tamer/misc.rkt")
+(require "digitama/tamer/graphviz.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")

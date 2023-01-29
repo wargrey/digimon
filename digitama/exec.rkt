@@ -115,7 +115,8 @@
 
 (define fg-recon-exec/pipe : (->* (Any Path (Listof (Listof String)))
                                   ((Option (-> Symbol Path Natural Void))
-                                   #:/dev/stdin (Option Input-Port) #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
+                                   #:/dev/stdin (Option (U Bytes Input-Port))
+                                   #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
                                   Bytes)
   (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation:any program options [on-error-do #false]]
@@ -129,12 +130,22 @@
       (define status
         (with-handlers ([exn? (λ [[e : exn]] e)])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (fg-recon-fork operation program options alt-env /dev/stdin /dev/stdout /dev/stderr))
+            ; because subprocess only accepts file stream ports as pipes
+            (fg-recon-fork operation program options alt-env #false /dev/stdout /dev/stderr))
 
-          (define-values (ghostcat/out ghostcat/err)
+          (define-values (ghostcat/out ghostcat/err ghostcat/subout)
             (values (thread (λ [] (when (input-port? /dev/outin) (copy-port /dev/outin /dev/bytout))))
-                    (thread (λ [] (when (input-port? /dev/errin) (copy-port /dev/errin /dev/byterr))))))
+                    (thread (λ [] (when (input-port? /dev/errin) (copy-port /dev/errin /dev/byterr))))
+                    (thread (λ [] (when (and /dev/stdin /dev/subout)
+                                    (if (input-port? /dev/stdin)
+                                        (copy-port /dev/stdin /dev/subout)
+                                        (let ([/dev/dotin (open-input-bytes /dev/stdin)])
+                                          (copy-port /dev/dotin /dev/subout)
+                                          (dtrace-note (bytes->string/utf-8 /dev/stdin) #:topic operation)))
+                                    (flush-output /dev/subout)
+                                    (close-output-port /dev/subout))))))
 
+          (thread-wait ghostcat/subout)
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)
           (subprocess-wait /usr/bin/$0)
