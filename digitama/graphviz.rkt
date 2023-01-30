@@ -12,9 +12,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gv-render : (->* ((U Path-String Bytes) Symbol)
-                         (Symbol #:outfile (Option (U Path-String Output-Port)) #:size (Option GVSize) #:min-size? Boolean)
+                         (Symbol #:outfile (Option (U Path-String Output-Port))
+                                 #:size (Option GVSize) #:min-size? Boolean
+                                 #:stdin-log-level (Option Symbol))
                          Bytes)
-  (lambda [src.gv target-lang [layout 'dot] #:outfile [outfile #false] #:size [size #false] #:min-size? [minsize? #false]]
+  (lambda [#:outfile [outfile #false] #:size [size #false] #:min-size? [minsize? #false] #:stdin-log-level [log-level #false]
+           src.gv target-lang [layout 'dot]]
     (define dot (find-executable-path "dot"))
    
     (cond [(not dot) (error layout "graphviz not found")]
@@ -33,7 +36,8 @@
                     (when (and dir (not (directory-exists? dir)))
                       (fg-recon-mkdir operation dir)))
 
-                  (let ([dst-bytes (fg-recon-exec/pipe operation dot options #:/dev/stdin (and (bytes? src.gv) src.gv))])
+                  (let ([dst-bytes (fg-recon-exec/pipe #:/dev/stdin (and (bytes? src.gv) src.gv) #:stdin-log-level log-level
+                                                       operation dot options)])
                     (unless (not outfile)
                       (if (output-port? outfile)
                           (write-bytes dst-bytes outfile)

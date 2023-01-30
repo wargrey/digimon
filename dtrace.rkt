@@ -36,7 +36,7 @@
   '(GC racket/contract optimizer TR-optimizer place syntax-parse
        collapsible-value-bailout collapsible-contract-bailout
        module-prefetch tr-timing online-check-syntax cm-accomplice
-       sequence-specialization framework/colorer ffi-lib))
+       sequence-specialization framework/colorer ffi-lib tr))
 
 (define dtrace-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
@@ -142,7 +142,7 @@
       (thread-wait dtrace))))
 
 (define open-output-dtrace : (->* ()
-                                  ((U Symbol (-> String (Values Symbol (Option String))))
+                                  ((U Symbol (-> String (Values Symbol (Option String)))) Any
                                    #:special (U Symbol (-> Any (Values (Option Symbol) Any String)) False)
                                    #:line-mode Symbol #:prefix? Boolean #:fallback-char (Option Char))
                                   Output-Port)

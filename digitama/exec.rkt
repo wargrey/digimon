@@ -115,10 +115,11 @@
 
 (define fg-recon-exec/pipe : (->* (Any Path (Listof (Listof String)))
                                   ((Option (-> Symbol Path Natural Void))
-                                   #:/dev/stdin (Option (U Bytes Input-Port))
-                                   #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
+                                   #:env Maybe-Alt-Env #:/dev/stdin (Option (U Bytes Input-Port)) #:stdin-log-level (Option Symbol)
+                                   #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                   Bytes)
-  (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+  (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level #false]
+           #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation:any program options [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -139,9 +140,9 @@
                     (thread (λ [] (when (and /dev/stdin /dev/subout)
                                     (if (input-port? /dev/stdin)
                                         (copy-port /dev/stdin /dev/subout)
-                                        (let ([/dev/dotin (open-input-bytes /dev/stdin)])
-                                          (copy-port /dev/dotin /dev/subout)
-                                          (dtrace-note (bytes->string/utf-8 /dev/stdin) #:topic operation)))
+                                        (let ([/dev/dotin (open-input-bytes /dev/stdin)]
+                                              [/dev/dtout (open-output-dtrace (or log-level 'debug) operation)])
+                                          (copy-port /dev/dotin /dev/subout /dev/dtout)))
                                     (flush-output /dev/subout)
                                     (close-output-port /dev/subout))))))
 

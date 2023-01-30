@@ -4,7 +4,7 @@
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
-(provide graphviz (rename-out [dot? graphviz?]))
+(provide graphviz graph.gv digraph.gv)
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -17,6 +17,10 @@
 (provide (rename-out [tamer-deftech tamer-defterm]))
 (provide (rename-out [tamer-deftech handbook-deftech]))
 (provide (rename-out [tamer-deftech handbook-defterm]))
+
+(provide (rename-out [dot? graphviz?]))
+(provide (rename-out [graph.gv graph.dot]))
+(provide (rename-out [digraph.gv digraph.dot]))
 
 (require racket/hash)
 
