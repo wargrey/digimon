@@ -1,6 +1,8 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide git-default-subgroups git-files->langfiles git-files->langsizes)
+(provide git-numstats->langstats git-numstats->additions+deletions* git-langstats->additions+deletions*)
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
 (provide (struct-out Git-Language-With) (struct-out Git-File))
 
