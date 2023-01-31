@@ -48,7 +48,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gv-script-destination : (->* (Path-String Bytes) (Boolean #:dest-dirname String) (Option Path))
-  (lambda [gv ext [contained-in-package? #true] #:dest-dirname [rootdir "graphviz"]]
+  (lambda [gv ext [contained-in-package? #true] #:dest-dirname [rootdir "diagram"]]
     (define dirname : (Option Path) (path-only gv))
     (define basename : (Option Path) (file-name-from-path gv))
 

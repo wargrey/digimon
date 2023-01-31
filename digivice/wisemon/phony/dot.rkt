@@ -4,7 +4,6 @@
 
 (require "../../../digitama/graphviz.rkt")
 (require "../../../digitama/system.rkt")
-(require "../../../dtrace.rkt")
 
 (require "../parameter.rkt")
 (require "../path.rkt")

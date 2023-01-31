@@ -61,7 +61,8 @@
       (for/fold ([seinohp : (Listof Wisemon-Phony) null]
                  [slaer : (Listof Path) null])
                 ([g (in-list goals)])
-        (cond [(path-get-extension g) (values seinohp (cons (simple-form-path g) slaer))]
+        (cond [(path-get-extension g)
+               (values seinohp (cons (simple-form-path g) slaer))]
               [(wisemon-phony-goal-ref (string->symbol g)) => (λ [[p : Wisemon-Phony]] (values (cons p seinohp) slaer))]
               [else (values seinohp (cons (simple-form-path g) slaer))])))
     (let ([phonies (reverse seinohp)])
