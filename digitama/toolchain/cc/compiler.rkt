@@ -37,7 +37,7 @@
             (cons "__ffi__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
             (cons "__ZONE__" (string-append "\"" (string-replace (path->string (current-directory)) "\\" "\\\\") "\""))))
 
-    (cond [(not debug?) (cons (cons (format "NDEBUG" system) #false) macros)]
+    (cond [(not debug?) (cons (cons "NDEBUG" #false) macros)]
           [else macros])))
 
 (define cc-default-io-file : CC-IO-File-Flag
