@@ -25,6 +25,8 @@
 ;       by `require`ing corresponding racket files that define the FFI symbols.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define px.so : Regexp (pregexp (format "[.]~a$" (subbytes (system-type 'so-suffix) 1))))
+
 (define make-native-library-specs : (->* (Info-Ref) ((Listof Path)) Wisemon-Specification)
   (lambda [info-ref [ex-shared-objects null]]
     (append (make-c-library-specs info-ref #px"\\.c$" #false ex-shared-objects)

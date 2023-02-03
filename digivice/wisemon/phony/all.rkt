@@ -58,8 +58,6 @@
         (dynamic-require modpath #false)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define px.so : Regexp (pregexp (format "[.]~a$" (subbytes (system-type 'so-suffix) 1))))
-
 (define do-make : (-> Wisemon-Specification Void)
   (lambda [specs]
     (unless (null? specs)
