@@ -81,14 +81,14 @@
         
         (list* (let ([dep++.o (assert (c-source->object-file dep.c 'cpp debug?))])
                  (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
-                               #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose)
+                               #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose) #:debug? debug?
                                               #:includes includes #:macros macros
                                               dep.c dep++.o)))
                
                (cond [(not cpp-file?)
                       (let ([dep.o (assert (c-source->object-file dep.c 'c debug?))])
                         (cons (wisemon-spec dep.o #:^ (cons dep.c deps.h)
-                                            #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose)
+                                            #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose) #:debug? debug?
                                                            #:includes includes #:macros macros
                                                            dep.c dep.o))
                               specs))]
@@ -113,7 +113,8 @@
 
       ; TODO: why includes duplicate inside the spec, but be okay outside the spec
       (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c (cc-launcher-info-includes info) #:topic (current-make-phony-goal)))
-                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:macros (cc-launcher-info-macros info)
+                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:debug? debug?
+                                          #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
              (wisemon-spec native #:^ objects
