@@ -20,8 +20,9 @@
                  extra-macros))))
 
 (define gcc-compile-flags : CC-Flags
-  (lambda [system cpp? hints verbose?]
-    (append (list "-c" "-O2" "-fPIC" "-Wall")
+  (lambda [system cpp? hints verbose? debug?]
+    (append (list "-c" "-fPIC" "-Wall")
+            (if (not debug?) (list "-O2") (list "-Og" "-g"))
             (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                   [else (list "-x" "c++" "-std=c++17")])
             (case system

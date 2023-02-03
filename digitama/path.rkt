@@ -10,8 +10,11 @@
     (build-path (or (path-only src) (current-directory))
                 (system-library-subpath #false))))
 
-(define native-rootdir/compiled : (-> Path-String Path)
-  (lambda [src]
-    (build-path (or (path-only src) (current-directory))
-                (car (use-compiled-file-paths)) "native"
-                (system-library-subpath #false))))
+(define native-rootdir/compiled : (-> Path-String Boolean Path)
+  (lambda [src debug?]
+    (define raw-dir : Path
+      (build-path (or (path-only src) (current-directory))
+                  (car (use-compiled-file-paths)) "native"
+                  (system-library-subpath #false)))
+    (cond [(not debug?) raw-dir]
+          [else (build-path raw-dir "debug")])))

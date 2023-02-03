@@ -31,11 +31,11 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:cpp? Boolean #:verbose? Boolean
+                         (#:cpp? Boolean #:verbose? Boolean #:debug? Boolean
                           #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
                           #:compilers (Option (Listof Symbol)))
                          Void)
-  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false]
+  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:debug? [debug? #false]
            #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]
            infile outfile]
     (define compiler : (Option CC) (c-pick-compiler compilers))
@@ -49,9 +49,9 @@
                    'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
                    (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
                      (case layout
-                       [(flags) ((cc-flags compiler) digimon-system cpp? null verbose?)]
-                       [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp?) digimon-system cpp?
-                                                       (apply append (map c-macro-normalize macros)))]
+                       [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
+                       [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?)
+                                                       digimon-system cpp? (apply append (map c-macro-normalize macros)))]
                        [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
                        [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
                        [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
@@ -98,33 +98,33 @@
                        [else (if (string? layout) (list layout) null)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-source->object-file : (->* (Path-String) ((Option Symbol)) (Option Path))
-  (lambda [c [lang #false]]
+(define c-source->object-file : (->* (Path-String) ((Option Symbol) Boolean) (Option Path))
+  (lambda [c [lang #false] [debug? #false]]
     (define basename : (Option Path) (file-name-from-path c))
 
     (and (path? basename)
-         (build-path (native-rootdir/compiled c)
+         (build-path (native-rootdir/compiled c debug?)
                      (cond [(not lang) (path-replace-extension basename object.ext)]
                            [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
                                    (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
-(define c-source->shared-object-file : (-> Path-String Boolean (Option Path))
-  (lambda [c contained-in-package?]
+(define c-source->shared-object-file : (->* (Path-String Boolean) (Boolean) (Option Path))
+  (lambda [c contained-in-package? [debug? #false]]
     (define basename : (Option Path) (file-name-from-path c))
 
     (and (path? basename)
          (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])
            (cond [(and contained-in-package?) (build-path (native-rootdir c) libname.so)]
-                 [else (build-path (native-rootdir/compiled c) libname.so)])))))
+                 [else (build-path (native-rootdir/compiled c debug?) libname.so)])))))
 
-(define c-source->executable-file : (->* (Path-String Boolean) ((Option String)) (Option Path))
-  (lambda [c contained-in-package? [name #false]]
+(define c-source->executable-file : (->* (Path-String Boolean) ((Option String) Boolean) (Option Path))
+  (lambda [c contained-in-package? [name #false] [debug? #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let ([bname (path-replace-extension basename binary.ext)])
            (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
-                 [else (build-path (native-rootdir/compiled c) bname)])))))
+                 [else (build-path (native-rootdir/compiled c debug?) bname)])))))
 
 (define c-include-headers : (->* (Path-String) ((Listof C-Toolchain-Path-String) #:check-source? Boolean #:topic Symbol) (Listof Path))
   (lambda [c [incdirs null] #:check-source? [recur? #false] #:topic [topic 'c-include-headers]]
