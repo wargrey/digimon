@@ -30,6 +30,7 @@
    [name : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
    [always-make? : Boolean]
+   [readme? : Boolean]
    [extra-argv : (Listof String)])
   #:type-name Tex-Info)
 
@@ -200,6 +201,7 @@
                 (and (pair? maybe-names) (car maybe-names))
                 dependencies
                 (and (memq '#:always-make tags) #true)
+                (and (memq '#:readme tags) #true)
                 (for/fold ([argv : (Listof String) null])
                           ([arg (in-list rest)])
                   (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]

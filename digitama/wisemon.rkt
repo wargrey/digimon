@@ -10,6 +10,7 @@
 
 (require "../exception.rkt")
 (require "../filesystem.rkt")
+(require "../continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Wisemon-Targets (U Path (Listof Path)))
@@ -30,11 +31,13 @@
   ([target : Path]
    [prerequisites : (Listof Path)]
    [cause : Wisemon-Exception-Cause])
-  (wisemon-exn-message))
+  (wisemon-exn-extract))
 
-(define wisemon-exn-message : (-> Any Path (Listof Path) Wisemon-Exception-Cause String String)
+(define wisemon-exn-extract : (-> Any Path (Listof Path) Wisemon-Exception-Cause String (Values String (Option Continuation-Mark-Set)))
   (lambda [func target prerequisites cause message]
-    message))
+    (values message
+            (and (exn:fail? cause)
+                 (exn-continuation-marks cause)))))
 
 (define wisemon-log-message : (->* (Symbol Log-Level Path String) (#:prerequisites (Listof Path)) #:rest Any Void)
   (lambda [name level target #:prerequisites [prerequisites null] msgfmt . argl]

@@ -28,9 +28,10 @@
     (define root-readmes : (Listof Tex-Sample-Info)
       (append (map (λ [[readme : Path]] (cons (cons readme (current-directory)) (cons 0 0)))
                    (find-digimon-handbooks info-ref))
-              (filter-map (λ [[readme : Tex-Info]]
-                            (and (regexp-match? #px"\\.scrbl$" (tex-info-path readme))
-                                 (cons (cons (tex-info-path readme) (current-directory)) (cons 0 1))))
+              (filter-map (λ [[scrbl : Tex-Info]]
+                            (and (tex-info-readme? scrbl)
+                                 (regexp-match? #px"\\.scrbl$" (tex-info-path scrbl))
+                                 (cons (cons (tex-info-path scrbl) (current-directory)) (cons 0 1))))
                           (find-digimon-typesettings info-ref))))
 
     (define readmes : (Listof Tex-Sample-Info)

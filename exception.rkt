@@ -13,7 +13,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-exception stx)
   (syntax-parse stx #:literals [let :]
-    [(_ eid (~optional maybe-parent) ([field : FieldType] ...) (make-message [arg : Type] ...) (~optional (~seq #:log maybe-log-exn:id)))
+    [(_ eid (~optional maybe-parent) ([field : FieldType] ...) (make-base-exn [arg : Type] ...) (~optional (~seq #:log maybe-log-exn:id)))
      (with-syntax* ([make-exn (format-id #'eid "make-~a" (syntax-e #'eid))]
                     [make+exn (format-id #'eid "make+~a" (syntax-e #'eid))]
                     [throw-exn (format-id #'eid "throw-~a" (syntax-e #'eid))]
@@ -25,8 +25,8 @@
                 
                 (define make-exn : (-> Any Type ... FieldType ... String Any * eid)
                   (lambda [src arg ... field ... fmt . argl]
-                    (eid (make-message src arg ... field ... (~string fmt argl))
-                         (current-continuation-marks)
+                    (define-values (msg maybe-cmarks) (make-base-exn src arg ... field ... (~string fmt argl)))
+                    (eid msg (or maybe-cmarks (current-continuation-marks))
                          field ...)))
 
                 (define make+exn : (->* (Any Type ... FieldType ... String) (#:topic Any #:level Log-Level #:prefix? Boolean #:brief? Boolean) #:rest Any eid)
