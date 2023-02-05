@@ -29,16 +29,16 @@
     (unsafe-dot script layout size min-size? #false)))
 
 (define digraph.gv
-  (lambda [[id #false] #:strict? [strict? #false] #:layout [layout 'dot]
-                       #:size [size #false] #:min-size? [min-size? #false]
-                       #:debug [level #false] . body]
+  (lambda [#:id [id #false] #:strict? [strict? #false] #:layout [layout 'dot]
+           #:size [size #false] #:min-size? [min-size? #false]
+           #:debug [level #false] . body]
     (unsafe-dot (graphviz-script 'digraph id strict? body)
                 layout size min-size? level)))
 
 (define graph.gv
-  (lambda [[id #false] #:strict? [strict? #false] #:layout [layout 'dot]
-                       #:size [size #false] #:min-size? [min-size? #false]
-                       #:debug [level #false] . body]
+  (lambda [#:id [id #false] #:strict? [strict? #false] #:layout [layout 'dot]
+           #:size [size #false] #:min-size? [min-size? #false]
+           #:debug [level #false] . body]
     (unsafe-dot (graphviz-script 'graph id strict? body)
                 layout size min-size? level)))
 
