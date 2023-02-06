@@ -5,7 +5,6 @@
 
 (require scribble/core)
 
-(require racket/class)
 (require racket/format)
 
 (require "../../tongue.rkt")
@@ -15,6 +14,9 @@
 (define phantomsection-style (make-style "phantomsection" null))
 (define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
 
+(define math-inline-style (make-style "texMathInline" (list 'exact-chars)))
+(define math-display-style (make-style "texMathDisplay" (list 'exact-chars)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-prefab-name
   (lambda [TeX]
@@ -23,6 +25,21 @@
       [(latex) (texbook-command "LaTeX")]
       [(latexe) (texbook-command "LaTeXe")]
       [else (texbook-command TeX)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define $
+  (lambda strs
+    (make-traverse-element
+     (λ [get set!]
+       (cond [(handbook-latex-renderer? get) (make-element math-inline-style strs)]
+             [else strs])))))
+
+(define $$
+  (lambda strs
+    (make-traverse-element
+     (λ [get set!]
+       (cond [(handbook-latex-renderer? get) (make-element math-display-style strs)]
+             [else strs])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-command

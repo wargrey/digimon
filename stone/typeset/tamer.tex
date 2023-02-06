@@ -172,3 +172,8 @@
   \ColorBox{#1}{AliceBlue}
 }
 
+
+\def\math#1{\ensuremath{#1}}
+\def\texMathInline#1{\ensuremath{#1}}
+\def\texMathDisplay#1{\ifmmode #1\else\[#1\]\fi}
+
