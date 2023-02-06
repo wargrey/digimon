@@ -4,6 +4,7 @@
 (provide (rename-out [texbook-command $tex]))
 
 (require scribble/core)
+(require scribble/manual)
 
 (require racket/format)
 
@@ -32,14 +33,14 @@
     (make-traverse-element
      (λ [get set!]
        (cond [(handbook-latex-renderer? get) (make-element math-inline-style strs)]
-             [else strs])))))
+             [else (apply math strs)])))))
 
 (define $$
   (lambda strs
     (make-traverse-element
      (λ [get set!]
        (cond [(handbook-latex-renderer? get) (make-element math-display-style strs)]
-             [else strs])))))
+             [else (apply math strs)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-command
