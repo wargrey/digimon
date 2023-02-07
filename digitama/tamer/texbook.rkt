@@ -17,6 +17,7 @@
 
 (define math-inline-style (make-style "texMathInline" (list 'exact-chars)))
 (define math-display-style (make-style "texMathDisplay" (list 'exact-chars)))
+(define math-eqnarray-style (make-style "texMathArray" (list 'exact-chars)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-prefab-name
@@ -40,6 +41,13 @@
     (make-traverse-element
      (λ [get set!]
        (cond [(handbook-latex-renderer? get) (make-element math-display-style strs)]
+             [else (apply math strs)])))))
+
+(define $$*
+  (lambda strs
+    (make-traverse-element
+     (λ [get set!]
+       (cond [(handbook-latex-renderer? get) (make-element math-eqnarray-style strs)]
              [else (apply math strs)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

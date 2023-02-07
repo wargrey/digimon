@@ -175,5 +175,6 @@
 
 \def\math#1{\ensuremath{#1}}
 \def\texMathInline#1{\ensuremath{#1}}
-\def\texMathDisplay#1{\ifmmode #1\else\[#1\]\fi}
+\def\texMathDisplay#1{\ifmmode #1\else\begin{eqnarray*}#1\end{eqnarray*}\fi}
+\def\texMathArray#1{\begin{eqnarray}#1\end{eqnarray}}
 
