@@ -26,7 +26,7 @@
     (append (list "/nologo" "/FC" "/c" ; compiling only, no link
                   #;"/constexpr"
                   "/EHsc" "/W3" "/sdl" #;'| security features and warnings |)
-            (if (not debug?) (list "/O2 /GL /Zi") (list "/Od" "/ZI" "/JMC"))
+            (if (not debug?) (list "/O2") (list "/Od" "/ZI" "/JMC"))
             (if (not cpp?) (list "/TC" "/std:c17") (list "/TP" "/std:c++17"))
             (if (not verbose?) null (list "/showIncludes")))))
 
