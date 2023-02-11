@@ -55,7 +55,6 @@
       (define stdout-silent? : Boolean (and (memq 'stdout silents) #true))
       (define stderr-silent? : Boolean (and (memq 'stderr silents) #true))
       
-
       (define-values (status datum:out)
         (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
