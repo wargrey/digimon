@@ -124,12 +124,8 @@
                                        objects native))
              specs))))
     
-(define make~cc : Make-Free-Phony
-  (lambda [digimon info-ref]
-    (define debug? : Boolean
-      (let ([debug (or (getenv "GYDM_DEBUG") (getenv "WISEMON_DEBUG"))])
-        (and debug (not (member debug '("no" "false" "0"))))))
-    
+(define make-cc : (-> String (Option Info-Ref) Boolean Any)
+  (lambda [digimon info-ref debug?]
     (define launchers : (Listof CC-Launcher-Name)
       (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref))]
             [real-targets (current-make-real-targets)])
@@ -146,6 +142,14 @@
       
       (wisemon-make (append depcc-specs cc-specs)
                     (wisemon-targets-flatten cc-specs)))))
+
+(define make~release : Make-Free-Phony
+  (lambda [digimon info-ref]
+    (make-cc digimon info-ref #false)))
+
+(define make~debug : Make-Free-Phony
+  (lambda [digimon info-ref]
+    (make-cc digimon info-ref #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-launcher-filter : (-> Any (Option CC-Launcher-Name))
@@ -195,5 +199,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-phony-goal : Wisemon-Phony
-  (wisemon-make-free-phony #:name 'cc #:phony make~cc
-                           #:desc "Build the collection as a C/C++ project preprocessed by Racket"))
+  (wisemon-make-free-phony #:name 'cc #:phony make~release
+                           #:desc "Build the collection as a C/C++ project [RELEASE]"))
+
+(define cc-dbg-phony-goal : Wisemon-Phony
+  (wisemon-make-free-phony #:name 'cc-dbg #:phony make~debug
+                           #:desc "Build the collection as a C/C++ project [DEBUG]"))
