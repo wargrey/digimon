@@ -26,7 +26,7 @@
     (append (list "/nologo" "/FC" "/c" ; compiling only, no link
                   #;"/constexpr"
                   "/EHsc" "/W3" "/sdl" #;'| security features and warnings |)
-            (if (not debug?) (list "/O2 /GL /Zi") (list "/Od" "/ZI" "/JMC"))
+            (if (not debug?) (list "/O2") (list "/Od" "/ZI" "/JMC"))
             (if (not cpp?) (list "/TC" "/std:c17") (list "/TP" "/std:c++17"))
             (if (not verbose?) null (list "/showIncludes")))))
 
@@ -128,14 +128,15 @@
     (msvc-search-path "/LIBPATH:" subpath subpaths)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define &msvc-env : (Boxof (Option Environment-Variables)) (box #false))
+
 (define msvc-path : (-> Symbol (Option Path))
-  (let ([&env : (Boxof (Option Environment-Variables)) (box #false)])
-    (lambda [basename]
-      (or (c-find-binary-path basename)
-          (let ([vcvarsall.bat (msvc-vcvarsall-path #false)])
-            (and vcvarsall.bat
-                 (parameterize ([current-environment-variables (msvc-make-envs vcvarsall.bat &env)])
-                   (c-find-binary-path basename))))))))
+  (lambda [basename]
+    (or (c-find-binary-path basename)
+        (let ([vcvarsall.bat (msvc-vcvarsall-path #false)])
+          (and vcvarsall.bat
+               (parameterize ([current-environment-variables (msvc-make-envs vcvarsall.bat &msvc-env)])
+                 (c-find-binary-path basename)))))))
 
 (define msvc-vcvarsall-path : (case-> [True -> Path]
                                       [Boolean -> (Option Path)])
