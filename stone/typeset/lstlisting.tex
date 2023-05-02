@@ -1,24 +1,30 @@
 \usepackage{listings}
-\usepackage{xcolor}
 
 \lstdefinestyle{tamerstyle}{
-    backgroundcolor=\color{ghostwhite},   
-    commentstyle=\color{green},
-    keywordstyle=\color{magenta},
-    numberstyle=\tiny\color{gray},
-    stringstyle=\color{purple},
+    % backgroundcolor=\color{PaleBlue}, % useless because of gaps between lines
+    commentstyle=\color{CommentColor},
+    keywordstyle=\color{IdentifierColor},
+    numberstyle=\tiny\color{ValueColor},
+    stringstyle=\color{OutputColor},
     basicstyle=\ttfamily\footnotesize,
+    includerangemarker=true,
     breakatwhitespace=false,         
-    breaklines=true,                 
+    breaklines=false,                 
     captionpos=b,                    
     keepspaces=true,                 
     numbers=left,                    
-    numbersep=5pt,                  
+    numbersep=8pt,                  
     showspaces=false,                
     showstringspaces=false,
     showtabs=false,                  
-    tabsize=2
+    tabsize=4
 }
 
 \lstset{style=tamerstyle}
 
+\newcommand{\lstCodeBox}[1]{\colorbox{AliceBlue}{\begin{minipage}[c][][c]{0.985\linewidth}#1\end{minipage}}}
+\newcommand{\lstCodeTitle}[1]{\hfill \fbox{#1}}
+
+\newcommand{\lstFile}[2]{\lstCodeBox{\lstinputlisting[language=#1,mathescape]{#2}}}
+\newcommand{\lstTail}[3]{\lstCodeBox{\lstinputlisting[language=#1,firstline=#2,mathescape]{#3}}}
+\newcommand{\lstChunk}[4]{\lstCodeBox{\lstinputlisting[language=#1,firstline=#2,lastline=#3,mathescape]{#4}}}

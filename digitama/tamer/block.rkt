@@ -44,9 +44,9 @@
                     [tamer-id-caption-style (format-id #'id "tamer-default-~a-caption-style" (syntax->datum #'id))])
        (syntax/loc stx
          (begin (define tamer-id-label (make-parameter (symbol->immutable-string 'Id)))
-                (define tamer-id-label-separator (make-parameter " "))
-                (define tamer-id-label-tail (make-parameter ": "))
-                (define tamer-id-label-style (make-parameter 'tt))
+                (define tamer-id-label-separator (make-parameter #false))
+                (define tamer-id-label-tail (make-parameter #false))
+                (define tamer-id-label-style (make-parameter #false))
                 (define tamer-id-caption-style (make-parameter #false))
 
                 (define tamer-id-type 'id:type)
@@ -88,6 +88,10 @@
                                              (tamer-id-label-separator)))))))]))
 
 (define tamer-indexed-block-hide-chapter-index (make-parameter #false))
+(define tamer-block-label-separator (make-parameter " "))
+(define tamer-block-label-tail (make-parameter ": "))
+(define tamer-block-label-style (make-parameter 'tt))
+(define tamer-block-caption-style (make-parameter #false))
 
 (define tamer-indexed-block
   (lambda [id type label sep tail caption style legend-style label-style caption-style target-style make-block anchor]
@@ -182,11 +186,13 @@
 (define make-block-label
   (lambda [type tag label sep tail chpt-idx0 self-idx label-style target-style]
     (define chpt-idx (and (not (tamer-indexed-block-hide-chapter-index)) (tamer-block-chapter-label chpt-idx0)))
+    (define lbl-sep (or sep (tamer-block-label-separator) " "))
+    (define lbl-tail (or sep (tamer-block-label-tail) ""))
     (make-target-element target-style
-                         (make-element label-style
+                         (make-element (or label-style (tamer-block-label-style))
                                        (if (or chpt-idx)
-                                           (format "~a~a~a.~a~a" label (or sep "") chpt-idx self-idx (or tail ""))
-                                           (format "~a~a~a~a" label (or sep "") self-idx (or tail ""))))
+                                           (format "~a~a~a.~a~a" label lbl-sep chpt-idx self-idx lbl-tail)
+                                           (format "~a~a~a~a" label lbl-sep self-idx lbl-tail)))
                          (tamer-block-sym:tag->tag type tag))))
 
 (define make-block-legend
@@ -195,7 +201,7 @@
                     (list (make-element legend-style
                                         (list (make-block-label type tag label sep tail
                                                                 chpt-idx self-idx label-style target-style)
-                                              (make-element caption-style caption)))))))
+                                              (make-element (or caption-style (tamer-block-caption-style)) caption)))))))
 
 (define make-figure-block
   (lambda [content-style content]

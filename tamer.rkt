@@ -3,6 +3,7 @@
 (provide (all-defined-out) placeholder-style tamer-story-disable-submodule tamer-story-submodule-name)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
+(provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide graphviz graph.gv digraph.gv $ $$ $$*)
 
@@ -42,6 +43,7 @@
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
 (require "digitama/tamer/block.rkt")
+(require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
 (require "digitama/tamer/misc.rkt")
@@ -818,3 +820,8 @@
                          (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
                          (λ [] (make-figure-block style pre-flows)) #true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-tamer-indexed-block code #:anchor #false
+  [srcpath #:language language #:style [style tamer-left-block-style] #:show-filename? [filepath? #true] #:exclude-lastline? [ex-lastline? #true]] #:with [maybe-range]
+  #:λ (make-code-block style language filepath? srcpath ex-lastline? maybe-range))
