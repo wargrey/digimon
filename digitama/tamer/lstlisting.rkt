@@ -8,15 +8,17 @@
 
 (require "misc.rkt")
 (require "block.rkt")
+
 (require "../tamer.rkt")
+(require "../system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-code-block
   (lambda [content-style language filepath? srcpath ex-lastline? maybe-range]
-    (define source (if (path? srcpath) (path->string srcpath) srcpath))
+    (define source (path-normalize srcpath))
     (define lang (value->block language))
     (define code (value->block source))
-    (define range (code-range srcpath maybe-range ex-lastline?))
+    (define range (code-range source maybe-range ex-lastline?))
     (define rel-srcpath (tr-d source))
 
     (define-values (body title)
@@ -67,7 +69,14 @@
 (define code-tail-style (make-style "lstTail" code-style-extras))
 (define code-chunk-style  (make-style "lstChunk" code-style-extras))
 
-(define (value->block v) (make-paragraph placeholder-style v))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define (path-normalize srcpath)
+  (cond [(relative-path? srcpath) (path-normalize (build-path (digimon-path 'zone) srcpath))]
+        [(path? srcpath) (path->string srcpath)]
+        [else srcpath]))
+
+(define (value->block v)
+  (make-paragraph placeholder-style v))
 
 (define (search-linenumber /dev/srcin pattern line0)
   (let search ([nl line0])
