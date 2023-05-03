@@ -56,7 +56,8 @@
                                 (< maybe-start maybe-end)
                                 (cons maybe-start
                                       (if (not ex-lastline?)
-                                          maybe-end (- maybe-end 1)))))]))))))
+                                          maybe-end
+                                          (- maybe-end 1)))))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-style-extras
