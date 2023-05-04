@@ -78,8 +78,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (path-normalize srcpath)
   (cond [(relative-path? srcpath) (path-normalize (build-path (digimon-path 'zone) srcpath))]
-        [(path? srcpath) (path->string srcpath)]
-        [else srcpath]))
+        [else (path->string (simplify-path srcpath))]))
 
 (define (value->block v)
   (make-paragraph placeholder-style v))
