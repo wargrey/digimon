@@ -19,3 +19,9 @@
   (case-lambda
     [(v p1? p2?) (or (p1? v) (p2? v))]
     [(v p1? p2? p3?) (or (p1? v) (p2? v) (p3? v))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bs-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))
+  (lambda [v]
+    (or (byte-regexp? v)
+        (regexp? v))))

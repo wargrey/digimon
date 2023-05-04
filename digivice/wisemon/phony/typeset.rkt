@@ -9,6 +9,7 @@
 (require "../../../digitama/system.rkt")
 (require "../../../filesystem.rkt")
 (require "../../../dtrace.rkt")
+(require "../../../predicate.rkt")
 
 (require "../parameter.rkt")
 (require "../native.rkt")
@@ -74,7 +75,7 @@
       (define load.tex (build-path this-stone "load.tex"))
       (define this-tamer.tex (build-path this-stone "tamer.tex"))
       (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
-      (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-stone) null))
+      (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
 
       (when (tex-info-always-make? typesetting)
@@ -192,7 +193,7 @@
     (let*-values ([(maybe-engines rest) (partition symbol? (if (list? argv) argv (list argv)))]
                   [(tags rest) (partition keyword? rest)]
                   [(maybe-names rest) (partition string? rest)]
-                  [(dependencies rest) (partition typeset-regexp? rest)])
+                  [(dependencies rest) (partition bs-regexp? rest)])
       (tex-info setting.scrbl
                 (let check : (Option Symbol) ([engines : (Listof Symbol) maybe-engines])
                   (and (pair? engines)
@@ -216,11 +217,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-fallback-engine : Symbol 'latex)
-
-(define typeset-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))
-  (lambda [v]
-    (or (byte-regexp? v)
-        (regexp? v))))
 
 (define tex-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]

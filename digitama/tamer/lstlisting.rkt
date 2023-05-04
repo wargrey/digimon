@@ -12,6 +12,8 @@
 (require "../tamer.rkt")
 (require "../system.rkt")
 
+(require "../../predicate.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-code-block
   (lambda [content-style language filepath? srcpath ex-lastline? maybe-range]
@@ -43,7 +45,10 @@
   (lambda [srcpath hints ex-lastline?]
     (define (do-range /dev/srcin hint line0)
       (cond [(exact-positive-integer? hint) hint]
-            [(or (regexp? hint) (byte-regexp? hint)) (search-linenumber /dev/srcin hint line0)]
+            [(bs-regexp? hint) (search-linenumber /dev/srcin hint line0)]
+            [(and (pair? hint) (bs-regexp? (car hint))) ; for overloading functions and methods
+             (search-linenumber /dev/srcin (car hint) line0
+                                (and (bs-regexp? (cdr hint)) (cdr hint)))]
             [else #false]))
 
     (and (pair? hints)
@@ -79,9 +84,11 @@
 (define (value->block v)
   (make-paragraph placeholder-style v))
 
-(define (search-linenumber /dev/srcin pattern line0)
+(define (search-linenumber /dev/srcin pattern line0 [secondary-pattern #false])
   (let search ([nl line0])
     (define line (read-line /dev/srcin))
     (and (string? line)
-         (cond [(regexp-match? pattern line) nl]
+         (cond [(not (regexp-match? pattern line)) (search (+ nl 1))]
+               [(not secondary-pattern) nl]
+               [(regexp-match? secondary-pattern line) nl]
                [else (search (+ nl 1))]))))
