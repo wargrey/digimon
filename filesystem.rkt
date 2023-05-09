@@ -5,6 +5,7 @@
 
 (require racket/path)
 (require racket/file)
+(require racket/port)
 (require racket/list)
 (require racket/string)
 
@@ -52,6 +53,11 @@
                 (define-file-reader id* #:+ Type mode #:lambda id))))]
     [(_ id #:+ Type (~or #:lambda #:λ) do-read) (syntax/loc stx (define-file-reader id #:+ Type #:binary #:lambda do-read))]
     [(_ id #:+ Type (do-read ...)) (syntax/loc stx (define-file-reader id #:+ Type #:binary (do-read ...)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-file-reader path->lines #:+ (Listof String) #:text
+  (lambda [/dev/stdin src]
+    (port->lines /dev/stdin)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dirname : (-> Path-String [#:rootname String] String)

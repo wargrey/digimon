@@ -810,18 +810,43 @@
                                                           (string-join contents (string #\newline))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-tamer-indexed-block figure #:anchor #false
-  [#:style [style tamer-center-block-style]] #:with [pre-flows]
-  #:λ (make-figure-block style pre-flows))
+(define-tamer-indexed-figure figure #:anchor #false
+  [#:style [align-style tamer-center-block-style]] #:with [pre-flows]
+  #:λ (make-figure-block align-style pre-flows))
 
 (define tamer-figure-margin
-  (lambda [id caption #:style [style margin-figure-style] #:legend-style [legend-style chia-legend-style] . pre-flows]
+  (lambda [id caption #:style [align-style margin-figure-style] #:legend-style [legend-style chia-legend-style] . pre-flows]
     (tamer-indexed-block id tamer-figure-type
                          (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
-                         (λ [] (make-figure-block style pre-flows)) #true)))
+                         (λ [] (make-figure-block align-style pre-flows)) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-tamer-indexed-block code #:anchor #false
-  [srcpath #:language language #:style [style tamer-left-block-style] #:show-filename? [filepath? #true] #:exclude-lastline? [ex-lastline? #true]] #:with [maybe-range]
-  #:λ (make-code-block style language filepath? srcpath ex-lastline? maybe-range))
+(define-tamer-indexed-list code #:anchor #false
+  [srcpath #:language [language #false] #:style [align-style tamer-left-block-style] #:show-filename? [filepath? #true] #:exclude-lastline? [ex-lastline? #true]] #:with [maybe-range]
+  #:λ (make-code-block align-style language filepath? srcpath ex-lastline? maybe-range))
+
+(define tamer-code-class
+  (lambda [#:alignment [alignment 'here] #:language [fallback-lang #false]
+           id caption srcpath]
+    (define ext (path-get-extension srcpath))
+    (define language (or (source->language srcpath) fallback-lang))
+    (define-values (pxstart pxend) (lang->class-range language id))
+    
+    ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
+     #:language (or language fallback-lang)
+     #:exclude-lastline? #false
+     (merge-ext+id ext id) caption srcpath pxstart pxend)))
+
+(define tamer-code-function
+  (lambda [#:language [fallback-lang #false] #:alignment [alignment 'here]
+           #:ns [ns #false] #:subpattern [subpattern #false] #:alt-pxend [alt-pxend #false]
+           id caption srcpath]
+    (define ext (path-get-extension srcpath))
+    (define language (or (source->language srcpath) fallback-lang))
+    (define-values (pxstart pxend) (lang->function-range language id ns))
+
+    ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
+     #:language (or language fallback-lang)
+     #:exclude-lastline? #false
+     (merge-ext+id ext id) caption srcpath (cons pxstart subpattern) pxend)))

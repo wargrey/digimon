@@ -19,13 +19,11 @@
 \newlength{\FigOrigskip}
 \FigOrigskip=\parskip
 
-% Put this before the figure content, so that a hyperref goes to
-% the start of the content:
+% Put this before the figure content, so that a hyperref goes to the start of the content:
 \newcommand{\FigureSetRef}{\refstepcounter{figure}}
 
 \newenvironment{Figure}{\begin{figure}\FigureSetRef}{\end{figure}}
-\newenvironment{FigureMulti}{\begin{figure*}[t!p]\FigureSetRef}{\end{figure*}}
-\newenvironment{FigureMultiWide}{\begin{FigureMulti}\FigureSetRef}{\end{FigureMulti}}
+\newenvironment{FigureMultiWide}{\begin{figure*}[t!p]\FigureSetRef}{\end{figure*}}
 \newenvironment{Herefigure}{\begin{figure}[ht!]\FigureSetRef\centering}{\end{figure}}
 
 \newenvironment{Centerfigure}{\begin{Xfigure}\centering\item}{\end{Xfigure}}

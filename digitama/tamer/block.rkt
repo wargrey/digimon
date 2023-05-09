@@ -23,18 +23,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-tamer-indexed-block stx)
-  (syntax-parse stx #:datum-literals []
-    [(_ id (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
-                 (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
-        ...
-        [args ...] #:with [pre-flows] #:λ make-block ...)
+  (syntax-case stx []
+    [(_ id #:anchor anchor #:target-style target-style
+        #:with [pre-flows args ...] #:do make-block ... #:for [[tamer-id tamer-style] ...])
      (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->immutable-string (syntax->datum #'id)))))]
                     [id:type (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
-                    [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id-type (format-id #'id "tamer-~a-type" (syntax->datum #'id))]
-                    [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
-                    [tamer-id** (format-id #'id "tamer-~a**" (syntax->datum #'id))]
-                    [tamer-id-here (format-id #'id "tamer-~a-here" (syntax->datum #'id))]
                     [tamer-id-ref (format-id #'id "tamer-~a-ref" (syntax->datum #'id))]
                     [Tamer-Id-ref (format-id #'id "Tamer-~a-ref" (syntax->datum #'Id))]
                     [tamer-id-label (format-id #'id "tamer-default-~a-label" (syntax->datum #'id))]
@@ -48,33 +42,15 @@
                 (define tamer-id-label-tail (make-parameter #false))
                 (define tamer-id-label-style (make-parameter #false))
                 (define tamer-id-caption-style (make-parameter #false))
-
                 (define tamer-id-type 'id:type)
                 
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figure-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         tamer-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
                                          (λ [] make-block ...) 'anchor)))
+                ...
 
-                (define tamer-id*
-                  (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figuremulti-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
-                                         (λ [] make-block ...) 'anchor)))
-
-                (define tamer-id**
-                  (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         figuremultiwide-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
-                                         (λ [] make-block ...) 'anchor)))
-
-                (define tamer-id-here
-                  (lambda [id caption args ... . pre-flows]
-                    (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         herefigure-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
-                                         (λ [] make-block ...) 'anchor)))
-                
                 (define tamer-id-ref
                   (lambda [#:elem [ref-element values] id]
                     (tamer-indexed-block-ref 'id:type id ref-element
@@ -86,6 +62,24 @@
                     (tamer-indexed-block-ref 'id:type id ref-element
                                              (string-titlecase (tamer-id-label))
                                              (tamer-id-label-separator)))))))]))
+
+(define-syntax (define-tamer-indexed-figure stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ id
+        (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
+              (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
+        ...
+        [args ...] #:with [pre-flows] #:λ make-block ...)
+     (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
+                    [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
+                    [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
+                    [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
+       (syntax/loc stx
+         (define-tamer-indexed-block id #:anchor anchor #:target-style target-style
+           #:with [pre-flows args ...] #:do make-block ...
+           #:for [[tamer-id figure-style]
+                  [tamer-id* figuremultiwide-style]
+                  [tamer-id! herefigure-style]])))]))
 
 (define tamer-indexed-block-hide-chapter-index (make-parameter #false))
 (define tamer-block-label-separator (make-parameter " "))
@@ -150,8 +144,9 @@
          (traverse-indexed-tagbase set! index-type global-tags get)
 
          (make-nested-flow block-style
-                           (cond [(list? block) (if (not maybe-anchor) block (cons maybe-anchor block))]
-                                 [else (if (not maybe-anchor) (list block) (list maybe-anchor block))])))))))
+                           (if (list? block)
+                               (if (not maybe-anchor) block (cons maybe-anchor block))
+                               (if (not maybe-anchor) (list block) (list maybe-anchor block)))))))))
 
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]
@@ -226,7 +221,6 @@
 (define marginfigure-style  (make-style "marginfigure" figure-style-extras))
 (define herefigure-style  (make-style "Herefigure" figure-style-extras))
 (define figure-style (make-style "Figure" figure-style-extras))
-(define figuremulti-style (make-style "FigureMulti" figure-style-extras))
 (define figuremultiwide-style (make-style "FigureMultiWide" figure-style-extras))
 
 (define figureinside-style (make-style "FigureInside" figure-style-extras))

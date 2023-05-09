@@ -23,7 +23,7 @@
 \lstset{style=tamerstyle}
 
 \newcommand{\lstCodeBox}[1]{\colorbox{AliceBlue}{\begin{minipage}[c][][c]{0.985\linewidth}#1\end{minipage}}}
-\newcommand{\lstCodeTitle}[1]{\hfill \fbox{\scriptsize{#1}}}
+\newcommand{\lstCodeTitle}[2]{\hfill \fbox{\scriptsize{#1}:#2}}
 
 \newcommand{\lstFile}[2]{\lstCodeBox{\lstinputlisting[language=#1,mathescape]{#2}}}
 \newcommand{\lstTail}[3]{\lstCodeBox{\lstinputlisting[language=#1,firstline=#2,mathescape]{#3}}}
