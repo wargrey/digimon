@@ -13,6 +13,8 @@
 (require scribble/latex-properties)
 
 (require "../tamer.rkt")
+
+(require "misc.rkt")
 (require "backend.rkt")
 
 (require (for-syntax racket/base))
@@ -24,8 +26,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-tamer-indexed-block stx)
   (syntax-case stx []
-    [(_ id #:anchor anchor #:target-style target-style
-        #:with [pre-flows args ...] #:do make-block ... #:for [[tamer-id tamer-style] ...])
+    [(_ id #:anchor anchor #:target-style target-style #:legend-style legend-style
+        #:with [legend pre-flows args ...] #:do make-block ... #:for [[tamer-id tamer-style] ...])
      (with-syntax* ([Id (datum->syntax #'id (string->symbol (string-titlecase (symbol->immutable-string (syntax->datum #'id)))))]
                     [id:type (format-id #'id "digimon:tamer:~a" (syntax->datum #'id))]
                     [tamer-id-type (format-id #'id "tamer-~a-type" (syntax->datum #'id))]
@@ -47,8 +49,8 @@
                 (define tamer-id
                   (lambda [id caption args ... . pre-flows]
                     (tamer-indexed-block id 'id:type (tamer-id-label) (tamer-id-label-separator) (tamer-id-label-tail) caption
-                                         tamer-style tamer-jfp-legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
-                                         (λ [] make-block ...) 'anchor)))
+                                         tamer-style legend-style (tamer-id-label-style) (tamer-id-caption-style) target-style
+                                         (λ [legend] make-block ...) 'anchor)))
                 ...
 
                 (define tamer-id-ref
@@ -69,14 +71,15 @@
         (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
               (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
         ...
-        [args ...] #:with [pre-flows] #:λ make-block ...)
+        [args ...] #:with [legend pre-flows] #:λ make-block ...)
      (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
        (syntax/loc stx
-         (define-tamer-indexed-block id #:anchor anchor #:target-style target-style
-           #:with [pre-flows args ...] #:do make-block ...
+         (define-tamer-indexed-block id
+           #:anchor anchor #:target-style target-style #:legend-style tamer-jfp-legend-style
+           #:with [legend pre-flows args ...] #:do make-block ...
            #:for [[tamer-id figure-style]
                   [tamer-id* figuremultiwide-style]
                   [tamer-id! herefigure-style]])))]))
@@ -98,7 +101,7 @@
          (make-block-legend type sym:tag label sep tail caption
                             chapter-index current-index
                             legend-style label-style caption-style target-style))
-       (values sym:tag (list (make-block) legend)))
+       (values sym:tag (make-block legend)))
      type style)))
 
 (define tamer-indexed-block-ref
@@ -111,8 +114,9 @@
        (if (not maybe-index)
            (racketerror (ref-element (~a label (or sep "") chpt-idx #\. '?)))
            (make-link-element #false
-                              (list (ref-element (cond [(not chpt-idx) (~a label (or sep "") maybe-index)]
-                                                       [else (~a label (or sep "") chpt-idx #\. maybe-index)])))
+                              (list (ref-element (if (not chpt-idx)
+                                                     (~a label (or sep "") maybe-index)
+                                                     (~a label (or sep "") chpt-idx #\. maybe-index))))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
      index-type sym:tag)))
 
@@ -192,15 +196,15 @@
 
 (define make-block-legend
   (lambda [type tag label sep tail caption chpt-idx self-idx legend-style label-style caption-style target-style]
-    (make-paragraph centertext-style
-                    (list (make-element legend-style
-                                        (list (make-block-label type tag label sep tail
-                                                                chpt-idx self-idx label-style target-style)
-                                              (make-element (or caption-style (tamer-block-caption-style)) caption)))))))
+    (make-element (or legend-style placeholder-style)
+                  (list (make-block-label type tag label sep tail
+                                          chpt-idx self-idx label-style target-style)
+                        (make-element (or caption-style (tamer-block-caption-style)) caption)))))
 
 (define make-figure-block
-  (lambda [content-style content]
-    (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))))
+  (lambda [legend content-style content]
+    (list (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))
+          (make-paragraph centertext-style (list legend)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-block-source
@@ -254,4 +258,5 @@
 (define tamer-center-block-style (make-style "Centerfigure" figure-style-extras))
 (define tamer-left-block-style (make-style "Leftfigure" figure-style-extras))
 (define tamer-right-block-style (make-style "Rightfigure" figure-style-extras))
+
 (define tamer-jfp-legend-style (make-style "JFPLegend" figure-style-extras))

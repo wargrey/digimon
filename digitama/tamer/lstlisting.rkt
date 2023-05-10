@@ -32,21 +32,21 @@
         (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
               (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
         ...
-        [args ...] #:with [pre-flows] #:λ make-block ...)
+        [args ...] #:with [legend pre-flows] #:λ make-block ...)
      (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
        (syntax/loc stx
-         (define-tamer-indexed-block id #:anchor anchor #:target-style target-style
-           #:with [pre-flows args ...] #:do make-block ...
+         (define-tamer-indexed-block id #:anchor anchor #:target-style target-style #:legend-style #false
+           #:with [legend pre-flows args ...] #:do make-block ...
            #:for [[tamer-id figure-style]
                   [tamer-id* figuremultiwide-style]
                   [tamer-id! herefigure-style]])))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-code-block
-  (lambda [content-style language filepath? srcpath ex-lastline? maybe-range]
+  (lambda [legend content-style language srcpath ex-lastline? maybe-range]
     (define source (path-normalize srcpath))
     (define code (value->block source))
     (define range (code-range source maybe-range ex-lastline?))
@@ -79,15 +79,15 @@
                        range0))]
             [else (values (make-nested-flow code-file-style (list lang code)) "1")]))
     (make-nested-flow content-style
-                      (cond [(not filepath?) (list body)]
-                            [else (list (make-nested-flow code-title-style
-                                                          (list (value->block rel-srcpath)
-                                                                (make-paragraph input-color range-start)))
-                                        body)]))))
+                      (list (make-nested-flow code-title-style
+                                              (list (make-paragraph placeholder-style legend)
+                                                    (value->block rel-srcpath)
+                                                    (make-paragraph input-color range-start)))
+                            body))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-range
-  (lambda [srcpath hints ex-lastline?]
+  (lambda [srcpath hints open-range?]
     (define (do-range srclines hint line0)
       (cond [(exact-positive-integer? hint) (values hint (if (< hint (length srclines)) (drop hint) null))]
             [(bs-regexp? hint) (search-linenumber srclines hint line0)]
@@ -103,11 +103,10 @@
                  [(not maybe-start) maybe-start]
                  [else (let-values ([(maybe-end _) (do-range rest (cadr hints) (+ maybe-start 1))])
                          (and maybe-end
-                              (< maybe-start maybe-end)
-                              (cons maybe-start
-                                    (if (not ex-lastline?)
-                                        maybe-end
-                                        (- maybe-end 1)))))])))))
+                              (let-values ([(s e) (cond [(not open-range?) (values maybe-start maybe-end)]
+                                                        [else (values (+ maybe-start 1) (- maybe-end 1))])])
+                                (and (<= s e)
+                                     (cons s e)))))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-style-extras
@@ -146,17 +145,25 @@
                  [else (search (+ nl 1) rest)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (merge-ext+id ext id)
-  (if ext (format "~a:~a" (subbytes ext 1) id) id))
+(define (merge-ext+id lang ext id [cls-name #false])
+  (format "~a~a"
+    (if ext (string-append (bytes->string/utf-8 (subbytes ext 1)) ":") "")
+    (cond [(not cls-name) id]
+          [else (case (string->symbol lang)
+                  [(C++) (format "~a::~a" cls-name id)]
+                  [(Java) (format "~a.~a" cls-name id)]
+                  [else id])])))
 
 (define (lang->class-range lang id)
   (case (string->symbol lang)
-    [(C++) (values (pregexp (format "class\\s+~a\\s+(:[^{]+)?[{]" id)) #px"[}];")]
-    [(Java) (values (format "(class|interface|enum)\\s+~a\\s+(extends[^{]+)?(implements[^{]+)?[{]" id) #px"^[}]")]
-    [else (error 'lang->class-range "unsupported language: %s" lang)]))
+    [(C++) (values (pregexp (format "class\\s+~a\\s*(:[^{]+)?[{]?" id)) #px"[}];")]
+    [(Java) (values (pregexp (format "(class|interface|enum)\\s+~a\\s*((extends|implements)[^{]+)?[{]?" id)) #px"^[}]")]
+    [else (error 'lang->class-range "unsupported language: ~a" lang)]))
 
 (define (lang->function-range lang id ns)
   (case (string->symbol lang)
-    [(C++) (values (pregexp (if ns (format "~a::~a\\s*[(][^)]*[)]\\s*[{]" ns id) (format "~a\\s*[(][^)]*[)]\\s*[{]" id))) #px"^[}]")]
-    [(Java) (values (pregexp (format "~a\\s*[(][^)]*[)]\\s*(throws\\s+[^{]+)?[{]" id)) #px"^\\s{1,4}[}]")]
-    [else (error 'lang->function-range "unsupported language: %s" lang)]))
+    [(C++)
+     (let ([full-id (if (not ns) (format "~a" id) (format "~a::~a" ns id))])
+       (values (pregexp (string-append full-id "\\s*[(][^)]*[)]([^{]*)[{;]?")) #px"^[}]"))]
+    [(Java) (values (pregexp (format "~a\\s*[(][^)]*[)]\\s*(throws\\s+[^{]+)?[{]" id)) #px"^( {1,4}|\t{1})[}]")]
+    [else (error 'lang->function-range "unsupported language: ~a" lang)]))

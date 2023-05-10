@@ -35,7 +35,7 @@
       (define line (read-line /dev/ymlin))
 
       (when (string? line)
-        (cond [(regexp-match? #px"^[-]+$" line) (newline)]
+        (cond [(regexp-match? #px"^[-]+$" line) (void)]
               [(string-prefix? line "#") (skip-comment)]
               [else (skip-comment)])))
     

@@ -23,7 +23,7 @@
 \lstset{style=tamerstyle}
 
 \newcommand{\lstCodeBox}[1]{\colorbox{AliceBlue}{\begin{minipage}[c][][c]{0.985\linewidth}#1\end{minipage}}}
-\newcommand{\lstCodeTitle}[2]{\hfill \fbox{\scriptsize{#1}:#2}}
+\newcommand{\lstCodeTitle}[3]{$\langle$ #1 $\rangle$ \textbf{$::\equiv$} \hfill \fbox{\scriptsize{#2} $\arrowvert$ #3}}
 
 \newcommand{\lstFile}[2]{\lstCodeBox{\lstinputlisting[language=#1,mathescape]{#2}}}
 \newcommand{\lstTail}[3]{\lstCodeBox{\lstinputlisting[language=#1,firstline=#2,mathescape]{#3}}}

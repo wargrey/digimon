@@ -811,8 +811,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
-  [#:style [align-style tamer-center-block-style]] #:with [pre-flows]
-  #:λ (make-figure-block align-style pre-flows))
+  [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]
+  #:λ (make-figure-block legend align-style pre-flows))
 
 (define tamer-figure-margin
   (lambda [id caption #:style [align-style margin-figure-style] #:legend-style [legend-style chia-legend-style] . pre-flows]
@@ -823,11 +823,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
-  [srcpath #:language [language #false] #:style [align-style tamer-left-block-style] #:show-filename? [filepath? #true] #:exclude-lastline? [ex-lastline? #true]] #:with [maybe-range]
-  #:λ (make-code-block align-style language filepath? srcpath ex-lastline? maybe-range))
+  [srcpath #:language [language #false] #:style [align-style tamer-left-block-style] #:open-range? [open-range? #false]]
+  #:with [legend maybe-range]
+  #:λ (make-code-block legend align-style language srcpath open-range? maybe-range))
 
 (define tamer-code-class
-  (lambda [#:alignment [alignment 'here] #:language [fallback-lang #false]
+  (lambda [#:alignment [alignment 'here] #:language [fallback-lang #false] #:alt-pxend [alt-pxend #false]
            id caption srcpath]
     (define ext (path-get-extension srcpath))
     (define language (or (source->language srcpath) fallback-lang))
@@ -835,12 +836,13 @@
     
     ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
      #:language (or language fallback-lang)
-     #:exclude-lastline? #false
-     (merge-ext+id ext id) caption srcpath pxstart pxend)))
+     (merge-ext+id language ext id) caption srcpath
+     pxstart (or alt-pxend pxend))))
 
 (define tamer-code-function
   (lambda [#:language [fallback-lang #false] #:alignment [alignment 'here]
-           #:ns [ns #false] #:subpattern [subpattern #false] #:alt-pxend [alt-pxend #false]
+           #:class [cls-name #false] #:ns [ns #false]
+           #:subpattern [subpattern #false] #:alt-pxend [alt-pxend #false]
            id caption srcpath]
     (define ext (path-get-extension srcpath))
     (define language (or (source->language srcpath) fallback-lang))
@@ -848,5 +850,5 @@
 
     ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
      #:language (or language fallback-lang)
-     #:exclude-lastline? #false
-     (merge-ext+id ext id) caption srcpath (cons pxstart subpattern) pxend)))
+     (merge-ext+id language ext id cls-name) caption srcpath
+     (cons pxstart subpattern) (or alt-pxend pxend))))
