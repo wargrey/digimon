@@ -823,32 +823,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
-  [srcpath #:language [language #false] #:style [align-style tamer-left-block-style] #:open-range? [open-range? #false]]
+  [srcpath #:language [language #false] #:rootdir [rootdir #false] #:style [align-style tamer-left-block-style] #:oc-ness [ocness 'close]]
   #:with [legend maybe-range]
-  #:λ (make-code-block legend align-style language srcpath open-range? maybe-range))
+  #:λ (make-code-block legend align-style language rootdir srcpath ocness maybe-range))
 
 (define tamer-code-class
-  (lambda [#:alignment [alignment 'here] #:language [fallback-lang #false] #:alt-pxend [alt-pxend #false]
+  (lambda [#:alignment [alignment 'here] #:alt-pxend [alt-pxend #false]
+           #:language [alt-lang #false] #:rootdir [rootdir #false]
            id caption srcpath]
     (define ext (path-get-extension srcpath))
-    (define language (or (source->language srcpath) fallback-lang))
+    (define language (or alt-lang (source->language srcpath)))
     (define-values (pxstart pxend) (lang->class-range language id))
     
     ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
-     #:language (or language fallback-lang)
+     #:language language #:rootdir rootdir
      (merge-ext+id language ext id) caption srcpath
      pxstart (or alt-pxend pxend))))
 
 (define tamer-code-function
-  (lambda [#:language [fallback-lang #false] #:alignment [alignment 'here]
+  (lambda [#:language [alt-lang #false] #:rootdir [rootdir #false] #:alignment [alignment 'here]
            #:class [cls-name #false] #:ns [ns #false]
            #:subpattern [subpattern #false] #:alt-pxend [alt-pxend #false]
            id caption srcpath]
     (define ext (path-get-extension srcpath))
-    (define language (or (source->language srcpath) fallback-lang))
+    (define language (or alt-lang (source->language srcpath)))
     (define-values (pxstart pxend) (lang->function-range language id ns))
 
     ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
-     #:language (or language fallback-lang)
+     #:language language #:rootdir rootdir
      (merge-ext+id language ext id cls-name) caption srcpath
      (cons pxstart subpattern) (or alt-pxend pxend))))

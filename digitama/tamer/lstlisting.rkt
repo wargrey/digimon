@@ -8,6 +8,7 @@
 
 (require racket/list)
 (require racket/symbol)
+(require racket/string)
 
 (require "misc.rkt")
 (require "block.rkt")
@@ -46,17 +47,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-code-block
-  (lambda [legend content-style language srcpath ex-lastline? maybe-range]
-    (define source (path-normalize srcpath))
+  (lambda [legend content-style language rootdir0 srcpath ocness maybe-range]
+    (define rootdir (path-normalize rootdir0 (digimon-path 'zone)))
+    (define source (path-normalize srcpath rootdir))
     (define code (value->block source))
-    (define range (code-range source maybe-range ex-lastline?))
-    (define rel-srcpath (tr-d source))
+    (define range (code-range source maybe-range ocness))
+    (define rel-srcpath (string-replace source rootdir ""))
 
     (define lang
       (value->block
        ;;; TODO, filter the language
        (cond [(string? language) language]
-             [else (or (source->language source)
+             [else (or (source->language source rootdir)
                        (if (symbol? language)
                            (symbol->immutable-string language)
                            (format "~a" (path-get-extension source))))])))
@@ -87,7 +89,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-range
-  (lambda [srcpath hints open-range?]
+  (lambda [srcpath hints ocness]
     (define (do-range srclines hint line0)
       (cond [(exact-positive-integer? hint) (values hint (if (< hint (length srclines)) (drop hint) null))]
             [(bs-regexp? hint) (search-linenumber srclines hint line0)]
@@ -103,8 +105,11 @@
                  [(not maybe-start) maybe-start]
                  [else (let-values ([(maybe-end _) (do-range rest (cadr hints) (+ maybe-start 1))])
                          (and maybe-end
-                              (let-values ([(s e) (cond [(not open-range?) (values maybe-start maybe-end)]
-                                                        [else (values (+ maybe-start 1) (- maybe-end 1))])])
+                              (let-values ([(s e) (case ocness
+                                                    [(close closed) (values maybe-start maybe-end)]
+                                                    [(close-open) (values maybe-start (- maybe-end 1))]
+                                                    [(open-close) (values (+ maybe-start 1) maybe-end)]
+                                                    [else (values (+ maybe-start 1) (- maybe-end 1))])])
                                 (and (<= s e)
                                      (cons s e)))))])))))
 
@@ -120,12 +125,14 @@
 (define code-chunk-style  (make-style "lstChunk" code-style-extras))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define (path-normalize srcpath)
-  (cond [(relative-path? srcpath) (path-normalize (build-path (digimon-path 'zone) srcpath))]
-        [else (path->string (simplify-path srcpath))]))
+(define (path-normalize srcpath curdir)
+  (cond [(not srcpath) (path-normalize curdir curdir)]
+        [(symbol? srcpath) (digimon-path srcpath)]
+        [(absolute-path? srcpath) (path->string (simplify-path srcpath))]
+        [else (path-normalize (build-path curdir srcpath) curdir)]))
 
-(define (source->language srcpath)
-  (define gf (git-file (path-normalize srcpath) 0 0 #""))
+(define (source->language srcpath [rootdir #false])
+  (define gf (git-file (path-normalize srcpath (or rootdir (digimon-path 'zone))) 0 0 #""))
   (define gl (git-files->langfiles (list gf) null #false))
   
   (and (= (hash-count gl) 1)
