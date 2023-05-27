@@ -108,9 +108,9 @@
                            [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
                                    (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
-(define c-source->shared-object-file : (->* (Path-String Boolean) (Boolean) (Option Path))
-  (lambda [c contained-in-package? [debug? #false]]
-    (define basename : (Option Path) (file-name-from-path c))
+(define c-source->shared-object-file : (->* (Path-String Boolean) ((Option String) Boolean) (Option Path))
+  (lambda [c contained-in-package? [name #false] [debug? #false]]
+    (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])

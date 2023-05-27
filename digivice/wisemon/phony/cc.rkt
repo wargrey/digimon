@@ -101,18 +101,24 @@
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define cpp? : Boolean (eq? lang 'cpp))
-      (define native : Path (assert (c-source->executable-file native.c #false (cc-launcher-info-name info) debug?)))
+      (define native : Path
+        (assert
+         (if (cc-launcher-info-subsystem info)
+             (c-source->executable-file native.c #false (cc-launcher-info-name info) debug?)
+             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) debug?))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang debug?)))
       (define objects : (Listof Path)
-        (let ([depobjs (c-headers->files (c-include-headers native.c (cc-launcher-info-includes info) #:check-source? #true #:topic (current-make-phony-goal))
+        (let ([depobjs (c-headers->files (c-include-headers #:check-source? #true #:topic (current-make-phony-goal)
+                                                            native.c (cc-launcher-info-includes info))
                                          (λ [[dep.c : Path]] (c-source->object-file dep.c lang debug?)))])
           (remove-duplicates
            (cond [(member native.o depobjs) depobjs]
                  [else (cons native.o depobjs)]))))
 
       ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers native.c (cc-launcher-info-includes info) #:topic (current-make-phony-goal)))
+      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers #:topic (current-make-phony-goal)
+                                                                          native.c (cc-launcher-info-includes info)))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:debug? debug?
                                           #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
@@ -123,7 +129,7 @@
                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                        objects native))
              specs))))
-    
+
 (define make-cc : (-> String (Option Info-Ref) Boolean Any)
   (lambda [digimon info-ref debug?]
     (define launchers : (Listof CC-Launcher-Name)
@@ -183,6 +189,7 @@
                      [(C++ c++ Cpp cpp) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
                      [(console) (partition lang biname (or subsystem 'CONSOLE) entry srehto rest)]
                      [(windows desktop) (partition lang biname (or subsystem 'WINDOWS) entry srehto rest)]
+                     [(so dll dylib) (partition lang biname (or subsystem #false) entry srehto rest)]
                      [else (partition lang biname (or subsystem self) entry srehto rest)])]
                   [(keyword? self) (partition lang biname subsystem (or entry self) srehto rest)]
                   [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
