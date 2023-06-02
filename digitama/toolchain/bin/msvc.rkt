@@ -25,7 +25,8 @@
   (lambda [system cpp? hints verbose? debug?]
     (append (list "/nologo" "/FC" "/c" ; compiling only, no link
                   #;"/constexpr"
-                  "/EHsc" "/W3" "/sdl" #;'| security features and warnings |)
+                  "/EHsc" "/W3" "/sdl" ; security features and warnings
+                  "/utf-8")
             (if (not debug?) (list "/O2") (list "/Od" "/ZI" "/JMC"))
             (if (not cpp?) (list "/TC" "/std:c17") (list "/TP" "/std:c++17"))
             (if (not verbose?) null (list "/showIncludes")))))
@@ -47,7 +48,7 @@
 (define msvc-linker-flags : LD-Flags
   (lambda [system cpp? dll? hints verbose? pass-to-linker?]
     (if (not pass-to-linker?)
-        (append (list "/nologo")
+        (append (list "/nologo" "/utf-8")
                 (if (not dll?) (list "/MT") (list "/MD" "/LD")))
         (append (if (not verbose?) null (list "/VERBOSE"))))))
 
