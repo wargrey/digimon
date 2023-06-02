@@ -51,8 +51,9 @@
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
-                    (let ([objects (cons c.o (c-headers->files (c-include-headers c #:check-source? #true #:topic (current-make-phony-goal)) c-source->object-file))]
-                          [c.so (assert (c-source->shared-object-file c contained-in-package?) path?)])
+                    (let* ([c.so (assert (c-source->shared-object-file c contained-in-package?) path?)]
+                           [objects.h (c-include-headers c #:check-source? #true #:topic (current-make-phony-goal))]
+                           [objects (cons c.o (c-headers->files objects.h c-source->object-file))])
                       (cons (wisemon-spec c.so #:^ objects
                                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                                       #:subsystem #false #:entry #false
