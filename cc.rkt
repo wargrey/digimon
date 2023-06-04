@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide Native-Subpath-Datum native-subpath-datum?)
 (provide cc ld CC LD)
 
 (require racket/list)
@@ -98,33 +99,33 @@
                        [else (if (string? layout) (list layout) null)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-source->object-file : (->* (Path-String) ((Option Symbol) Boolean) (Option Path))
-  (lambda [c [lang #false] [debug? #false]]
+(define c-source->object-file : (->* (Path-String) ((Option Symbol) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
+  (lambda [c [lang #false] #:subnative [subnative #false] #:debug? [debug? #false]]
     (define basename : (Option Path) (file-name-from-path c))
 
     (and (path? basename)
-         (build-path (native-rootdir/compiled c debug?)
+         (build-path (native-rootdir/compiled c debug? subnative)
                      (cond [(not lang) (path-replace-extension basename object.ext)]
                            [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
                                    (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
-(define c-source->shared-object-file : (->* (Path-String Boolean) ((Option String) Boolean) (Option Path))
-  (lambda [c contained-in-package? [name #false] [debug? #false]]
+(define c-source->shared-object-file : (->* (Path-String Boolean) ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
+  (lambda [c contained-in-package? [name #false] #:subnative [subnative #false] #:debug? [debug? #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])
-           (cond [(and contained-in-package?) (build-path (native-rootdir c) libname.so)]
-                 [else (build-path (native-rootdir/compiled c debug?) libname.so)])))))
+           (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) libname.so)]
+                 [else (build-path (native-rootdir/compiled c debug? subnative) libname.so)])))))
 
-(define c-source->executable-file : (->* (Path-String Boolean) ((Option String) Boolean) (Option Path))
-  (lambda [c contained-in-package? [name #false] [debug? #false]]
+(define c-source->executable-file : (->* (Path-String Boolean) ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
+  (lambda [c contained-in-package? [name #false] #:subnative [subnative #false] #:debug? [debug? #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let ([bname (path-replace-extension basename binary.ext)])
-           (cond [(and contained-in-package?) (build-path (native-rootdir c) bname)]
-                 [else (build-path (native-rootdir/compiled c debug?) bname)])))))
+           (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) bname)]
+                 [else (build-path (native-rootdir/compiled c debug? subnative) bname)])))))
 
 (define c-include-headers : (->* (Path-String) ((Listof C-Toolchain-Path-String) #:check-source? Boolean #:topic Symbol) (Listof Path))
   (lambda [c [incdirs null] #:check-source? [recur? #false] #:topic [topic 'c-include-headers]]

@@ -22,37 +22,6 @@
       ;;; which have already been compiled into <path:compiled>.
       (use-compiled-file-paths (list (build-path "compiled"))))
 
-(define string-null? : (-> Any Boolean : #:+ String)
-  (lambda [str]
-    (and (string? str)
-         (string=? str ""))))
-
-(define maybe? : (All (a) (-> (Option a) (-> a Boolean) Boolean))
-  (lambda [val ?]
-    (or (not val)
-        (and val (? val)))))
-
-(define read:+? : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
-  (lambda [src type? #:from-string [? #true]]
-    (define v : Any
-      (cond [(and ? (string? src)) (read (open-input-string src))]
-            [(and ? (bytes? src)) (read (open-input-bytes src))]
-            [(or (path? src) (path-string? src)) (call-with-input-file src read)]
-            [(input-port? src) (read src)]
-            [else src]))
-    (cond [(type? v) v]
-          [(not (eof-object? v)) (raise-result-error 'read:+? (~a (object-name type?)) v)]
-          [else (raise (make-exn:fail:read:eof (format "read:+?: ~a: unexpected <eof>" (object-name type?))
-                                               (current-continuation-marks)
-                                               null))])))
-
-(define hash-ref:+? : (All (a b) (->* (HashTableTop Any (-> Any Boolean : #:+ a)) ((-> b)) (U a b)))
-  (lambda [src key type? [defval #false]]
-    (define v : Any (if defval (hash-ref src key defval) (hash-ref src key)))
-    (cond [(type? v) v]
-          [(not defval) (raise-result-error 'hash-ref:+? (~a (object-name type?)) v)]
-          [else (defval)])))
-
 (define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
   (lambda [e #:level [level 'error] #:detail [detail #false]]
     (vector level (exn-message e) detail (datum-name e)

@@ -7,6 +7,7 @@
 (require "../../../cc.rkt")
 
 (require "../../../filesystem.rkt")
+(require "../../../predicate.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
@@ -49,9 +50,9 @@
                     (cond [(pair? info-p) info-p]
                           [else (cons p (list 'CONSOLE))]))))))
 
-(define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Boolean Wisemon-Specification)
+(define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
   (let ([cpp-src-filter (λ [[file : Path]] : Boolean (regexp-match? #px"\\.c(pp)?$" file))])
-    (lambda [launchers incdirs debug?]
+    (lambda [launchers incdirs subnative debug?]
       (define-values (macros includes)
         (let-values ([(ms is) (for/fold ([macros : (Listof C-Compiler-Macro) null]
                                          [includes : (Listof C-Toolchain-Path-String) incdirs])
@@ -79,14 +80,14 @@
         (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
         (define deps.h : (Listof Path) (c-include-headers dep.c includes #:topic (current-make-phony-goal)))
         
-        (list* (let ([dep++.o (assert (c-source->object-file dep.c 'cpp debug?))])
+        (list* (let ([dep++.o (assert (c-source->object-file dep.c 'cpp #:subnative subnative #:debug? debug?))])
                  (wisemon-spec dep++.o #:^ (cons dep.c deps.h)
                                #:- (c-compile #:cpp? #true #:verbose? (compiler-verbose) #:debug? debug?
                                               #:includes includes #:macros macros
                                               dep.c dep++.o)))
                
                (cond [(not cpp-file?)
-                      (let ([dep.o (assert (c-source->object-file dep.c 'c debug?))])
+                      (let ([dep.o (assert (c-source->object-file dep.c 'c #:subnative subnative #:debug? debug?))])
                         (cons (wisemon-spec dep.o #:^ (cons dep.c deps.h)
                                             #:- (c-compile #:cpp? #false #:verbose? (compiler-verbose) #:debug? debug?
                                                            #:includes includes #:macros macros
@@ -94,8 +95,8 @@
                               specs))]
                      [else specs]))))))
 
-(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Boolean Wisemon-Specification)
-  (lambda [launchers incdirs debug?]
+(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
+  (lambda [launchers incdirs subnative debug?]
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
@@ -104,14 +105,14 @@
       (define native : Path
         (assert
          (if (cc-launcher-info-subsystem info)
-             (c-source->executable-file native.c #false (cc-launcher-info-name info) debug?)
-             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) debug?))))
+             (c-source->executable-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?)
+             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?))))
 
-      (define native.o : Path (assert (c-source->object-file native.c lang debug?)))
+      (define native.o : Path (assert (c-source->object-file native.c lang #:subnative subnative #:debug? debug?)))
       (define objects : (Listof Path)
         (let ([depobjs (c-headers->files (c-include-headers #:check-source? #true #:topic (current-make-phony-goal)
                                                             native.c (cc-launcher-info-includes info))
-                                         (λ [[dep.c : Path]] (c-source->object-file dep.c lang debug?)))])
+                                         (λ [[dep.c : Path]] (c-source->object-file dep.c lang #:subnative subnative #:debug? debug?)))])
           (remove-duplicates
            (cond [(member native.o depobjs) depobjs]
                  [else (cons native.o depobjs)]))))
@@ -140,8 +141,9 @@
 
     (when (pair? launchers)
       (define incdirs : (Listof String) (if (not info-ref) null (list (path->string (digimon-path 'zone)))))
-      (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs debug?))
-      (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs debug?))
+      (define subnative : Native-Subpath-Datum (and info-ref (datum-filter (info-ref 'native-compiled-subpath (λ [] #false)) native-subpath-datum?)))
+      (define depcc-specs : Wisemon-Specification (make-depcc-specs launchers incdirs subnative debug?))
+      (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs subnative debug?))
       
       (when (or info-ref)
         (wisemon-compile (current-directory) digimon info-ref))
