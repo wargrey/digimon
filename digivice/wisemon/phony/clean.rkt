@@ -18,8 +18,9 @@
 (define make~clean : Make-Info-Phony
   (lambda [digimon info-ref]
     (define submakes : (Listof Path) (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
-    (define px.compiled : PRegexp (pregexp (format "/~a(?![^/])/?" (car (use-compiled-file-paths)))))
-    (define px.compiled/mostly : PRegexp (pregexp (format "/~a(?![^/])/.+[.](dep|zo)" (car (use-compiled-file-paths)))))
+    (define separator (if (eq? (system-type 'os) 'windows) "\\\\" "/"))
+    (define px.compiled : PRegexp (pregexp (format "~a~a(?![^~a])~a?" separator (car (use-compiled-file-paths)) separator separator)))
+    (define px.compiled/mostly : PRegexp (pregexp (format "~a~a(?![^~a])~a.+[.](dep|zo)" separator (car (use-compiled-file-paths)) separator separator)))
     (define clean-phony : Symbol (current-make-phony-goal))
 
     (make-do-clean 
