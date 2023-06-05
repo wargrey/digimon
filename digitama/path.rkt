@@ -51,8 +51,7 @@
   (lambda [src debug? subnative]
     (define ntvdir (or (path-only src) (current-directory)))
     (define subpaths (native-subpath->path subnative))
-    (define raw-dir : Path
-      (cond [(not subpaths) (build-path ntvdir (car (use-compiled-file-paths)) "native")]
-            [else (build-path ntvdir (car (use-compiled-file-paths)) "native" subpaths)]))
-    (cond [(not debug?) raw-dir]
-          [else (build-path raw-dir "debug")])))
+    (define native (if debug? (build-path "native" "debug") "native"))
+
+    (cond [(not subpaths) (build-path ntvdir (car (use-compiled-file-paths)) native)]
+          [else (build-path ntvdir (car (use-compiled-file-paths)) native subpaths)])))
