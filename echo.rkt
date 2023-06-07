@@ -64,9 +64,9 @@
 
 (define term-echo : (-> Output-Port String Term-Color Term-Color (Listof Symbol) Void)
   (lambda [/dev/stdout rawmsg fg bg attrs]
-    (display (cond [(not (terminal-port? /dev/stdout)) rawmsg]
-                   [else (term-colorize fg bg attrs rawmsg)])
-             /dev/stdout)))
+    (fprintf /dev/stdout
+             (cond [(not (terminal-port? /dev/stdout)) rawmsg]
+                   [else (term-colorize fg bg attrs rawmsg)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
