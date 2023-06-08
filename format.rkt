@@ -137,15 +137,27 @@
   (lambda [b [width 8]]
     (~r b #:base 2 #:min-width (if (<= width 0) 8 width) #:pad-string "0")))
 
-(define bytes->hexstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String #:upcase? Boolean) String)
-  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""] #:upcase? [upcase? #false]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
+(define bytes->hexstring : (->* (Bytes)
+                                (Natural (Option Natural) Natural
+                                         #:separator String #:upcase? Boolean
+                                         #:before-first String #:after-last String)
+                                String)
+  (lambda [bstr [start 0] [stop #false] [step 1]
+                #:separator [sep ""] #:upcase? [upcase? #false]
+                #:before-first [before ""] #:after-last [after ""]]
+    (string-join #:before-first before #:after-last after
+                 (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
                    (byte->hexstring b upcase?))
                  sep)))
 
-(define bytes->binstring : (->* (Bytes) (Natural (Option Natural) Natural #:separator String) String)
-  (lambda [bstr [start 0] [stop #false] [step 1] #:separator [sep ""]]
-    (string-join (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
+(define bytes->binstring : (->* (Bytes)
+                                (Natural (Option Natural) Natural
+                                         #:separator String #:before-first String #:after-last String)
+                                String)
+  (lambda [bstr [start 0] [stop #false] [step 1]
+                #:separator [sep ""] #:before-first [before ""] #:after-last [after ""]]
+    (string-join #:before-first before #:after-last after
+                 (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
                    (byte->binstring b))
                  sep)))
 

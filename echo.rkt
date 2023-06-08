@@ -64,10 +64,11 @@
 
 (define term-echo : (-> Output-Port String Term-Color Term-Color (Listof Symbol) Void)
   (lambda [/dev/stdout rawmsg fg bg attrs]
-    ;;; NOTE: the `rawmsg` might contain `~n`s
-    (fprintf /dev/stdout
-             (cond [(not (terminal-port? /dev/stdout)) rawmsg]
-                   [else (term-colorize fg bg attrs rawmsg)]))))
+    ; TODO: ~ is an operator in some language, that's the root of problem
+    (define safe-msg (string-replace rawmsg "~n" "\n"))
+    (display (cond [(not (terminal-port? /dev/stdout)) safe-msg]
+                   [else (term-colorize fg bg attrs safe-msg)])
+             /dev/stdout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
