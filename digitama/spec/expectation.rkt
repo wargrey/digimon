@@ -99,7 +99,6 @@
 (define-spec-boolean-expectation (octet= [given : Byte] [expected : Byte])       #:default-format spec-format/octet (= given expected))
 (define-spec-boolean-expectation (octets= [given : Bytes] [expected : Bytes])    #:default-format spec-format/octet (bytes=? given expected))
 (define-spec-boolean-expectation (bytes= [given : Bytes] [expected : Bytes])     #:default-format spec-format/hex (bytes=? given expected))
-(define-spec-boolean-expectation (bytes-ci= [given : Bytes] [expected : Bytes])  #:default-format spec-format/hex (bytes=? given expected))
 
 (define-spec-boolean-expectation (string= [given : String] [expected : String]) (string=? given expected))
 (define-spec-boolean-expectation (string-ci= [given : String] [expected : String]) (string-ci=? given expected))
