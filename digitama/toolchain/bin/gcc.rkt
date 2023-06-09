@@ -80,8 +80,9 @@
   (lambda [macro]
     (define-values (name body) (values (car macro) (cdr macro)))
 
-    (cond [(not body) (string-append "-D" name)]
-          [(or (string-contains? name "(") (string-contains? body " ")) (string-append "-D'" name "=" body "'")]
+    (cond [(string-contains? name "(") (raise-user-error 'cc "function-like macro is not allowed: ~a." name)]
+          [(not body) (string-append "-D" name)]
+          [(string-contains? body " ") (raise-user-error 'cc "whitespace is not allowed here: '~a'." body)]
           [else (string-append "-D" name "=" body)])))
 
 (define gcc-search-path : (-> String Path-String String)

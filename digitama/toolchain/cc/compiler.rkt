@@ -31,11 +31,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-default-macros : (-> Symbol Boolean Boolean (Listof (Pairof String (Option String))))
   (lambda [system cpp? debug?]
+    (define dllexport : (Option String) (and (eq? system 'windows) "__declspec(dllexport)"))
     (define macros : (Listof (Pairof String (Option String)))
       (list (cons (format "__~a__" system) #false)
-            (cons "__lambda__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
-            (cons "__ffi__" (if (eq? system 'windows) "__declspec(dllexport)" ""))
-            (cons "__ZONE__" (string-append "\"" (string-replace (path->string (current-directory)) "\\" "\\\\") "\""))))
+            (cons "__lambda__" (or dllexport ""))
+            (cons "__ffi__" (or dllexport ""))))
 
     (cond [(not debug?) (cons (cons "NDEBUG" #false) macros)]
           [else macros])))
