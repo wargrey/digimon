@@ -48,17 +48,19 @@
                      (cons <kw-name> (cons <ReArgument> reargs))))))
        (list args reargs)]
       [(<self> <field>s <DataType>s <ref>s)
-       (define-values (args reargs)
-         (for/fold ([args null] [reargs null])
+       (define-values (args reargs reargs*)
+         (for/fold ([args null] [reargs null] [reargs* null])
                    ([<field> (in-syntax <field>s)]
                     [<DataType> (in-syntax <DataType>s)]
                     [<ref> (in-syntax <ref>s)])
            (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
                  [<Argument> #`[#,<field> : (Option #,<DataType>) #false]]
-                 [<ReArgument> #`[#,<field> : (Option #,<DataType>) (#,<ref> #,<self>)]])
+                 [<ReArgument> #`[#,<field> : (Option #,<DataType>) (#,<ref> #,<self>)]]
+                 [<ReArgument*> #`[#,<field> : (U Void False #,<DataType>) (void)]])
              (values (cons <kw-name> (cons <Argument> args))
-                     (cons <kw-name> (cons <ReArgument> reargs))))))
-       (list args reargs)]))
+                     (cons <kw-name> (cons <ReArgument> reargs))
+                     (cons <kw-name> (cons <ReArgument*> reargs*))))))
+       (list args reargs reargs*)]))
 
   (define make-keyword-arguments
     (case-lambda
@@ -75,18 +77,20 @@
                      (cons <kw-name> (cons <ReArgument> reargs))))))
        (list args reargs)]
       [(<self> <field>s <DataType>s <defval>s <ref>s)
-       (define-values (args reargs)
-         (for/fold ([args null] [reargs null])
+       (define-values (args reargs reargs*)
+         (for/fold ([args null] [reargs null] [reargs* null])
                    ([<field> (in-syntax <field>s)]
                     [<DataType> (in-syntax <DataType>s)]
                     [<defval> (in-syntax <defval>s)]
                     [<ref> (in-syntax <ref>s)])
            (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
                  [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]]
-                 [<ReArgument> #`[#,<field> : #,<DataType> (#,<ref> #,<self>)]])
+                 [<ReArgument> #`[#,<field> : #,<DataType> (#,<ref> #,<self>)]]
+                 [<ReArgument*> #`[#,<field> : (U Void #,<DataType>) (void)]])
              (values (cons <kw-name> (cons <Argument> args))
-                     (cons <kw-name> (cons <ReArgument> reargs))))))
-       (list args reargs)])))
+                     (cons <kw-name> (cons <ReArgument> reargs))
+                     (cons <kw-name> (cons <ReArgument*> reargs*))))))
+       (list args reargs reargs*)])))
 
 (define-syntax (with-a-field-replaced stx)
     (syntax-case stx [:]
