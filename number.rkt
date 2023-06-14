@@ -36,6 +36,18 @@
 
     (and (exact-nonnegative-integer? n) n)))
 
+(define string->fixnum : (->* (String) (Integer) (Option Fixnum))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
+
+    (and (fixnum? n) n)))
+
+(define string+>fixnum : (->* (String) (Integer) (Option Nonnegative-Fixnum))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
+
+    (and (nonnegative-fixnum? n) n)))
+
 (define string->real : (->* (String) (Integer) (Option Real))
   (lambda [str.n [radix 10]]
     (define n (string->number str.n radix))
