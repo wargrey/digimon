@@ -33,6 +33,12 @@
           (for/list ([<field> (in-syntax <field>s)]
                      [idx (in-naturals start-idx)])
             (datum->syntax <field> idx))))
+
+  (define (make-identifier-keywords <field>s)
+    (for/list ([<field> (in-syntax <field>s)])
+      (datum->syntax <field>
+                     (string->keyword
+                      (symbol->immutable-string (syntax-e <field>))))))
   
   (define make-keyword-optional-arguments
     (case-lambda

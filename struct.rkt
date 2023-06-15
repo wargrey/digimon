@@ -49,6 +49,33 @@
                 (define (remake-id* [self : ID] kw-reargs* ...) : ID
                   (id (if (void? field) (field-ref self) field) ...)))))]))
 
+(define-syntax (define-struct* stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([id-apply (format-id #'id "~a-apply" (syntax-e #'id))]
+                    [id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [(kw-field ...) (make-identifier-keywords #'(field ...))])
+       (syntax/loc stx
+         (begin (define-struct id : ID ([field : FieldType defval ...] ...) options ...)
+
+                (define-syntax (id-apply nstx)
+                  (syntax-parse nstx #:literals [:]
+                    [(_ f self
+                        (~alt (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
+                        argl [... ...])
+                     (syntax/loc nstx
+                       (f (if (void? field) (field-ref self) field) ...
+                          argl [... ...]))]))
+
+                (define-syntax (id-copy nstx)
+                  (syntax-case nstx [:]
+                    [(_ sub self ([self-field datum] [... ...]) [sub-field subdatum] [... ...])
+                     (syntax/loc nstx
+                       (struct-copy sub self
+                                    [self-field #:parent id datum] [... ...]
+                                    [sub-field subdatum] [... ...]))])))))]))
+
 (define-syntax (define-object stx)
   (syntax-parse stx #:literals [:]
     [(_ id : ID ([method : MethodType defmth ...] ...))
