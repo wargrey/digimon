@@ -8,8 +8,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-uri? : (-> String Boolean)
   (let ([rx:3986 #rx"^(?:([^:/?#]*):)?(?://(?:([^/?#@]*)@)?(?:(?:\\[([0-9a-fA-F:]*:[0-9a-fA-F:]*)\\])|([^/?#:]*))?(?::([0-9]*))?)?([^?#]*)(?:\\?([^#]*))?(?:#(.*))?$"])
-    (lambda [uri]
-      (regexp-match? rx:3986 uri))))
+    (lambda [s]
+      (regexp-match? rx:3986 s))))
+
+(define string-guid? : (-> String Boolean)
+  (let ([px:guid #px"^[{][0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}[}]$"])
+    (lambda [s]
+      (regexp-match? px:guid s))))
+
+(define string-panose? : (-> String Boolean) ; a classification system for Font
+  (let ([px:panose #px"^[0-9A-F]{10}$"])
+    (lambda [s]
+      (regexp-match? px:panose s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define locale-bytes->unicode-string : (->* (Bytes (U String Symbol False)) (Natural Natural #:error-char (Option Char)) String)
