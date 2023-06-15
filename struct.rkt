@@ -38,7 +38,8 @@
                     [(field-ref ...) (make-identifiers #'id #'(field ...))]
                     [([kw-args ...] [kw-reargs ...] [kw-reargs* ...]) (make-keyword-arguments #'self #'(field ...) #'(FieldType ...) #'([defval ...] ...) #'(field-ref ...))])
        (syntax/loc stx
-         (begin (struct id ([field : FieldType] ...) #:type-name ID options ...)
+         (begin (define-type ID id)
+                (struct id ([field : FieldType] ...) options ...)
 
                 (define (make-id kw-args ...) : ID
                   (id field ...))
@@ -68,7 +69,8 @@
                        (f (if (void? field) (field-ref self) field) ...
                           argl [... ...]))]))
 
-                (define-syntax (id-copy nstx)
+                ; It causes "parent struct info not known" out of the module defining the struct
+                #;(define-syntax (id-copy nstx)
                   (syntax-case nstx [:]
                     [(_ sub self ([self-field datum] [... ...]) [sub-field subdatum] [... ...])
                      (syntax/loc nstx
