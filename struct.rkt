@@ -55,10 +55,19 @@
     [(_ id : ID ([field : FieldType defval ...] ...) options ...)
      (with-syntax* ([id-apply (format-id #'id "~a-apply" (syntax-e #'id))]
                     [id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
+                    [id-ref (format-id #'id "~a-ref" (syntax-e #'id))]
                     [(field-ref ...) (make-identifiers #'id #'(field ...))]
                     [(kw-field ...) (make-identifier-keywords #'(field ...))])
        (syntax/loc stx
          (begin (define-struct id : ID ([field : FieldType defval ...] ...) options ...)
+
+                (define id-ref : (case-> [ID 'field -> FieldType] ...
+                                         [ID Symbol -> (U False FieldType ...)])
+                  (lambda [self field-name]
+                    (case field-name
+                      [(field) (field-ref self)] ...
+                      [else (and (memq field-name '(field ...))
+                                 (id-ref field-name))])))
 
                 (define-syntax (id-apply nstx)
                   (syntax-parse nstx #:literals [:]
