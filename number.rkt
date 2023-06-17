@@ -18,6 +18,12 @@
 (define positive-flonum? : (-> Any Boolean : #:+ Positive-Flonum) (λ [f] (and (flonum? f) (> f 0.0)))) ; unable to deal with +nan.0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string->byte : (->* (String) (Integer) (Option Byte))
+  (lambda [str.n [radix 10]]
+    (define n (string->number str.n radix))
+
+    (and (byte? n) n)))
+
 (define string->index : (->* (String) (Integer) (Option Index))
   (lambda [str.n [radix 10]]
     (define n (string->number str.n radix))
