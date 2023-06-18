@@ -29,64 +29,8 @@
                 (define (make-id kw-args ...) : ID
                   (id (or field (default-parameter)) ...)))))]))
 
-(define-syntax (define-struct stx)
-  (syntax-parse stx #:literals [:]
-    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
-     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
-                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
-                    [remake-id* (format-id #'id "remake-~a*" (syntax-e #'id))]
-                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
-                    [([kw-args ...] [kw-reargs ...] [kw-reargs* ...]) (make-keyword-arguments #'self #'(field ...) #'(FieldType ...) #'([defval ...] ...) #'(field-ref ...))])
-       (syntax/loc stx
-         (begin (define-type ID id)
-                (struct id ([field : FieldType] ...) options ...)
 
-                (define (make-id kw-args ...) : ID
-                  (id field ...))
-
-                (define (remake-id [self : ID] kw-reargs ...) : ID
-                  (id field ...))
-
-                (define (remake-id* [self : ID] kw-reargs* ...) : ID
-                  (id (if (void? field) (field-ref self) field) ...)))))]))
-
-(define-syntax (define-struct* stx)
-  (syntax-parse stx #:literals [:]
-    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
-     (with-syntax* ([id-apply (format-id #'id "~a-apply" (syntax-e #'id))]
-                    [id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
-                    [id-ref (format-id #'id "~a-ref" (syntax-e #'id))]
-                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
-                    [(kw-field ...) (make-identifier-keywords #'(field ...))])
-       (syntax/loc stx
-         (begin (define-struct id : ID ([field : FieldType defval ...] ...) options ...)
-
-                (define id-ref : (case-> [ID 'field -> FieldType] ...
-                                         [ID Symbol -> (U False FieldType ...)])
-                  (lambda [self field-name]
-                    (case field-name
-                      [(field) (field-ref self)] ...
-                      [else (and (memq field-name '(field ...))
-                                 (id-ref field-name))])))
-
-                (define-syntax (id-apply nstx)
-                  (syntax-parse nstx #:literals [:]
-                    [(_ f self
-                        (~alt (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
-                        argl [... ...])
-                     (syntax/loc nstx
-                       (f (if (void? field) (field-ref self) field) ...
-                          argl [... ...]))]))
-
-                ; It causes "parent struct info not known" out of the module defining the struct
-                #;(define-syntax (id-copy nstx)
-                  (syntax-case nstx [:]
-                    [(_ sub self ([self-field datum] [... ...]) [sub-field subdatum] [... ...])
-                     (syntax/loc nstx
-                       (struct-copy sub self
-                                    [self-field #:parent id datum] [... ...]
-                                    [sub-field subdatum] [... ...]))])))))]))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-object stx)
   (syntax-parse stx #:literals [:]
     [(_ id : ID ([method : MethodType defmth ...] ...))
@@ -143,3 +87,120 @@
                     [(_ self-expr argl [... ...])
                      #'(let ([self self-expr]) ((abs-method (id-abs self)) self argl [... ...]))]))
                 ...)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-syntax (define-struct stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [remake-id* (format-id #'id "remake-~a*" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...] [kw-reargs* ...]) (make-keyword-arguments #'self #'(field ...) #'(FieldType ...) #'([defval ...] ...) #'(field-ref ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct id ([field : FieldType] ...) options ...)
+
+                (define (make-id kw-args ...) : ID
+                  (id field ...))
+
+                (define (remake-id [self : ID] kw-reargs ...) : ID
+                  (id field ...))
+
+                (define (remake-id* [self : ID] kw-reargs* ...) : ID
+                  (id (if (void? field) (field-ref self) field) ...)))))]
+    [(_ sid : SID #:-> super
+        (~optional (~seq #:head [[hid hfield : HFieldType hdefval ...] ...])
+                   #:defaults ([(hid 1) null] [(hfield 1) null] [(HFieldType 1) null] [(hdefval 2) null]))
+        ([field : FieldType defval ...] ...)
+        (~optional (~seq #:substruct [(deftree sub : Sub subrest ...) ...])
+                   #:defaults ([(deftree 1) null] [(sub 1) null] [(Sub 1) null] [(subrest 2) null]))
+        options ...)
+     (with-syntax* ([make-id (format-id #'sid "make-~a" (syntax-e #'sid))]
+                    [remake-id (format-id #'sid "remake-~a" (syntax-e #'sid))]
+                    [remake-id* (format-id #'sid "remake-~a*" (syntax-e #'sid))]
+                    [derive-id (format-id #'sid "derive-~a" (syntax-e #'sid))]
+                    [derive-id* (format-id #'sid "derive-~a*" (syntax-e #'sid))]
+                    [(field-ref ...) (make-identifiers #'sid #'(field ...))]
+                    [(hfield-ref ...) (for/list ([<hid> (in-syntax #'(hid ...))]
+                                                 [<hfield> (in-syntax #'(hfield ...))])
+                                        (format-id <hfield> "~a-~a" (syntax-e <hid>) (syntax-e <hfield>)))]
+                    [([hkw-args ...] [hkw-reargs ...] [hkw-reargs* ...])
+                     (make-keyword-arguments #'self #'(hfield ...) #'(HFieldType ...) #'([hdefval ...] ...) #'(hfield-ref ...))]
+                    [([kw-args ...] [kw-reargs ...] [kw-reargs* ...])
+                     (make-keyword-arguments #'self #'(field ...) #'(FieldType ...) #'([defval ...] ...) #'(field-ref ...))])
+       (syntax/loc stx
+         (begin (define-type SID sid)
+                (struct sid super ([field : FieldType] ...) options ...)
+
+                (define (make-id hkw-args ... kw-args ...) : SID
+                  (sid hfield ... field ...))
+
+                (define (remake-id [self : SID] hkw-reargs ... kw-reargs ...) : SID
+                  (sid hfield ... field ...))
+
+                (define (remake-id* [self : SID] hkw-reargs* ... kw-reargs* ...) : SID
+                  (sid (if (void? hfield) (hfield-ref self) hfield) ...
+                       (if (void? field) (field-ref self) field) ...))
+                
+                (define (derive-id [self : super] hkw-reargs ... kw-args ...) : SID
+                  (sid hfield ... field ...))
+
+                (define (derive-id* [self : super] hkw-reargs* ... kw-args ...) : SID
+                  (sid (if (void? hfield) (hfield-ref self) hfield) ...
+                       field ...))
+
+                (deftree sub : Sub #:-> sid
+                  #:head [[hid hfield : HFieldType hdefval ...] ...
+                          [sid field : FieldType defval ...] ...]
+                  subrest ...) ...)))]))
+
+(define-syntax (define-struct* stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([id-apply (format-id #'id "~a-apply" (syntax-e #'id))]
+                    [id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
+                    [id-ref (format-id #'id "~a-ref" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [(kw-field ...) (make-identifier-keywords #'(field ...))])
+       (syntax/loc stx
+         (begin (define-struct id : ID ([field : FieldType defval ...] ...) options ...)
+
+                (define id-ref : (case-> [ID 'field -> FieldType] ...
+                                         [ID Symbol -> (U False FieldType ...)])
+                  (lambda [self field-name]
+                    (case field-name
+                      [(field) (field-ref self)] ...
+                      [else (and (memq field-name '(field ...))
+                                 (id-ref field-name))])))
+
+                (define-syntax (id-apply nstx)
+                  (syntax-parse nstx #:literals [:]
+                    [(_ f self
+                        (~alt (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
+                        argl [... ...])
+                     (syntax/loc nstx
+                       (f (if (void? field) (field-ref self) field) ...
+                          argl [... ...]))]))
+
+                ; It causes "parent struct info not known" out of the module defining the struct
+                #;(define-syntax (id-copy nstx)
+                  (syntax-case nstx [:]
+                    [(_ sub self ([self-field datum] [... ...]) [sub-field subdatum] [... ...])
+                     (syntax/loc nstx
+                       (struct-copy sub self
+                                    [self-field #:parent id datum] [... ...]
+                                    [sub-field subdatum] [... ...]))])))))]))
+
+(define-syntax (define-structs stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([hfield : HFieldType hdefval ...] ...)
+        (~optional (~seq #:substruct [(deftree sub : Sub subrest ...) ...])
+                   #:defaults ([(deftree 1) null] [(sub 1) null] [(Sub 1) null] [(subrest 2) null]))
+        options ...)
+     (syntax/loc stx
+       (begin (define-struct id : ID ([hfield : HFieldType hdefval ...] ...) options ...)
+              
+              (deftree sub : Sub #:-> id
+                #:head [[id hfield : HFieldType hdefval ...] ...]
+                subrest ...) ...))]))
