@@ -159,20 +159,11 @@
   (syntax-parse stx #:literals [:]
     [(_ id : ID ([field : FieldType defval ...] ...) options ...)
      (with-syntax* ([id-apply (format-id #'id "~a-apply" (syntax-e #'id))]
-                    [id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
-                    [id-ref (format-id #'id "~a-ref" (syntax-e #'id))]
+                    #;[id-copy (format-id #'id "~a-copy" (syntax-e #'id))]
                     [(field-ref ...) (make-identifiers #'id #'(field ...))]
                     [(kw-field ...) (make-identifier-keywords #'(field ...))])
        (syntax/loc stx
          (begin (define-struct id : ID ([field : FieldType defval ...] ...) options ...)
-
-                (define id-ref : (case-> [ID 'field -> FieldType] ...
-                                         [ID Symbol -> (U False FieldType ...)])
-                  (lambda [self field-name]
-                    (case field-name
-                      [(field) (field-ref self)] ...
-                      [else (and (memq field-name '(field ...))
-                                 (id-ref field-name))])))
 
                 (define-syntax (id-apply nstx)
                   (syntax-parse nstx #:literals [:]
@@ -183,6 +174,45 @@
                        (f (if (void? field) (field-ref self) field) ...
                           argl [... ...]))]))
 
+                ; TODO: It causes "parent struct info not known" out of the module defining the struct
+                #;(define-syntax (id-copy nstx)
+                  (syntax-case nstx [:]
+                    [(_ sub self ([self-field datum] [... ...]) [sub-field subdatum] [... ...])
+                     (syntax/loc nstx
+                       (struct-copy sub self
+                                    [self-field #:parent id datum] [... ...]
+                                    [sub-field subdatum] [... ...]))])))))]
+    [(_ sid : SID #:-> super
+        (~optional (~seq #:head [[hid hfield : HFieldType hdefval ...] ...])
+                   #:defaults ([(hid 1) null] [(hfield 1) null] [(HFieldType 1) null] [(hdefval 2) null]))
+        ([field : FieldType defval ...] ...)
+        (~optional (~seq #:substruct [(deftree sub : Sub subrest ...) ...])
+                   #:defaults ([(deftree 1) null] [(sub 1) null] [(Sub 1) null] [(subrest 2) null]))
+        options ...)
+     (with-syntax* ([id-apply (format-id #'sid "~a-apply" (syntax-e #'sid))]
+                    #;[id-copy (format-id #'sid "~a-copy" (syntax-e #'sid))]
+                    [(kw-hfield ...) (make-identifier-keywords #'(hfield ...))]
+                    [(kw-field ...) (make-identifier-keywords #'(field ...))]
+                    [(field-ref ...) (make-identifiers #'sid #'(field ...))]
+                    [(hfield-ref ...) (for/list ([<hid> (in-syntax #'(hid ...))]
+                                                 [<hfield> (in-syntax #'(hfield ...))])
+                                        (format-id <hfield> "~a-~a" (syntax-e <hid>) (syntax-e <hfield>)))])
+       (syntax/loc stx
+         (begin (define-struct sid : SID #:-> super
+                  #:head [[hid hfield : HFieldType hdefval ...] ...]
+                  ([field : FieldType defval ...] ...) options ...)
+               
+                (define-syntax (id-apply nstx)
+                  (syntax-parse nstx #:literals [:]
+                    [(_ f self
+                        (~alt (~optional (~seq kw-hfield hfield) #:defaults ([hfield #'(void)])) ...
+                              (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
+                        argl [... ...])
+                     (syntax/loc nstx
+                       (f (if (void? hfield) (hfield-ref self) hfield) ...
+                          (if (void? field) (field-ref self) field) ...
+                          argl [... ...]))]))
+
                 ; It causes "parent struct info not known" out of the module defining the struct
                 #;(define-syntax (id-copy nstx)
                   (syntax-case nstx [:]
@@ -190,7 +220,12 @@
                      (syntax/loc nstx
                        (struct-copy sub self
                                     [self-field #:parent id datum] [... ...]
-                                    [sub-field subdatum] [... ...]))])))))]))
+                                    [sub-field subdatum] [... ...]))]))
+
+                (deftree sub : Sub #:-> sid
+                  #:head [[hid hfield : HFieldType hdefval ...] ...
+                          [sid field : FieldType defval ...] ...]
+                  subrest ...) ...)))]))
 
 (define-syntax (define-structs stx)
   (syntax-parse stx #:literals [:]
@@ -200,6 +235,19 @@
         options ...)
      (syntax/loc stx
        (begin (define-struct id : ID ([hfield : HFieldType hdefval ...] ...) options ...)
+              
+              (deftree sub : Sub #:-> id
+                #:head [[id hfield : HFieldType hdefval ...] ...]
+                subrest ...) ...))]))
+
+(define-syntax (define-structs* stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([hfield : HFieldType hdefval ...] ...)
+        (~optional (~seq #:substruct [(deftree sub : Sub subrest ...) ...])
+                   #:defaults ([(deftree 1) null] [(sub 1) null] [(Sub 1) null] [(subrest 2) null]))
+        options ...)
+     (syntax/loc stx
+       (begin (define-struct* id : ID ([hfield : HFieldType hdefval ...] ...) options ...)
               
               (deftree sub : Sub #:-> id
                 #:head [[id hfield : HFieldType hdefval ...] ...]
