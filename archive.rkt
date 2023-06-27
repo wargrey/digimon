@@ -221,10 +221,10 @@
       (define % : Flonum (real->double-flonum (if (>= zipped total) 1.0 (/ zipped total))))
       (define count : Integer (exact-floor (* % bar-width)))
       
-      (esc-save)
+      (esc-save #:/dev/stdout /dev/stdout)
       (if (pair? position)
-          (esc-cell (car position) (cdr position))
-          (esc-move-to position))
+          (esc-cell #:/dev/stdout /dev/stdout (car position) (cdr position))
+          (esc-move-to #:/dev/stdout /dev/stdout position))
       
       (display "[" /dev/stdout)
       (for ([i (in-range 0 count)])
@@ -233,7 +233,7 @@
       (when (< count bar-width) (esc-move-right (- bar-width count)))
       (fprintf /dev/stdout "] [~a%]" (~r (* % 100.0) #:precision `(= ,precision)))
       
-      (esc-restore)
+      (esc-restore #:/dev/stdout /dev/stdout)
       (when (and final-char (>= zipped total))
         (display final-char /dev/stdout))
       (flush-output /dev/stdout))))
@@ -261,19 +261,22 @@
           (display bar /dev/stdout))
         (set! last-count count)
         
-        (esc-save)
-        (when (< count bar-width) (esc-move-right (- bar-width count)))
+        (esc-save #:/dev/stdout /dev/stdout)
+        (when (< count bar-width) (esc-move-right #:/dev/stdout /dev/stdout (- bar-width count)))
         (fprintf /dev/stdout "] [~a%] ~a" (~r (* % 100.0) #:precision `(= ,precision)) entry-name)
-        (esc-restore)
+        (esc-restore #:/dev/stdout /dev/stdout)
         
         (flush-output /dev/stdout))
       
       (when (and done?)
         (set! last-count 0)
-        (esc-move-to (+ 11 bar-width precision (if (not overlay-name?) (string-utf-8-length entry-name) 0)))
+        (esc-move-to #:/dev/stdout /dev/stdout
+                     (+ 11 bar-width precision
+                        (if (not overlay-name?)
+                            (string-utf-8-length entry-name)
+                            0)))
         (display final-char /dev/stdout)
-        (esc-save)))))
-
+        (esc-save #:/dev/stdout /dev/stdout)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-file-reader zip-directory-list #:+ (Listof ZIP-Directory) #:binary
