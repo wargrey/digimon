@@ -205,10 +205,14 @@
                   [else (+ idx (length metainfos))])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-archive-terminal-gauge : (->* () (Output-Port #:at (U Integer (Pairof Integer Integer)) #:bar-width Positive-Byte #:bar-symbol Char
-                                                           #:bgcolor Term-Color #:fgcolor Term-Color #:precision Byte)
+(define make-archive-terminal-gauge : (->* ()
+                                           (Output-Port #:at (U Integer (Pairof Integer Integer))
+                                                        #:bar-width Positive-Byte #:precision Byte
+                                                        #:bar-symbol Char #:final-char (Option Char)
+                                                        #:bgcolor Term-Color #:fgcolor Term-Color)
                                            Archive-Progress-Handler)
-  (lambda [#:bar-width [bar-width 64] #:bar-symbol [bar-symbol #\space] #:bgcolor [bgcolor '202] #:fgcolor [fgcolor #false] #:precision [precision 2]
+  (lambda [#:bar-width [bar-width 64] #:bar-symbol [bar-symbol #\space] #:final-char [final-char #\newline]
+           #:bgcolor [bgcolor '202] #:fgcolor [fgcolor #false] #:precision [precision 2]
            [/dev/stdout (current-output-port)] #:at [position (cons 0 0)]]
     (define last-count : Integer 0)
     (define bar : String (term-colorize fgcolor bgcolor null (make-string 1 bar-symbol)))
@@ -230,12 +234,17 @@
       (fprintf /dev/stdout "] [~a%]" (~r (* % 100.0) #:precision `(= ,precision)))
       
       (esc-restore)
+      (when (and final-char (>= zipped total))
+        (display final-char /dev/stdout))
       (flush-output /dev/stdout))))
 
-(define make-archive-entry-terminal-gauge : (->* () (Output-Port #:bar-width Positive-Byte #:bar-symbol Char #:final-char Char #:overlay-name? Boolean
-                                                                 #:bgcolor Term-Color #:fgcolor Term-Color #:precision Byte)
+(define make-archive-entry-terminal-gauge : (->* ()
+                                                 (Output-Port #:bar-width Positive-Byte #:overlay-name? Boolean
+                                                              #:bar-symbol Char #:final-char Char
+                                                              #:bgcolor Term-Color #:fgcolor Term-Color #:precision Byte)
                                                  Archive-Entry-Progress-Handler)
-  (lambda [#:bar-width [bar-width 64] #:bar-symbol [bar-symbol #\space] #:final-char [final-char #\newline] #:overlay-name? [overlay-name? #false]
+  (lambda [#:bar-width [bar-width 64] #:overlay-name? [overlay-name? #false]
+           #:bar-symbol [bar-symbol #\space] #:final-char [final-char #\newline]
            #:bgcolor [bgcolor 'green] #:fgcolor [fgcolor #false] #:precision [precision 2]
            [/dev/stdout (current-output-port)]]
     (define last-count : Integer 0)
