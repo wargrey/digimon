@@ -5,7 +5,6 @@
 
 (require racket/path)
 (require racket/file)
-(require racket/port)
 (require racket/list)
 (require racket/string)
 
