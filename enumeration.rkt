@@ -13,16 +13,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-unnamed-enumeration stx)
   (syntax-case stx [:]
-    [(_ id : BaseType #:with id-value #:-> EnumType [enum ...])
+    [(_ id : BaseType #:with id-identity [enum ...])
      (syntax/loc stx
-       (begin (define-unnamed-enumeration id : BaseType [enum ...])
+       (begin (define-unnamed-enumeration id : (U enum ...) [enum ...])
               
-              (define id-value : (All (a) (case-> [BaseType -> (U False EnumType)]
-                                                  [BaseType (U EnumType (-> Symbol String BaseType a)) -> (U a EnumType)]))
+              (define id-identity : (All (a) (case-> [BaseType -> (U False enum ...)]
+                                                     [BaseType (U enum ... (-> Symbol String BaseType a)) -> (U a enum ...)]))
                 (let ([expected (exn-constraint->string (list 'enum ...))])
                   (case-lambda
-                    [(e throw) (or (id-value e) (if (procedure? throw) (throw 'id-value expected e) throw))]
-                    [(e) (cond [(eq? e 'enum) enum] ... [else #false])])))))]
+                    [(e throw) (or (id-identity e) (if (procedure? throw) (throw 'id-identity expected e) throw))]
+                    [(e) (cond [(eq? e enum) enum] ... [else #false])])))))]
 
     [(_ [id ids] : BaseType [enum ...])
      (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
@@ -42,7 +42,7 @@
 
 (define-syntax (define-enumeration stx)
   (syntax-case stx [:]
-    [(_ id : TypeU #:with kw->enum #:-> EnumType [enum value] ...)
+    [(_ id : TypeU #:with kw->enum [enum value] ...)
      (syntax/loc stx
        (begin (define-enumeration id : TypeU [enum ...])
               
@@ -93,7 +93,7 @@
 
     [(_ id #:+> TypeU kw->enum enum->kw [enum:id value:integer] ...)
      (syntax/loc stx
-       (begin (define-enumeration id : TypeU #:with kw->enum #:-> Integer [enum value] ...)
+       (begin (define-enumeration id : TypeU #:with kw->enum [enum value] ...)
               (define enum->kw : (All (a) (case-> [Integer -> (Option TypeU)]
                                                   [Integer TypeU -> TypeU]
                                                   [Integer (-> Symbol String Integer a) -> (U TypeU a)]))
@@ -106,7 +106,7 @@
      (with-syntax* ([(value ... value$) (for/list ([<enum> (in-syntax #'(enum ... enum$))] [idx (in-naturals 0)])
                                           (datum->syntax <enum> (+ (syntax-e #'start) idx) #| `start` might be negative integers |#))])
        (syntax/loc stx
-         (begin (define-enumeration id : TypeU #:with kw->enum #:-> Integer [enum value] ... [enum$ value$])
+         (begin (define-enumeration id : TypeU #:with kw->enum [enum value] ... [enum$ value$])
                 (define enum->kw : (All (a) (case-> [Integer -> (Option TypeU)]
                                                     [Integer TypeU -> TypeU]
                                                     [Integer (-> Symbol String Integer a) -> (U TypeU a)]))
@@ -115,12 +115,12 @@
                       [(kv throw) (or (enum->kw kv) (if (symbol? throw) throw (throw 'enum->kw expected kv)))]
                       [(kv) (cond [(= kv value) 'enum] ... [(= kv value$) 'enum$] [else #false])]))))))]
 
-    [(_ id #:+> TypeU kw->enum enum->kw #:range Type [enum value] ... [enum$ value$])
+    [(_ id #:+> TypeU kw->enum enum->kw #:range [enum value] ... [enum$ value$])
      (with-syntax ([(range ...) (for/list ([<start> (in-syntax #'(value ...))]
                                            [<end> (sequence-tail (in-syntax #'(value ... value$)) 1)])
                                   (datum->syntax <start> (/ (+ (syntax-e <start>) (syntax-e <end>)) 2)))])
        (syntax/loc stx
-         (begin (define-enumeration id : TypeU #:with kw->enum #:-> Type [enum value] ... [enum$ value$])
-                (define (enum->kw [kv : Type]) : TypeU
+         (begin (define-enumeration id : TypeU #:with kw->enum [enum value] ... [enum$ value$])
+                (define (enum->kw [kv : Integer]) : TypeU
                   (cond [(< kv range) 'enum] ...
                         [else 'enum$])))))]))
