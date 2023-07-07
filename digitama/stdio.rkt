@@ -12,7 +12,7 @@
 (require "ioexn.rkt")
 (require "unsafe/ops.rkt")
 
-(require (for-syntax racket/base))
+(require (for-syntax typed/racket/base))
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -112,10 +112,9 @@
                     unicode)))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-for-syntax (stdio-target-field <field> <fields>)
-  (unless (memq (syntax-e <field>) (syntax->datum <fields>))
-    (raise-syntax-error 'define-binary-struct "undefined field" <field>))
-  <field>)
+(define-for-syntax (stdio-target-field <target> <fields>)
+  (cond [(memq (syntax-e <target>) (syntax->datum <fields>)) <target>]
+        [else (raise-syntax-error 'define-binary-struct "undefined field" <target>)]))
 
 (define-for-syntax (stdio-word-size <n>)
   (define n (syntax-e <n>))
@@ -123,7 +122,13 @@
     (raise-syntax-error 'define-binary-struct "invalid size" <n>))
   (datum->syntax <n> (- n)))
 
-(define-for-syntax (stdio-check-fixed-size <offset>)
+(define-for-syntax (stdio-fixed-bytes-size <n>)
+  (define n (syntax-e <n>))
+  (unless (> n 0)
+    (raise-syntax-error 'define-binary-struct "invalid fixed length for bytes" <n>))
+  (datum->syntax <n> (- n)))
+
+(define-for-syntax (stdio-check-fixed-offset <offset>)
   (when (> (syntax-e <offset>) 0)
     (raise-syntax-error 'define-binary-struct "#:+fixed-size only works for referenced fields" <offset>)))
 
@@ -162,7 +167,7 @@
 (define-syntax (integer-size-for-writer stx)
   (syntax-parse stx #:datum-literals []
     [(_ n:nat) #'n]
-    [(_ n:integer) (syntax/loc stx (- n))]
+    [(_ n:integer) (datum->syntax #'n (- (syntax-e #'n)))]
     [_ #'0]))
 
 (define-syntax (check-signature stx)
@@ -196,7 +201,7 @@
         [else 0]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define stdio-fixed-size : (-> Any Zero)
+(define stdio-zero-size : (-> Any Zero)
   (lambda [_]
     0))
 

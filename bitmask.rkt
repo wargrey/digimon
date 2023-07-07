@@ -13,26 +13,26 @@
 (define-syntax (define-bitmask stx)
   (syntax-case stx [:]
     [(_ id : TypeU #:with kw->enum [enum value] ...)
-     (with-syntax ([EnumType (let ([mvalue (apply max (syntax->datum #'(value ...)))])
-                               (cond [(byte? mvalue) #'Byte]
-                                     [(index? mvalue) #'Index]
-                                     [(fixnum? mvalue) #'Nonnegative-Fixnum]
-                                     [else #'Natural]))])
+     (with-syntax ([(enum? EnumType) (let ([mvalue (apply max (syntax->datum #'(value ...)))])
+                                       (cond [(byte? mvalue) (list #'byte? #'Byte)]
+                                             [(index? mvalue) (list #'index? #'Index)]
+                                             [(fixnum? mvalue) (list #'fixnum? #'Nonnegative-Fixnum)]
+                                             [else (list #'exact-nonnegative-integer? #'Natural)]))])
        (syntax/loc stx
          (begin (define-bitmask id : TypeU [enum ...])
                 
-                (define kw->enum : (case-> [TypeU -> (U value ...)]
-                                           [Symbol -> (U False value ...)]
+                (define kw->enum : (case-> [TypeU -> EnumType]
+                                           [Symbol -> (Option EnumType)]
                                            [(Listof Symbol) -> EnumType])
                   (lambda [kw]
                     (if (list? kw)
-                        (let fold ([sum : EnumType 0]
+                        (let fold ([sum : Natural 0]
                                    [rst : (Listof Symbol) kw])
                           (if (pair? rst)
                               (let ([v (kw->enum (car rst))])
                                 (fold (if v (bitwise-ior sum v) sum) (cdr rst)))
-                              sum))
-                        (cond [(eq? kw 'enum) value] ...
+                              (assert sum enum?)))
+                        (cond [(eq? kw 'enum) (assert value enum?)] ...
                               [else #false])))))))]
 
     [(_ [id ids] : TypeU [enum ...])
@@ -56,7 +56,7 @@
 (define-syntax (define-bitmask* stx)
   (syntax-parse stx
     [(_ id #:+> TypeU kw->enum enum->kw [enum:id value:integer] ...)
-     (with-syntax ([EnumType (let ([mvalue (apply max (syntax->datum #'(value ...)))])
+     (with-syntax (#;[EnumType (let ([mvalue (apply max (syntax->datum #'(value ...)))])
                                (cond [(byte? mvalue) #'Byte]
                                      [(index? mvalue) #'Index]
                                      [(fixnum? mvalue) #'Nonnegative-Fixnum]
@@ -74,7 +74,7 @@
                   (lambda [n]
                     (cond [(= n 0) null]
                           [else (let ->kw ([enms : (Listof TypeU) (list 'renum ...)]
-                                           [vals : (Listof EnumType) (list rvalue ...)]
+                                           [vals : (Listof Natural) (list rvalue ...)]
                                            [kws : (Listof TypeU) null])
                                   (if (and (pair? enms) (pair? vals))
                                       (let ([v (car vals)])

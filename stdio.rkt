@@ -32,8 +32,8 @@
 (define-type Octets (U Bytes Subbytes))
 
 (begin-for-syntax
-  (struct bintype (type word-size read-int write-int fixed-size datum->raw raw->datum) #:prefab)
-  (struct fieldinfo (default signature? omittable? peek-int name radix fixed-size) #:prefab)
+  (struct bintype (type fixed-size read-int write-int dynamic-size datum->raw raw->datum) #:prefab)
+  (struct fieldinfo (default signature? omittable? peek-int name radix fixed-offset) #:prefab)
 
   (define (stdio-integer-type/read->peek <read-int>)
     (case (syntax-e <read-int>)
@@ -52,31 +52,31 @@
       [(read-luint64) #'peek-luint64]
       [else <read-int>]))
 
-  (define (make-bintype type word-size read-int write-int fixed-size [datum->raw null] [raw->datum null])
-    (bintype type word-size read-int write-int fixed-size datum->raw raw->datum))
+  (define (make-bintype type word-size read-int write-int dynamic-size [datum->raw null] [raw->datum null])
+    (bintype type word-size read-int write-int dynamic-size datum->raw raw->datum))
 
-  (define (remake-bintype bt #:type [type #false] #:word-size [word-size #false]
-                          #:read [read-int #false] #:write [write-int #false] #:size [fixed-size #false]
+  (define (remake-bintype bt #:type [type #false] #:fixed-size [fixed-size #false]
+                          #:read [read-int #false] #:write [write-int #false] #:dynamic-size [dynamic-size #false]
                           #:datum->raw [datum->raw #false] #:raw->datum [raw->datum #false])
-    (bintype (or type (bintype-type bt)) (or word-size (bintype-word-size bt))
-             (or read-int (bintype-read-int bt)) (or write-int (bintype-write-int bt)) (or fixed-size (bintype-fixed-size bt))
+    (bintype (or type (bintype-type bt)) (or fixed-size (bintype-fixed-size bt))
+             (or read-int (bintype-read-int bt)) (or write-int (bintype-write-int bt)) (or dynamic-size (bintype-dynamic-size bt))
              (or datum->raw (bintype-datum->raw bt)) (or raw->datum (bintype-raw->datum bt)))))
 
 (define-for-syntax (stdio-integer-type datatype)
   (case datatype
-    [(Byte Octet UInt8)          (make-bintype #'Byte    1 #'read-luint8  #'write-msintptr #'stdio-fixed-size)]
-    [(Short MShort Int16 MInt16) (make-bintype #'Fixnum  2 #'read-msint16 #'write-msintptr #'stdio-fixed-size)]
-    [(UInt16 MUInt16)            (make-bintype #'Index   2 #'read-muint16 #'write-muintptr #'stdio-fixed-size)]
-    [(LShort LInt16)             (make-bintype #'Fixnum  2 #'read-lsint16 #'write-lsintptr #'stdio-fixed-size)]
-    [(LUInt16)                   (make-bintype #'Index   2 #'read-luint16 #'write-luintptr #'stdio-fixed-size)]
-    [(Int MInt Int32 MInt32)     (make-bintype #'Fixnum  4 #'read-msint32 #'write-msintptr #'stdio-fixed-size)]
-    [(UInt32 MUInt32)            (make-bintype #'Index   4 #'read-muint32 #'write-muintptr #'stdio-fixed-size)]
-    [(LInt LInt32)               (make-bintype #'Fixnum  4 #'read-lsint32 #'write-lsintptr #'stdio-fixed-size)]
-    [(LUInt32)                   (make-bintype #'Index   4 #'read-luint32 #'write-luintptr #'stdio-fixed-size)]
-    [(Long MLong Int64 MInt64)   (make-bintype #'Integer 8 #'read-msint64 #'write-msintptr #'stdio-fixed-size)]
-    [(UInt64 MUInt64)            (make-bintype #'Natural 8 #'read-muint64 #'write-muintptr #'stdio-fixed-size)]
-    [(LLong LInt64)              (make-bintype #'Integer 8 #'read-lsint64 #'write-lsintptr #'stdio-fixed-size)]
-    [(LUInt64)                   (make-bintype #'Natural 8 #'read-luint64 #'write-luintptr #'stdio-fixed-size)]
+    [(Byte Octet UInt8)          (make-bintype #'Byte    1 #'read-luint8  #'write-msintptr #'stdio-zero-size)]
+    [(Short MShort Int16 MInt16) (make-bintype #'Fixnum  2 #'read-msint16 #'write-msintptr #'stdio-zero-size)]
+    [(UInt16 MUInt16)            (make-bintype #'Index   2 #'read-muint16 #'write-muintptr #'stdio-zero-size)]
+    [(LShort LInt16)             (make-bintype #'Fixnum  2 #'read-lsint16 #'write-lsintptr #'stdio-zero-size)]
+    [(LUInt16)                   (make-bintype #'Index   2 #'read-luint16 #'write-luintptr #'stdio-zero-size)]
+    [(Int MInt Int32 MInt32)     (make-bintype #'Fixnum  4 #'read-msint32 #'write-msintptr #'stdio-zero-size)]
+    [(UInt32 MUInt32)            (make-bintype #'Index   4 #'read-muint32 #'write-muintptr #'stdio-zero-size)]
+    [(LInt LInt32)               (make-bintype #'Fixnum  4 #'read-lsint32 #'write-lsintptr #'stdio-zero-size)]
+    [(LUInt32)                   (make-bintype #'Index   4 #'read-luint32 #'write-luintptr #'stdio-zero-size)]
+    [(Long MLong Int64 MInt64)   (make-bintype #'Integer 8 #'read-msint64 #'write-msintptr #'stdio-zero-size)]
+    [(UInt64 MUInt64)            (make-bintype #'Natural 8 #'read-muint64 #'write-muintptr #'stdio-zero-size)]
+    [(LLong LInt64)              (make-bintype #'Integer 8 #'read-lsint64 #'write-lsintptr #'stdio-zero-size)]
+    [(LUInt64)                   (make-bintype #'Natural 8 #'read-luint64 #'write-luintptr #'stdio-zero-size)]
     [else #false]))
 
 (define-for-syntax (stdio-float-type datatype)
@@ -88,8 +88,12 @@
     [else #false]))
 
 ;; TODO
-; `default-stdout-locale` might cause inconsistent values which indicates the size of certain field encoded.
+; `default-stdout-locale` might cause inconsistent values
 (define-for-syntax (stdio-bytes-type datatype <fields>)
+  (when (null? (cdr datatype))
+    (raise-syntax-error 'stdio-bytes-type "needs a parameter, either a field name or a size"
+                        datatype))
+  
   (case (syntax-e (car datatype))
     [(Bytesof)          (make-bintype #'Bytes  (stdio-target-field (cadr datatype) <fields>) #'read-nbytes      #'write-nbytes      #'bytes-length)]
     [(Stringof)         (make-bintype #'String (stdio-target-field (cadr datatype) <fields>) #'read-nbstring    #'write-nbstring    #'string-utf-8-length)]
@@ -126,21 +130,33 @@
                     #:raw->datum (list (list #'subint?)
                                        (format-id #'subint? "~a-~a" (syntax-e <layout>) (syntax-e <field>))
                                        #'throw))))]
+    [(#:bitmask type datum->raw raw->datum (~optional (~seq #:-> Type) #:defaults ([Type #'(Listof Symbol)])))
+     (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
+       (and (bintype? maybe-bt)
+            (remake-bintype maybe-bt #:type #'Type
+                            #:datum->raw (list #'datum->raw) #:raw->datum (list #'raw->datum))))]
+
+    [(#:-> Type size datum->raw raw->datum)
+     (make-bintype #'Type (stdio-fixed-bytes-size #'size) #'read-nbytes #'write-nbytes #'stdio-zero-size
+                   (list #'datum->raw #'size) (list #'raw->datum #'size))]
+    
     [_ #false]))
 
 (define-for-syntax (stdio-signature-field <field> <signature?> <defval>)
   (and (syntax-e <signature?>)
        (list <field> (car (syntax-e <defval>)))))
 
-(define-for-syntax (stdio-auto-field <field> <DataType>)
+(define-for-syntax (stdio-auto-field-for-size <field> <DataType>)
   (define datatype (syntax-e <DataType>))
 
   (and (pair? datatype)
-       (case (syntax-e (car datatype))
-         [(Bytesof)  (list (cadr datatype) <field> #'bytes-length)]
-         [(Stringof) (list (cadr datatype) <field> #'string-utf-8-length)]
-         [(Localeof) (list (cadr datatype) <field> #'string-locale-length)]
-         [else #false])))
+       (let ([<target-field> (cadr datatype)])
+         (and (identifier? <target-field>)
+              (case (syntax-e (car datatype))
+                [(Bytesof)  (list <target-field> <field> #'bytes-length)]
+                [(Stringof) (list <target-field> <field> #'string-utf-8-length)]
+                [(Localeof) (list <target-field> <field> #'string-locale-length)]
+                [else #false])))))
 
 (define-for-syntax (stdio-field-metainfo <read> <meta>)
   (syntax-parse <meta> #:datum-literals []
@@ -152,14 +168,14 @@
             (~optional (~and #:omittable omittable?) #:defaults ([omittable? #'#false]))
             (~optional (~seq #:name name) #:defaults ([name #'#false]))
             (~optional (~seq #:radix (~and (~or* 2 8 10 16) radix)) #:defaults ([radix #'#false]))
-            (~optional (~seq #:+fixed-size fixed-size:nat) #:defaults ([fixed-size #'0])))
+            (~optional (~seq #:+fixed-size fixed-offset:nat) #:defaults ([fixed-offset #'0])))
       ...)
      (fieldinfo (if (syntax-e #'defval) (list #'defval) null)
                 (if (syntax-e #'signature?) #'#true #'#false) (if (syntax-e #'omittable?) #'#true #'#false)
                 (if (syntax-e #'omittable?) (stdio-integer-type/read->peek <read>) <read>)
                 #'name
                 (if (syntax-e #'radix) #'radix (if (syntax-e #'signature?) #'16 #'10))
-                #'fixed-size)]))
+                #'fixed-offset)]))
 
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
@@ -175,7 +191,7 @@
                     [bytes->layout   (format-id #'layout "bytes->~a" (syntax-e #'layout))]
                     [layout->bytes   (format-id #'layout "~a->bytes" (syntax-e #'layout))]
                     [display-layout  (format-id #'layout "display-~a" (syntax-e #'layout))]
-                    [(#s[bintype FieldType word-size read-field write-field field-size [datum->raw ...] [raw->datum ...]] ...)
+                    [(#s[bintype FieldType fixed-size read-field write-field dynamic-size [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))]
                                   [<field> (in-syntax #'(field ...))])
@@ -186,7 +202,7 @@
                                   (or (stdio-bytes-type datatype <fields>)
                                       (stdio-datum-type <DataType> #'layout <field>)))
                              (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>))))]
-                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix fixed-size] ...)
+                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix fixed-offset] ...)
                      (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))]
                                 [<read> (in-syntax #'(read-field ...))])
                        (stdio-field-metainfo <read> <metainfo>))]
@@ -200,28 +216,28 @@
                      (filter list?
                              (for/list ([<field> (in-syntax #'(field ...))]
                                         [<DataType> (in-syntax #'(DataType ...))])
-                               (stdio-auto-field <field> <DataType>)))]
+                               (stdio-auto-field-for-size <field> <DataType>)))]
                     [([field-ref auto?] ...)
                      (let ([autofields (syntax->datum #'(auto-field ...))])
                        (for/list ([<field> (in-syntax #'(field ...))])
                          (define field (syntax-e <field>))
                          (list (format-id <field> "~a-~a" (syntax-e #'layout) field)
                                (and (memq field autofields) #true))))]
-                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-fixed-size ...])
+                    [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-fixed-offset ...])
                      (let*-values ([(sig-fields) (syntax->datum #'(sig-field ...))]
                                    [(auto-fields) (syntax->datum #'(auto-field ...))]
                                    [(args reargs sdleif stesffo)
                                     (for/fold ([args null] [reargs null] [sdleif null] [stesffo null])
                                               ([<field> (in-syntax #'(field ...))]
                                                [<ref> (in-syntax #'(field-ref ...))]
-                                               [<fixed-size> (in-syntax #'(fixed-size ...))]
+                                               [<fixed-offset> (in-syntax #'(fixed-offset ...))]
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
-                                      (cond [(memq field sig-fields) (stdio-check-fixed-size <fixed-size>) (values args reargs sdleif stesffo)]
-                                            [(memq field auto-fields) (values args reargs sdleif (cons <fixed-size> stesffo))]
+                                      (cond [(memq field sig-fields) (stdio-check-fixed-offset <fixed-offset>) (values args reargs sdleif stesffo)]
+                                            [(memq field auto-fields) (values args reargs sdleif (cons <fixed-offset> stesffo))]
                                             [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
-                                                    (stdio-check-fixed-size <fixed-size>)
+                                                    (stdio-check-fixed-offset <fixed-offset>)
                                                     (values (cons <kw-name> (cons <Argument> args))
                                                             (cons <kw-name> (cons <ReArgument> reargs))
                                                             (cons (list <field> <ref>) sdleif)
@@ -230,7 +246,7 @@
                     [(size0 [offset field-n] ...)
                      (let-values ([(size0 stesffo)
                                    (for/fold ([size0 0] [stesffo null])
-                                             ([size (in-list (map syntax-e (syntax->list #'(word-size ...))))]
+                                             ([size (in-list (map syntax-e (syntax->list #'(fixed-size ...))))]
                                               [n (in-naturals 0)])
                                      (values (cond [(not (exact-integer? size)) size0]
                                                    [(>= size 0) (+ size0 size)]
@@ -247,7 +263,7 @@
                     (display (if (eq? mode 0) "(struct:" "#<") /dev/stdout)
                     (display 'layout /dev/stdout)
                     (for ([datum (in-list (list (field-ref self) ...))]
-                          [width (in-list (list 'word-size ...))]
+                          [width (in-list (list 'fixed-size ...))]
                           [radix (in-list (list display-radix ...))])
                       (display #\space /dev/stdout)
                       (stdio-write-field datum width radix write-datum /dev/stdout))
@@ -258,20 +274,20 @@
 
                 (define (make-layout kw-args ...) : Layout
                   (let ([sig-field magic-number] ...
-                        [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
+                        [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-offset)] ...)
                     (constructor field ...)))
 
                 (define (remake-layout [src : Layout] kw-reargs ...) : Layout
                   (let* ([sig-field magic-number] ...
                          [man-field (or man-field (man-ref src))] ...
-                         [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
+                         [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-offset)] ...)
                     (constructor field ...)))
 
                 (define sizeof-layout : (case-> [-> Index]
                                                 [Layout -> Natural])
                   (case-lambda
                     [() size0]
-                    [(instance) (+ size0 (field-size (field-ref instance)) ...)]))
+                    [(instance) (+ size0 (dynamic-size (field-ref instance)) ...)]))
 
                 (define offsetof-layout : (case-> [Symbol -> Index]
                                                   [Layout Symbol -> Natural])
@@ -281,7 +297,7 @@
                        [(field) offset] ...
                        [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) fieldname)])]
                     [(instance fieldname)
-                     (let ([sizes (list (field-size (field-ref instance)) ...)])
+                     (let ([sizes (list (dynamic-size (field-ref instance)) ...)])
                        (case fieldname
                          [(field) (apply + offset (take sizes field-n))] ...
                          [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) 1 instance fieldname)]))]))
@@ -294,7 +310,7 @@
 
                       (let* ([field (call-datum-reader* [signature? omittable? peek-field /dev/stdin read-layout defval ...]
                                                         [raw->datum ...]
-                                                        read-field word-size fixed-size /dev/stdin 'field sizes auto?)] ...)
+                                                        read-field fixed-size fixed-offset /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
@@ -304,8 +320,10 @@
 
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref src)] ...
-                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
-                      (+ (call-datum-writer* omittable? (default-stdout-all-fields?) [datum->raw ...] write-field field word-size /dev/stdout)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-offset)] ...)
+                      (+ (call-datum-writer* omittable? (default-stdout-all-fields?)
+                                             [datum->raw ...]
+                                             write-field field fixed-size /dev/stdout)
                          ...))))
 
                 (define bytes->layout : (->* (Bytes) (Natural) Layout)
@@ -334,14 +352,14 @@
                     (display #\newline /dev/stdout)
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref self)] ...
-                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-size)] ...)
+                           [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-offset)] ...)
                       (for ([fname (in-list (list (or display-name (stdio-field->name 'field)) ...))]
                             [fnraw (in-list (list 'field ...))]
                             [datum (in-list (list field ...))]
                             [dorig (in-list (list (field-ref self) ...))]
-                            [width (in-list (list 'word-size ...))]
+                            [width (in-list (list 'fixed-size ...))]
                             [radix (in-list (list display-radix ...))]
-                            [doffs (in-list (list fixed-size ...))])
+                            [doffs (in-list (list fixed-offset ...))])
                         (display "    " /dev/stdout)
                         (unless (not offset?)
                           (display "[" /dev/stdout)
@@ -634,18 +652,18 @@
     (write-fixed-integer /dev/stdout n size #false #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define write-nbytes : (->* (Bytes Index) (Output-Port) Index)
+(define write-nbytes : (->* (Bytes Natural) (Output-Port) Index)
   (lambda [bs size [/dev/stdout (current-output-port)]]
     (cond [(= size 0) (write-bytes bs /dev/stdout 0 (bytes-length bs))]
           [else (write-bytes bs /dev/stdout 0 size)])))
 
-(define write-nbstring : (->* (String Index) (Output-Port) Index)
+(define write-nbstring : (->* (String Natural) (Output-Port) Index)
   (lambda [s bsize [/dev/stdout (current-output-port)]]
     (cond [(> bsize 0) (write-bytes (string->bytes/utf-8 s (default-stdout-error-byte)) /dev/stdout 0 bsize)]
           [else (let ([ch-size (write-string s /dev/stdout)])
                   (string-utf-8-length s 0 ch-size))])))
 
-(define write-nlcstring : (->* (String Index) (Output-Port) Index)
+(define write-nlcstring : (->* (String Natural) (Output-Port) Index)
   (lambda [s bsize [/dev/stdout (current-output-port)]]
     (define lc-all : (U String Symbol False) (default-stdout-locale))
     (define bs : Bytes (unicode-string->locale-bytes s lc-all #:error-byte (default-stdout-error-byte)))

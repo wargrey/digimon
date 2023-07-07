@@ -11,4 +11,4 @@
 
 (define read-mach-image : (-> Input-Port C:Image)
   (lambda [/dev/stdin]
-    (c:image #false)))
+    (make-c:image)))
