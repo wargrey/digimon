@@ -70,6 +70,7 @@
 
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
 (define subsub*toc-style (make-style #false '(toc)))
+(define subtitle-style (make-style "large" null))
 
 (define $out (open-output-bytes '/dev/tamer/stdout))
 (define $err (open-output-bytes '/dev/tamer/stderr))
@@ -142,7 +143,8 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
-              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
+              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
+              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
@@ -151,7 +153,7 @@
               [message "check additional resource: ~a [~a]"])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
-         
+
          (list (title #:tag "tamer-book"
                       #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                       #:style (make-style #false
@@ -173,9 +175,13 @@
                                                        (cons make-css-style-addition "tamer-style.css")
                                                        (cons make-js-style-addition "tamer-style.js"))))
                       (let ([contents (list pre-contents ...)])
-                        (cond [(pair? contents) contents]
-                              [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
-                                          (current-digimon))])))
+                        (append (cond [(pair? contents) contents]
+                                      [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
+                                                  (current-digimon))])
+                                (cond [(not subtitle) null]
+                                       [else (list (linebreak)
+                                                   (elem #:style subtitle-style
+                                                         subtitle))]))))
                (or pre-empty-author
                    (apply author
                           (map ~a (#%info 'pkg-authors
@@ -186,9 +192,11 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
-              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))) ...
+              (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
+              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:properties props #:author pre-empty-author #:hide-version? noversion?
+     (syntax/loc stx (handbook-title #:subtitle subtitle #:properties props
+                                     #:author pre-empty-author #:hide-version? noversion?
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
