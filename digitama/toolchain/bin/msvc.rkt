@@ -210,7 +210,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
   (c-register-compiler 'msvc '(flags macros includes infile outfile) 
-                       #:macros msvc-cpp-macros #:flags msvc-compile-flags #:includes msvc-include-paths
+                       #:macros msvc-cpp-macros #:includes msvc-include-paths #:flags msvc-compile-flags
                        #:outfile (msvc-make-outfile "Fo")
                        #:basename msvc-basename #:find-compiler msvc-path
                        #:env msvc-environment-variables)

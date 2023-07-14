@@ -49,8 +49,7 @@
      (λ [typesetting]
        (if (and (pair? typesetting) (path-string? (car typesetting)))
            (let ([setting.scrbl (build-path (current-directory) (path-normalize/system (car typesetting)))])
-             (and (file-exists? setting.scrbl)
-                  (typeset-filter-texinfo setting.scrbl (cdr typesetting) (or list-engines tex-list-engines))))
+             (typeset-filter-texinfo setting.scrbl (cdr typesetting) (or list-engines tex-list-engines)))
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 

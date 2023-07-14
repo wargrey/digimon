@@ -29,9 +29,11 @@
   #:type-name CC)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define declspec-dllexport : String "__declspec(dllexport)")
+
 (define cc-default-macros : (-> Symbol Boolean Boolean (Listof (Pairof String (Option String))))
   (lambda [system cpp? debug?]
-    (define dllexport : (Option String) (and (eq? system 'windows) "__declspec(dllexport)"))
+    (define dllexport : (Option String) (and (eq? system 'windows) declspec-dllexport))
     (define macros : (Listof (Pairof String (Option String)))
       (list (cons (format "__~a__" system) #false)
             (cons "__lambda__" (or dllexport ""))
@@ -48,7 +50,7 @@
 (define cc-database : (HashTable Symbol CC) (make-hasheq))
 
 (define c-register-compiler : (-> Symbol (Listof (U CC-Options String))
-                                  #:macros CC-CPP-Macros #:flags CC-Flags #:includes CC-Includes
+                                  #:macros CC-CPP-Macros #:includes CC-Includes #:flags CC-Flags
                                   [#:infile CC-IO-File-Flag] [#:outfile CC-IO-File-Flag]
                                   [#:basename (Option Symbol)] [#:find-compiler (-> Symbol (Option Path))]
                                   [#:env (U False Environment-Variables (-> Environment-Variables))]

@@ -46,17 +46,18 @@
              (c-compiler-candidates compilers)))
       
     (make-parent-directory* outfile)
-    (fg-recon-exec #:env (toolchain-env compiler)
-                   'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
-                   (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
-                     (case layout
-                       [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
-                       [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?)
-                                                       digimon-system cpp? (apply append (map c-macro-normalize macros)))]
-                       [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
-                       [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
-                       [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
-                       [else (if (string? layout) (list layout) null)])))))
+    (fg-recon-exec
+     #:env (toolchain-env compiler)
+     'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
+     (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
+       (case layout
+         [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
+         [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?)
+                                         digimon-system cpp? (apply append (map c-macro-normalize macros)))]
+         [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
+         [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
+         [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
+         [else (if (string? layout) (list layout) null)])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-linker : (->* () ((Option (Listof Symbol))) (Option LD))
@@ -67,10 +68,11 @@
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
                       (#:cpp? Boolean #:verbose? Boolean #:subsystem (Option Symbol) #:entry (Option Keyword)
                        #:libpaths (Listof C-Toolchain-Path-String) #:libraries (Listof C-Link-Library)
-                       #:linkers (Option (Listof Symbol)))
+                       #:linkers (Option (Listof Symbol)) #:pretask (-> Path-String Any) #:postask (-> Path-String Any))
                       Void)
   (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:subsystem [?subsystem #false] #:entry [?entry #false]
            #:libpaths [libpaths null] #:libraries [libs null] #:linkers [linkers #false]
+           #:pretask [pretask void] #:postask [postask void]
            infiles outfile]
     (define linker : (Option LD) (c-pick-linker linkers))
 
@@ -79,24 +81,28 @@
              (c-linker-candidates linkers)))
 
     (make-parent-directory* outfile)
-    (fg-recon-exec #:env (toolchain-env linker)
-                   'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
-                   (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
-                     (case layout
-                       [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
-                       [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
-                       [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem ?entry)]
-                       [(libpath) ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?)]
-                       [(libraries) (let ([ld-lib (ld-libraries linker)])
-                                      (apply append
-                                             (for/list : (Listof (Listof String)) ([lib (in-list libs)])
-                                               (cond [(symbol? lib) (ld-lib (list lib) #false digimon-system cpp?)]
-                                                     [else (ld-lib (cdr lib) (car lib) digimon-system cpp?)]))))]
-                       [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system cpp?)]
-                                        [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
-                                                              ((ld-infile linker) f digimon-system cpp?)))])]
-                       [(outfile) ((ld-outfile linker) outfile digimon-system cpp?)]
-                       [else (if (string? layout) (list layout) null)])))))
+
+    (void (pretask outfile))
+    (fg-recon-exec
+     #:env (toolchain-env linker)
+     'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
+     (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
+       (case layout
+         [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
+         [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
+         [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem ?entry)]
+         [(libpath) ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?)]
+         [(libraries) (let ([ld-lib (ld-libraries linker)])
+                        (apply append
+                               (for/list : (Listof (Listof String)) ([lib (in-list libs)])
+                                 (cond [(symbol? lib) (ld-lib (list lib) #false digimon-system cpp?)]
+                                       [else (ld-lib (cdr lib) (car lib) digimon-system cpp?)]))))]
+         [(infiles) (cond [(path-string? infiles) ((ld-infile linker) infiles digimon-system cpp?)]
+                          [else (apply append (for/list : (Listof (Listof String)) ([f (in-list infiles)])
+                                                ((ld-infile linker) f digimon-system cpp?)))])]
+         [(outfile) ((ld-outfile linker) outfile digimon-system cpp?)]
+         [else (if (string? layout) (list layout) null)])))
+    (void (postask outfile))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-source->object-file : (->* (Path-String) ((Option Symbol) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))

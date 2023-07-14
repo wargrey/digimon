@@ -94,11 +94,15 @@
                        [(not target-existed?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
                        [else (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
 
+                 (define ms0 (current-inexact-milliseconds))
                  (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
                        [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
                        [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
 
-                 (wisemon-log-message name 'note t #:prerequisites newers "~aremade `~a`" indent ./target)))
+                 (wisemon-log-message name 'note t #:prerequisites newers
+                                      "~aremade `~a` [~ams, ~a]" indent ./target
+                                      (~r (- (current-inexact-milliseconds) ms0) #:precision 3)
+                                      (~size (file-size t)))))
              
              (wisemon-mtime t)]
             [(file-exists? t) (wisemon-mtime t)]
