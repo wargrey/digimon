@@ -130,10 +130,10 @@
                                             (cdr cs))]))))])))
 
 (define defualt-archive-ignored-configure : Archive-Directory-Configure
-  (make-archive-ignored-configure (cons #px"/(compiled|[.]DS_Store|[.]git.*)/?$" (use-compiled-file-paths))))
+  (make-archive-ignored-configure (cons #px"(/|\\\\)(compiled|[.]DS_Store|[.]git.*)(/|\\\\)?$" (use-compiled-file-paths))))
 
 (define defualt-archive-ignored-configure+compiled : Archive-Directory-Configure
-  (make-archive-ignored-configure #px"/([.]DS_Store|[.]git.*)/?$"))
+  (make-archive-ignored-configure #px"(/|\\\\)([.]DS_Store|[.]git.*)(/|\\\\)?$"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define archive-port-name : (-> Input-Port String)
