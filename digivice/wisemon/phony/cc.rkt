@@ -12,7 +12,6 @@
 (require "../../../predicate.rkt")
 
 (require "../../../digitama/system.rkt")
-(require "../../../digitama/toolchain/cc/compiler.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
 (require "../parameter.rkt")
@@ -23,8 +22,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type CC-Launcher-Name (Pairof Path CC-Launcher-Info))
-
-(define dllexport : String (if (eq? digimon-system 'windows) (string-append declspec-dllexport " ") ""))
 
 (struct cc-launcher-info
   ([lang : (Option Symbol)]
@@ -256,7 +253,7 @@
           (define begin-exclude? : Boolean (regexp-match? #px"^\\s*//\\s*#[|]\\s*[Pp][Rr][Oo][Tt][Ee][Cc][Tt][Ee][Dd][-][Oo][Uu][Tt]\\s*$" line))
 
           (when (and (= protected-level 0) (not begin-exclude?))
-            (fprintf /dev/stdout "~a~n" (string-replace line #px"__(ffi|lambda)__\\s+" dllexport #:all? #false))
+            (fprintf /dev/stdout "~a~n" (string-replace line #px"__(ffi|lambda)__\\s+" "" #:all? #false))
             (flush-output /dev/stdout))
 
           (cond [(and begin-exclude?) (sed (add1 protected-level))]
