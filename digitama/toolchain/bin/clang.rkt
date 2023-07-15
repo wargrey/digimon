@@ -47,7 +47,11 @@
   (lambda [system cpp? shared-object? hints verbose? pass-to-linker?]
     (append (cond [(not shared-object?) null]
                   [else (case system
-                          [(macosx) (list #| MH_BUNDLE file type |# "-bundle")]
+                          ;;; WARNING
+                          ; the key difference between the MH_DYLIB and MH_BUNDLE file types is that
+                          ;   MH_BUNDLE files must be `dlopen`ed  at run time
+                          ;   instead of being linked at compile time.
+                          [(macosx) (list #| MH_DYLIB file type |# "-dynamiclib")]
                           [else (list "-fPIC" "-shared")])])
             (if (not cpp?) (list "-std=c17") (list "-std=c++17"))
             (case system

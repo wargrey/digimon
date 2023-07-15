@@ -94,15 +94,18 @@
                        [(not target-existed?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
                        [else (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
 
-                 (define ms0 (current-inexact-milliseconds))
-                 (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
-                       [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
-                       [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
+                 (let ([size0 (if (not target-existed?) 0 (file-size t))]
+                       [ms0 (current-inexact-milliseconds)])
+                   (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
+                         [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
+                         [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
 
-                 (wisemon-log-message name 'note t #:prerequisites newers
-                                      "~aremade `~a` [~ams, ~a]" indent ./target
-                                      (~r (- (current-inexact-milliseconds) ms0) #:precision 3)
-                                      (~size (file-size t)))))
+                   (let ([dsize (- (file-size t) size0)]
+                         [dms (- (current-inexact-milliseconds) ms0)])
+                     (wisemon-log-message name 'note t #:prerequisites newers
+                                          "~aremade `~a` [~ams, ~a(~a~a)]" indent ./target
+                                          (~r dms #:precision 3)
+                                          (~size (+ size0 dsize)) (if (>= dsize 0) #\+ #\-) (~size (abs dsize)))))))
              
              (wisemon-mtime t)]
             [(file-exists? t) (wisemon-mtime t)]

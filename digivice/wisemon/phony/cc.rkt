@@ -103,6 +103,8 @@
 
 (define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
   (lambda [launchers incdirs subnative debug?]
+    (define local-info.rkt : Path (digimon-path 'info))
+    
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
@@ -154,7 +156,7 @@
                                           #:macros (cc-launcher-info-macros info)
                                           #:includes (append incdirs (cc-launcher-info-includes info))
                                           native.c native.o))
-             (wisemon-spec native #:^ (append objects (wisemon-targets-flatten headers))
+             (wisemon-spec native #:^ (cons local-info.rkt (append objects (wisemon-targets-flatten headers)))
                            #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                        #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
@@ -251,14 +253,14 @@
       (let sed ([protected-level : Natural 0])
         (define line (read-line /dev/stdin))
         (when (string? line)
-          (define begin-exclude? : Boolean (regexp-match? #px"#[|]\\s*[Pp][Rr][Oo][Tt][Ee][Cc][Tt][Ee][Dd][-][Oo][Uu][Tt]" line))
+          (define begin-exclude? : Boolean (regexp-match? #px"^\\s*//\\s*#[|]\\s*[Pp][Rr][Oo][Tt][Ee][Cc][Tt][Ee][Dd][-][Oo][Uu][Tt]\\s*$" line))
 
           (when (and (= protected-level 0) (not begin-exclude?))
             (fprintf /dev/stdout "~a~n" (string-replace line #px"__(ffi|lambda)__\\s+" dllexport #:all? #false))
             (flush-output /dev/stdout))
 
           (cond [(and begin-exclude?) (sed (add1 protected-level))]
-                [(regexp-match? #px"\\s*[|]#" line) (sed (if (> protected-level 0) (sub1 protected-level) 0))]
+                [(regexp-match? #px"^\\s*//\\s*[|]#\\s*$" line) (sed (if (> protected-level 0) (sub1 protected-level) 0))]
                 [else (sed protected-level)])))
 
       (custodian-shutdown-all (current-custodian)))))
