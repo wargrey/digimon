@@ -48,10 +48,10 @@
 (define digimon-native-files->launcher-names : (-> (Listof CC-Launcher-Name) (Listof Path) (Listof CC-Launcher-Name))
   (lambda [info-targets targets]
     (map cc-launcher-filter
-                (for/list : (Listof Any) ([p (in-list targets)])
-                  (let ([info-p (assoc p info-targets)])
-                    (cond [(pair? info-p) info-p]
-                          [else (cons p (list 'CONSOLE))]))))))
+         (for/list : (Listof Any) ([p (in-list targets)])
+           (let ([info-p (assoc p info-targets)])
+             (cond [(pair? info-p) info-p]
+                   [else (cons p (list 'CONSOLE))]))))))
 
 (define make-depcc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
   (let ([cpp-src-filter (λ [[file : Path]] : Boolean (regexp-match? #px"\\.c(pp)?$" file))])
@@ -79,7 +79,7 @@
                   (find-digimon-files cpp-src-filter dir)))))
       
       (for/fold ([specs : Wisemon-Specification null])
-                ([dep.c (in-list all-depsrcs)])
+                ([dep.c (in-list all-depsrcs)] #:when (file-exists? dep.c))
         (define cpp-file? : Boolean (eq? (cc-lang-from-extension dep.c) 'cpp))
         (define deps.h : (Listof Path) (c-include-headers dep.c includes #:topic (current-make-phony-goal)))
         
