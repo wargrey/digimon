@@ -128,7 +128,8 @@
 
       (define headers : (Listof Wisemon-Spec)
         (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
-            (let ([target-rootdir (path-replace-extension native #"")]
+            (let ([target-rootdir (assert (path-only native))]
+                  [target-subdir (string-replace (path->string (path-replace-extension (assert (file-name-from-path native.c)) #"")) "." "_")]
                   [source-rootdir (assert (path-only native.c))])
               (for/fold ([ss : (Listof Wisemon-Spec) null])
                         ([header.h (in-list includes)])
@@ -138,7 +139,7 @@
                        (let ([tails (explode-path target-tail)])
                          (and (pair? tails)
                               (andmap path? tails)
-                              (let ([target (apply build-path target-rootdir tails)])
+                              (let ([target (apply build-path target-rootdir target-subdir tails)])
                                 (wisemon-spec target #:^ (list header.h)
                                               #:- (cc-header-sed target header.h)))))))
 

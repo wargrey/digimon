@@ -115,12 +115,16 @@
                            [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
                                    (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
-(define c-source->shared-object-file : (->* (Path-String Boolean) ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
-  (lambda [c contained-in-package? [name #false] #:subnative [subnative #false] #:debug? [debug? #false]]
+(define c-source->shared-object-file : (->* (Path-String Boolean)
+                                            ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean #:lib-prefixed? Boolean)
+                                            (Option Path))
+  (lambda [#:subnative [subnative #false] #:debug? [debug? #false] #:lib-prefixed? [libname? (not (eq? digimon-system 'windows))]
+           c contained-in-package? [name #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
-         (let ([libname.so (path-replace-extension basename (system-type 'so-suffix))])
+         (let* ([name.so (path-replace-extension basename (system-type 'so-suffix))]
+                [libname.so (if (not libname?) name.so (string-append "lib" (path->string name.so)))])
            (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) libname.so)]
                  [else (build-path (native-rootdir/compiled c debug? subnative) libname.so)])))))
 
