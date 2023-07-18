@@ -54,7 +54,7 @@
          [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
          [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?)
                                          digimon-system cpp? (apply append (map c-macro-normalize macros)))]
-         [(includes) ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?)]
+         [(includes) (remove-duplicates ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?))]
          [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
          [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
          [else (if (string? layout) (list layout) null)])))))
@@ -91,7 +91,7 @@
          [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
          [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
          [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem ?entry)]
-         [(libpath) ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?)]
+         [(libpath) (remove-duplicates ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?))]
          [(libraries) (let ([ld-lib (ld-libraries linker)])
                         (apply append
                                (for/list : (Listof (Listof String)) ([lib (in-list libs)])

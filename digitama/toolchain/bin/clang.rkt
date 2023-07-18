@@ -39,7 +39,7 @@
         [(macosx) (list "/usr/local/include")]
         [else null]))
 
-    (for/list : (Listof String) ([dir (in-list (append extra-dirs system-dirs))])
+    (for/list : (Listof String) ([dir (in-list (append system-dirs extra-dirs))])
       (clang-search-path "-I" dir))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -67,7 +67,7 @@
         [(macosx) (list "/usr/local/lib")]
         [else null]))
     
-    (for/list : (Listof String) ([dir (in-list (append extra-dirs system-dirs))])
+    (for/list : (Listof String) ([dir (in-list (append system-dirs extra-dirs))])
       (clang-search-path "-L" dir))))
 
 (define clang-linker-libraries : LD-Libraries

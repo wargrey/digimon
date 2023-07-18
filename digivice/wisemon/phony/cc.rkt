@@ -147,20 +147,21 @@
                       [else (cons spec ss)])))
             null))
 
-      ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-      (list* (wisemon-spec native.o #:^ (cons native.c (c-include-headers #:check-source? #false #:topic (current-make-phony-goal)
-                                                                          native.c (cc-launcher-info-includes info)))
-                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:debug? debug?
-                                          #:macros (cc-launcher-info-macros info)
-                                          #:includes (append incdirs (cc-launcher-info-includes info))
-                                          native.c native.o))
-             (wisemon-spec native #:^ (cons local-info.rkt (append objects (wisemon-targets-flatten headers)))
-                           #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
-                                       #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                       #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
-                                       #:postask (if (cc-launcher-info-subsystem info) void void)
-                                       objects native))
-             (append headers specs)))))
+      ; keep the order of building
+      (append headers specs
+              ; TODO: why includes duplicate inside the spec, but be okay outside the spec
+              (list (wisemon-spec native.o #:^ (list* local-info.rkt native.c (c-include-headers #:check-source? #false #:topic (current-make-phony-goal)
+                                                                                                 native.c (cc-launcher-info-includes info)))
+                                  #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:debug? debug?
+                                                 #:macros (cc-launcher-info-macros info)
+                                                 #:includes (append incdirs (cc-launcher-info-includes info))
+                                                 native.c native.o))
+                    (wisemon-spec native #:^ (cons local-info.rkt (append objects (wisemon-targets-flatten headers)))
+                                  #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                                              #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
+                                              #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
+                                              #:postask (if (cc-launcher-info-subsystem info) void void)
+                                              objects native)))))))
 
 (define make-cc : (-> String (Option Info-Ref) Boolean Any)
   (lambda [digimon info-ref debug?]
