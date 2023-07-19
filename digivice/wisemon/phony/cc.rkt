@@ -100,8 +100,6 @@
 
 (define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
   (lambda [launchers incdirs subnative debug?]
-    (define local-info.rkt : Path (digimon-path 'info))
-    
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
@@ -150,13 +148,13 @@
       ; keep the order of building
       (append headers specs
               ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-              (list (wisemon-spec native.o #:^ (list* local-info.rkt native.c (c-include-headers #:check-source? #false #:topic (current-make-phony-goal)
-                                                                                                 native.c (cc-launcher-info-includes info)))
+              (list (wisemon-spec native.o #:^ (cons native.c (c-include-headers #:check-source? #false #:topic (current-make-phony-goal)
+                                                                                 native.c (cc-launcher-info-includes info)))
                                   #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose) #:debug? debug?
                                                  #:macros (cc-launcher-info-macros info)
                                                  #:includes (append incdirs (cc-launcher-info-includes info))
                                                  native.c native.o))
-                    (wisemon-spec native #:^ (cons local-info.rkt (append objects (wisemon-targets-flatten headers)))
+                    (wisemon-spec native #:^ (append objects (wisemon-targets-flatten headers))
                                   #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                               #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                               #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
