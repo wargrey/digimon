@@ -44,7 +44,7 @@
     (unless (cc? compiler)
       (error 'c-compile "no suitable C compiler is found: ~a"
              (c-compiler-candidates compilers)))
-      
+    
     (make-parent-directory* outfile)
     (fg-recon-exec
      #:env (toolchain-env compiler)
@@ -171,6 +171,11 @@
       (and (file-exists? h.c)
            (cond [(not src->file) h.c]
                  [else (src->file h.c)])))))
+
+(define c-headers->sources : (-> (Listof Path) (Listof Path))
+  (lambda [deps]
+    (remove-duplicates
+     (filter-map c-header->maybe-source deps))))
 
 (define c-headers->files : (->* ((Listof Path)) ((Option (-> Path (Option Path)))) (Listof Path))
   (lambda [deps [src->file #false]]
