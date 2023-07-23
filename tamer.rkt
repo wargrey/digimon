@@ -577,9 +577,14 @@
                                             (make-spec-feature htag (reverse (href htag)))))]))))))
 
 (define tamer-deftech
-  (lambda [#:key [key #false] #:normalize? [normalize? #true] . body]
-    (list ($tex:phantomsection)
-          (apply deftech #:key key #:normalize? normalize? #:style? #true body))))
+  (lambda [#:key [key #false] #:normalize? [normalize? #true] #:origin [origin #false] #:abbr [abbr #false] . body]
+    (define term
+      (list ($tex:phantomsection)
+            (apply deftech #:key key #:normalize? normalize? #:style? #true body)))
+
+    (cond [(and origin abbr) (list term "(" (tamer-deftech abbr) "," ~ (tamer-deftech origin) ")")]
+          [(or origin abbr) (list term "(" (tamer-deftech (or origin abbr)) ")")]
+          [else term])))
 
 (define tamer-elemtag
   (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
