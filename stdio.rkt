@@ -56,10 +56,12 @@
     (bintype type word-size read-int write-int dynamic-size datum->raw raw->datum))
 
   (define (remake-bintype bt #:type [type #false] #:fixed-size [fixed-size #false]
-                          #:read [read-int #false] #:write [write-int #false] #:dynamic-size [dynamic-size #false]
+                          #:read [read-int #false] #:write [write-int #false]
+                          #:dynamic-size [dynamic-size #false]
                           #:datum->raw [datum->raw #false] #:raw->datum [raw->datum #false])
     (bintype (or type (bintype-type bt)) (or fixed-size (bintype-fixed-size bt))
-             (or read-int (bintype-read-int bt)) (or write-int (bintype-write-int bt)) (or dynamic-size (bintype-dynamic-size bt))
+             (or read-int (bintype-read-int bt)) (or write-int (bintype-write-int bt))
+             (or dynamic-size (bintype-dynamic-size bt))
              (or datum->raw (bintype-datum->raw bt)) (or raw->datum (bintype-raw->datum bt)))))
 
 (define-for-syntax (stdio-integer-type datatype)
@@ -112,25 +114,32 @@
 
 (define-for-syntax (stdio-datum-type <DataType> <layout> <field>)
   (syntax-parse <DataType> #:datum-literals []
-    [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'Symbol]))
-                                              (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*]))) ...)
+    [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type)
+                                                         #:defaults ([Type #'Symbol]))
+                                              (~optional (~seq #:fallback enum)
+                                                         #:defaults ([enum #'throw-range-error*]))) ...)
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type #'Type
-                            #:datum->raw (list #'datum->raw #'enum) #:raw->datum (list #'raw->datum #'enum))))]
-    [(#:enum type datum-identity (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-range-error*])))
+                            #:datum->raw (list #'datum->raw #'enum)
+                            #:raw->datum (list #'raw->datum #'enum))))]
+    [(#:enum type datum-identity (~optional (~seq #:fallback enum)
+                                            #:defaults ([enum #'throw-range-error*])))
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:raw->datum (list #'datum->identity #'enum))))]
-    [(#:subint type subint? (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'#false]))
-                                  (~optional (~seq #:throw throw) #:defaults ([throw #'throw-range-error]))) ...)
+    [(#:subint type subint? (~alt (~optional (~seq #:-> Type)
+                                             #:defaults ([Type #'#false]))
+                                  (~optional (~seq #:throw throw)
+                                             #:defaults ([throw #'throw-range-error]))) ...)
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type (and (syntax-e #'Type) #'Type)
                     #:raw->datum (list (list #'subint?)
                                        (format-id #'subint? "~a-~a" (syntax-e <layout>) (syntax-e <field>))
                                        #'throw))))]
-    [(#:bitmask type datum->raw raw->datum (~optional (~seq #:-> Type) #:defaults ([Type #'(Listof Symbol)])))
+    [(#:bitmask type datum->raw raw->datum (~optional (~seq #:-> Type)
+                                                      #:defaults ([Type #'(Listof Symbol)])))
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type #'Type
@@ -188,7 +197,8 @@
 (define-syntax (define-binary-struct stx)
   (syntax-case stx [:]
     [(_ layout+super : Layout ([field : DataType metainfo ...] ...) options ...)
-     (with-syntax* ([(layout super ...) (let ([id+super (syntax-e #'layout+super)]) (if (symbol? id+super) (list #'layout+super) id+super))]
+     (with-syntax* ([(layout super ...) (let ([id+super (syntax-e #'layout+super)])
+                                          (if (symbol? id+super) (list #'layout+super) id+super))]
                     [constructor     (format-id #'layout "~a" (gensym (format "~a:" (syntax-e #'layout))))]
                     [make-layout     (format-id #'layout "make-~a" (syntax-e #'layout))]
                     [remake-layout   (format-id #'layout "remake-~a" (syntax-e #'layout))]
@@ -199,7 +209,8 @@
                     [bytes->layout   (format-id #'layout "bytes->~a" (syntax-e #'layout))]
                     [layout->bytes   (format-id #'layout "~a->bytes" (syntax-e #'layout))]
                     [display-layout  (format-id #'layout "display-~a" (syntax-e #'layout))]
-                    [(#s[bintype FieldType fixed-size read-field write-field dynamic-size [datum->raw ...] [raw->datum ...]] ...)
+                    [(#s[bintype FieldType fixed-size read-field write-field dynamic-size
+                                 [datum->raw ...] [raw->datum ...]] ...)
                      (let ([<fields> #'(field ...)])
                        (for/list ([<DataType> (in-syntax #'(DataType ...))]
                                   [<field> (in-syntax #'(field ...))])
@@ -210,7 +221,8 @@
                                   (or (stdio-bytes-type datatype <fields>)
                                       (stdio-datum-type <DataType> #'layout <field>)))
                              (raise-syntax-error 'define-binary-struct "unrecognized data type" <DataType>))))]
-                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field display-name display-radix fixed-offset] ...)
+                    [(#s[fieldinfo [defval ...] signature? omittable? peek-field
+                                   display-name display-radix fixed-offset] ...)
                      (for/list ([<metainfo> (in-syntax #'([metainfo ...] ...))]
                                 [<read> (in-syntax #'(read-field ...))])
                        (stdio-field-metainfo <read> <metainfo>))]
@@ -242,14 +254,18 @@
                                                [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
                                                [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
                                       (define field (syntax-e <field>))
-                                      (cond [(memq field sig-fields) (stdio-check-fixed-offset <fixed-offset>) (values args reargs sdleif stesffo)]
-                                            [(memq field auto-fields) (values args reargs sdleif (cons <fixed-offset> stesffo))]
-                                            [else (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
-                                                    (stdio-check-fixed-offset <fixed-offset>)
-                                                    (values (cons <kw-name> (cons <Argument> args))
-                                                            (cons <kw-name> (cons <ReArgument> reargs))
-                                                            (cons (list <field> <ref>) sdleif)
-                                                            stesffo))]))])
+                                      (cond [(memq field sig-fields)
+                                             (stdio-check-fixed-offset <fixed-offset>)
+                                             (values args reargs sdleif stesffo)]
+                                            [(memq field auto-fields)
+                                             (values args reargs sdleif (cons <fixed-offset> stesffo))]
+                                            [else
+                                             (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
+                                               (stdio-check-fixed-offset <fixed-offset>)
+                                               (values (cons <kw-name> (cons <Argument> args))
+                                                       (cons <kw-name> (cons <ReArgument> reargs))
+                                                       (cons (list <field> <ref>) sdleif)
+                                                       stesffo))]))])
                        (list args reargs (reverse sdleif) (reverse stesffo)))]
                     [(size0 [offset field-n] ...)
                      (let-values ([(size0 stesffo)
@@ -303,12 +319,16 @@
                     [(fieldname)
                      (case fieldname
                        [(field) offset] ...
-                       [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) fieldname)])]
+                       [else (raise-argument-error 'offsetof-layout
+                                                   (exn-constraint->string '(field ...))
+                                                   fieldname)])]
                     [(instance fieldname)
                      (let ([sizes (list (dynamic-size (field-ref instance)) ...)])
                        (case fieldname
                          [(field) (apply + offset (take sizes field-n))] ...
-                         [else (raise-argument-error 'offsetof-layout (exn-constraint->string '(field ...)) 1 instance fieldname)]))]))
+                         [else (raise-argument-error 'offsetof-layout
+                                                     (exn-constraint->string '(field ...))
+                                                     1 instance fieldname)]))]))
 
                 (define read-layout : (->* () (Input-Port (Option Integer)) Layout)
                   (let ([sizes : (HashTable Symbol Index) (make-hasheq)])
@@ -316,9 +336,10 @@
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (call-datum-reader* [signature? omittable? peek-field /dev/stdin read-layout defval ...]
-                                                        [raw->datum ...]
-                                                        read-field fixed-size fixed-offset /dev/stdin 'field sizes auto?)] ...)
+                      (let* ([field (call-datum-reader*
+                                     [signature? omittable? peek-field /dev/stdin read-layout defval ...]
+                                     [raw->datum ...]
+                                     read-field fixed-size fixed-offset /dev/stdin 'field sizes auto?)] ...)
                         (constructor field ...)))))
 
                 (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
@@ -349,8 +370,14 @@
                        (begin0 (+ off (write-layout src /dev/stdout))
                                (close-output-port /dev/stdout)))]))
                 
-                (define display-layout : (->* (Layout) (Output-Port #:mode (U Zero One Boolean) #:with-offset? Boolean) Void)
-                  (lambda [self [/dev/stdout (current-output-port)] #:mode [mode 1] #:with-offset? [offset? #false]]
+                (define display-layout : (->* (Layout)
+                                              (Output-Port #:mode (U Zero One Boolean)
+                                                           #:with-offset? Boolean #:hex-offset? Boolean
+                                                           #:hide-void? Boolean)
+                                              Void)
+                  (lambda [#:mode [mode 1] #:with-offset? [offset? #false] #:hex-offset? [hex? #true]
+                           #:hide-void? [hide-void? #true]
+                           self [/dev/stdout (current-output-port)]]
                     (define write-datum : (-> Any Output-Port Void) (stdio-select-writer mode))
                     (display (stdio-field->name 'layout) /dev/stdout)
                     (unless (not offset?)
@@ -368,11 +395,14 @@
                             [width (in-list (list 'fixed-size ...))]
                             [radix (in-list (list display-radix ...))]
                             [doffs (in-list (list fixed-offset ...))])
-                        (unless (void? dorig)
+                        (unless (and (void? dorig) hide-void?)
                           (display "    " /dev/stdout)
                           (unless (not offset?)
                             (display "[" /dev/stdout)
-                            (display (offsetof-layout self fnraw) /dev/stdout)
+                            (let ([pos (offsetof-layout self fnraw)])
+                              (cond [(not hex?) (display pos /dev/stdout)]
+                                    [else (display (string-append "#x" (number->string pos 16))
+                                                   /dev/stdout)]))
                             (display #\] /dev/stdout))
                           (display fname /dev/stdout)
                           (display ": " /dev/stdout)
