@@ -173,8 +173,13 @@
 (define-syntax (check-signature stx)
   (syntax-parse stx #:datum-literals []
     [(_ [#false who-cares ...] datum-expr) #'datum-expr]
-    [(_ [#true #false peek-sig /dev/stdin src magic-number] datum-expr) (syntax/loc stx (stdio-signature-filter /dev/stdin datum-expr magic-number 'src))]
-    [(_ [#true #true  peek-sig /dev/stdin src magic-number] datum-expr) (syntax/loc stx (if (eq? magic-number (peek-sig /dev/stdin)) datum-expr magic-number))]))
+    [(_ [#true #false peek-sig /dev/stdin src magic-number] datum-expr)
+     (syntax/loc stx (stdio-signature-filter /dev/stdin datum-expr magic-number 'src))]
+    [(_ [#true #true  peek-sig /dev/stdin src magic-number] datum-expr)
+     (syntax/loc stx (if (let ([given (peek-sig /dev/stdin)])
+                           (or (eq? magic-number given)
+                               (equal? magic-number given)))
+                         datum-expr magic-number))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-integer-bytes! : (-> Input-Port Natural Bytes)
@@ -207,7 +212,8 @@
 
 (define stdio-signature-filter : (All (a) (-> Input-Port (∩ a Number) (∩ a Number) Symbol a))
   (lambda [/dev/stdin given expected src]
-    (unless (eq? given expected)
+    (unless (or (eq? given expected)
+                (equal? given expected))
       (throw-signature-error /dev/stdin src "signature mismatched (expect: ~a; given: ~a)"
                              (number->string expected 16) (number->string given 16)))
 
@@ -223,7 +229,8 @@
     (case mode
       [(#true) write]
       [(#false) display]
-      [else (λ [[datum : Any] [/dev/stdout : Output-Port]] (print datum /dev/stdout mode))])))
+      [else (λ [[datum : Any] [/dev/stdout : Output-Port]]
+              (print datum /dev/stdout mode))])))
 
 (define stdio-write-field : (->* (Any Any Integer) ((-> Any Output-Port Void) Output-Port) Void)
   (lambda [datum size radix [write-datum display] [/dev/stdout (current-output-port)]]
@@ -247,6 +254,15 @@
             (read-bytes! /dev/null /dev/stdin 0 (min n pool-size)))
           (unless (eof-object? count)
             (drop (- n count))))))))
+
+(define pad-bytes : (-> Any Natural Output-Port Index)
+  (lambda [datum size /dev/stdout]
+    (if (bytes? datum)
+        (let ([dsize (- size (bytes-length datum))])
+          (if (<= dsize 0)
+              (write-bytes datum /dev/stdout 0 size)
+              (write-bytes (bytes-append datum (make-bytes dsize)) /dev/stdout 0 size)))
+        (write-bytes (make-bytes size) /dev/stdout))))
 
 (define read-unlimited-decimal : (-> Input-Port Byte (-> Char Boolean) (-> Char Index) Natural Natural Boolean Natural)
   (lambda [/dev/stdin bitwidth char-digit? char->decimal skip initial-result eat-last-whitespace?]

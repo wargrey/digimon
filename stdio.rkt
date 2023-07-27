@@ -139,6 +139,14 @@
     [(#:-> Type size datum->raw raw->datum)
      (make-bintype #'Type (stdio-fixed-bytes-size #'size) #'read-nbytes #'write-nbytes #'stdio-zero-size
                    (list #'datum->raw #'size) (list #'raw->datum #'size))]
+
+    [(#:raw size)
+     (make-bintype #'Bytes (stdio-fixed-bytes-size #'size) #'read-nbytes #'pad-bytes #'stdio-zero-size
+                   (list #'values) (list #'values))]
+    
+    [(#:unused size)
+     (make-bintype #'Any (stdio-fixed-bytes-size #'size) #'drop-bytes #'pad-bytes #'stdio-zero-size
+                   (list #'void) (list #'void))]
     
     [_ #false]))
 
@@ -349,7 +357,7 @@
                       (display " [sizeof: " /dev/stdout)
                       (display (sizeof-layout self))
                       (display #\] /dev/stdout))
-                    (display #\newline /dev/stdout)
+                    (newline /dev/stdout)
                     (let* ([sig-field magic-number] ...
                            [man-field (man-ref self)] ...
                            [auto-field (unsafe-idx+ (field->value target-field) auto-fixed-offset)] ...)
@@ -360,28 +368,29 @@
                             [width (in-list (list 'fixed-size ...))]
                             [radix (in-list (list display-radix ...))]
                             [doffs (in-list (list fixed-offset ...))])
-                        (display "    " /dev/stdout)
-                        (unless (not offset?)
-                          (display "[" /dev/stdout)
-                          (display (offsetof-layout self fnraw) /dev/stdout)
-                          (display #\] /dev/stdout))
-                        (display fname /dev/stdout)
-                        (display ": " /dev/stdout)
-                        (unless (equal? datum dorig)
+                        (unless (void? dorig)
+                          (display "    " /dev/stdout)
+                          (unless (not offset?)
+                            (display "[" /dev/stdout)
+                            (display (offsetof-layout self fnraw) /dev/stdout)
+                            (display #\] /dev/stdout))
+                          (display fname /dev/stdout)
+                          (display ": " /dev/stdout)
+                          (unless (equal? datum dorig)
                             (display #\space /dev/stdout)
                             (write-datum dorig /dev/stdout)
                             (display " => " /dev/stdout))
-                        (stdio-write-field datum width radix write-datum /dev/stdout)
-                        (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
-                          (display " (" /dev/stdout)
-                          (write-datum datum /dev/stdout)
-                          (display #\) /dev/stdout))
-                        (when (> doffs 0)
-                          (display " [+" /dev/stdout)
-                          (write-datum doffs /dev/stdout)
-                          (display #\] /dev/stdout))
-                        (display #\newline /dev/stdout))
-                      (flush-output /dev/stdout)))))))]))
+                          (stdio-write-field datum width radix write-datum /dev/stdout)
+                          (when (and (exact-nonnegative-integer? datum) (not (= radix 10)))
+                            (display " (" /dev/stdout)
+                            (write-datum datum /dev/stdout)
+                            (display #\) /dev/stdout))
+                          (when (> doffs 0)
+                            (display " [+" /dev/stdout)
+                            (write-datum doffs /dev/stdout)
+                            (display #\] /dev/stdout))
+                          (newline /dev/stdout)
+                          (flush-output /dev/stdout)))))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define try-read-signature : (-> Input-Port Bytes Boolean)
