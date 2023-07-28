@@ -157,6 +157,10 @@
      (make-bintype #'Any (stdio-fixed-bytes-size #'size) #'drop-bytes #'pad-bytes #'stdio-zero-size
                    (list #'void) (list #'void))]
     
+    [(#:locale size)
+     (make-bintype #'String (stdio-fixed-bytes-size #'size) #'read-nlcstring #'pad-nlcstring #'stdio-zero-size
+                   (list #'values) (list #'values))]
+    
     [_ #false]))
 
 (define-for-syntax (stdio-signature-field <field> <signature?> <defval>)
@@ -709,3 +713,12 @@
     
     (cond [(> bsize 0) (write-bytes bs /dev/stdout 0 bsize)]
           [else (write-bytes bs /dev/stdout)])))
+
+(define pad-nlcstring : (->* (String Natural) (Output-Port) Index)
+  (lambda [s bsize [/dev/stdout (current-output-port)]]
+    (define lc-all : (U String Symbol False) (default-stdout-locale))
+    (define bs : Bytes (unicode-string->locale-bytes s lc-all #:error-byte (default-stdout-error-byte)))
+    (define dsize : Integer (- bsize (bytes-length bs)))
+    
+    (cond [(<= dsize 0) (write-bytes bs /dev/stdout 0 bsize)]
+          [else (write-bytes (bytes-append bs (make-bytes dsize 0)) /dev/stdout)])))
