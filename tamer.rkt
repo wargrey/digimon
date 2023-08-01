@@ -506,10 +506,11 @@
                 (tamer-story-lang+modules (list 'lang 'extra-langs ...)))
               (defmodule*/no-declare (lang extra-langs ...) #:lang)))]))
 
-(define-syntax (tamer-action stx)
+(define-syntax (tamer-repl stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:label label) #:defaults ([label #'#false]))
-              (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
+              (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))
+              (~optional (~seq #:style style) #:defaults ([style #''inset]))) ...
         s-exps ...)
      (with-syntax ([(hidden-mods ...) #'hidden-requires])
        (syntax/loc stx
@@ -522,20 +523,23 @@
             (λ [get set!]
               (let ([zeval (tamer-zone-ref this-story)])
                 (examples #:label #false #:eval zeval #:hidden (require hidden-mods)) ...
-                (begin0 (examples #:label example-label #:eval zeval s-exps ...)
+                (begin0 (if (not style)
+                            (examples #:no-inset #:label example-label #:eval zeval s-exps ...)
+                            (nested #:style style
+                                    (examples #:no-inset #:label example-label #:eval zeval s-exps ...)))
                         (tamer-zone-destory this-story #true))))))))]))
 
 (define-syntax (tamer-answer stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
         exprs ...)
-     (syntax/loc stx (tamer-action #:label 'answer #:requires hidden-requires exprs ...))]))
+     (syntax/loc stx (tamer-repl #:label 'answer #:requires hidden-requires exprs ...))]))
 
 (define-syntax (tamer-solution stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
         exprs ...)
-     (syntax/loc stx (tamer-action #:label 'solution #:requires hidden-requires exprs ...))]))
+     (syntax/loc stx (tamer-repl #:label 'solution #:requires hidden-requires exprs ...))]))
 
 (define tamer-story-space
   (lambda []
