@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 (provide (all-from-out racket/port))
+(provide EvtSelf port-always-write-evt port-always-write-special-evt)
 
 (require racket/port)
 
