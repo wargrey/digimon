@@ -119,9 +119,10 @@
 
 (define open-input-block-chain : (->* (Input-Port (U (Pairof (Listof Index) Port-Chain-Block-Info)
                                                      (Listof (Pairof Natural Natural))))
-                                      (Boolean #:name Any #:total (Option Natural))
+                                      (Boolean #:name Any #:total (Option Natural) #:force-thread-safe? Boolean)
                                       Input-Port)
-  (lambda [/dev/srcin block-chain [close-orig? #false] #:total [maybe-total #false] #:name [name #false]]
+  (lambda [#:total [maybe-total #false] #:name [name #false] #:force-thread-safe? [thread-safe? #false]
+           /dev/srcin block-chain [close-orig? #false]]
     (define lock-semaphore : Semaphore (make-semaphore 1))
     (define block-count : Index (if (list? block-chain) (length block-chain) (length (car block-chain))))
     (define block-positions : (Vectorof Natural) (make-vector block-count))
@@ -133,14 +134,14 @@
       (if (list? block-chain)
           (for/fold ([acc-size : Natural 0])
                     ([p.s (in-list block-chain)]
-                     [idx (in-naturals)])
+                     [idx (in-naturals 0)])
             (define size++ (+ acc-size (cdr p.s)))
             (vector-set! block-positions idx (car p.s))
             (vector-set! block+sizes idx size++)
             size++)
           (for/fold ([acc-size : Natural 0])
                     ([b-idx (in-list (car block-chain))]
-                     [idx (in-naturals)])
+                     [idx (in-naturals 0)])
             (define-values (pos size) ((cdr block-chain) b-idx))
             (define size++ (+ acc-size size))
             (vector-set! block-positions idx pos)
@@ -152,10 +153,6 @@
           (min (or maybe-total max-size)
                max-size)
           0))
-
-    (when (> total-size 0)
-      (file-position /dev/srcin
-                     (vector-ref block-positions 0)))
     
     (define (do-read [str : Bytes]) : Port-Reader-Plain-Datum
       (define available : Integer (- total-size consumed))
@@ -164,7 +161,14 @@
           (let* ([request (min available (bytes-length str))]
                  [bavail (- (vector-ref block+sizes block-idx) consumed)])
             (if (> bavail 0)
-                (let ([n (read-bytes-avail!* str /dev/srcin 0 (min request bavail))])
+                (let ([amt (min request bavail)])
+                  (when (or thread-safe? (= consumed 0))
+                    (file-position /dev/srcin
+                                   (+ (vector-ref block-positions block-idx)
+                                      (if (> block-idx 0)
+                                          (- consumed (vector-ref block+sizes (sub1 block-idx)))
+                                          consumed))))
+                  (define n (read-bytes-avail!* str /dev/srcin 0 amt))
                   (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
                         [(number? n) (set! consumed (+ consumed n)) n]
                         [(procedure? n) (do-read str)]
