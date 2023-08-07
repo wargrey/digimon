@@ -8,6 +8,7 @@
 
 (require typed/racket/random)
 
+(require "digitama/unsafe/ops.rkt")
 (require "digitama/evt.rkt")
 (require "format.rkt")
 
@@ -15,6 +16,7 @@
 (define-type Port-Special-Datum (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any))
 (define-type Port-Reader-Plain-Datum (U Natural EOF Input-Port (Rec x (Evtof (U Natural EOF Input-Port x)))))
 (define-type Port-Reader-Datum (U Port-Special-Datum Natural EOF Input-Port (Rec x (Evtof (U Natural EOF Input-Port Port-Special-Datum x)))))
+(define-type Port-Chain-Block-Info (-> Index (Values Natural Natural)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define /dev/stdin : Input-Port (current-input-port))
@@ -59,24 +61,28 @@
     (define (do-read [str : Bytes]) : Port-Reader-Datum
       (define available : Integer (- size consumed))
       
-      (cond [(<= available 0) eof]
-            [else (let ([n (read-bytes-avail!* str /dev/srcin 0 (min available (bytes-length str)))])
-                    (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
-                          [(number? n) (set! consumed (+ consumed n)) n]
-                          [(procedure? n) (set! consumed (add1 consumed)) n]
-                          [else n]))]))
+      (if (> available 0)
+          (let ([n (read-bytes-avail!* str /dev/srcin 0 (min available (bytes-length str)))])
+            (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
+                  [(number? n) (set! consumed (+ consumed n)) n]
+                  [(procedure? n) #| special values are not counted in as consumed bytes |# n]
+                  [else n]))
+          eof))
     
     (define (do-peek [str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]) : (Option Port-Reader-Datum)
       (define count : Integer (min (- size consumed skip) (bytes-length str)))
       
-      (cond [(<= count 0) (if (and progress-evt (sync/timeout 0 progress-evt)) #false eof)]
-            [else (let ([n (peek-bytes-avail!* str skip progress-evt /dev/srcin 0 count)])
-                    (cond [(not (eq? n 0)) n]
-                          [(and progress-evt (sync/timeout 0 progress-evt)) #false]
-                          [else (wrap-evt (cond [(zero? skip) /dev/srcin]
-                                                [else (choice-evt (or progress-evt never-evt)
-                                                                  (peek-bytes-evt 1 skip progress-evt /dev/srcin))])
-                                          (λ [x] 0))]))]))
+      (if (> count 0)
+          (let ([n (peek-bytes-avail!* str skip progress-evt /dev/srcin 0 count)])
+            (cond [(not (eq? n 0)) n]
+                  [(and progress-evt (sync/timeout 0 progress-evt)) #false]
+                  [else (wrap-evt (if (> skip 0)
+                                      (choice-evt (or progress-evt never-evt)
+                                                  (peek-bytes-evt 1 skip progress-evt /dev/srcin))
+                                      /dev/srcin)
+                                  (λ [x] 0))]))
+          (if (and progress-evt (sync/timeout 0 progress-evt))
+              #false eof)))
 
     (define (do-commit [n : Positive-Integer] [evt : EvtSelf] [target-evt : (Evtof Any)]) : Boolean
       (let commit ()
@@ -98,7 +104,6 @@
                      
                      (λ [[str : Bytes]] : Port-Reader-Datum
                        (call-with-semaphore lock-semaphore do-read try-again str))
-                     
                      (λ [[str : Bytes] [skip : Natural] [progress-evt : (Option EvtSelf)]] : (Option Port-Reader-Datum)
                        (call-with-semaphore lock-semaphore do-peek try-again str skip progress-evt))
                      
@@ -111,6 +116,137 @@
                      (lambda () (port-count-lines! /dev/srcin))
 
                      /dev/srcin #| initial position |#)))
+
+(define open-input-block-chain : (->* (Input-Port (U (Pairof (Listof Index) Port-Chain-Block-Info)
+                                                     (Listof (Pairof Natural Natural))))
+                                      (Boolean #:name Any #:total (Option Natural))
+                                      Input-Port)
+  (lambda [/dev/srcin block-chain [close-orig? #false] #:total [maybe-total #false] #:name [name #false]]
+    (define lock-semaphore : Semaphore (make-semaphore 1))
+    (define block-count : Index (if (list? block-chain) (length block-chain) (length (car block-chain))))
+    (define block-positions : (Vectorof Natural) (make-vector block-count))
+    (define block+sizes : (Vectorof Natural) (make-vector block-count))
+    (define consumed : Natural 0)
+    (define block-idx : Index 0)
+
+    (define max-size : Natural
+      (if (list? block-chain)
+          (for/fold ([acc-size : Natural 0])
+                    ([p.s (in-list block-chain)]
+                     [idx (in-naturals)])
+            (define size++ (+ acc-size (cdr p.s)))
+            (vector-set! block-positions idx (car p.s))
+            (vector-set! block+sizes idx size++)
+            size++)
+          (for/fold ([acc-size : Natural 0])
+                    ([b-idx (in-list (car block-chain))]
+                     [idx (in-naturals)])
+            (define-values (pos size) ((cdr block-chain) b-idx))
+            (define size++ (+ acc-size size))
+            (vector-set! block-positions idx pos)
+            (vector-set! block+sizes idx size++)
+            size++)))
+    
+    (define total-size : Natural
+      (if (> block-count 0)
+          (min (or maybe-total max-size)
+               max-size)
+          0))
+
+    (when (> total-size 0)
+      (file-position /dev/srcin
+                     (vector-ref block-positions 0)))
+    
+    (define (do-read [str : Bytes]) : Port-Reader-Plain-Datum
+      (define available : Integer (- total-size consumed))
+      
+      (if (> available 0)
+          (let* ([request (min available (bytes-length str))]
+                 [bavail (- (vector-ref block+sizes block-idx) consumed)])
+            (if (> bavail 0)
+                (let ([n (read-bytes-avail!* str /dev/srcin 0 (min request bavail))])
+                  (cond [(eq? n 0) (wrap-evt /dev/srcin (λ (x) 0))]
+                        [(number? n) (set! consumed (+ consumed n)) n]
+                        [(procedure? n) (do-read str)]
+                        [else n]))
+                (let ([nidx (unsafe-idx+ block-idx 1)])
+                  (set! block-idx nidx)
+                  (file-position /dev/srcin (vector-ref block-positions block-idx))
+                  (do-read str))))
+           eof))
+    
+    (define (try-again) : Port-Reader-Plain-Datum
+      (wrap-evt
+       (semaphore-peek-evt lock-semaphore)
+       (λ [x] 0)))
+
+    (make-input-port (or name (object-name /dev/srcin))
+                     
+                     (λ [[str : Bytes]] : Port-Reader-Plain-Datum
+                       (call-with-semaphore lock-semaphore do-read try-again str))
+                     #false
+                     
+                     (λ [] (when close-orig? (close-input-port /dev/srcin)))
+                     
+                     #false
+                     #false
+                     
+                     (lambda () (port-next-location /dev/srcin))
+                     (lambda () (port-count-lines! /dev/srcin))
+
+                     /dev/srcin #| initial position |#)))
+
+(define open-input-hexdump : (->* ()
+                                  (#:width Byte #:cursor? Boolean #:name Any
+                                   Input-Port Boolean (Option Byte))
+                                  Input-Port)
+  (lambda [#:width [width 16] #:cursor? [cursor? #true] #:name [name #false]
+           [/dev/hexin (current-input-port)] [close-origin? #false] [error-byte #false]]
+    (define lock-semaphore : Semaphore (make-semaphore 1))
+    (define bs-line : Bytes (make-bytes width))
+    (define bs-pos : Natural width)
+
+    (define (load-line!) : Void
+      (when (and cursor?) (read /dev/hexin))
+      (define line (read-line /dev/hexin))
+      (when (string? line)
+        (hexstring->bytes! line bs-line #:error-byte error-byte)
+        (set! bs-pos 0)))
+    
+    (define (do-read [str : Bytes]) : Port-Reader-Plain-Datum
+      (unless (< bs-pos width)
+        (load-line!))
+
+      (let ([available (- width bs-pos)])
+        (if (> available 0)
+            (let* ([request (bytes-length str)]
+                   [amt (min request available)]
+                   [bs-end (+ bs-pos amt)])
+              (bytes-copy! str 0 bs-line bs-pos bs-end)
+              (set! bs-pos bs-end)
+              amt)
+            eof)))
+    
+    (define (try-again) : Port-Reader-Plain-Datum
+      (wrap-evt
+       (semaphore-peek-evt lock-semaphore)
+       (λ [x] 0)))
+
+    (make-input-port (or name (object-name /dev/hexin))
+                     
+                     (λ [[str : Bytes]] : Port-Reader-Plain-Datum
+                       (call-with-semaphore lock-semaphore do-read try-again str))
+                     #false
+                     
+                     (λ [] (when close-origin? (close-input-port /dev/stdin)))
+                     
+                     #false
+                     #false
+                     
+                     (lambda () (port-next-location /dev/stdin))
+                     (lambda () (port-count-lines! /dev/stdin))
+
+                     /dev/stdin #| initial position |#)))
 
 (define open-input-memory : (->* (Bytes) (Natural Natural #:name Any) Input-Port)
   (lambda [memory [memory-start 0] [memory-end (bytes-length memory)] #:name [name #false]]
@@ -204,20 +340,23 @@
     (define (hexdump-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (define src-size : Integer (- end start))
       
-      (cond [(<= src-size 0) (hexdump-flush payload)] ; explicitly calling `flush-port`
-            [else (let dump ([src-size : Natural src-size]
-                             [start : Natural start]
-                             [available : Natural (max (- width payload) 0)])
-                    (if (< src-size available)
-                        (begin
-                          (bytes-copy! magazine payload bs start end)
-                          (set! payload (+ payload src-size)))
-                        (let ([start++ (+ start available)]
-                              [size-- (- src-size available)])
-                          (bytes-copy! magazine payload bs start start++)
-                          (hexdump-flush width)
-                          (when (> size-- 0)
-                            (dump size-- start++ width)))))])
+      (if (> src-size 0) 
+          (let dump ([src-size : Natural src-size]
+                     [start : Natural start]
+                     [available : Natural (max (- width payload) 0)])
+            (if (< src-size available)
+                (begin
+                  (bytes-copy! magazine payload bs start end)
+                  (set! payload (+ payload src-size)))
+                (let ([start++ (+ start available)]
+                      [size-- (- src-size available)])
+                  (bytes-copy! magazine payload bs start start++)
+                  (hexdump-flush width)
+                  (when (> size-- 0)
+                    (dump size-- start++ width)))))
+
+          ; explicitly calling `flush-port`
+          (hexdump-flush payload))
 
       (unless (not non-block/buffered?)
         ; do writing without block, say, calling `write-bytes-avail*`,

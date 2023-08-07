@@ -7,6 +7,7 @@
 (require "digitama/plural.rkt")
 
 (require "enumeration.rkt")
+(require "character.rkt")
 
 (require racket/flonum)
 (require racket/string)
@@ -133,6 +134,11 @@
     
     (if (> b #xF) hex (string-append "0" hex))))
 
+(define hexdigits->byte : (-> Char Char Byte)
+  (lambda [hd1 hd2]
+    (assert (+ (* (char->hexadecimal hd1) 16)
+               (char->hexadecimal hd2))  byte?)))
+
 (define byte->binstring : (->* (Byte) (Integer) String)
   (lambda [b [width 8]]
     (~r b #:base 2 #:min-width (if (<= width 0) 8 width) #:pad-string "0")))
@@ -160,6 +166,48 @@
                  (for/list : (Listof String) ([b (in-bytes bstr start stop step)])
                    (byte->binstring b))
                  sep)))
+
+
+(define hexstring->bytes : (->* (String) (Natural (Option Natural) #:error-byte (Option Byte)) Bytes)
+  (lambda [str [start 0] [stop #false] #:error-byte [err-byte #false]]
+    (define ssize : Index (string-length str))
+    (define maxidx : Index (if stop (assert (min ssize stop) index?) ssize))
+
+    (with-asserts ([start index?])
+      (let string->bytes ([pos+0 : Nonnegative-Fixnum start]
+                          [pos+1 : Nonnegative-Fixnum (+ start 1)]
+                          [setyb : (Listof Byte) null])
+        (if (< pos+1 maxidx)
+            (let ([hd1 (string-ref str pos+0)]
+                  [hd2 (string-ref str pos+1)])
+              (cond [(and (char-hexdigit? hd1) (char-hexdigit? hd2))
+                     (string->bytes (+ pos+1 1) (+ pos+1 2)
+                                    (cons (hexdigits->byte hd1 hd2) setyb))]
+                    [(char-blank? hd1) (string->bytes pos+1 (+ pos+1 1) setyb)]
+                    [(not err-byte) (error 'hexstring->bytes "invalid hexadecimal: ~a~a@~a" hd1 hd2 pos+0)]
+                    [else (string->bytes (+ pos+1 1) (+ pos+1 2) (cons err-byte setyb))]))
+            (apply bytes (reverse setyb)))))))
+
+(define hexstring->bytes! : (->* (String Bytes) (Natural #:error-byte (Option Byte)) Index)
+  (lambda [str bs [start 0] #:error-byte [err-byte #false]]
+    (define size : Index (string-length str))
+    (define n : Index (bytes-length bs))
+
+    (let string->bytes ([pos+0 : Nonnegative-Fixnum 0]
+                        [pos+1 : Nonnegative-Fixnum 1]
+                        [idx : Natural start])
+      (if (and (< idx n) (< pos+1 size))
+          (let ([hd1 (string-ref str pos+0)]
+                [hd2 (string-ref str pos+1)])
+            (cond [(and (char-hexdigit? hd1) (char-hexdigit? hd2))
+                   (bytes-set! bs idx (hexdigits->byte hd1 hd2))
+                   (string->bytes (+ pos+1 1) (+ pos+1 2) (+ idx 1))]
+                  [(char-blank? hd1) (string->bytes pos+1 (+ pos+1 1) idx)]
+                  [(byte? err-byte)
+                   (bytes-set! bs idx err-byte)
+                   (string->bytes (+ pos+1 1) (+ pos+1 2) idx)]
+                  [else (error 'hexstring->bytes! "invalid hexadecimal: ~a~a@~a" hd1 hd2 pos+0)]))
+          (assert idx index?)))))
 
 (define symb0x->number : (-> Symbol (Option Integer))
   (lambda [hex]
