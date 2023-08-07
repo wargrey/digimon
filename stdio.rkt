@@ -617,7 +617,7 @@
     (values (integer->char n) size)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define drop-string : (-> Input-Port Natural Void)
+(define drop-string : (-> Input-Port Integer Void)
   (let* ([pool-size 4096]
          [/dev/null (make-string pool-size)])
     (lambda [/dev/stdin n]

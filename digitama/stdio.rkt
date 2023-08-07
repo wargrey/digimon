@@ -244,7 +244,7 @@
         (write-datum datum /dev/stdout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define drop-bytes : (-> Input-Port Natural Void)
+(define drop-bytes : (-> Input-Port Integer Void)
   (let* ([pool-size 4096]
          [/dev/null (make-bytes pool-size)])
     (lambda [/dev/stdin n]
