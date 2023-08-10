@@ -153,7 +153,7 @@
      (make-bintype #'Bytes (stdio-fixed-bytes-size #'size) #'read-nbytes #'pad-bytes #'stdio-zero-size
                    (list #'values) (list #'values))]
     
-    [((~or #:unused #:reserved) size)
+    [((~or #:unused #:reserved #:undefined) size)
      (make-bintype #'Any (stdio-fixed-bytes-size #'size) #'drop-bytes #'pad-bytes #'stdio-zero-size
                    (list #'void) (list #'void))]
     
