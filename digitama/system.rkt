@@ -31,7 +31,8 @@
   (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
     (lambda [id [mkdefval (λ [] #false)]]
       (define digimon : String (current-digimon))
-      (define info-ref : (Option Info-Ref) (hash-ref! cache digimon (λ [] (get-info/full (digimon-path 'zone)))))
+      (define info-ref : (Option Info-Ref)
+        (hash-ref! cache digimon (λ [] (get-info/full (digimon-path 'zone) #:bootstrap? #true))))
       (cond [(not info-ref) (mkdefval)]
             [else (info-ref id mkdefval)]))))
 
@@ -49,7 +50,7 @@
           [else (build-path digimon-zone "stone" (symbol->immutable-string path))]))
       (define (prefab-path [digimon-zone : Path-String] [path : Symbol]) : Path-String
         (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->immutable-string path))))
-        (define info-ref : (Option Info-Ref) (get-info/full digimon-zone))
+        (define info-ref : (Option Info-Ref) (get-info/full digimon-zone #:bootstrap? #true))
         (cond [(eq? path 'zone) digimon-zone]
               [(not info-ref) (map-path digimon-zone path)]
               [else (let ([tail (info-ref fullpath (λ [] #false))])

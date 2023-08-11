@@ -18,7 +18,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define single-collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any) (Values (Option Pkg-Info)))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
-    (define zone : (Option Path-String) (collection-root dir))
+    (define zone : (Option Path-String) (collection-root dir bootstrap?))
     (and zone
          (let ([info-ref (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)])
            (and info-ref
@@ -33,7 +33,7 @@
 (define collection-info : (->* () (Path-String #:namespace (Option Namespace) #:bootstrap? Any)
                                (U False Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))))
   (lambda [[dir (current-directory)] #:namespace [namespace #false] #:bootstrap? [bootstrap? #false]]
-    (define zone : (Option Path-String) (collection-root dir))
+    (define zone : (Option Path-String) (collection-root dir bootstrap?))
     (and zone
          (let ([info-ref (get-info/full zone #:namespace namespace #:bootstrap? bootstrap?)])
            (and info-ref
@@ -48,9 +48,9 @@
                                                                   (cond [(and subinfo) (cons subinfo subinfos)]
                                                                         [else subinfos])))]))])))))))
 
-(define collection-root : (->* () (Path-String) (Option Path-String))
-  (lambda [[dir (current-directory)]]
-    (define info-ref (get-info/full dir))
+(define collection-root : (->* () (Path-String Any) (Option Path-String))
+  (lambda [[dir (current-directory)] [bootstrap? #false]]
+    (define info-ref (get-info/full dir #:bootstrap? bootstrap?))
     (cond [(and info-ref) dir]
           [else (let-values ([(base name dir?) (split-path (simple-form-path dir))])
-                  (and (path? base) (collection-root base)))])))
+                  (and (path? base) (collection-root base bootstrap?)))])))

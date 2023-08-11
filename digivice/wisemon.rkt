@@ -133,7 +133,8 @@
                    [current-logger /dev/dtrace])
       (let-values ([(phonies reals) (wisemon-goal-partition (λargv))])
         (exit (time* (make-digimon (collection-info (or (wisemon-flags-directory options)
-                                                        (current-directory)))
+                                                        (current-directory))
+                                                    #:bootstrap? #true)
                                    reals phonies)))))))
 
 
