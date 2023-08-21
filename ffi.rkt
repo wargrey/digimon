@@ -38,3 +38,17 @@
                       #:get-lib-dirs
                       (λ [] (list (native-rootdir/compiled modpath debug? subdir)
                                   (native-rootdir modpath subdir)))))))]))
+
+(define-syntax (digimon-ffi-obj stx)
+  (syntax-parse stx #:literals []
+    [(_ sym lib type)
+     (syntax/loc stx
+       (let* ([t type]
+              [lazy (λ _ (get-ffi-obj sym lib t))])
+         (get-ffi-obj sym lib t (λ [] lazy))))]))
+
+(define-syntax (define-ffi-obj stx)
+  (syntax-parse stx #:literals []
+    [(_ sym:id (~optional #:in) lib (~optional #:as) type)
+     (syntax/loc stx
+       (define sym (digimon-ffi-obj 'sym lib type)))]))

@@ -17,7 +17,6 @@
 (require "../parameter.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
-(require "../path.rkt")
 (require "../racket.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36,22 +35,28 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define find-digimon-native-launcher-names : (-> Info-Ref (Listof CC-Launcher-Name))
-  (lambda [info-ref]
+(define find-digimon-native-launcher-names : (->* (Info-Ref Boolean) ((Option Symbol)) (Listof CC-Launcher-Name))
+  (lambda [info-ref debug? [force-lang #false]]
     (define maybe-launchers (info-ref 'native-launcher-names (λ [] null)))
 
     (unless (list? maybe-launchers)
       (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" maybe-launchers))
 
-    (map cc-launcher-filter maybe-launchers)))
+    (for/list ([launcher (in-list maybe-launchers)])
+      (cc-launcher-filter launcher debug? force-lang))))
 
-(define digimon-native-files->launcher-names : (-> (Listof CC-Launcher-Name) (Listof Path) (Listof CC-Launcher-Name))
-  (lambda [info-targets targets]
-    (map cc-launcher-filter
-         (for/list : (Listof Any) ([p (in-list targets)])
-           (let ([info-p (assoc p info-targets)])
-             (cond [(pair? info-p) info-p]
-                   [else (cons p (list 'CONSOLE))]))))))
+(define digimon-native-files->launcher-names : (->* ((Listof CC-Launcher-Name) (Listof Path) Boolean)
+                                                    ((Option Symbol))
+                                                    (Listof CC-Launcher-Name))
+  (lambda [info-targets targets debug? [force-lang #false]]
+    (define launchers
+      (for/list : (Listof Any) ([p (in-list targets)])
+        (let ([info-p (assoc p info-targets)])
+          (cond [(pair? info-p) info-p]
+                [else (cons p (list 'CONSOLE))]))))
+
+    (for/list ([launcher (in-list launchers)])
+      (cc-launcher-filter launcher debug? force-lang))))
 
 (define make-object-spec : (->* (Path Path Boolean (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
                                 ((Listof String))
@@ -119,48 +124,52 @@
                       [else (cons spec ss)])))
             null))
 
-      ; keep the order of building
+      ; WARNING: Order matters
       (append specs
               
               header-specs object-specs 
               ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-              (list (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs)
-                    (wisemon-spec native #:^ (append objects (wisemon-targets-flatten header-specs))
+              (list (wisemon-spec native #:^ (append objects (wisemon-targets-flatten header-specs))
                                   #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                               #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                               #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                               #:postask (if (cc-launcher-info-subsystem info) void void)
-                                              objects native)))))))
+                                              objects native))
+                    (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs))))))
 
-(define make-cc : (-> String (Option Info-Ref) Boolean Any)
-  (lambda [digimon info-ref debug?]
+(define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol) (Values (Option Wisemon-Specification) (Listof Path)))
+  (lambda [info-ref debug? force-lang]
     (define launchers : (Listof CC-Launcher-Name)
-      (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref))]
+      (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref debug? force-lang))]
             [real-targets (current-make-real-targets)])
-        (cond [(pair? real-targets) (digimon-native-files->launcher-names info-targets real-targets)]
+        (cond [(pair? real-targets) (digimon-native-files->launcher-names info-targets real-targets debug? force-lang)]
               [else info-targets])))
+    
+    (if (pair? launchers)
+        (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
+               [subnative (and info-ref (datum-filter (info-ref 'native-compiled-subpath (λ [] #false)) native-subpath-datum?))]
+               [cc-specs (make-cc-specs launchers incdirs subnative debug?)])
+          (values cc-specs (wisemon-targets-flatten cc-specs)))
+        (values #false null))))
 
-    (when (pair? launchers)
-      (define incdirs : (Listof String) (if (not info-ref) null (list (path->string (digimon-path 'zone)))))
-      (define subnative : Native-Subpath-Datum (and info-ref (datum-filter (info-ref 'native-compiled-subpath (λ [] #false)) native-subpath-datum?)))
-      (define cc-specs : Wisemon-Specification (make-cc-specs launchers incdirs subnative debug?))
-      
-      (when (or info-ref)
-        (wisemon-compile (current-directory) digimon info-ref))
+(define make-cc : (-> (Option Info-Ref) Boolean Any)
+  (lambda [info-ref debug?]
+    (define-values (cc-specs targets) (make-cc-spec+targets info-ref debug? #false))
 
-      (wisemon-make cc-specs (wisemon-targets-flatten cc-specs)))))
+    (when (or cc-specs)
+      (wisemon-make cc-specs targets))))
 
 (define make~release : Make-Free-Phony
   (lambda [digimon info-ref]
-    (make-cc digimon info-ref #false)))
+    (make-cc info-ref #false)))
 
 (define make~debug : Make-Free-Phony
   (lambda [digimon info-ref]
-    (make-cc digimon info-ref #true)))
+    (make-cc info-ref #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cc-launcher-filter : (-> Any CC-Launcher-Name)
-  (lambda [native]
+(define cc-launcher-filter : (-> Any Boolean (Option Symbol) CC-Launcher-Name)
+  (lambda [native debug? force-lang]
     (if (and (pair? native)
              (or (string? (car native))
                  (path? (car native))))
@@ -171,12 +180,12 @@
                                 [else p])])
           (cons native.cc
                 (cond [(cc-launcher-info? config) config]
-                      [else (cc-filter-name config)])))
+                      [else (cc-filter-name config debug? force-lang)])))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
-(define cc-filter-name : (-> Any CC-Launcher-Info)
-  (lambda [argv]
-    (let partition ([lang : (Option Symbol) #false]
+(define cc-filter-name : (-> Any Boolean (Option Symbol) CC-Launcher-Info)
+  (lambda [argv debug? force-lang]
+    (let partition ([lang : (Option Symbol) force-lang]
                     [biname : (Option String) #false]
                     [subsystem : (Option Symbol) #false]
                     [entry : (Option Keyword) #false]
@@ -184,7 +193,16 @@
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
       (if (pair? options)
           (let-values ([(self rest) (values (car options) (cdr options))])
-            (cond [(pair? self) (partition lang biname subsystem entry (cons self srehto) rest)]
+            (cond [(pair? self)
+                   (let*-values ([(maybe-distr subopts) (values (car self) (cdr self))]
+                                 [(for-debug?) (memq maybe-distr '(#:DEBUG #:debug))])
+                     (if (cond [(or debug?) for-debug?]
+                               [else (and (keyword? maybe-distr)
+                                          (not for-debug?))])
+                         (if (list? subopts)
+                             (partition lang biname subsystem entry srehto (append subopts rest))
+                             (partition lang biname subsystem entry srehto (cons subopts rest)))
+                         (partition lang biname subsystem entry (cons self srehto) rest)))]
                   [(symbol? self)
                    (case self
                      [(C c) (partition (or lang 'c) biname subsystem entry srehto rest)]

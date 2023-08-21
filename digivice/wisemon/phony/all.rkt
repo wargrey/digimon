@@ -18,7 +18,7 @@
 (define make~all : Make-Info-Phony
   (lambda [digimon info-ref]
     (define submakes (filter file-exists? (list (build-path (current-directory) "submake.rkt"))))
-    (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref)))
+    (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
 
     (wisemon-make (make-native-library-specs info-ref natives) px.so)
     (wisemon-compile (current-directory) digimon info-ref)

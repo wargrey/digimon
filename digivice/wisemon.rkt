@@ -116,6 +116,7 @@
                        (dtrace-datum-notice eof "")
                        (thread-wait tracer))))])))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (make-restore-options!)

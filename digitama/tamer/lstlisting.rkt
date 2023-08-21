@@ -13,7 +13,6 @@
 (require "misc.rkt")
 (require "block.rkt")
 
-(require "../tamer.rkt")
 (require "../system.rkt")
 
 (require "../git/lstree.rkt")
