@@ -226,11 +226,12 @@
 
       (unless (eof-object? ch)
         (cond [(eq? ch #\#)
-               (cond [(equal? (peek-bytes 5 1 /dev/stdin) #"lang ") (read-line /dev/stdin)]
-                     [else (let ([nch (peek-byte /dev/stdin 1)])
-                             (cond [(eq? nch #;#\; #x3B) (read /dev/stdin) (skip)]
-                                   [(eq? nch #;#\| #x7C) (regexp-match-positions #px"^.*(?<=[|])[#]\\s*" /dev/stdin) (skip)]))])]
-              [(eq? ch #\;) (read-line /dev/stdin) (skip)]
+               (if (equal? (peek-bytes 5 1 /dev/stdin) #"lang ")
+                   (read-line /dev/stdin 'any)
+                   (let ([nch (peek-byte /dev/stdin 1)])
+                     (cond [(eq? nch #;#\; #x3B) (read /dev/stdin) (skip)]
+                           [(eq? nch #;#\| #x7C) (regexp-match-positions #px"^.*(?<=[|])[#]\\s*" /dev/stdin) (skip)])))]
+              [(eq? ch #\;) (read-line /dev/stdin 'any) (skip)]
               [(char-whitespace? ch) (regexp-match-positions #px"^\\s+" /dev/stdin) (skip)])))
       
     (syn-token-skip-whitespace /dev/stdin)))

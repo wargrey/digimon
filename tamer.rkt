@@ -406,7 +406,7 @@
                                              tamer-prove
                                              (thunk (close-output-port /dev/tamer/stdout)))))
                 (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
-                                  (for/list ([line (in-port read-line)])
+                                  (for/list ([line (in-lines)])
                                     (cond [(regexp-match #px"^λ\\s+(.+)" line)
                                            => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
                                           [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
@@ -783,7 +783,7 @@
            (call-with-input-file* /path/file
              (lambda [in.rkt]
                (let read-next ([lang #false] [line0 0] [contents null] [end 0])
-                 (define line (read-line in.rkt))
+                 (define line (read-line in.rkt 'any))
                  ; if it does not work, please check whether your pxstart and pxend are pregexps first.
                  (cond [(eof-object? line)
                         (if (zero? end)

@@ -21,7 +21,7 @@
   (lambda [path env-thread]
     (define lang : (Option String)
       (or (nanomon-lang)
-          (let* ([gf (git-file (path->string path) 0 0 #"")]
+          (let* ([gf (make-git-file path)]
                  [gl (git-files->langfiles (list gf) null #false)])
             (and (= (hash-count gl) 1)
                  (git-language-name (cdar (hash->list gl)))))))
@@ -32,7 +32,9 @@
         [("c++") (shell-cpp path 'cpp)]
         [("cpp") (shell-cpp path 'cpp)]
         [("c") (shell-c path 'c)]
-        [else 126 #| command cannot be executed |#]))
+        [else (nanomon-errno 126)
+              (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
+                                                (continuation-marks #false)))]))
     
     (thread-send env-thread 0)))
 

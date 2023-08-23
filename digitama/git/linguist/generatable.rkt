@@ -13,7 +13,7 @@
 (define-file-reader read-pathname-regexps #:+ (Listof PRegexp)
   (lambda [/dev/ymlin src]
     (let regexp-fold ([regexps : (Listof PRegexp) null])
-      (define line (read-line /dev/ymlin))
+      (define line (read-line /dev/ymlin 'any))
 
       (cond [(not (string? line)) (reverse regexps)]
             [(<= (string-length line) 1) (regexp-fold regexps)]

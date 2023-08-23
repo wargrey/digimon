@@ -185,15 +185,15 @@
       
       (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
         (let filter-out ()
-          (define line (read-line /dev/envin))
+          (define line (read-line /dev/envin 'any))
           (when (and (string? line) (not (regexp-match? rx:rktl line)))
             (filter-out)))
         
         (let load-env ()
-          (define var (read-line /dev/envin))
-          (define val (read-line /dev/envin))
+          (define var (read-line /dev/envin 'any))
+          (define val (read-line /dev/envin 'any))
           
-          (when (and (string? var) (string? val))
+          (when (and (string? var) (string? val) (not (string=? var "")))
             (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
             (load-env)))
         

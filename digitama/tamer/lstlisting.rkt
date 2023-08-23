@@ -131,7 +131,7 @@
         [else (path-normalize (build-path curdir srcpath) curdir)]))
 
 (define (source->language srcpath [rootdir #false])
-  (define gf (git-file (path-normalize srcpath (or rootdir (digimon-path 'zone))) 0 0 #""))
+  (define gf (make-git-file (path-normalize srcpath (or rootdir (digimon-path 'zone)))))
   (define gl (git-files->langfiles (list gf) null #false))
   
   (and (= (hash-count gl) 1)

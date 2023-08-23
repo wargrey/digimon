@@ -77,9 +77,9 @@
            [(exn? cm) (continuation-mark-set->context (exn-continuation-marks cm))]
            [else (continuation-mark-set->context (continuation-marks cm))]))))
 
-(define display-continuation-stacks : (->* () ((U Continuation-Mark-Set Thread exn) Output-Port) Void)
+(define display-continuation-stacks : (->* () ((U Continuation-Mark-Set Thread exn (Listof Continuation-Stack)) Output-Port) Void)
   (lambda [[errobj (current-continuation-marks)] [/dev/errout (current-error-port)]]
-    (let display-stack ([stacks : (Listof Continuation-Stack) (continuation-mark->stacks errobj)]
+    (let display-stack ([stacks : (Listof Continuation-Stack) (if (list? errobj) errobj (continuation-mark->stacks errobj))]
                         [idx : Byte 0])
       (when (pair? stacks)
         (define stack (car stacks))

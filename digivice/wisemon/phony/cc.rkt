@@ -235,7 +235,7 @@
       (dtrace-info #:topic 'ld "~a ~a ~a" (object-name cc-header-sed) source target)
 
       (let sed ([protected-level : Natural 0])
-        (define line (read-line /dev/stdin))
+        (define line (read-line /dev/stdin 'any))
         (when (string? line)
           (define begin-exclude? : Boolean (regexp-match? #px"^\\s*//\\s*#[|]\\s*[Pp][Rr][Oo][Tt][Ee][Cc][Tt][Ee][Dd][-][Oo][Uu][Tt]\\s*$" line))
 

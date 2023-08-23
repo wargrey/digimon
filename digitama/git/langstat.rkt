@@ -92,8 +92,9 @@
       
       (for/fold ([langfiles : (Immutable-HashTable Index (Git-Language-With (Listof Git-File))) initial-langfiles])
                 ([blob (in-list files)])
-        (define filename (git-file-pathname blob))
+        (define filename (git-file-unix-path blob))
         (define ext (path-get-extension filename))
+
         (cond [(not ext) langfiles]
               [(github-excluded-source? filename doc-regexps) langfiles]
               [(github-excluded-source? filename generated-regexps) langfiles]
@@ -118,8 +119,9 @@
       
       (for/fold ([langsizes : (Immutable-HashTable Index (Git-Language-With Natural)) initial-langsizes])
                 ([blob (in-list files)])
-        (define filename (git-file-pathname blob))
+        (define filename (git-file-unix-path blob))
         (define ext (path-get-extension filename))
+
         (cond [(not ext) langsizes]
               [(github-excluded-source? filename doc-regexps) langsizes]
               [(github-excluded-source? filename generated-regexps) langsizes]

@@ -252,7 +252,9 @@
     (display (exn-message errobj) /dev/errout)
 
     (when (not brief?)
-      (display #\newline /dev/errout)
-      (display-continuation-stacks errobj /dev/errout))
+      (let ([stacks (continuation-mark->stacks errobj)])
+        (when (pair? stacks)
+          (display #\newline /dev/errout)
+          (display-continuation-stacks stacks /dev/errout))))
     
     (dtrace-send topic level (get-output-string /dev/errout) errobj prefix?)))

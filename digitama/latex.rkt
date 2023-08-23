@@ -45,7 +45,7 @@
                             
                             (let copy-filter ([fstatus : Any 'SOF])
                               (unless (regexp-match-peek #px"^\\\\begin[{]document[}]" /dev/texin)
-                                (define src-line : (U String EOF) (read-line /dev/texin))
+                                (define src-line : (U String EOF) (read-line /dev/texin 'any))
                                 (when (string? src-line)
                                   (define-values (maybe-line cstatus) (preamble-filter src-line fstatus))
                                   (cond [(string? maybe-line) (displayln maybe-line /dev/texout)]

@@ -32,7 +32,7 @@
 (define-file-reader read-language-metainfos #:+ (Immutable-HashTable Index Github-Language)
   (lambda [/dev/ymlin src]
     (let skip-comment ()
-      (define line (read-line /dev/ymlin))
+      (define line (read-line /dev/ymlin 'any))
 
       (when (string? line)
         (cond [(regexp-match? #px"^[-]+$" line) (void)]
@@ -63,22 +63,29 @@
                (and (char? leading-char) (char-whitespace? leading-char)
                     (linguist-read-label /dev/ymlin px:property-label #false))))
            
-           (cond [(not maybe-field) (github-language id name type extensions color group misc)]
-                 [(bytes=? maybe-field #"language_id") (read-language (linguist-read/line* /dev/ymlin index?) name type extensions color group misc)]
-                 [(bytes=? maybe-field #"type") (read-language id name (linguist-read/line* /dev/ymlin symbol?) extensions color group misc)]
-                 [(bytes=? maybe-field #"color") (read-language id name type extensions (linguist-read/line* /dev/ymlin string? linguist-string->color) group misc)]
-                 [(bytes=? maybe-field #"extensions") (read-language id name type (linguist-read-array /dev/ymlin string->bytes/utf-8 symbol->bytes) color group misc)]
-                 [(bytes=? maybe-field #"group") (read-language id name type extensions color (string-trim (assert (read-line /dev/ymlin) string?)) misc)]
-                 [else (let* ([fname (bytes->symbol maybe-field)]
-                              [value (case fname
-                                       [(interpreters) (linguist-read-array /dev/ymlin string->symbol (inst values Symbol Symbol))]
-                                       [(aliases) (linguist-read-array /dev/ymlin)]
-                                       [(ace_mode codemirror_mode codemirror_mode_type tm_scope) (linguist-read/line* /dev/ymlin symbol?)]
-                                       [(filenames) (linguist-read-array /dev/ymlin (inst values String String) symbol->immutable-string)]
-                                       [(wrap) (linguist-read/line* /dev/ymlin symbol?)]
-                                       [(fs_name) (string-trim (assert (read-line /dev/ymlin) string?))]
-                                       [else (void (read-line /dev/ymlin))])])
-                         (read-language id name type extensions color group (if (void? value) misc (hash-set misc fname value))))])))))
+           (cond [(not maybe-field)
+                  (github-language id name type extensions color group misc)]
+                 [(bytes=? maybe-field #"language_id")
+                  (read-language (linguist-read/line* /dev/ymlin index?) name type extensions color group misc)]
+                 [(bytes=? maybe-field #"type")
+                  (read-language id name (linguist-read/line* /dev/ymlin symbol?) extensions color group misc)]
+                 [(bytes=? maybe-field #"color")
+                  (read-language id name type extensions (linguist-read/line* /dev/ymlin string? linguist-string->color) group misc)]
+                 [(bytes=? maybe-field #"extensions")
+                  (read-language id name type (linguist-read-array /dev/ymlin string->bytes/utf-8 symbol->bytes) color group misc)]
+                 [(bytes=? maybe-field #"group")
+                  (read-language id name type extensions color (string-trim (assert (read-line /dev/ymlin 'any) string?)) misc)]
+                 [else
+                  (let* ([fname (bytes->symbol maybe-field)]
+                         [value (case fname
+                                  [(interpreters) (linguist-read-array /dev/ymlin string->symbol (inst values Symbol Symbol))]
+                                  [(aliases) (linguist-read-array /dev/ymlin)]
+                                  [(ace_mode codemirror_mode codemirror_mode_type tm_scope) (linguist-read/line* /dev/ymlin symbol?)]
+                                  [(filenames) (linguist-read-array /dev/ymlin (inst values String String) symbol->immutable-string)]
+                                  [(wrap) (linguist-read/line* /dev/ymlin symbol?)]
+                                  [(fs_name) (string-trim (assert (read-line /dev/ymlin) string?))]
+                                  [else (void (read-line /dev/ymlin))])])
+                    (read-language id name type extensions color group (if (void? value) misc (hash-set misc fname value))))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define linguist-read-label : (-> Input-Port PRegexp Boolean (Option Bytes))
@@ -86,7 +93,7 @@
     (define label (regexp-match px /dev/ymlin))
 
     (when (and label skip-line?)
-      (read-line /dev/ymlin))
+      (read-line /dev/ymlin 'any))
     
     (and label (cadr label))))
 
@@ -96,7 +103,7 @@
     [(/dev/ymlin string->datum symbol->datum)
      (let read-array ([array : (Listof a) null])
        (let ([array-line? (regexp-try-match px:array /dev/ymlin)])
-         (cond [(not array-line?) (read-line /dev/ymlin) (assert (reverse array) pair?)]
+         (cond [(not array-line?) (read-line /dev/ymlin 'any) (assert (reverse array) pair?)]
                [else (let ([datum (read /dev/ymlin)])
                        (cond [(symbol? datum) (read-array (cons (symbol->datum datum) array))]
                              [(string? datum) (read-array (cons (string->datum datum) array))]
@@ -105,14 +112,14 @@
      (let read-array ([array : (Listof String) null])
        (let ([array-line? (regexp-try-match px:array /dev/ymlin)])
          (cond [(not array-line?) (assert (reverse array) pair?)]
-               [else (read-array (cons (string-trim (assert (read-line /dev/ymlin) string?)) array))])))]))
+               [else (read-array (cons (string-trim (assert (read-line /dev/ymlin 'any) string?)) array))])))]))
 
 (define linguist-read/line* : (All (a b) (case-> [Input-Port (-> Any Boolean : a) (-> a b) -> b]
                                                  [Input-Port (-> Any Boolean : a) -> a]))
   (case-lambda
     [(/dev/ymlin predicate? datum-filter)
      (let ([datum (read /dev/ymlin)])
-       (read-line /dev/ymlin)
+       (read-line /dev/ymlin 'any)
        (datum-filter (assert datum predicate?)))]
     [(/dev/ymlin predicate?)
      ((inst linguist-read/line* a a) /dev/ymlin predicate? values)]))

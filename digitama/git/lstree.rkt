@@ -8,16 +8,22 @@
 (require "parameter.rkt")
 
 (require "../../number.rkt")
+(require "../../filesystem.rkt")
 (require "../exec.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct git-file
-  ([pathname : String]
+  ([unix-path : String]
    [size : Natural]
    [permission : Index]
    [sha : Bytes])
   #:type-name Git-File
   #:transparent)
+
+(define make-git-file : (->* (Path-String) (#:size Natural #:permission Index #:sha Bytes) Git-File)
+  (lambda [pathname #:size [size 0] #:permission [permission 0] #:sha [sha #""]]
+    (git-file (path->string (path-normalize/system pathname 'unix))
+              size permission sha)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-lstree-exec : (-> Path (Listof (Listof String)) (-> String (Listof Git-File) (Listof Git-File)) (Listof Git-File) (Listof Git-File))

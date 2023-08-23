@@ -212,7 +212,7 @@
 
     (define (load-line!) : Void
       (when (and cursor?) (read /dev/hexin))
-      (define line (read-line /dev/hexin))
+      (define line (read-line /dev/hexin 'any))
       (when (string? line)
         (hexstring->bytes! line bs-line #:error-byte error-byte)
         (set! bs-pos 0)))
