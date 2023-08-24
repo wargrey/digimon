@@ -174,14 +174,14 @@
       (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
         
       (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null
-                     #:/dev/stdout /dev/envout
                      #:silent '(stdout)
-                     #:feeds (list (format "~a x64" (path->string/quote full-vcvarsall.bat))
-                                   (format "~a ~a"
-                                     (path->string/quote (or (find-executable-path "racket")
-                                                             (find-system-path 'exec-file)))
-                                     (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice"))))
-                     #:feed-eof "exit")
+                     #:/dev/stdout /dev/envout
+                     #:/dev/stdin (open-input-string (format "~a x64~n~a ~a~nexit~n"
+                                                       (path->string/quote full-vcvarsall.bat)
+
+                                                       (path->string/quote (or (find-executable-path "racket")
+                                                                               (find-system-path 'exec-file)))
+                                                       (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice")))))
       
       (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
         (let filter-out ()

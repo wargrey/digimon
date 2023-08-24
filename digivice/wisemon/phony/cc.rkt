@@ -127,7 +127,6 @@
       ; WARNING: Order matters
       (append specs
               
-              header-specs object-specs 
               ; TODO: why includes duplicate inside the spec, but be okay outside the spec
               (list (wisemon-spec native #:^ (append objects (wisemon-targets-flatten header-specs))
                                   #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
@@ -135,9 +134,13 @@
                                               #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
                                               #:postask (if (cc-launcher-info-subsystem info) void void)
                                               objects native))
-                    (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs))))))
+                    (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs))
 
-(define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol) (Values (Option Wisemon-Specification) (Listof Path)))
+              header-specs object-specs))))
+
+(define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol)
+                                   (Values (Option (Pairof Wisemon-Specification (Listof CC-Launcher-Name)))
+                                           (Listof Path)))
   (lambda [info-ref debug? force-lang]
     (define launchers : (Listof CC-Launcher-Name)
       (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref debug? force-lang))]
@@ -149,15 +152,15 @@
         (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
                [subnative (and info-ref (datum-filter (info-ref 'native-compiled-subpath (λ [] #false)) native-subpath-datum?))]
                [cc-specs (make-cc-specs launchers incdirs subnative debug?)])
-          (values cc-specs (wisemon-targets-flatten cc-specs)))
+          (values (cons cc-specs launchers) (wisemon-targets-flatten cc-specs)))
         (values #false null))))
 
 (define make-cc : (-> (Option Info-Ref) Boolean Any)
   (lambda [info-ref debug?]
-    (define-values (cc-specs targets) (make-cc-spec+targets info-ref debug? #false))
+    (define-values (cc-specs.launchers targets) (make-cc-spec+targets info-ref debug? #false))
 
-    (when (or cc-specs)
-      (wisemon-make cc-specs targets))))
+    (when (or cc-specs.launchers)
+      (wisemon-make (car cc-specs.launchers) targets))))
 
 (define make~release : Make-Free-Phony
   (lambda [digimon info-ref]

@@ -25,25 +25,29 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)))
                              ((Option (-> Symbol Path Natural Void))
-                              #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String)
-                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port) #:env Maybe-Alt-Env)
+                              #:silent (Listof Exec-Silent) #:env Maybe-Alt-Env
+                              #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                              Void)
   (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
     (lambda [#:silent [silents null] #:env [alt-env #false]
-             #:feeds [feeds null] #:feed-eof [feed-eof eof]
+             #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
              #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
              operation program options [on-error-do #false]]
       ((inst fg-recon-exec* Void)
-       #:silent silents #:feeds feeds #:feed-eof feed-eof
-       #:env alt-env #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
+       #:silent silents #:env alt-env
+       #:/dev/stdin /dev/stdin #:stdin-log-level log-level
+       #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
        operation program options stdout-void (void) on-error-do))))
 
 (define fg-recon-exec* : (All (a) (->* (Any Path (Listof (Listof String)) (-> String a a) a)
                                        ((Option (-> Symbol Path Natural Void))
-                                        #:silent (Listof Exec-Silent) #:feeds (Listof Any) #:feed-eof (U EOF String) #:env Maybe-Alt-Env
+                                        #:silent (Listof Exec-Silent) #:env Maybe-Alt-Env
+                                        #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
                                         #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                        a))
-  (lambda [#:silent [silents null] #:env [alt-env #false] #:feeds [feeds null] #:feed-eof [feed-eof eof]
+  (lambda [#:silent [silents null] #:env [alt-env #false]
+           #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            operation:any program options stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
@@ -61,24 +65,8 @@
             (fg-recon-fork operation program options alt-env #false #false #false))
 
           (define ghostcat : Thread
-            (thread (λ [] (with-handlers ([exn:break? void])
-                            (let wait-feed-loop ([rest : (Listof Any) feeds])
-                              (cond [(pair? rest)
-                                     (let ([datum:in (car rest)])
-                                       (cond [(eof-object? datum:in) (close-output-port /dev/subout)]
-                                             [else (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
-                                                     (when (eq? e /dev/subout)
-                                                       (when (not stdin-silent?)
-                                                         (dtrace-note (format "~a" datum:in) #:topic operation))
-                                                       (displayln datum:in /dev/subout)
-                                                       (flush-output /dev/subout)
-                                                       (wait-feed-loop (cdr rest))))]))]
-                                    [(string? feed-eof)
-                                     (let ([e (sync/enable-break /dev/subout /usr/bin/$0)])
-                                       (when (eq? e /dev/subout)
-                                         (displayln feed-eof /dev/subout)
-                                         (flush-output /dev/subout)))]
-                                    [else (close-output-port /dev/subout)]))))))
+            (thread (λ [] (when (and /dev/stdin /dev/subout)
+                            (fg-recon-copy-port /dev/stdin /dev/subout log-level operation)))))
 
           (define final-datum : a
             (let wait-fold-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
@@ -105,8 +93,9 @@
                   ; implies both `always-evt`
                   datum)))
 
-          (thread-wait ghostcat)
           (subprocess-wait /usr/bin/$0)
+          (break-thread ghostcat)
+          (thread-wait ghostcat)
           (values (subprocess-status /usr/bin/$0) final-datum)))
 
       (fg-recon-handle-status operation program status /dev/byterr on-error-do)
@@ -114,7 +103,7 @@
 
 (define fg-recon-exec/pipe : (->* (Any Path (Listof (Listof String)))
                                   ((Option (-> Symbol Path Natural Void))
-                                   #:env Maybe-Alt-Env #:/dev/stdin (Option (U Bytes Input-Port)) #:stdin-log-level (Option Symbol)
+                                   #:env Maybe-Alt-Env #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
                                    #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                   Bytes)
   (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level #false]
@@ -134,21 +123,18 @@
             (fg-recon-fork operation program options alt-env #false /dev/stdout /dev/stderr))
 
           (define-values (ghostcat/out ghostcat/err ghostcat/subout)
-            (values (thread (λ [] (when (input-port? /dev/outin) (copy-port /dev/outin /dev/bytout))))
-                    (thread (λ [] (when (input-port? /dev/errin) (copy-port /dev/errin /dev/byterr))))
+            (values (thread (λ [] (when (input-port? /dev/outin)
+                                    (copy-port /dev/outin /dev/bytout))))
+                    (thread (λ [] (when (input-port? /dev/errin)
+                                    (copy-port /dev/errin /dev/byterr))))
                     (thread (λ [] (when (and /dev/stdin /dev/subout)
-                                    (if (input-port? /dev/stdin)
-                                        (copy-port /dev/stdin /dev/subout)
-                                        (let ([/dev/dotin (open-input-bytes /dev/stdin)]
-                                              [/dev/dtout (open-output-dtrace (or log-level 'debug) operation)])
-                                          (copy-port /dev/dotin /dev/subout /dev/dtout)))
-                                    (flush-output /dev/subout)
-                                    (close-output-port /dev/subout))))))
+                                    (fg-recon-copy-port /dev/stdin /dev/subout log-level operation))))))
 
+          (subprocess-wait /usr/bin/$0)
+          (break-thread ghostcat/subout)
           (thread-wait ghostcat/subout)
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)
-          (subprocess-wait /usr/bin/$0)
           (subprocess-status /usr/bin/$0)))
 
       (fg-recon-handle-status operation program status /dev/byterr on-error-do)
@@ -248,6 +234,22 @@
     (cond [(not subenv) (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args)]
           [else (parameterize ([current-environment-variables subenv])
                   (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args))])))
+
+(define fg-recon-copy-port : (-> Input-Port Output-Port (Option Symbol) Any Void)
+  (lambda [/dev/stdin /dev/subout log-level operation]
+    (define /dev/dtout (and log-level (open-output-dtrace log-level operation)))
+    
+    (with-handlers ([exn? void])
+      (if (output-port? /dev/dtout)
+          (copy-port /dev/stdin /dev/subout /dev/dtout)
+          (copy-port /dev/stdin /dev/subout)))
+    
+    (flush-output /dev/subout)
+    (close-output-port /dev/subout)
+
+    (when (and /dev/dtout)
+      (flush-output /dev/dtout)
+      (close-output-port /dev/dtout))))
 
 (define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)
   (lambda [operation e [clean void]]

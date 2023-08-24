@@ -36,7 +36,9 @@
                     (when (and dir (not (directory-exists? dir)))
                       (fg-recon-mkdir operation dir)))
 
-                  (let ([dst-bytes (fg-recon-exec/pipe #:/dev/stdin (and (bytes? src.gv) src.gv) #:stdin-log-level log-level
+                  (let ([dst-bytes (fg-recon-exec/pipe #:stdin-log-level log-level
+                                                       #:/dev/stdin (and (bytes? src.gv)
+                                                                         (open-input-bytes src.gv))
                                                        operation dot options)])
                     (unless (not outfile)
                       (if (output-port? outfile)

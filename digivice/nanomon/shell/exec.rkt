@@ -10,11 +10,15 @@
 (require "../../wisemon/phony/cc.rkt")
 (require (only-in "../../wisemon/parameter.rkt" current-make-real-targets))
 
-(require "../../../dtrace.rkt")
 (require "../../../wisemon.rkt")
+(require "../../../environ.rkt")
+
+(require "../../../digitama/exec.rkt")
 (require "../../../digitama/collection.rkt")
 (require "../../../digitama/git/lstree.rkt")
 (require "../../../digitama/git/langstat.rkt")
+
+(require "../../../digitama/toolchain/cc/configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~~exec : (-> Path Thread Any)
@@ -26,20 +30,19 @@
             (and (= (hash-count gl) 1)
                  (git-language-name (cdar (hash->list gl)))))))
 
-    (define exitcode : Byte
-      (case (and lang (string-downcase lang))
-        [("racket") (shell-rkt path)]
-        [("c++") (shell-cpp path 'cpp)]
-        [("cpp") (shell-cpp path 'cpp)]
-        [("c") (shell-c path 'c)]
-        [else (nanomon-errno 126)
-              (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
-                                                (continuation-marks #false)))]))
+    (case (and lang (string-downcase lang))
+      [("racket") (shell-rkt path)]
+      [("c++") (shell-cpp path 'cpp)]
+      [("cpp") (shell-cpp path 'cpp)]
+      [("c") (shell-c path 'c)]
+      [else (nanomon-errno 126)
+            (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
+                                              (continuation-marks #false)))])
     
     (thread-send env-thread 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell-rkt : (-> Path Byte)
+(define shell-rkt : (-> Path Any)
   (lambda [path.rkt]
     (parameterize ([current-namespace (make-gui-namespace)]
                    [global-port-print-handler pretty-print])
@@ -47,11 +50,9 @@
       
       (if (module-declared? main #true)
           (dynamic-require main 0)
-          (dynamic-require path.rkt 0))
+          (dynamic-require path.rkt 0)))))
 
-      0)))
-
-(define shell-c : (-> Path Symbol Byte)
+(define shell-c : (-> Path Symbol Any)
   (lambda [path.c lang-name]
     (define maybe-info : (Option Pkg-Info)
       (single-collection-info #:bootstrap? #true
@@ -59,16 +60,23 @@
                                   (current-directory))))
 
     (parameterize ([current-make-real-targets (list path.c)])
-      (define-values (cc-specs targets) (make-cc-spec+targets (and maybe-info (pkg-info-ref maybe-info)) #false lang-name))
+      (define-values (cc-specs.launchers targets) (make-cc-spec+targets (and maybe-info (pkg-info-ref maybe-info)) #false lang-name))
 
-      (if (and cc-specs (pair? targets))
-          (let ([argv (vector->list (current-command-line-arguments))])
+      (if (and cc-specs.launchers (pair? (cdr cc-specs.launchers)) (pair? targets))
+          (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
+                        [(extra-libraries) (c-path-flatten (cc-launcher-info-libpaths launcher))])
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
-            (dtrace-info #:topic 'exec "~a ~a" (car targets) (string-join argv))
-            (apply system*/exit-code (car targets) argv))
+            (fg-recon-exec #:/dev/stdin (current-input-port) #:stdin-log-level #false
+                           #:env (and (pair? extra-libraries)
+                                      (let ([env (environment-variables-copy (current-environment-variables))])
+                                        (case (system-type 'os)
+                                          [(macosx) (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries) env]
+                                          [(unix) (environment-variables-push-path! env #:name #"LD_LIBRARY_PATH" extra-libraries) env]
+                                          [else #false])))
+                           'exec (car targets) (list (vector->list (current-command-line-arguments)))))
           127 #| deadcode, command cannot be found |#))))
 
-(define shell-cpp : (-> Path Symbol Byte)
+(define shell-cpp : (-> Path Symbol Any)
   (lambda [path.c lang-name]
     (shell-c path.c lang-name)))
 
