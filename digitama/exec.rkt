@@ -7,6 +7,7 @@
 
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
+(require "../port.rkt")
 (require "../format.rkt")
 (require "../symbol.rkt")
 
@@ -62,10 +63,10 @@
       (define-values (status datum:out)
         (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (fg-recon-fork operation program options alt-env #false #false #false))
+            (fg-recon-fork operation program options alt-env))
 
           (define ghostcat : Thread
-            (thread (λ [] (when (and /dev/stdin /dev/subout)
+            (thread (λ [] (when (or /dev/stdin)
                             (fg-recon-copy-port /dev/stdin /dev/subout
                                                 (and (not stdin-silent?) log-level)
                                                 operation)))))
@@ -80,13 +81,17 @@
                         (let ([line (read-line /dev/outin 'any)])
                           (if (eof-object? line)
                               (wait-fold-loop never-evt errin-evt datum)
-                              (begin (unless (not /dev/stdout) (displayln line /dev/stdout))
+                              (begin (unless (not /dev/stdout)
+                                       (displayln line /dev/stdout)
+                                       (flush-output /dev/stdout))
                                      (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
                                      (wait-fold-loop outin-evt errin-evt (stdout-fold line datum)))))
                         (let ([line (read-line /dev/errin 'any)])
                           (if (eof-object? line)
                               (wait-fold-loop outin-evt never-evt datum)
-                              (begin (unless (not /dev/stderr) (displayln line /dev/stderr))
+                              (begin (unless (not /dev/stderr)
+                                       (displayln line /dev/stderr)
+                                       (flush-output /dev/stderr))
                                      (if (not stderr-silent?)
                                          (dtrace-error line #:topic operation #:prefix? #false)
                                          (displayln line /dev/byterr))
@@ -122,13 +127,13 @@
         (with-handlers ([exn? (λ [[e : exn]] e)])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
             ; because subprocess only accepts file stream ports as pipes
-            (fg-recon-fork operation program options alt-env #false /dev/stdout /dev/stderr))
+            (fg-recon-fork operation program options alt-env))
 
           (define-values (ghostcat/out ghostcat/err ghostcat/subout)
             (values (thread (λ [] (when (input-port? /dev/outin)
-                                    (copy-port /dev/outin /dev/bytout))))
+                                    (port-copy /dev/outin /dev/bytout /dev/stdout))))
                     (thread (λ [] (when (input-port? /dev/errin)
-                                    (copy-port /dev/errin /dev/byterr))))
+                                    (port-copy /dev/errin /dev/byterr /dev/stderr))))
                     (thread (λ [] (when (and /dev/stdin /dev/subout)
                                     (fg-recon-copy-port /dev/stdin /dev/subout log-level operation))))))
 
@@ -212,7 +217,7 @@
     
     (call-with-input-file* file
       (λ [[/dev/stdin : Input-Port]]
-        (copy-port /dev/stdin /dev/stdout)))))
+        (port-copy /dev/stdin /dev/stdout)))))
 
 (define fg-recon-cat : (->* (Symbol Path-String) (Output-Port) Void)
   (lambda [operation file [/dev/stdout (current-output-port)]]
@@ -220,10 +225,9 @@
       (fg-cat operation file /dev/stdout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-recon-fork : (case-> [Symbol Path (Listof (Listof String)) Maybe-Alt-Env False False False -> (Values Subprocess Input-Port Output-Port Input-Port)]
-                                [Symbol Path (Listof (Listof String)) Maybe-Alt-Env (Option Input-Port) (Option Output-Port) (Option Output-Port)
-                                        -> (Values Subprocess (Option Input-Port) (Option Output-Port) (Option Input-Port))])
-  (lambda [operation program options alt-env /dev/stdin /dev/stdout /dev/stderr]
+(define fg-recon-fork : (-> Symbol Path (Listof (Listof String)) Maybe-Alt-Env
+                            (Values Subprocess Input-Port Output-Port Input-Port))
+  (lambda [operation program options alt-env]
     (define args : (Listof String) (apply append options))
 
     (define subenv : (Option Environment-Variables)
@@ -233,24 +237,21 @@
     
     (dtrace-info #:topic operation "~a ~a" program (string-join args))
     
-    (cond [(not subenv) (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args)]
+    (cond [(not subenv) (apply subprocess #false #false #false program args)]
           [else (parameterize ([current-environment-variables subenv])
-                  (apply subprocess /dev/stdout /dev/stdin /dev/stderr program args))])))
+                  (apply subprocess #false #false #false program args))])))
 
 (define fg-recon-copy-port : (-> Input-Port Output-Port (Option Symbol) Any Void)
   (lambda [/dev/stdin /dev/subout log-level operation]
     (define /dev/dtout (and log-level (open-output-dtrace log-level operation)))
+
+    (if (terminal-port? /dev/stdin)
+        (port-copy/usrin /dev/stdin /dev/subout /dev/dtout)
+        (port-copy /dev/stdin /dev/subout /dev/dtout))
     
-    (with-handlers ([exn? void])
-      (if (output-port? /dev/dtout)
-          (copy-port /dev/stdin /dev/subout /dev/dtout)
-          (copy-port /dev/stdin /dev/subout)))
-    
-    (flush-output /dev/subout)
     (close-output-port /dev/subout)
 
     (when (and /dev/dtout)
-      (flush-output /dev/dtout)
       (close-output-port /dev/dtout))))
 
 (define fg-recon-handler : (->* (Symbol exn) ((-> Void)) Void)

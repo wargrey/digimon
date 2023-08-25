@@ -421,6 +421,44 @@
                   (file-position /dev/stdio pos)
                   (assert pos exact-nonnegative-integer?))])))
 
+(define port-copy : (-> Input-Port Output-Port (Option Output-Port) * Void)
+  (lambda [/dev/stdin /dev/stdout . /dev/extouts]
+    (define rest : (Listof Output-Port) (filter output-port? /dev/extouts))
+
+    (apply copy-port /dev/stdin /dev/stdout rest)
+    (flush-output /dev/stdout)
+    (for-each flush-output rest)))
+
+(define port-copy/usrin : (->* (Input-Port Output-Port)
+                               (#:timeout Positive-Real)
+                               #:rest (Option Output-Port)
+                               Void)
+  (let ([buffer (make-bytes 4096)])
+    (lambda [/dev/stdin /dev/stdout #:timeout [timeout 0.5] . /dev/extouts]
+      (define rest : (Listof Output-Port) (filter output-port? /dev/extouts))
+      (define size : Index (bytes-length buffer))
+
+      (let sync-read-copy-loop ([outs : (Listof Output-Port) (cons /dev/stdout rest)])
+        (when (pair? outs)
+          (define which (sync/timeout/enable-break timeout /dev/stdin))
+          (cond [(eq? which /dev/stdin)
+                 (displayln (byte-ready? which))
+                 (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
+                   (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
+                         [(and (index? n) (> n 0))
+                          (for ([out (in-list outs)])
+                            (let copy ([m : Nonnegative-Fixnum 0])
+                              (when (< m n)
+                                (copy (+ m (write-bytes-avail buffer out m n)))))
+                            (flush-output out))
+                          (sync-read-copy-loop outs)]
+                         [else '#:ignore (sync-read-copy-loop outs)]))]
+                [(not which)
+                 (let-values ([(a b c) (port-next-location /dev/stdout)])
+                   (displayln (list a b c)))
+                 (sync-read-copy-loop outs)]
+                [else (sync-read-copy-loop outs)]))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
   (lambda [/dev/stdio]

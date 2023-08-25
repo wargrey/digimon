@@ -73,18 +73,17 @@
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
                         [(extra-libraries) (c-path-flatten (cc-launcher-info-libpaths launcher))])
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
-            (fg-recon-exec #:/dev/stdin (current-input-port) #:stdin-log-level 'debug
-                           #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
-                           #:silent '(stdout stderr)
-                           #:env (and (pair? extra-libraries)
-                                      (let ([env (environment-variables-copy (current-environment-variables))]
-                                            [epath (case (system-type 'os)
-                                                     [(macosx) #"DYLD_LIBRARY_PATH"]
-                                                     [(unix) #"LD_LIBRARY_PATH"]
-                                                     [else #"PATH"])])
-                                        (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries)
-                                        (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
-                                        env))
+            (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level 'debug
+                                #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
+                                #:env (and (pair? extra-libraries)
+                                           (let ([env (environment-variables-copy (current-environment-variables))]
+                                                 [epath (case (system-type 'os)
+                                                          [(macosx) #"DYLD_LIBRARY_PATH"]
+                                                          [(unix) #"LD_LIBRARY_PATH"]
+                                                          [else #"PATH"])])
+                                             (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries)
+                                             (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
+                                             env))
                            'exec (car targets) (list (vector->list (current-command-line-arguments)))))
           127 #| deadcode, command cannot be found |#))))
 
