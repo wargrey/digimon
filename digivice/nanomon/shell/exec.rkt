@@ -34,7 +34,7 @@
                  (git-language-name (cdar (hash->list gl)))))))
 
     (when (or lang)
-      (dtrace-notice #:topic the-name "type: ~a" lang))
+      (dtrace-notice #:topic the-name "language: ~a" lang))
     
     (case (and lang (string-downcase lang))
       [("racket") (shell-rkt path)]
@@ -73,7 +73,9 @@
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
                         [(extra-libraries) (c-path-flatten (cc-launcher-info-libpaths launcher))])
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
-            (fg-recon-exec #:/dev/stdin (current-input-port) #:stdin-log-level #false
+            (fg-recon-exec #:/dev/stdin (current-input-port) #:stdin-log-level 'debug
+                           #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
+                           #:silent '(stdout stderr)
                            #:env (and (pair? extra-libraries)
                                       (let ([env (environment-variables-copy (current-environment-variables))]
                                             [epath (case (system-type 'os)

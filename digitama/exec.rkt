@@ -66,7 +66,9 @@
 
           (define ghostcat : Thread
             (thread (λ [] (when (and /dev/stdin /dev/subout)
-                            (fg-recon-copy-port /dev/stdin /dev/subout log-level operation)))))
+                            (fg-recon-copy-port /dev/stdin /dev/subout
+                                                (and (not stdin-silent?) log-level)
+                                                operation)))))
 
           (define final-datum : a
             (let wait-fold-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
