@@ -75,11 +75,14 @@
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
             (fg-recon-exec #:/dev/stdin (current-input-port) #:stdin-log-level #false
                            #:env (and (pair? extra-libraries)
-                                      (let ([env (environment-variables-copy (current-environment-variables))])
-                                        (case (system-type 'os)
-                                          [(macosx) (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries) env]
-                                          [(unix) (environment-variables-push-path! env #:name #"LD_LIBRARY_PATH" extra-libraries) env]
-                                          [else #false])))
+                                      (let ([env (environment-variables-copy (current-environment-variables))]
+                                            [epath (case (system-type 'os)
+                                                     [(macosx) #"DYLD_LIBRARY_PATH"]
+                                                     [(unix) #"LD_LIBRARY_PATH"]
+                                                     [else #"PATH"])])
+                                        (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries)
+                                        (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
+                                        env))
                            'exec (car targets) (list (vector->list (current-command-line-arguments)))))
           127 #| deadcode, command cannot be found |#))))
 
