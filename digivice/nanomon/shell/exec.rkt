@@ -12,6 +12,7 @@
 
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")
+(require "../../../dtrace.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/collection.rkt")
@@ -23,6 +24,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~~exec : (-> Path Thread Any)
   (lambda [path env-thread]
+    (dtrace-notice #:topic the-name "target: ~a" path)
+    
     (define lang : (Option String)
       (or (nanomon-lang)
           (let* ([gf (make-git-file path)]
@@ -30,6 +33,9 @@
             (and (= (hash-count gl) 1)
                  (git-language-name (cdar (hash->list gl)))))))
 
+    (when (or lang)
+      (dtrace-notice #:topic the-name "type: ~a" lang))
+    
     (case (and lang (string-downcase lang))
       [("racket") (shell-rkt path)]
       [("c++") (shell-cpp path 'cpp)]
@@ -59,7 +65,8 @@
                               (or (path-only path.c)
                                   (current-directory))))
 
-    (parameterize ([current-make-real-targets (list path.c)])
+    (parameterize ([current-make-real-targets (list path.c)]
+                   [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.c)))])
       (define-values (cc-specs.launchers targets) (make-cc-spec+targets (and maybe-info (pkg-info-ref maybe-info)) #false lang-name))
 
       (if (and cc-specs.launchers (pair? (cdr cc-specs.launchers)) (pair? targets))
