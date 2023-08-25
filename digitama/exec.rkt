@@ -67,7 +67,7 @@
 
           (define ghostcat : Thread
             (thread (λ [] (when (or /dev/stdin)
-                            (fg-recon-copy-port /dev/stdin /dev/subout
+                            (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/subout
                                                 (and (not stdin-silent?) log-level)
                                                 operation)))))
 
@@ -101,7 +101,6 @@
                   datum)))
 
           (subprocess-wait /usr/bin/$0)
-          (break-thread ghostcat)
           (thread-wait ghostcat)
           (values (subprocess-status /usr/bin/$0) final-datum)))
 
@@ -135,10 +134,9 @@
                     (thread (λ [] (when (input-port? /dev/errin)
                                     (port-copy /dev/errin /dev/byterr /dev/stderr))))
                     (thread (λ [] (when (and /dev/stdin /dev/subout)
-                                    (fg-recon-copy-port /dev/stdin /dev/subout log-level operation))))))
+                                    (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/subout log-level operation))))))
 
           (subprocess-wait /usr/bin/$0)
-          (break-thread ghostcat/subout)
           (thread-wait ghostcat/subout)
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)
@@ -241,12 +239,13 @@
           [else (parameterize ([current-environment-variables subenv])
                   (apply subprocess #false #false #false program args))])))
 
-(define fg-recon-copy-port : (-> Input-Port Output-Port (Option Symbol) Any Void)
-  (lambda [/dev/stdin /dev/subout log-level operation]
+(define fg-recon-copy-port : (-> Subprocess Input-Port Output-Port (Option Symbol) Any Void)
+  (lambda [bin /dev/stdin /dev/subout log-level operation]
     (define /dev/dtout (and log-level (open-output-dtrace log-level operation)))
 
     (if (terminal-port? /dev/stdin)
-        (port-copy/usrin /dev/stdin /dev/subout /dev/dtout)
+        (port-copy/usrin #:done? (λ [] (exact-integer? (subprocess-status bin)))
+                         /dev/stdin /dev/subout /dev/dtout)
         (port-copy /dev/stdin /dev/subout /dev/dtout))
     
     (close-output-port /dev/subout)

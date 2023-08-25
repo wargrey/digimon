@@ -10,7 +10,9 @@
 
 (require "digitama/unsafe/ops.rkt")
 (require "digitama/evt.rkt")
+
 (require "format.rkt")
+(require "function.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Port-Special-Datum (-> (Option Positive-Integer) (Option Natural) (Option Positive-Integer) (Option Natural) Any))
@@ -430,34 +432,31 @@
     (for-each flush-output rest)))
 
 (define port-copy/usrin : (->* (Input-Port Output-Port)
-                               (#:timeout Positive-Real)
+                               (#:timeout Positive-Real #:done? (-> Boolean))
                                #:rest (Option Output-Port)
                                Void)
   (let ([buffer (make-bytes 4096)])
-    (lambda [/dev/stdin /dev/stdout #:timeout [timeout 0.5] . /dev/extouts]
-      (define rest : (Listof Output-Port) (filter output-port? /dev/extouts))
+    (lambda [/dev/stdin /dev/stdout #:timeout [timeout 0.1] #:done? [done? λfalse] . /dev/extouts]
+      (define all-outs : (Listof Output-Port) (cons /dev/stdout (filter output-port? /dev/extouts)))
       (define size : Index (bytes-length buffer))
 
-      (let sync-read-copy-loop ([outs : (Listof Output-Port) (cons /dev/stdout rest)])
+      (let sync-read-copy-loop ([outs : (Listof Output-Port) all-outs])
         (when (pair? outs)
           (define which (sync/timeout/enable-break timeout /dev/stdin))
-          (cond [(eq? which /dev/stdin)
-                 (displayln (byte-ready? which))
-                 (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
-                   (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
-                         [(and (index? n) (> n 0))
-                          (for ([out (in-list outs)])
-                            (let copy ([m : Nonnegative-Fixnum 0])
-                              (when (< m n)
-                                (copy (+ m (write-bytes-avail buffer out m n)))))
-                            (flush-output out))
-                          (sync-read-copy-loop outs)]
-                         [else '#:ignore (sync-read-copy-loop outs)]))]
-                [(not which)
-                 (let-values ([(a b c) (port-next-location /dev/stdout)])
-                   (displayln (list a b c)))
-                 (sync-read-copy-loop outs)]
-                [else (sync-read-copy-loop outs)]))))))
+          (unless (done?)
+            (cond [(eq? which /dev/stdin)
+                   (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
+                     (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
+                           [(and (index? n) (> n 0))
+                            (for ([out (in-list outs)])
+                              (let copy ([m : Nonnegative-Fixnum 0])
+                                (when (< m n)
+                                  (copy (+ (write-bytes-avail/enable-break buffer out m n)
+                                           m))))
+                              (flush-output out))
+                            (sync-read-copy-loop outs)]
+                           [else '#:ignore (sync-read-copy-loop outs)]))]
+                  [else (sync-read-copy-loop outs)])))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)

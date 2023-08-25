@@ -73,7 +73,7 @@
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
                         [(extra-libraries) (c-path-flatten (cc-launcher-info-libpaths launcher))])
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
-            (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level 'debug
+            (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level #false
                                 #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
                                 #:env (and (pair? extra-libraries)
                                            (let ([env (environment-variables-copy (current-environment-variables))]
