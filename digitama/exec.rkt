@@ -243,10 +243,8 @@
   (lambda [bin /dev/stdin /dev/subout log-level operation]
     (define /dev/dtout (and log-level (open-output-dtrace log-level operation)))
 
-    (if (terminal-port? /dev/stdin)
-        (port-copy/usrin #:done? (λ [] (exact-integer? (subprocess-status bin)))
-                         /dev/stdin /dev/subout /dev/dtout)
-        (port-copy /dev/stdin /dev/subout /dev/dtout))
+    (port-copy/usrin #:done? (λ [] (exact-integer? (subprocess-status bin)))
+                     /dev/stdin /dev/subout /dev/dtout)
     
     (close-output-port /dev/subout)
 

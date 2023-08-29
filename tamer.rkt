@@ -72,20 +72,6 @@
 (define subsub*toc-style (make-style #false '(toc)))
 (define subtitle-style (make-style "large" null))
 
-(define $out (open-output-bytes '/dev/tamer/stdout))
-(define $err (open-output-bytes '/dev/tamer/stderr))
-(define $? (make-parameter +NaN.0))
-
-(define $shell
-  (lambda [routine . arglist]
-    (get-output-bytes $out #true)
-    (get-output-bytes $err #true)
-    ($? +NaN.0)
-    (parameterize ([current-output-port $out]
-                   [current-error-port $err]
-                   [exit-handler $?])
-      (apply routine arglist))))
-
 (define-syntax (tamer-taming-start! stx)
   (syntax-case stx [scribble +]
     [(_ scribble)
