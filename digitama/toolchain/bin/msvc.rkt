@@ -11,6 +11,7 @@
 (require "../../exec.rkt")
 (require "../../system.rkt")
 (require "../../../filesystem.rkt")
+(require "../../../environ.rkt")
 
 (define msvc-basename : Symbol 'cl)
 
@@ -167,39 +168,24 @@
        vars.bat))))
 
 (define msvc-make-envs : (-> Path String (Boxof (Option Environment-Variables)) Environment-Variables)
-  (let* ([env.rktl : String "msvc-env.rktl"]
-         [rx:rktl : Regexp (regexp (string-append (regexp-quote env.rktl) "$"))])
-    (lambda [full-vcvarsall.bat vcvarsall.bat &env]
-      (define msvc-env : Environment-Variables (make-environment-variables))
-      (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
-        
-      (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null
-                     #:silent '(stdout)
-                     #:/dev/stdout /dev/envout
-                     #:/dev/stdin (open-input-string (format "~a x64~n~a ~a~nexit~n"
-                                                       (path->string/quote full-vcvarsall.bat)
-
-                                                       (path->string/quote (or (find-executable-path "racket")
-                                                                               (find-system-path 'exec-file)))
-                                                       (path->string/quote (collection-file-path env.rktl "digimon" "stone" "digivice")))))
+  (lambda [full-vcvarsall.bat vcvarsall.bat &env]
+    (define msvc-env : Environment-Variables (make-environment-variables))
+    (define /dev/envout : Output-Port (open-output-bytes '/dev/envout))
+    (define /dev/envin : Input-Port (open-input-string (format "~a x64~n SET~n exit~n" (path->string/quote full-vcvarsall.bat))))
+    
+    (fg-recon-exec 'vcvarsall (assert (find-executable-path "cmd.exe")) null
+                   #:silent '(stdout) #:/dev/stdout /dev/envout
+                   #:stdin-log-level 'info
+                   #:/dev/stdin /dev/envin)
+    
+    (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
+      (for ([line (in-lines /dev/envin 'any)])
+        (environment-variables-try-set! msvc-env line))
       
-      (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
-        (let filter-out ()
-          (define line (read-line /dev/envin 'any))
-          (when (and (string? line) (not (regexp-match? rx:rktl line)))
-            (filter-out)))
-        
-        (let load-env ()
-          (define var (read-line /dev/envin 'any))
-          (define val (read-line /dev/envin 'any))
-          
-          (when (and (string? var) (string? val) (not (string=? var "")))
-            (environment-variables-set! msvc-env (string->bytes/utf-8 var) (string->bytes/utf-8 val))
-            (load-env)))
-        
-        (unless (not &env)
-          (set-box! &env msvc-env))
-        msvc-env))))
+      (unless (not &env)
+        (set-box! &env msvc-env))
+      
+      msvc-env)))
 
 (define msvc-environment-variables : (-> Environment-Variables)
   (lambda []

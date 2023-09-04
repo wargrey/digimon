@@ -84,7 +84,8 @@
                               (begin (unless (not /dev/stdout)
                                        (displayln line /dev/stdout)
                                        (flush-output /dev/stdout))
-                                     (when (not stdout-silent?) (dtrace-note line #:topic operation #:prefix? #false))
+                                     (when (not stdout-silent?)
+                                       (dtrace-note line #:topic operation #:prefix? #false))
                                      (wait-fold-loop outin-evt errin-evt (stdout-fold line datum)))))
                         (let ([line (read-line /dev/errin 'any)])
                           (if (eof-object? line)
@@ -136,10 +137,10 @@
                     (thread (λ [] (when (and /dev/stdin /dev/subout)
                                     (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/subout log-level operation))))))
 
-          (subprocess-wait /usr/bin/$0)
-          (thread-wait ghostcat/subout)
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)
+          (subprocess-wait /usr/bin/$0)
+          (thread-wait ghostcat/subout)
           (subprocess-status /usr/bin/$0)))
 
       (fg-recon-handle-status operation program status /dev/byterr on-error-do)

@@ -3,6 +3,9 @@
 (provide (all-defined-out))
 
 (require racket/list)
+(require racket/string)
+
+(require "function.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define env:sep : Bytes (if (eq? (system-type 'os) 'windows) #";" #":"))
@@ -21,6 +24,20 @@
           [else (environment-variables-set! env name (bytes-append val sep value))])
 
     (void)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define environment-variables-try-set! : (-> Environment-Variables String Boolean)
+  (lambda [env name=value]
+    (define maybe (regexp-match #px"^\\s*(\\S+)\\s*=\\s*(.*)$" name=value))
+
+    (and maybe (pair? (cdr maybe)) (pair? (cddr maybe))
+         (let ([nam (cadr maybe)]
+               [val (caddr maybe)])
+           (and (non-empty-string? nam)
+                (environment-variables-set! env (string->bytes/utf-8 nam)
+                                            (and val (string->bytes/utf-8 val))
+                                            λfalse)
+                #true)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define environment-variables-push-path! : (-> Environment-Variables (Listof Path-String) [#:name Bytes] Void)

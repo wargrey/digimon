@@ -442,19 +442,22 @@
 
       (let sync-read-copy-loop ([outs : (Listof Output-Port) all-outs])
         (when (pair? outs)
-          (define which (sync/timeout/enable-break timeout /dev/stdin))
           (unless (done?)
+            (define which (sync/timeout/enable-break timeout /dev/stdin))
             (cond [(eq? which /dev/stdin)
                    (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
                      (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
                            [(and (index? n) (> n 0))
-                            (for ([out (in-list outs)])
-                              (let copy ([m : Nonnegative-Fixnum 0])
-                                (when (< m n)
-                                  (copy (+ (write-bytes-avail/enable-break buffer out m n)
-                                           m))))
-                              (flush-output out))
-                            (sync-read-copy-loop outs)]
+                            (sync-read-copy-loop
+                             (reverse
+                              (for/fold ([outs++ : (Listof Output-Port) null])
+                                        ([out (in-list outs)])
+                                (with-handlers ([exn:fail? (λ _ outs++)])
+                                  (let copy ([m : Nonnegative-Fixnum 0])
+                                    (when (< m n)
+                                      (copy (+ (write-bytes-avail/enable-break buffer out m n) m))))
+                                  (flush-output out)
+                                  (cons out outs++)))))]
                            [else '#:ignore (sync-read-copy-loop outs)]))]
                   [else (sync-read-copy-loop outs)])))))))
 
