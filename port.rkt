@@ -10,6 +10,8 @@
 
 (require "digitama/unsafe/ops.rkt")
 (require "digitama/evt.rkt")
+(require "digitama/port.rkt")
+(require "digitama/system.rkt")
 
 (require "format.rkt")
 (require "function.rkt")
@@ -440,26 +442,21 @@
       (define all-outs : (Listof Output-Port) (cons /dev/stdout (filter output-port? /dev/extouts)))
       (define size : Index (bytes-length buffer))
 
+      (when (and (eq? digimon-system 'windows) (terminal-port? /dev/stdin))
+        ; Windows Console makes it impossible to report stdin event properly for Racket Virtual Machine,
+        ; Although this trick does not work for tasks running longer than timeout.
+        (sync/timeout/enable-break timeout never-evt))
+
       (let sync-read-copy-loop ([outs : (Listof Output-Port) all-outs])
         (when (pair? outs)
           (unless (done?)
             (define which (sync/timeout/enable-break timeout /dev/stdin))
-            (cond [(eq? which /dev/stdin)
-                   (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
-                     (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
-                           [(and (index? n) (> n 0))
-                            (sync-read-copy-loop
-                             (reverse
-                              (for/fold ([outs++ : (Listof Output-Port) null])
-                                        ([out (in-list outs)])
-                                (with-handlers ([exn:fail? (λ _ outs++)])
-                                  (let copy ([m : Nonnegative-Fixnum 0])
-                                    (when (< m n)
-                                      (copy (+ (write-bytes-avail/enable-break buffer out m n) m))))
-                                  (flush-output out)
-                                  (cons out outs++)))))]
-                           [else '#:ignore (sync-read-copy-loop outs)]))]
-                  [else (sync-read-copy-loop outs)])))))))
+            (if (eq? which /dev/stdin)
+                (let ([n (read-bytes-avail!* buffer /dev/stdin 0 size)])
+                  (cond [(eof-object? n) '#:return (sync-read-copy-loop null)]
+                        [(and (index? n) (> n 0)) (sync-read-copy-loop (ports-filter-write outs buffer 0 n))]
+                        [else '#:ignore (sync-read-copy-loop outs)]))
+                (sync-read-copy-loop outs))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
