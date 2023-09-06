@@ -95,15 +95,9 @@
           [(<= end-hint end-max) end-hint]
           [else end-max])))
 
-(define unsafe-bytes-range-end : (-> Bytes Natural Natural Index)
-  (lambda [bs start end-hint]
-    (define end-max : Index (bytes-length bs))
-    (cond [(<= end-hint start) end-max]
-          [else (assert end-hint index?)])))
-
 (define network-natural-bytes++ : (->* (Bytes) (Natural Natural) Void)
   (lambda [mpint [start 0] [end0 0]]
-    (define end : Index (unsafe-bytes-range-end mpint start end0))
+    (define end : Index (bytes-range-end mpint start end0))
 
     (let i++ ([idx : Fixnum (- end 1)])
       (when (>= idx start)
@@ -165,7 +159,7 @@
 
 (define network-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (msb-octets->integer bmpint #:from start #:to end #:-> Integer
                          #:with (if (>= (bytes-ref bmpint start) #b10000000) -1 0))))
@@ -180,7 +174,7 @@
 
 (define network-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (msb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
 
@@ -194,7 +188,7 @@
 
 (define memory-bytes->integer : (->* (Bytes) (Natural Natural) Integer)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (lsb-octets->integer bmpint #:from start #:to end #:-> Integer
                          #:with (let ([sign-idx (- end 1)])
@@ -212,7 +206,7 @@
 
 (define memory-bytes->natural : (->* (Bytes) (Natural Natural) Natural)
   (lambda [bmpint [start 0] [end0 0]]
-    (define end : Index (unsafe-bytes-range-end bmpint start end0))
+    (define end : Index (bytes-range-end bmpint start end0))
 
     (lsb-octets->integer bmpint #:from start #:to end #:-> Natural #:with 0)))
 
