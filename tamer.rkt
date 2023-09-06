@@ -560,14 +560,13 @@
            (make-spec-feature htag
                               (or (and (dynamic-require (tamer-story) #false)
                                        (hash-has-key? handbook-stories htag)
-                                       (reverse (hash-ref handbook-stories htag)))
+                                       (hash-ref handbook-stories htag))
                                   null)))
 
          (make-spec-feature "Features and Behaviors"
                             (if (> (hash-count handbook-stories) 0)
-                                (let ([href (curry hash-ref handbook-stories)])
-                                  (for/list ([htag (in-list (reverse (href books#)))])
-                                    (make-spec-feature htag (reverse (href htag)))))
+                                (for/list ([htag (in-list (reverse (hash-ref handbook-stories books#)))])
+                                  (make-spec-feature htag (hash-ref handbook-stories htag)))
 
                                 ; no story ==> no :books:
                                 null))))))
@@ -622,11 +621,11 @@
                                                              (hash-ref btimes htag (λ [] tamer-empty-times))
                                                              (hash-ref issues htag (λ [] tamer-empty-issues))))
                                                    (values (for/list ([story (in-list (hash-ref handbook-stories books# null))])
-                                                             (cons story (reverse (hash-ref scenarios story (λ [] null)))))
+                                                             (cons story (hash-ref scenarios story (λ [] null))))
                                                            (apply map + tamer-empty-times (hash-values btimes))
                                                            (apply hash-union tamer-empty-issues (hash-values issues) #:combine +)))])
                                    (define bookmarks
-                                     (for/list ([bookmark (in-list features)])
+                                     (for/list ([bookmark (in-list (reverse features))])
                                        ;;; also see (tamer-note)
                                        (define-values (local# brief)
                                          (cond [(string? (car bookmark)) (values bookmark# (car bookmark))] ;;; feature
@@ -677,7 +676,7 @@
                                                        summaries)])))))))))))))
 
 (define tamer-note
-  (lambda [example #:note [note margin-note]. notes]
+  (lambda [example #:note [note margin-note] . notes]
     (define this-story (tamer-story))
     (define ~symbol (default-spec-issue-symbol))
     (define raco-setup-forget-my-digimon (current-digimon))
@@ -692,61 +691,62 @@
          (define btimes (traverse-ref! get set! tamer-scribble-story-times make-hash))
          (define issues (traverse-ref! get set! tamer-scribble-story-issues make-hash))
          
-         (note (unless (null? notes) (append notes (list (linebreak) (linebreak))))
-               (parameterize ([tamer-story this-story]
-                              [default-spec-issue-handler void])
-                 ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
-                 (define (downfold-feature brief indent seed:info)
-                   (define flows (vector-ref seed:info 1))
-                   
-                   (vector (cons null (vector-ref seed:info 0))
-                           (cond [(= indent toplevel-indent)
-                                  (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (tamer-elemtag brief (literal brief)))) flows)]
-                                 [(> indent toplevel-indent)
-                                  (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
-                                 [else flows])))
-                 
-                 (define (upfold-feature brief indent whocares children:info)
-                   (define issues (vector-ref children:info 0))
-                   (define this-issues (reverse (car issues)))
-                   
-                   (vector (case indent ; never be 0
-                             [(1) (apply append (map tamer-feature-issues this-issues)) #| still (Listof tamer-feature) |#]
-                             [else (cons (cons (tamer-feature brief this-issues) (cadr issues)) (cddr issues))])
-                           (vector-ref children:info 1)))
-                 
-                 (define (fold-behavior brief issue indent memory cpu real gc seed:info)
-                   (define issues (vector-ref seed:info 0))
-                   (define idx (add1 (length (car issues))))
-                   (define type (spec-issue-type issue))
-                   (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
-                                              (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
-                                              (racketcommentfont ~ (literal brief)))))
-                   
-                   (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
-                           (cons flow (vector-ref seed:info 1))))
-                 
-                 (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
-                   (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
-                                                         (vector null null)
-                                                         #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                                                         #:selector (list '* '* example)))))
-                 
-                 (define population (apply + (hash-values summary)))
-                 
-                 (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
-                 (hash-set! btimes htag (map + (list memory cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
-                 (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
-                 
-                 (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
-                       [panic (hash-ref summary 'panic (λ [] 0))])
-                   (append (reverse (add-between flows (linebreak)))
-                           (list (linebreak) (linebreak)
-                                 (nonbreaking (elem (string pin#)
-                                                    ~ (if (= (+ misbehavior panic) 0)
-                                                          (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
-                                                          (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
-                                                    ~ (seclink (tamer-story->tag (tamer-story)) ~ (string house-garden#))))))))))))))
+         ((if (procedure? note) note (λ body (nested #:style note body)))
+          (unless (null? notes) (append notes (list (linebreak) (linebreak))))
+          (parameterize ([tamer-story this-story]
+                         [default-spec-issue-handler void])
+            ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
+            (define (downfold-feature brief indent seed:info)
+              (define flows (vector-ref seed:info 1))
+              
+              (vector (cons null (vector-ref seed:info 0))
+                      (cond [(= indent toplevel-indent)
+                             (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (tamer-elemtag brief (literal brief)))) flows)]
+                            [(> indent toplevel-indent)
+                             (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
+                            [else flows])))
+            
+            (define (upfold-feature brief indent whocares children:info)
+              (define issues (vector-ref children:info 0))
+              (define this-issues (reverse (car issues)))
+              
+              (vector (case indent ; never be 0
+                        [(1) (apply append (map tamer-feature-issues this-issues)) #| still (Listof tamer-feature) |#]
+                        [else (cons (cons (tamer-feature brief this-issues) (cadr issues)) (cddr issues))])
+                      (vector-ref children:info 1)))
+            
+            (define (fold-behavior brief issue indent memory cpu real gc seed:info)
+              (define issues (vector-ref seed:info 0))
+              (define idx (add1 (length (car issues))))
+              (define type (spec-issue-type issue))
+              (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
+                                         (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
+                                         (racketcommentfont ~ (literal brief)))))
+              
+              (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
+                      (cons flow (vector-ref seed:info 1))))
+            
+            (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
+              (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (hash-ref handbook-stories htag null))
+                                                    (vector null null)
+                                                    #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                                                    #:selector (list '* '* example)))))
+            
+            (define population (apply + (hash-values summary)))
+            
+            (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
+            (hash-set! btimes htag (map + (list memory cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
+            (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
+            
+            (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
+                  [panic (hash-ref summary 'panic (λ [] 0))])
+              (append (reverse (add-between flows (linebreak)))
+                      (list (linebreak) (linebreak)
+                            (nonbreaking (elem (string pin#)
+                                               ~ (if (= (+ misbehavior panic) 0)
+                                                     (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
+                                                     (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
+                                               ~ (seclink (tamer-story->tag (tamer-story)) ~ (string house-garden#))))))))))))))
 
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1]]

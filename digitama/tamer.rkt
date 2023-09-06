@@ -93,8 +93,8 @@
     (define htag (tamer-story->tag (tamer-story)))
 
     (hash-set! handbook-stories htag
-               (cons (λ [] unit)
-                     (hash-ref handbook-stories htag null)))
+               (append (hash-ref handbook-stories htag null)
+                       (list (λ [] unit))))
     
     (let ([books (hash-ref handbook-stories books# null)])
       (unless (member htag books)
