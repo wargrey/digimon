@@ -86,18 +86,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Scribble and Racket
-(define handbook-stories #;(HashTable Symbol (U (-> Spec-Feature) (Listof String))) (make-hash))
+(define handbook-stories #;(HashTable Symbol (U (Listof (-> Spec-Feature)) (Listof String))) (make-hash))
 
 (define tamer-record-story
   (lambda [name unit]
     (define htag (tamer-story->tag (tamer-story)))
-    (define units (hash-ref handbook-stories htag null))
 
-    (unless (dict-has-key? units name)
-      (hash-set! handbook-stories htag (cons (λ [] unit) units)))
+    (hash-set! handbook-stories htag
+               (cons (λ [] unit)
+                     (hash-ref handbook-stories htag null)))
     
-    (let ([books (hash-ref handbook-stories books# null)])  ;;; keep the order of stories for indexing
+    (let ([books (hash-ref handbook-stories books# null)])
       (unless (member htag books)
+        ;;; keep the order of stories for indexing
         (hash-set! handbook-stories books#
                    (cons htag books))))))
 
