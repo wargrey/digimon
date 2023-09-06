@@ -3,6 +3,7 @@
 (provide (all-defined-out) plural)
 (provide (all-from-out racket/format))
 (provide (all-from-out racket/pretty))
+(provide (rename-out [symb0x->octets symb0x->bytes]))
 
 (require "digitama/plural.rkt")
 
@@ -209,23 +210,57 @@
                   [else (error 'hexstring->bytes! "invalid hexadecimal: ~a~a@~a" hd1 hd2 pos+0)]))
           (assert idx index?)))))
 
+(define symb0x->octets : (-> Symbol (Option Bytes))
+  (lambda [sym]
+    (define str : String (substring (symbol->immutable-string sym) 2))
+    (define estr : String (if (odd? (string-length str)) (string-append "0" str) str))
+    
+    (let string->octets ([bs : (Listof Byte) null]
+                         [size : Nonnegative-Fixnum (string-length estr)])
+      (define size-2 : Fixnum (- size 2))
+      (if (>= size-2 0)
+          (let* ([10s (char->hexadecimal (string-ref estr size-2))]
+                 [1s (char->hexadecimal (string-ref estr (+ size-2 1)))]
+                 [b (+ (* 10s 16) 1s)])
+            (and (byte? b)
+                 (string->octets (cons b bs) size-2)))
+          (apply bytes bs)))))
+
 (define symb0x->number : (-> Symbol (Option Integer))
   (lambda [hex]
-    (define maybe-integer : (Option Number) (string->number (substring (symbol->immutable-string hex) 2) 16))
-    (and (exact-integer? maybe-integer) maybe-integer)))
+    (define maybe-hex (regexp-match #px"^([+-]?)0x([a-fA-F0-9]+)" (symbol->immutable-string hex)))
+
+    (and maybe-hex (pair? (cdr maybe-hex)) (pair? (cddr maybe-hex))
+         (let* ([sgn (cadr maybe-hex)]
+                [maybe-integer (string->number (assert (caddr maybe-hex)) 16)])
+           (and (exact-integer? maybe-integer)
+                (if (equal? sgn "-")
+                    (- maybe-integer)
+                    maybe-integer))))))
 
 (define number->symb0x : (-> Integer Symbol)
   (lambda [mphex]
-    (string->symbol (string-append "0x" (number->string mphex 16)))))
+    (if (>= mphex 0)
+        (string->symbol (string-append "0x" (number->string mphex 16)))
+        (string->symbol (string-append "-0x" (number->string (- mphex) 16))))))
 
 (define symb0b->number : (-> Symbol (Option Integer))
   (lambda [bin]
-    (define maybe-integer : (Option Number) (string->number (substring (symbol->immutable-string bin) 2) 2))
-    (and (exact-integer? maybe-integer) maybe-integer)))
+    (define maybe-bin (regexp-match #px"^([+-]?)0b([01]+)" (symbol->immutable-string bin)))
+
+    (and maybe-bin (pair? (cdr maybe-bin)) (pair? (cddr maybe-bin))
+         (let* ([sgn (cadr maybe-bin)]
+                [maybe-integer (string->number (assert (caddr maybe-bin)) 2)])
+           (and (exact-integer? maybe-integer)
+                (if (equal? sgn "-")
+                    (- maybe-integer)
+                    maybe-integer))))))
 
 (define number->symb0b : (-> Integer Symbol)
   (lambda [mpbin]
-    (string->symbol (string-append "0b" (number->string mpbin 2)))))
+    (if (>= mpbin 0)
+        (string->symbol (string-append "0b" (number->string mpbin 2)))
+        (string->symbol (string-append "-0b" (number->string (- mpbin) 2))))))
 
 (define natural->string : (->* (Natural) ((U Integer (List 'up Integer)) Positive-Integer) String)
   (lambda [n [radix (list 'up 16)] [width 1]]
