@@ -555,16 +555,22 @@
   (lambda []
     (spec-prove
      (if (module-path? (tamer-story))
+
          (let ([htag (tamer-story->tag (tamer-story))])
-           (make-spec-feature htag (or (and (dynamic-require (tamer-story) #false)
-                                            (hash-has-key? handbook-stories htag)
-                                            (reverse (hash-ref handbook-stories htag)))
-                                       null)))
+           (make-spec-feature htag
+                              (or (and (dynamic-require (tamer-story) #false)
+                                       (hash-has-key? handbook-stories htag)
+                                       (reverse (hash-ref handbook-stories htag)))
+                                  null)))
+
          (make-spec-feature "Features and Behaviors"
-                            (cond [(zero? (hash-count handbook-stories)) null] ; no story ==> no :books:
-                                  [else (let ([href (curry hash-ref handbook-stories)])
-                                          (for/list ([htag (in-list (reverse (href books#)))])
-                                            (make-spec-feature htag (reverse (href htag)))))]))))))
+                            (if (> (hash-count handbook-stories) 0)
+                                (let ([href (curry hash-ref handbook-stories)])
+                                  (for/list ([htag (in-list (reverse (href books#)))])
+                                    (make-spec-feature htag (reverse (href htag)))))
+
+                                ; no story ==> no :books:
+                                null))))))
 
 (define tamer-deftech
   (lambda [#:key [key #false] #:normalize? [normalize? #true] #:origin [origin #false] #:abbr [abbr #false] . body]
@@ -721,7 +727,7 @@
                                   (cons flow (vector-ref seed:info 1))))
                         
                         (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
-                          (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (map (λ [f] (λ [] f)) (reverse (hash-ref handbook-stories htag null))))
+                          (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (reverse (hash-ref handbook-stories htag null)))
                                                                 (vector null null)
                                                                 #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
                                                                 #:selector (list '* '* example)))))
