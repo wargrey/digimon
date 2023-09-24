@@ -168,11 +168,13 @@
                                        [else (list (linebreak)
                                                    (elem #:style subtitle-style
                                                          subtitle))]))))
-               (or pre-empty-author
-                   (apply author
-                          (map ~a (#%info 'pkg-authors
-                                          (const (list (#%info 'pkg-idun
-                                                               (const (string->symbol digimon-partner))))))))))))]))
+               (cond [(not pre-empty-author)
+                      (apply author
+                             (map ~a (#%info 'pkg-authors
+                                             (const (list (#%info 'pkg-idun
+                                                                  (const (string->symbol digimon-partner))))))))]
+                     [(string? pre-empty-author) (author pre-empty-author)]
+                     [else pre-empty-author]))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
