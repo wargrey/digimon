@@ -69,6 +69,7 @@
 (define #%handbook-properties (make-parameter null))
 
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
+(define grouper-style (make-style #false '(grouper)))
 (define subsub*toc-style (make-style #false '(toc)))
 (define subtitle-style (make-style "large" null))
 
