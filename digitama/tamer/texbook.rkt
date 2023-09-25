@@ -118,6 +118,8 @@
     (texbook-command-part #:part? part? #:tag (or tag "tamer-appendix")
                           "appendix" contents)))
 
+; make following sections unnumbered,
+; note that unnumbered sections might be hard to be located in resulting PDF
 (define texbook-backmatter
   (lambda [#:part? [part? #false] #:tag [tag #false] . contents]
     (texbook-command-part #:part? part? #:tag (or tag "tamer-backmatter")
