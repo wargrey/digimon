@@ -223,15 +223,28 @@
 
 (define-syntax (handbook-part stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false])))
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
         ...
         pre-contents ...)
      (syntax/loc stx
-       (handbook-story #:counter-step? #false
-                       #:style (cond [(not style) (make-style #false '(grouper))]
+       (handbook-story #:counter-step? counter-step?
+                       #:style (cond [(not style) grouper-style]
                                      [else (make-style (style-name style)
                                                        (cons 'grouper (style-properties style)))])
                        pre-contents ...))]))
+
+(define-syntax (handbook-part/section stx)
+  (syntax-parse stx #:literals []
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
+        ...
+        pre-contents ...)
+     (syntax/loc stx
+       (handbook-scenario #:style (cond [(not style) grouper-style]
+                                        [else (make-style (style-name style)
+                                                          (cons 'grouper (style-properties style)))])
+                          pre-contents ...))]))
 
 (define-syntax (handbook-root-story stx)
   (syntax-parse stx #:literals []
