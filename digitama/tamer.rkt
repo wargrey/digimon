@@ -42,8 +42,10 @@
      (syntax/loc stx
        (let ([modpath (path->string (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp)))]
              [literacy (path->string (digimon-path 'literacy))]
+             [village (path->string (digimon-path 'village))]
              [tamer (path->string (digimon-path 'tamer))])
          (cond [(string-prefix? modpath literacy) (substring modpath (add1 (string-length literacy)))]
+               [(string-prefix? modpath village) (substring modpath (add1 (string-length village)))]
                [(string-prefix? modpath tamer) (substring modpath (add1 (string-length tamer)))]
                [else (path->string (find-relative-path literacy modpath))])))]))
 
