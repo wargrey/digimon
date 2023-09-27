@@ -234,7 +234,7 @@
                                                        (cons 'grouper (style-properties style)))])
                        pre-contents ...))]))
 
-(define-syntax (handbook-part/section stx)
+(define-syntax (handbook-part-section stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
