@@ -172,6 +172,17 @@
     (or (path-string? maybe-path)
         (path? maybe-path))))
 
+(define path-replace-filename : (-> Path-String Path-String (Option Path))
+  (lambda [src name]
+    (define fname (file-name-from-path src))
+    
+    (and fname
+         (let* ([dir (path-only src)]
+                [.ext (or (path-get-extension fname) #"")]
+                [name.ext (path-replace-extension name .ext)])
+           (cond [(not dir) name.ext]
+                 [else (build-path dir name.ext)])))))
+
 (define path-add-sequence : (->* (Path-String) (String #:start Natural #:step Natural) (Option Path))
   (lambda [path [seqfmt ":~a"] #:start [seq0 2] #:step [step 1]]
     (define-values (parent basename syntactically-dir?) (split-path (simplify-path path #false)))

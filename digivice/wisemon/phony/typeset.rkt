@@ -30,8 +30,7 @@
    [engine : (Option Symbol)]
    [name : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
-   [always-make? : Boolean]
-   [readme? : Boolean]
+   [options : (Listof Keyword)]
    [extra-argv : (Listof String)])
   #:type-name Tex-Info)
 
@@ -65,7 +64,8 @@
       (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
       (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
-      (define TEXNAME.ext (assert (tex-document-destination TEXNAME.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
+      (define RENAMED.scrbl (or (and maybe-name (path-replace-filename TEXNAME.scrbl maybe-name)) TEXNAME.scrbl))
+      (define TEXNAME.ext (assert (tex-document-destination RENAMED.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
       (define TEXNAME.tex (path-replace-extension TEXNAME.ext #".tex"))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
       (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
@@ -76,8 +76,11 @@
       (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
       (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
+      (define options : (Listof Keyword) (tex-info-options typesetting))
 
-      (when (tex-info-always-make? typesetting)
+      (when (or (memq '#:always-make options)
+                (and (memq '#:explicitly-make options)
+                     (member TEXNAME.ext (current-make-real-targets))))
         (define msecs (sub1 (file-or-directory-modify-seconds TEXNAME.scrbl)))
 
         (when (> msecs 0)
@@ -98,12 +101,8 @@
                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                       
                                       (typeset-note engine maybe-name TEXNAME.scrbl)
-                                        
-                                      (let ([TEXNAME.ext (tex-render engine TEXNAME.scrbl dest-dir #:fallback tex-fallback-engine #:enable-filter #false)])
-                                        (unless (not maybe-name)
-                                          (let* ([ext (path-get-extension TEXNAME.ext)]
-                                                 [target.ext (build-path dest-dir (if (bytes? ext) (path-replace-extension maybe-name ext) maybe-name))])
-                                            (fg-recon-mv engine TEXNAME.ext target.ext))))))
+                                      (tex-render #:fallback tex-fallback-engine #:enable-filter #false
+                                                  engine TEXNAME.scrbl dest-dir)))
                   
                   (list (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
                                       (define dest-dir : Path (assert (path-only TEXNAME.tex)))
@@ -200,8 +199,7 @@
                              [else (check (cdr engines))])))
                 (and (pair? maybe-names) (car maybe-names))
                 dependencies
-                (and (memq '#:always-make tags) #true)
-                (and (memq '#:readme tags) #true)
+                tags
                 (for/fold ([argv : (Listof String) null])
                           ([arg (in-list rest)])
                   (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]

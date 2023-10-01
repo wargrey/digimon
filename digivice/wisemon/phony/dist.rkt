@@ -29,7 +29,7 @@
       (append (map (λ [[readme : Path]] (cons (cons readme (current-directory)) (cons 0 0)))
                    (find-digimon-handbooks info-ref))
               (filter-map (λ [[scrbl : Tex-Info]]
-                            (and (tex-info-readme? scrbl)
+                            (and (memq '#:readme (tex-info-options scrbl))
                                  (regexp-match? #px"\\.scrbl$" (tex-info-path scrbl))
                                  (cons (cons (tex-info-path scrbl) (current-directory)) (cons 0 1))))
                           (find-digimon-typesettings info-ref))))
