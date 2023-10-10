@@ -74,6 +74,7 @@
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
+      (define self:bin? : Boolean (and (cc-launcher-info-subsystem info) #true))
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define macros : (Listof C-Compiler-Macro) (cc-launcher-info-macros info))
       (define incdirs : (Listof C-Toolchain-Path-String) (cc-launcher-info-includes info))
@@ -97,14 +98,14 @@
 
       (define native : Path
         (assert
-         (if (cc-launcher-info-subsystem info)
+         (if (or self:bin?)
              (c-source->executable-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?)
              (c-source->shared-object-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug? #:lib-prefixed? libname?))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang #:subnative subnative #:debug? debug?)))
       (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
       (define objects : (Listof Path) (let ([dos (remove-duplicates dep-objects)]) (if (member native.o dos) dos (cons native.o dos))))
-      
+
       (define header-specs : (Listof Wisemon-Spec)
         (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
             (let ([target-rootdir (assert (path-only native))]
@@ -126,18 +127,21 @@
                       [else (cons spec ss)])))
             null))
 
-      ; WARNING: Order matters
-      (append specs
-              
-              ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-              (list (wisemon-spec native #:^ (append deplibs objects (wisemon-targets-flatten header-specs))
-                                  #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
-                                              #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                              #:libpaths (cc-launcher-info-libpaths info) #:libraries libs
-                                              objects native))
-                    (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs))
+      (define self-specs : (Listof Wisemon-Spec)
+        ; TODO: why includes duplicate inside the spec, but be okay outside the spec
+        (list (wisemon-spec native #:^ (append deplibs objects (wisemon-targets-flatten header-specs))
+                            #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                                        #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
+                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries libs
+                                        objects native))
+              (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs)))
 
-              header-specs object-specs))))
+      ; WARNING: Order matters
+      ; force the `make` to check binaries before shared libraries
+      ;   so that updated shared libraries will trigger the remaking of binaries
+      (if (or self:bin?)
+          (append self-specs specs header-specs object-specs)
+          (append specs self-specs header-specs object-specs)))))
 
 (define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol)
                                    (Values (Option (Pairof Wisemon-Specification (Listof CC-Launcher-Name)))
