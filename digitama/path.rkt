@@ -5,6 +5,7 @@
 (require racket/path)
 (require racket/list)
 (require racket/symbol)
+(require racket/string)
 
 (require "system.rkt")
 (require "../predicate.rkt")
@@ -37,6 +38,21 @@
                   [(subpath library) (system-library-subpath #false)]
                   [(word) (number->string (system-type 'word))]
                   [else #false])])))
+
+(define native-shared-object-name-make : (-> Path-String Boolean String)
+  (lambda [basename libname?]
+    (define name.so : String (path->string (path-replace-extension basename (system-type 'so-suffix))))
+
+    (cond [(not libname?) name.so]
+          [else (string-append "lib" name.so)])))
+
+(define native-shared-object-name-restore : (-> Path-String Boolean String)
+  (lambda [libname.so libname?]
+    (define libname : String (path->string (path-replace-extension libname.so #"")))
+
+    (cond [(not libname?) libname]
+          [(string-prefix? libname "lib") (substring libname 3)]
+          [else libname])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define native-rootdir : (-> Path-String Native-Subpath-Datum Path)

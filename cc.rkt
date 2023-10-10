@@ -123,8 +123,7 @@
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
-         (let* ([name.so (path-replace-extension basename (system-type 'so-suffix))]
-                [libname.so (if (not libname?) name.so (string-append "lib" (path->string name.so)))])
+         (let* ([libname.so (native-shared-object-name-make basename libname?)])
            (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) libname.so)]
                  [else (build-path (native-rootdir/compiled c debug? subnative) libname.so)])))))
 

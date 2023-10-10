@@ -4,6 +4,7 @@
 
 (require racket/list)
 (require racket/string)
+(require racket/bool)
 
 (require "../../../dtrace.rkt")
 (require "../../../cc.rkt")
@@ -11,6 +12,7 @@
 (require "../../../filesystem.rkt")
 (require "../../../predicate.rkt")
 
+(require "../../../digitama/path.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
@@ -75,6 +77,8 @@
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define macros : (Listof C-Compiler-Macro) (cc-launcher-info-macros info))
       (define incdirs : (Listof C-Toolchain-Path-String) (cc-launcher-info-includes info))
+      (define libs : (Listof C-Link-Library) (cc-launcher-info-libraries info))
+      (define libname? : Boolean (not (eq? digimon-system 'windows)))
       (define cpp? : Boolean (eq? lang 'cpp))
       
       (define includes : (Listof Path)
@@ -95,14 +99,12 @@
         (assert
          (if (cc-launcher-info-subsystem info)
              (c-source->executable-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?)
-             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?))))
+             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug? #:lib-prefixed? libname?))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang #:subnative subnative #:debug? debug?)))
-      (define objects : (Listof Path)
-        (remove-duplicates
-         (cond [(member native.o dep-objects) dep-objects]
-               [else (cons native.o dep-objects)])))
-    
+      (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
+      (define objects : (Listof Path) (let ([dos (remove-duplicates dep-objects)]) (if (member native.o dos) dos (cons native.o dos))))
+      
       (define header-specs : (Listof Wisemon-Spec)
         (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
             (let ([target-rootdir (assert (path-only native))]
@@ -128,11 +130,10 @@
       (append specs
               
               ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-              (list (wisemon-spec native #:^ (append objects (wisemon-targets-flatten header-specs))
+              (list (wisemon-spec native #:^ (append deplibs objects (wisemon-targets-flatten header-specs))
                                   #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                               #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                              #:libpaths (cc-launcher-info-libpaths info) #:libraries (cc-launcher-info-libraries info)
-                                              #:postask (if (cc-launcher-info-subsystem info) void void)
+                                              #:libpaths (cc-launcher-info-libpaths info) #:libraries libs
                                               objects native))
                     (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs))
 
@@ -186,6 +187,14 @@
                       [else (cc-filter-name config debug? force-lang)])))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
+
+(define cc-libname-filter : (-> (Listof C-Link-Library) (Listof Symbol))
+  (lambda [libs]
+    (for/fold ([libaries : (Listof Symbol) null])
+              ([lib (in-list libs)])
+      (cond [(symbol? lib) (cons lib libaries)]
+            [else (append (cdr lib) libaries)]))))
+
 (define cc-filter-name : (-> Any Boolean (Option Symbol) CC-Launcher-Info)
   (lambda [argv debug? force-lang]
     (let partition ([lang : (Option Symbol) force-lang]
@@ -196,16 +205,12 @@
                     [options : (Listof Any) (if (list? argv) argv (list argv))])
       (if (pair? options)
           (let-values ([(self rest) (values (car options) (cdr options))])
-            (cond [(pair? self)
-                   (let*-values ([(maybe-distr subopts) (values (car self) (cdr self))]
-                                 [(for-debug?) (memq maybe-distr '(#:DEBUG #:debug))])
-                     (if (cond [(or debug?) for-debug?]
-                               [else (and (keyword? maybe-distr)
-                                          (not for-debug?))])
-                         (if (list? subopts)
-                             (partition lang biname subsystem entry srehto (append subopts rest))
-                             (partition lang biname subsystem entry srehto (cons subopts rest)))
-                         (partition lang biname subsystem entry (cons self srehto) rest)))]
+            (cond [(list? self)
+                   (let-values ([(maybe-distr subopts) (values (car self) (cdr self))])
+                     (cond [(not (keyword? maybe-distr)) (partition lang biname subsystem entry (cons self srehto) rest)]
+                           [(xor debug? (memq maybe-distr '(#:DEBUG #:debug))) (partition lang biname subsystem entry srehto rest)]
+                           [(list? subopts) (partition lang biname subsystem entry srehto (append subopts rest))]
+                           [else (partition lang biname subsystem entry srehto (cons subopts rest))]))]
                   [(symbol? self)
                    (case self
                      [(C c) (partition (or lang 'c) biname subsystem entry srehto rest)]
@@ -251,6 +256,21 @@
                 [else (sed protected-level)])))
 
       (custodian-shutdown-all (current-custodian)))))
+
+(define cc-dependent-shared-objects : (-> (Listof C-Link-Library) Wisemon-Specification Boolean (Listof Path))
+  (lambda [libs specs libname?]
+    (define targets : (Listof Path) (wisemon-targets-flatten specs))
+    
+    (if (pair? targets)
+        (let ([libs (cc-libname-filter libs)])
+          (for/fold ([deplibs : (Listof Path) null])
+                    ([target (in-list targets)])
+            (define libname.so (file-name-from-path target))
+            (if (or libname.so)
+                (let ([name (string->symbol (native-shared-object-name-restore libname.so libname?))])
+                  (if (memq name libs) (cons target deplibs) deplibs))
+                deplibs)))
+        null)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-phony-goal : Wisemon-Phony
