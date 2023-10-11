@@ -10,7 +10,6 @@
 
 (require "../exception.rkt")
 (require "../filesystem.rkt")
-(require "../continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Wisemon-Targets (U Path (Listof Path)))
