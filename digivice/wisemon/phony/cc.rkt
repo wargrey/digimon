@@ -11,6 +11,7 @@
 
 (require "../../../filesystem.rkt")
 (require "../../../predicate.rkt")
+(require "../../../function.rkt")
 
 (require "../../../digitama/path.rkt")
 (require "../../../digitama/system.rkt")
@@ -34,6 +35,14 @@
    [libpaths : (Listof C-Toolchain-Path-String)]
    [libraries : (Listof C-Link-Library)])
   #:type-name CC-Launcher-Info
+  #:transparent)
+
+(struct cc-native-tree
+  ([root : Native-Subpath]
+   [bindir : Native-Subpath]
+   [incdir : Native-Subpath]
+   [libdir : Native-Subpath])
+  #:type-name CC-Native-Tree
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -69,8 +78,8 @@
                                  #:includes (append extra-includes includes) #:macros macros
                                  source.c object.o))))
 
-(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) Native-Subpath-Datum Boolean Wisemon-Specification)
-  (lambda [launchers extra-incdirs subnative debug?]
+(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) CC-Native-Tree Boolean Wisemon-Specification)
+  (lambda [launchers extra-incdirs ntree debug?]
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
@@ -91,7 +100,7 @@
         (for/fold ([objs : (Listof Path) null]
                    [specs : (Listof Wisemon-Spec) null])
                   ([src (in-list sources)])
-          (define obj.o (assert (c-source->object-file src lang #:subnative subnative #:debug? debug?)))
+          (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root ntree))))
           (values (cons obj.o objs)
                   (cons (make-object-spec src obj.o cpp? macros incdirs debug? extra-incdirs)
                         specs))))
@@ -99,17 +108,22 @@
       (define native : Path
         (assert
          (if (or self:bin?)
-             (c-source->executable-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug?)
-             (c-source->shared-object-file native.c #false (cc-launcher-info-name info) #:subnative subnative #:debug? debug? #:lib-prefixed? libname?))))
+             (c-source->executable-file
+              #:subnative (append (cc-native-tree-root ntree) (cc-native-tree-bindir ntree))
+              native.c #false (cc-launcher-info-name info))
+             (c-source->shared-object-file
+              #:subnative (append (cc-native-tree-root ntree) (cc-native-tree-libdir ntree)) #:lib-prefixed? libname?
+              native.c #false (cc-launcher-info-name info)))))
 
-      (define native.o : Path (assert (c-source->object-file native.c lang #:subnative subnative #:debug? debug?)))
+      (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root ntree))))
       (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
       (define objects : (Listof Path) (let ([dos (remove-duplicates dep-objects)]) (if (member native.o dos) dos (cons native.o dos))))
 
       (define header-specs : (Listof Wisemon-Spec)
         (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
-            (let ([target-rootdir (assert (path-only native))]
-                  [target-subdir (string-replace (path->string (path-replace-extension (assert (file-name-from-path native.c)) #"")) "." "_")]
+            (let ([target-rootdir (assert (path-only native.o))]
+                  [target-incdir (native-subpath->path (cc-native-tree-incdir ntree))]
+                  [target-namedir (string-replace (path->string (path-replace-extension (assert (file-name-from-path native.c)) #"")) "." "_")]
                   [source-rootdir (assert (path-only native.c))])
               (for/fold ([ss : (Listof Wisemon-Spec) null])
                         ([header.h (in-list includes)])
@@ -119,7 +133,9 @@
                        (let ([tails (explode-path target-tail)])
                          (and (pair? tails)
                               (andmap path? tails)
-                              (let ([target (apply build-path target-rootdir target-subdir tails)])
+                              (let ([target (if (not target-incdir)
+                                                (apply build-path target-rootdir target-namedir tails)
+                                                (apply build-path target-rootdir target-incdir target-namedir tails))])
                                 (wisemon-spec target #:^ (list header.h)
                                               #:- (cc-header-sed target header.h)))))))
 
@@ -155,8 +171,7 @@
     
     (if (pair? launchers)
         (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
-               [subnative (and info-ref (datum-filter (info-ref 'native-compiled-subpath (λ [] #false)) native-subpath-datum?))]
-               [cc-specs (make-cc-specs launchers incdirs subnative debug?)])
+               [cc-specs (make-cc-specs launchers incdirs (cc-subpath-filter info-ref debug?) debug?)])
           (values (cons cc-specs launchers) (wisemon-targets-flatten cc-specs)))
         (values #false null))))
 
@@ -191,6 +206,27 @@
                       [else (cc-filter-name config debug? force-lang)])))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
+(define cc-subpath-filter : (-> (Option Info-Ref) Boolean CC-Native-Tree)
+  (let ([default-subroot : Native-Subpath (list 'subpath)]
+        [default-bindir : Native-Subpath (list "bin")]
+        [default-incdir : Native-Subpath (list "include")]
+        [default-libdir : Native-Subpath (list "lib")]
+        [default-release : Native-Subpath (list "release")]
+        [default-debug : Native-Subpath (list "debug")])
+    (lambda [info-ref debug?]
+      (define-values (native-compiled-dist default-dist)
+        (if debug?
+            (values 'native-compiled-debug default-debug)
+            (values 'native-compiled-release default-release)))
+      
+      (if (or info-ref)
+          (let* ([subroot (or (datum-filter (info-ref 'native-compiled-subpath λfalse) native-subpath?) default-subroot)]
+                 [dstdir (or (datum-filter (info-ref native-compiled-dist λfalse) native-subpath?) default-dist)]
+                 [bindir (or (datum-filter (info-ref 'native-compiled-bindir λfalse) native-subpath?) default-bindir)]
+                 [incdir (or (datum-filter (info-ref 'native-compiled-incdir λfalse) native-subpath?) default-incdir)]
+                 [libdir (or (datum-filter (info-ref 'native-compiled-libdir λfalse) native-subpath?) default-libdir)])
+            (cc-native-tree (append subroot dstdir) bindir incdir libdir))
+          (cc-native-tree (append default-subroot default-dist) default-bindir default-incdir default-libdir)))))
 
 (define cc-libname-filter : (-> (Listof C-Link-Library) (Listof Symbol))
   (lambda [libs]

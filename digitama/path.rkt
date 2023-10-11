@@ -11,15 +11,20 @@
 (require "../predicate.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Native-Subpath-Datum (U False String Symbol (Listof (U String Symbol))))
+(define-type Native-Subpath (Listof (U String Symbol)))
+(define-type Native-Subpath-Datum (U False String Symbol Native-Subpath))
+
+(define native-subpath? : (-> Any Boolean : Native-Subpath)
+  (lambda [v]
+    (and (list? v)
+         ((inst andmap Any Boolean (U String Symbol))
+          string-like? v))))
 
 (define native-subpath-datum? : (-> Any Boolean : Native-Subpath-Datum)
   (lambda [v]
     (or (not v)
         (string-like? v)
-        (and (list? v)
-             ((inst andmap Any Boolean (U String Symbol))
-              string-like? v)))))
+        (native-subpath? v))))
 
 (define native-subpath->path : (-> Native-Subpath-Datum (U Path-String False))
   (lambda [subnative]
@@ -37,7 +42,7 @@
                   [(os os* system) (symbol->immutable-string digimon-system)]
                   [(subpath library) (system-library-subpath #false)]
                   [(word) (number->string (system-type 'word))]
-                  [else #false])])))
+                  [else (symbol->immutable-string subnative)])])))
 
 (define native-shared-object-name-make : (-> Path-String Boolean String)
   (lambda [basename libname?]
@@ -57,17 +62,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define native-rootdir : (-> Path-String Native-Subpath-Datum Path)
   (lambda [src subnative]
-    (define ntvdir (or (path-only src) (current-directory)))
-    (define subpaths (native-subpath->path subnative))
+    (define ntvdir : Path (or (path-only src) (current-directory)))
+    (define subpaths : (Option Path-String) (native-subpath->path subnative))
 
     (cond [(not subpaths) ntvdir]
           [else (build-path ntvdir subpaths)])))
 
-(define native-rootdir/compiled : (-> Path-String Boolean Native-Subpath-Datum Path)
-  (lambda [src debug? subnative]
-    (define ntvdir (or (path-only src) (current-directory)))
-    (define subpaths (native-subpath->path subnative))
-    (define native (if debug? (build-path "native" "debug") "native"))
+(define native-rootdir/compiled : (-> Path-String Native-Subpath-Datum Path)
+  (lambda [src subnative]
+    (define ntvdir : Path (or (path-only src) (current-directory)))
+    (define subpaths : (Option Path-String) (native-subpath->path subnative))
+    (define native : String "native")
 
     (cond [(not subpaths) (build-path ntvdir (car (use-compiled-file-paths)) native)]
           [else (build-path ntvdir (car (use-compiled-file-paths)) native subpaths)])))

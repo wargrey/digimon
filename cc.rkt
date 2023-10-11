@@ -105,36 +105,36 @@
     (void (postask outfile))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define c-source->object-file : (->* (Path-String) ((Option Symbol) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
-  (lambda [c [lang #false] #:subnative [subnative #false] #:debug? [debug? #false]]
+(define c-source->object-file : (->* (Path-String) ((Option Symbol) #:subnative Native-Subpath-Datum) (Option Path))
+  (lambda [c [lang #false] #:subnative [subnative #false]]
     (define basename : (Option Path) (file-name-from-path c))
 
     (and (path? basename)
-         (build-path (native-rootdir/compiled c debug? subnative)
+         (build-path (native-rootdir/compiled c subnative)
                      (cond [(not lang) (path-replace-extension basename object.ext)]
                            [else (let ([lang.ext (format ".~a" (symbol->immutable-string lang))])
                                    (path-add-extension (path-replace-extension basename lang.ext) object.ext))])))))
 
 (define c-source->shared-object-file : (->* (Path-String Boolean)
-                                            ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean #:lib-prefixed? Boolean)
+                                            ((Option String) #:subnative Native-Subpath-Datum #:lib-prefixed? Boolean)
                                             (Option Path))
-  (lambda [#:subnative [subnative #false] #:debug? [debug? #false] #:lib-prefixed? [libname? (not (eq? digimon-system 'windows))]
+  (lambda [#:subnative [subnative #false] #:lib-prefixed? [libname? (not (eq? digimon-system 'windows))]
            c contained-in-package? [name #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let* ([libname.so (native-shared-object-name-make basename libname?)])
            (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) libname.so)]
-                 [else (build-path (native-rootdir/compiled c debug? subnative) libname.so)])))))
+                 [else (build-path (native-rootdir/compiled c subnative) libname.so)])))))
 
-(define c-source->executable-file : (->* (Path-String Boolean) ((Option String) #:subnative Native-Subpath-Datum #:debug? Boolean) (Option Path))
-  (lambda [c contained-in-package? [name #false] #:subnative [subnative #false] #:debug? [debug? #false]]
+(define c-source->executable-file : (->* (Path-String Boolean) ((Option String) #:subnative Native-Subpath-Datum) (Option Path))
+  (lambda [c contained-in-package? [name #false] #:subnative [subnative #false]]
     (define basename : (Option Path) (if (not name) (file-name-from-path c) (string->path name)))
 
     (and (path? basename)
          (let ([bname (path-replace-extension basename binary.ext)])
            (cond [(and contained-in-package?) (build-path (native-rootdir c subnative) bname)]
-                 [else (build-path (native-rootdir/compiled c debug? subnative) bname)])))))
+                 [else (build-path (native-rootdir/compiled c subnative) bname)])))))
 
 (define c-include-headers : (->* (Path-String) ((Listof C-Toolchain-Path-String) #:check-source? Boolean #:topic Symbol) (Listof Path))
   (lambda [c [incdirs null] #:check-source? [recur? #false] #:topic [topic 'c-include-headers]]
