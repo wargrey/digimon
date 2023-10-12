@@ -123,7 +123,7 @@
         (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
             (let ([target-rootdir (assert (path-only native.o))]
                   [target-incdir (native-subpath->path (cc-native-tree-incdir ntree))]
-                  [target-namedir (string-replace (path->string (path-replace-extension (assert (file-name-from-path native.c)) #"")) "." "_")]
+                  [target-namedir (cc-library-name native.c)]
                   [source-rootdir (assert (path-only native.c))])
               (for/fold ([ss : (Listof Wisemon-Spec) null])
                         ([header.h (in-list includes)])
@@ -312,6 +312,13 @@
                   (if (memq name libs) (cons target deplibs) deplibs))
                 deplibs)))
         null)))
+
+(define cc-library-name : (-> Path-String String)
+  (lambda [dylib.c]
+    (let takeoff ([basename : Path (assert (file-name-from-path dylib.c))])
+      (if (path-get-extension basename)
+          (takeoff (path-replace-extension basename #""))
+          (path->string basename)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cc-phony-goal : Wisemon-Phony
