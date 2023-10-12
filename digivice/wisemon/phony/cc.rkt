@@ -226,7 +226,8 @@
                  [incdir (or (datum-filter (info-ref 'native-compiled-incdir λfalse) native-subpath?) default-incdir)]
                  [libdir (or (datum-filter (info-ref 'native-compiled-libdir λfalse) native-subpath?) default-libdir)])
             (cc-native-tree (append subroot dstdir) bindir incdir libdir))
-          (cc-native-tree (append default-subroot default-dist) default-bindir default-incdir default-libdir)))))
+          (cc-native-tree (append default-subroot default-dist)
+                          default-bindir default-incdir default-libdir)))))
 
 (define cc-libname-filter : (-> (Listof C-Link-Library) (Listof Symbol))
   (lambda [libs]
