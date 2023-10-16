@@ -58,6 +58,7 @@
     (define local-info.rkt : Path (digimon-path 'info))
     (define local-stone : Path (digimon-path 'stone))
     (define local-tamer.tex (build-path local-stone "tamer.tex"))
+    (define typeset-subdir : String "tex")
 
     (for/fold ([specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
@@ -66,9 +67,10 @@
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
       (define RENAMED.scrbl (or (and maybe-name (path-replace-filename TEXNAME.scrbl maybe-name)) TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination RENAMED.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
-      (define TEXNAME.tex (path-replace-extension TEXNAME.ext #".tex"))
+      (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir (assert (file-name-from-path TEXNAME.ext))))
+      (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
-      (define pdfinfo.tex (path-replace-extension TEXNAME.ext #".hyperref.tex"))
+      (define pdfinfo.tex (path-replace-extension TEXNAME.sub #".hyperref.tex"))
       (define docmentclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
       (define load.tex (build-path this-stone "load.tex"))
@@ -172,7 +174,7 @@
                                       (fg-recon-save-file engine pdfinfo.tex hypersetup))
 
                         (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
-                                      (tex-render #:fallback tex-fallback-engine #:enable-filter #true
+                                      (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
                                                   engine TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
     
 (define make~typeset : Make-Info-Phony

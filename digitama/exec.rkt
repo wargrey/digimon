@@ -166,13 +166,31 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-mv : (-> Symbol Path-String Path-String Void)
   (lambda [operation src dest]
-    (dtrace-info #:topic operation "mv ~a ~a" src dest)
-    (rename-file-or-directory src dest #true)))
+    (unless (and (file-exists? dest)
+                 (equal? (file-or-directory-identity dest)
+                         (file-or-directory-identity src)))
+      (dtrace-info #:topic operation "mv ~a ~a" src dest)
+      (rename-file-or-directory src dest #true))))
 
 (define fg-recon-mv : (-> Symbol Path-String Path-String Void)
   (lambda [operation src dest]
     (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
       (fg-mv operation src dest))))
+
+(define fg-cp : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (file-touch dest)
+
+    (unless (equal? (file-or-directory-identity dest)
+                    (file-or-directory-identity src))
+      (dtrace-info #:topic operation "cp ~a ~a" src dest)
+      (delete-file dest)
+      (copy-file src dest))))
+
+(define fg-recon-cp : (-> Symbol Path-String Path-String Void)
+  (lambda [operation src dest]
+    (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
+      (fg-cp operation src dest))))
 
 (define fg-mkdir : (-> Symbol Path-String Void)
   (lambda [operation dir]
