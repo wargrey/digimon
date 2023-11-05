@@ -31,7 +31,7 @@
    [name : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
    [options : (Listof Keyword)]
-   [extra-argv : (Listof String)])
+   [extra-argv : (Vectorof String)])
   #:type-name Tex-Info)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,6 +116,7 @@
                                       (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
                                             [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
                                         (parameterize ([current-directory pwd]
+                                                       [current-command-line-arguments (tex-info-extra-argv typesetting)]
                                                        [current-namespace (make-base-namespace)]
                                                        [exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
                                                                                  the-name (current-make-phony-goal) ./TEXNAME.scrbl))])
@@ -202,11 +203,12 @@
                 (and (pair? maybe-names) (car maybe-names))
                 dependencies
                 tags
-                (for/fold ([argv : (Listof String) null])
-                          ([arg (in-list rest)])
-                  (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]
-                        [(vector? arg) (append argv (for/list : (Listof String) ([a (in-vector arg)]) (format "~a" a)))]
-                        [else argv]))))))
+                (list->vector
+                 (for/fold ([argv : (Listof String) null])
+                           ([arg (in-list rest)])
+                   (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]
+                         [(vector? arg) (append argv (for/list : (Listof String) ([a (in-vector arg)]) (format "~a" a)))]
+                         [else argv])))))))
 
 (define typeset-note : (-> Symbol (Option String) Path Void)
   (lambda [engine maybe-name TEXNAME.scrbl]

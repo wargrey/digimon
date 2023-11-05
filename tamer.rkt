@@ -375,7 +375,9 @@
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
     (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] . bibentries]
-      (define bibliography-self (apply bibliography #:tag "handbook-bibliography" (append entries bibentries)))
+      (define bibliography-self
+        (apply bibliography #:tag "handbook-bibliography"
+               (append entries (flatten bibentries))))
 
       (list* (struct-copy part bibliography-self
                           [title-content (list (speak 'bibliography #:dialect 'tamer))]
