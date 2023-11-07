@@ -58,6 +58,10 @@
              (hash-ref! bg-style-database hex
                         (λ [] (make-style #false (list (bg:rgb hex))))))])))
 
+(define type-rgb
+  (lambda [fgc bgc [host #false]]
+    (bg-rgb bgc (fg-rgb fgc host))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-property-database (make-hasheq))
 (define bg-property-database (make-hasheq))
