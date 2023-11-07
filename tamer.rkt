@@ -6,6 +6,7 @@
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide graphviz graph.gv digraph.gv $ $$ $$*)
+(provide fg:rgb bg:rgb fg-rgb bg-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
@@ -48,6 +49,7 @@
 (require "digitama/tamer/privacy.rkt")
 (require "digitama/tamer/misc.rkt")
 (require "digitama/tamer/graphviz.rkt")
+(require "digitama/tamer/color.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -434,44 +436,43 @@
                                                                            [_ 'lightcyan])))]))))))))))))
 
 (define handbook-statistics
-  (let ([file-color (make-style 'tt (list (make-color-property (list #x58 #x60 #x69))))]
-        [insertion-color (make-style 'tt (list (make-color-property (list #x28 #xA7 #x45))))]
-        [deletion-color (make-style 'tt (list (make-color-property (list #xCB #x24 #x31))))])
-    (lambda [#:gitstat-width [git-width #false] #:gitstat-radius [git-radius #false] #:recursive? [recursive? #true]
-             #:ignore [exclude-submodules null] #:filter [filter null] #:subgroups [subgroups git-default-subgroups]
-             #:altcolors [altcolors null] #:since [since #false] #:date-delta [date-delta (* 3600 24 31)]
-             #:lang-delta-only? [lang-delta-only? #false]
-             ring-chart loc-series]
-      (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
-      (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
-      (define lang-files (git-files->langfiles all-files null subgroups))
-      (define lang-sizes (git-files->langsizes all-files null subgroups))
-      (define lang-stats (git-numstats->langstats all-numstats null subgroups))
-      
-      (define src-file
-        (for/fold ([count 0])
-                  ([lf (in-hash-values lang-files)])
-          (+ count (length (git-language-content lf)))))
-      
-      (define-values (insertions deletions)
-        (if (not lang-delta-only?)
-            (git-numstats->additions+deletions* all-numstats)
-            (git-langstats->additions+deletions* lang-stats)))
-      
-      (define langstats
-        (for/list ([(id lang) (in-hash lang-stats)]
-                   #:when (hash-has-key? lang-sizes id))
-          lang))
-      
-      (nested (filebox (elem #:style file-color (~integer src-file) (subscript "files")
-                             ~ (elem #:style insertion-color (~integer insertions) (subscript "++"))
-                             ~ (elem #:style deletion-color (~integer deletions) (subscript (literal "--"))))
-                       (tabular #:sep (hspace 1) #:column-properties '(left right)
-                                (list (let* ([pie-radius (or git-radius 75)]
-                                             [series-height (* (or git-radius pie-radius) 2)]
-                                             [series-width (or git-width 380)])
-                                        (list (ring-chart pie-radius lang-sizes altcolors)
-                                              (loc-series series-width series-height langstats altcolors date-delta))))))))))
+  (lambda [#:gitstat-width [git-width #false] #:gitstat-radius [git-radius #false] #:recursive? [recursive? #true]
+           #:ignore [exclude-submodules null] #:filter [filter null] #:subgroups [subgroups git-default-subgroups]
+           #:altcolors [altcolors null] #:since [since #false] #:date-delta [date-delta (* 3600 24 31)]
+           #:lang-delta-only? [lang-delta-only? #false]
+           #:file-header-style [file-header-style 'tt] #:file-color [file-color #x586069]
+           #:insertion-color [insertion-color #x20A745] #:deletion-color [deletion-color #xCB2431]
+           ring-chart loc-series]
+    (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
+    (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
+    (define lang-files (git-files->langfiles all-files null subgroups))
+    (define lang-sizes (git-files->langsizes all-files null subgroups))
+    (define lang-stats (git-numstats->langstats all-numstats null subgroups))
+    
+    (define src-file
+      (for/fold ([count 0])
+                ([lf (in-hash-values lang-files)])
+        (+ count (length (git-language-content lf)))))
+    
+    (define-values (insertions deletions)
+      (if (not lang-delta-only?)
+          (git-numstats->additions+deletions* all-numstats)
+          (git-langstats->additions+deletions* lang-stats)))
+    
+    (define langstats
+      (for/list ([(id lang) (in-hash lang-stats)]
+                 #:when (hash-has-key? lang-sizes id))
+        lang))
+    
+    (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
+                           ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
+                           ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
+                     (tabular #:sep (hspace 1) #:column-properties '(left right)
+                              (list (let* ([pie-radius (or git-radius 75)]
+                                           [series-height (* (or git-radius pie-radius) 2)]
+                                           [series-width (or git-width 380)])
+                                      (list (ring-chart pie-radius lang-sizes altcolors)
+                                            (loc-series series-width series-height langstats altcolors date-delta)))))))))
 
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
