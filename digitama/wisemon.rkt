@@ -50,8 +50,8 @@
           [else (dtrace-exception cause #:level 'warning #:topic name #:prefix? #false #:brief? #true)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wisemon-make-target : (-> Wisemon-Specification Path Symbol Boolean Boolean Boolean (Listof Path) (Listof Path) Void)
-  (lambda [specs target name dry-run? always-run? just-touch? oldfiles newfiles]
+(define wisemon-make-target : (-> Wisemon-Specification Path Symbol Boolean (Option (HashTable Path Any)) Boolean (Listof Path) (Listof Path) Void)
+  (lambda [specs target name dry-run? always-run-cache just-touch? oldfiles newfiles]
     (define now : Integer (current-seconds))
 
     (define (wisemon-mtime [file : Path]) : Integer
@@ -79,9 +79,11 @@
                                                     (cond [(>= self-mtime (make prerequisite existed-targets)) srewen]
                                                           [else (cons prerequisite srewen)])))])))
              (unless (member t oldfiles)
-               (define target-existed? : Boolean (file-exists? t))
+               (define no-target? : Boolean (not (file-exists? t)))
                
-               (when (or always-run? (pair? newers) (not target-existed?))
+               (when (or no-target? (pair? newers)
+                         (and always-run-cache
+                              (not (hash-has-key? always-run-cache t))))
                  (define ./target (find-relative-path (current-directory) t))
                  (define indent (~space (* (length ts) 2)))
                  
@@ -89,15 +91,18 @@
                    (wisemon-log-message name 'debug t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
                                         indent (find-relative-path (current-directory) p) ./target))
 
-                 (cond [(and always-run?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
-                       [(not target-existed?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
+                 (cond [(and always-run-cache) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
+                       [(or no-target?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
                        [else (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
 
-                 (let ([size0 (if (not target-existed?) 0 (file-size t))]
+                 (let ([size0 (if no-target? 0 (file-size t))]
                        [ms0 (current-inexact-milliseconds)])
                    (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
                          [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
                          [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
+
+                   (when (and always-run-cache)
+                     (hash-set! always-run-cache t #true))
 
                    (let ([dsize (- (file-size t) size0)]
                          [dms (- (current-inexact-milliseconds) ms0)])
