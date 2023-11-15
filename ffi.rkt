@@ -21,7 +21,6 @@
     [(_ libname
         (~alt (~optional (~seq #:global? global?:expr) #:defaults ([global? #'#true]))
               (~optional (~seq #:on-fail on-fail:expr) #:defaults ([on-fail #'#false]))
-              (~optional (~seq #:debug? debug?:expr) #:defaults ([debug? #'#false]))
               (~optional (~seq #:subdir subdir:expr) #:defaults ([subdir #'#false])))
         ...)
      (syntax/loc stx
@@ -36,7 +35,7 @@
                       #:fail on-fail
                       #:global? global?
                       #:get-lib-dirs
-                      (λ [] (list (native-rootdir/compiled modpath debug? subdir)
+                      (λ [] (list (native-rootdir/compiled modpath subdir)
                                   (native-rootdir modpath subdir)))))))]))
 
 (define-syntax (digimon-ffi-obj stx)
