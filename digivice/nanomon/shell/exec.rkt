@@ -81,7 +81,7 @@
                                                           [(macosx) #"DYLD_LIBRARY_PATH"]
                                                           [(unix) #"LD_LIBRARY_PATH"]
                                                           [else #"PATH"])])
-                                             (environment-variables-push-path! env #:name #"DYLD_LIBRARY_PATH" extra-libraries)
+                                             (environment-variables-push-path! env #:name epath extra-libraries)
                                              (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
                                              env))
                            'exec (car targets) (list (vector->list (current-command-line-arguments)))))

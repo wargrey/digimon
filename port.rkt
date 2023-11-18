@@ -426,13 +426,30 @@
                   (assert pos exact-nonnegative-integer?))])))
 
 (define port-copy : (-> Input-Port Output-Port (Option Output-Port) * Void)
-  (lambda [/dev/stdin /dev/stdout . /dev/extouts]
-    (define rest : (Listof Output-Port) (filter output-port? /dev/extouts))
-
-    (apply copy-port /dev/stdin /dev/stdout rest)
-    (flush-output /dev/stdout)
-    (for-each flush-output rest)))
-
+  (let ([buffer (make-bytes 4096)])
+    (lambda [/dev/stdin /dev/stdout . /dev/extouts]
+      (define stdouts : (Listof Output-Port) (cons /dev/stdout (filter output-port? /dev/extouts)))
+      
+      (let sync-read-copy-loop ()
+        (define n (read-bytes-avail! buffer /dev/stdin))
+        (cond
+          [(exact-integer? n)
+           (for ([stdout (in-list stdouts)])
+             (let write-loop ([bytes-written 0])
+               (unless (= bytes-written n)
+                 (define c2 (write-bytes-avail buffer stdout bytes-written n))
+                 (flush-output stdout)
+                 (write-loop (+ bytes-written c2)))))
+           (sync-read-copy-loop)]
+          [(procedure? n)
+           (define-values (l col p) (port-next-location /dev/stdin))
+           (define v (n l col p 0))
+           (for ([stdout (in-list stdouts)])
+             (when (port-writes-special? stdout)
+               (write-special v stdout)))
+           (sync-read-copy-loop)]
+          [else (void 'eof)])))))
+  
 (define port-copy/usrin : (->* (Input-Port Output-Port)
                                (#:timeout Positive-Real #:done? (-> Boolean))
                                #:rest (Option Output-Port)
