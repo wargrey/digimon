@@ -13,6 +13,7 @@
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")
 (require "../../../dtrace.rkt")
+(require "../../../filesystem.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/collection.rkt")
@@ -71,7 +72,7 @@
 
       (if (and cc-specs.launchers (pair? (cdr cc-specs.launchers)) (pair? targets))
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
-                        [(extra-libraries) (c-path-flatten (cc-launcher-info-libpaths launcher))])
+                        [(extra-libraries) (map path->complete-path (map path-normalize/system (c-path-flatten (cc-launcher-info-libpaths launcher))))])
             (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
             (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level #false
                                 #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
