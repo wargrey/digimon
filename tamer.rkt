@@ -5,7 +5,7 @@
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
-(provide graphviz graph.gv digraph.gv $ $$ $$*)
+(provide graphviz graph.gv digraph.gv $ $$ $$* handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
@@ -50,6 +50,7 @@
 (require "digitama/tamer/misc.rkt")
 (require "digitama/tamer/graphviz.rkt")
 (require "digitama/tamer/color.rkt")
+(require "digitama/tamer/image.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -471,8 +472,8 @@
                               (list (let* ([pie-radius (or git-radius 75)]
                                            [series-height (* (or git-radius pie-radius) 2)]
                                            [series-width (or git-width 380)])
-                                      (list (ring-chart pie-radius lang-sizes altcolors)
-                                            (loc-series series-width series-height langstats altcolors date-delta)))))))))
+                                      (list (handbook-image (ring-chart pie-radius lang-sizes altcolors))
+                                            (handbook-image (loc-series series-width series-height langstats altcolors date-delta))))))))))
 
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
