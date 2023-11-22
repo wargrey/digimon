@@ -24,7 +24,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-image
-  (lambda [path #:scale [scale 1.0] #:style [style #false] #:requests [requests null] . pre-contents]
+  (lambda [path #:scale [scale 1.0] #:style [style #false] #:requests [requests null] #:base-dir [base-dir #false]. pre-contents]
     (cond [(convertible? path)
            (make-traverse-element
             (λ [get set!]
@@ -34,7 +34,7 @@
                       [else default-web-requests]))
               (let request ([mimes mimes])
                 (if (pair? mimes)
-                    (let ([path.img (make-image path (car mimes))])
+                    (let ([path.img (make-image path (car mimes) base-dir)])
                       (cond [(not path.img) (request (cdr mimes))]
                             [else (apply image
                                          #:scale scale #:style style
@@ -48,11 +48,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-image
-  (lambda [datum mime]
+  (lambda [datum mime base-dir]
     (define raw (convert datum (hash-ref mime-maps mime (λ [] mime))))
 
     (and (bytes? raw)
-         (let ([temp-dir (build-path (find-system-path 'temp-dir) "tamer-handbook")])
+         (let ([temp-dir (or base-dir (build-path (find-system-path 'temp-dir) "tamer-handbook"))])
            (make-directory* temp-dir)
            (call-with-output-file* #:exists 'truncate/replace
              (make-temporary-file #:base-dir temp-dir
