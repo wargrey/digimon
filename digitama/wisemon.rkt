@@ -108,7 +108,7 @@
                    (let ([dsize (- (file-size t) size0)]
                          [dms (- (current-inexact-milliseconds) ms0)])
                      (wisemon-log-message name 'note t #:prerequisites newers
-                                          "~aremade `~a` [~ams, ~a(~a)]" indent ./target
+                                          "~aremade `~a` [~ams, ~a~a]" indent ./target
                                           (~r dms #:precision 3) (~size (+ size0 dsize))
                                           (cond [(= dsize 0) ""]
                                                 [else (term-format #:fgcolor (if (> dsize 0) 'green 'red)
