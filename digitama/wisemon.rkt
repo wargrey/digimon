@@ -110,10 +110,9 @@
                      (wisemon-log-message name 'note t #:prerequisites newers
                                           "~aremade `~a` [~ams, ~a(~a)]" indent ./target
                                           (~r dms #:precision 3) (~size (+ size0 dsize))
-                                          (term-format #:fgcolor (cond [(> dsize 0) 'green]
-                                                                       [(< dsize 0) 'red]
-                                                                       [else #false])
-                                                       "~a~a" (if (>= dsize 0) #\+ #\-) (~size (abs dsize))))))))
+                                          (cond [(= dsize 0) ""]
+                                                [else (term-format #:fgcolor (if (> dsize 0) 'green 'red)
+                                                                   "(~a~a)" (if (>= dsize 0) #\+ #\-) (~size (abs dsize)))]))))))
              
              (wisemon-mtime t)]
             [(file-exists? t) (wisemon-mtime t)]
