@@ -6,6 +6,7 @@
 
 (require "../dtrace.rkt")
 (require "../format.rkt")
+(require "../echo.rkt")
 (require "../port.rkt")
 
 (require "../exception.rkt")
@@ -107,9 +108,12 @@
                    (let ([dsize (- (file-size t) size0)]
                          [dms (- (current-inexact-milliseconds) ms0)])
                      (wisemon-log-message name 'note t #:prerequisites newers
-                                          "~aremade `~a` [~ams, ~a(~a~a)]" indent ./target
-                                          (~r dms #:precision 3)
-                                          (~size (+ size0 dsize)) (if (>= dsize 0) #\+ #\-) (~size (abs dsize)))))))
+                                          "~aremade `~a` [~ams, ~a(~a)]" indent ./target
+                                          (~r dms #:precision 3) (~size (+ size0 dsize))
+                                          (term-format #:fgcolor (cond [(> dsize 0) 'green]
+                                                                       [(< dsize 0) 'red]
+                                                                       [else #false])
+                                                       "~a~a" (if (>= dsize 0) #\+ #\-) (~size (abs dsize))))))))
              
              (wisemon-mtime t)]
             [(file-exists? t) (wisemon-mtime t)]

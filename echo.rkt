@@ -1,7 +1,7 @@
 #lang typed/racket/base
 
 (provide Term-Color term-colorize)
-(provide echof fechof eechof)
+(provide term-format echof fechof eechof)
 
 (require racket/string)
 (require racket/symbol)
@@ -71,6 +71,10 @@
              /dev/stdout)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define term-format : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * String)
+  (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
+    (term-colorize fg bg attrs (~string msgfmt vals))))
+
 (define echof : (-> String [#:fgcolor Term-Color] [#:bgcolor Term-Color] [#:attributes (Listof Symbol)] Any * Void)
   (lambda [msgfmt #:fgcolor [fg #false] #:bgcolor [bg #false] #:attributes [attrs null] . vals]
     (term-echo (current-output-port) (~string msgfmt vals) fg bg attrs)))
