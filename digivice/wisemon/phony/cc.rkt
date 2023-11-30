@@ -18,6 +18,7 @@
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/path.rkt")
 (require "../../../digitama/system.rkt")
+(require "../../../digitama/toolchain/cc/cc.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
 (require "../parameter.rkt")
@@ -86,6 +87,18 @@
                   #:- (c-compile #:cpp? cpp-file? #:verbose? (compiler-verbose) #:debug? debug?
                                  #:includes (append extra-includes includes) #:macros macros
                                  source.c object.o))))
+
+(define make-distributed-shared-object-spec : (-> Path Path Wisemon-Spec)
+  (lambda [dest.so src.so]
+    (define src.lib (path-replace-extension src.so library.ext))
+    (define dest.lib (path-replace-extension dest.so library.ext))
+
+    (wisemon-spec dest.so #:^ (list src.so)
+                  #:- (fg-cp 'misc src.so dest.so)
+
+                  ; MSVC also requires a partner static library
+                  (when (file-exists? src.lib)
+                    (fg-cp 'misc src.lib dest.lib)))))
 
 (define make-header-specs : (-> (Listof (Pairof Path Path)) (Listof Wisemon-Spec))
   (lambda [headers]
@@ -158,10 +171,7 @@
              (cc-destination-headers (assert (path-only native.c)) includes dest-incdir)))
 
       (define header-specs : (Listof Wisemon-Spec) (make-header-specs (or dest-headers null)))
-      (define extlib-specs : (Listof Wisemon-Spec)
-        (cond [(not dest-self) null]
-              [else (list (wisemon-spec (car dest-self) #:^ (list (cdr dest-self))
-                                        #:- (fg-cp 'misc (cdr dest-self) (car dest-self))))]))
+      (define extlib-specs : (Listof Wisemon-Spec) (if (not dest-self) null (list (make-distributed-shared-object-spec (car dest-self) (cdr dest-self)))))
       
       (define self-specs : (Listof Wisemon-Spec)
         ; TODO: why includes duplicate inside the spec, but be okay outside the spec

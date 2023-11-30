@@ -9,6 +9,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define object.ext : Bytes (if (eq? os 'windows) #".obj" #".o"))
 (define binary.ext : String (if (eq? os 'windows) ".exe" ""))
+(define library.ext : String (if (eq? os 'windows) ".lib" ".a"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-compiler-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))
