@@ -443,6 +443,7 @@
            #:lang-delta-only? [lang-delta-only? #false]
            #:file-header-style [file-header-style 'tt] #:file-color [file-color #x586069]
            #:insertion-color [insertion-color #x20A745] #:deletion-color [deletion-color #xCB2431]
+           #:ring-name [ring-name "lang-ring"] #:loc-name [loc-name "line-of-code"]
            ring-chart loc-series]
     (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
     (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
@@ -472,8 +473,10 @@
                               (list (let* ([pie-radius (or git-radius 75)]
                                            [series-height (* (or git-radius pie-radius) 2)]
                                            [series-width (or git-width 380)])
-                                      (list (handbook-image (ring-chart pie-radius lang-sizes altcolors))
-                                            (handbook-image (loc-series series-width series-height langstats altcolors date-delta))))))))))
+                                      (list (handbook-image #:name ring-name
+                                                            (ring-chart pie-radius lang-sizes altcolors))
+                                            (handbook-image #:name loc-name
+                                                            (loc-series series-width series-height langstats altcolors date-delta))))))))))
 
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]

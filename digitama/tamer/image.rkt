@@ -24,7 +24,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-image
-  (lambda [path #:scale [scale 1.0] #:style [style #false] #:requests [requests null] #:base-dir [base-dir #false]. pre-contents]
+  (lambda [#:scale [scale 1.0] #:style [style #false] #:requests [requests null]
+           #:tempdir [base-dir #false] #:name [base-name #false]
+           path . pre-contents]
     (cond [(convertible? path)
            (make-traverse-element
             (λ [get set!]
@@ -34,7 +36,7 @@
                       [else default-web-requests]))
               (let request ([mimes mimes])
                 (if (pair? mimes)
-                    (let ([path.img (make-image path (car mimes) base-dir)])
+                    (let ([path.img (make-image path (car mimes) base-dir base-name)])
                       (cond [(not path.img) (request (cdr mimes))]
                             [else (apply image
                                          #:scale scale #:style style
@@ -48,15 +50,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-image
-  (lambda [datum mime base-dir]
+  (lambda [datum mime base-dir base-name]
     (define raw (convert datum (hash-ref mime-maps mime (λ [] mime))))
 
     (and (bytes? raw)
-         (let ([temp-dir (or base-dir (build-path (find-system-path 'temp-dir) "tamer-handbook"))])
+         (let ([temp-dir (or base-dir (build-path (find-system-path 'temp-dir) "tamer-handbook"))]
+               [suffix (string-append "." (symbol->immutable-string mime))])
            (make-directory* temp-dir)
            (call-with-output-file* #:exists 'truncate/replace
-             (make-temporary-file #:base-dir temp-dir
-                                  (string-append "image~a." (symbol->immutable-string mime)))
+             (cond [(string? base-name) (build-path temp-dir (string-append base-name suffix))]
+                   [(symbol? base-name) (build-path temp-dir (string-append (symbol->immutable-string (gensym base-name)) suffix))]
+                   [else (make-temporary-file (format "~a~~a~a" mime suffix) #:base-dir temp-dir)])
              (λ [/dev/imgout]
                (write-bytes raw /dev/imgout)
                (object-name /dev/imgout)))))))
