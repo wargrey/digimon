@@ -109,20 +109,19 @@
     (cond [(not (string-contains? sp " ")) sp]
           [else (string-append (string lmark) sp (string (or rmark lmark)))])))
 
-(define path-normalize/system : (->* (Path-String) ((U 'windows 'unix)) Path)
-  (lambda [path [systype (system-path-convention-type)]]
+(define path-normalize/system : (->* (Path-String) ((U 'windows 'unix) #:drive (Option Path-String)) Path)
+  (lambda [path [systype (system-path-convention-type)] #:drive [drive #false]]
     (cond [(string? path)
            (define separator (if (eq? systype 'unix) "/" "\\"))
            (define npath (string-replace path #px"(/|\\\\)" separator))
 
-           (string->path
-            (if (eq? systype 'unix)
-                (if (regexp-match? #px"^\\w:/" npath) (substring npath 2) npath)
-                
-                ;;; TODO: deal with UNC paths. \\?\
-                (if (regexp-match? #px"^\\\\" npath) (string-append (substring (path->string (current-drive)) 0 2) npath) npath)))]
+           (cond [(eq? systype 'unix)
+                  (string->path (if (regexp-match? #px"^\\w:/" npath) (substring npath 2) npath))]
+                 [(regexp-match? #px"^\\\\" npath) ;;; TODO: deal with UNC paths. \\?\
+                  (build-path (or drive (current-drive)) npath)]
+                 [else (string->path npath)])]
           [(eq? (path-convention-type path) systype) path]
-          [else (path-normalize/system (some-system-path->string path) systype)])))
+          [else (path-normalize/system (some-system-path->string path) systype #:drive drive)])))
 
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
   (lambda [path]
@@ -159,6 +158,12 @@
                                  (current-directory))])
                     (build-path pwd uri))]))
     (simple-form-path require.src)))
+
+(define build-path* : (-> (U 'up 'same Path-String) (Option (U 'up 'same Path-String)) * Path)
+  (lambda [rootdir . subdirs]
+    (apply build-path rootdir
+           (for/list : (Listof (U 'up 'same Path-String)) ([p (in-list subdirs)] #:when p)
+             p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define path-exists? : (-> Path-String Boolean)

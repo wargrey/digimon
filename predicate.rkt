@@ -64,6 +64,20 @@
           [else (defval)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define datum-filter : (All (a) (-> Any (-> Any Boolean : a) (Option a)))
-  (lambda [v ?]
-    (and (? v) v)))
+(define datum-filter : (All (a b) (case-> [Any (-> Any Boolean : a) -> (Option a)]
+                                          [Any (-> Any Boolean : a) (-> Any Boolean : b) -> (U a b False)]))
+  (case-lambda
+    [(v ?) (and (? v) v)]
+    [(v p1? p2?) (and (or (p1? v) (p2? v)) v)]))
+
+(define datum-map : (All (a b c) (case-> [Any (-> Any Boolean : a) a (-> a c) -> c]
+                                         [Any (-> Any Boolean : a) (-> Any Boolean : b) (U a b) (-> (U a b) c) -> c]))
+  (case-lambda
+    [(v ? fallback map) (map (if (? v) v fallback))]
+    [(v p1? p2? fallback map) (map (if (or (p1? v) (p2? v)) v fallback))]))
+
+(define datum-filter-map : (All (a b c) (case-> [Any (-> Any Boolean : a) (-> a c) -> (Option c)]
+                                                [Any (-> Any Boolean : a) (-> Any Boolean : b) (-> (U a b) c) -> (Option c)]))
+  (case-lambda
+    [(v ? map) (and (? v) (map v))]
+    [(v p1? p2? map) (and (or (p1? v) (p2? v)) (map v))]))

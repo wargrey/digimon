@@ -2,8 +2,10 @@
 
 (provide (all-defined-out))
 
-(require racket/list)
 (require racket/string)
+(require racket/format)
+
+(require racket/list)
 (require racket/bool)
 
 (require "../../../dtrace.rkt")
@@ -13,6 +15,7 @@
 (require "../../../predicate.rkt")
 (require "../../../function.rkt")
 
+(require "../../../digitama/exec.rkt")
 (require "../../../digitama/path.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
@@ -20,7 +23,6 @@
 (require "../parameter.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
-(require "../racket.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type CC-Launcher-Name (Pairof Path CC-Launcher-Info))
@@ -40,9 +42,16 @@
 (struct cc-native-tree
   ([root : Native-Subpath]
    [bindir : Native-Subpath]
-   [incdir : Native-Subpath]
    [libdir : Native-Subpath])
   #:type-name CC-Native-Tree
+  #:transparent)
+
+(struct cc-destination-tree
+  ([drive : Path-String]
+   [root : Path-String]
+   [incdir : Path-String]
+   [libdir : Path-String])
+  #:type-name CC-Destination-Tree
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -78,18 +87,40 @@
                                  #:includes (append extra-includes includes) #:macros macros
                                  source.c object.o))))
 
-(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) CC-Native-Tree Boolean Wisemon-Specification)
-  (lambda [launchers extra-incdirs ntree debug?]
+(define make-header-specs : (-> (Listof (Pairof Path Path)) (Listof Wisemon-Spec))
+  (lambda [headers]
+    (let make-header-spec ([hs : (Listof (Pairof Path Path)) headers]
+                           [ss : (Listof Wisemon-Spec) null])
+      (if (pair? hs)
+          (let ([dst.h (caar hs)]
+                [src.h (cdar hs)])
+            (define spec : Wisemon-Spec
+              (wisemon-spec dst.h #:^ (list src.h)
+                            #:- (cc-header-sed dst.h src.h)))
+            (make-header-spec (cdr hs) (cons spec ss)))
+          ss))))
+
+(define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) CC-Native-Tree (Option CC-Destination-Tree) Boolean Wisemon-Specification)
+  (lambda [launchers extra-incdirs build-tree dest-tree debug?]
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
       (define self:bin? : Boolean (and (cc-launcher-info-subsystem info) #true))
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
-      (define macros : (Listof C-Compiler-Macro) (cc-launcher-info-macros info))
-      (define incdirs : (Listof C-Toolchain-Path-String) (cc-launcher-info-includes info))
-      (define libs : (Listof C-Link-Library) (cc-launcher-info-libraries info))
       (define libname? : Boolean (not (eq? digimon-system 'windows)))
       (define cpp? : Boolean (eq? lang 'cpp))
+
+      (define X: : (Option Path-String) (and dest-tree (cc-destination-tree-drive dest-tree)))
+      (define bin:build : Native-Subpath (append (cc-native-tree-root build-tree) (cc-native-tree-bindir build-tree)))
+      (define lib:build : Native-Subpath (append (cc-native-tree-root build-tree) (cc-native-tree-libdir build-tree)))
+      (define inc:target : (Listof Path) (if dest-tree (list (path-normalize/system (cc-destination-tree-incdir dest-tree) #:drive X:)) null))
+      (define lib:target : (Listof Path) (if dest-tree (list (path-normalize/system (cc-destination-tree-libdir dest-tree) #:drive X:)) null))
+      (define ->extpath : (Option (-> Path (Option (Pairof Path Path)))) (and (pair? lib:target) (cc-make-path->dest-path (car lib:target) lib:build)))
+
+      (define macros : (Listof C-Compiler-Macro) (cc-launcher-info-macros info))
+      (define incdirs : (Listof C-Toolchain-Path-String) (append inc:target (cc-launcher-info-includes info)))
+      (define libdirs : (Listof C-Toolchain-Path-String) (append lib:target (cc-launcher-info-libpaths info)))
+      (define libs : (Listof C-Link-Library) (cc-launcher-info-libraries info))
       
       (define includes : (Listof Path)
         (c-include-headers #:check-source? #true #:topic (current-make-phony-goal)
@@ -100,7 +131,7 @@
         (for/fold ([objs : (Listof Path) null]
                    [specs : (Listof Wisemon-Spec) null])
                   ([src (in-list sources)])
-          (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root ntree))))
+          (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root build-tree))))
           (values (cons obj.o objs)
                   (cons (make-object-spec src obj.o cpp? macros incdirs debug? extra-incdirs)
                         specs))))
@@ -108,56 +139,50 @@
       (define native : Path
         (assert
          (if (or self:bin?)
-             (c-source->executable-file
-              #:subnative (append (cc-native-tree-root ntree) (cc-native-tree-bindir ntree))
-              native.c #false (cc-launcher-info-name info))
-             (c-source->shared-object-file
-              #:subnative (append (cc-native-tree-root ntree) (cc-native-tree-libdir ntree)) #:lib-prefixed? libname?
-              native.c #false (cc-launcher-info-name info)))))
+             (c-source->executable-file #:subnative bin:build native.c #false (cc-launcher-info-name info))
+             (c-source->shared-object-file #:subnative lib:build #:lib-prefixed? libname?
+                                           native.c #false (cc-launcher-info-name info)))))
 
-      (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root ntree))))
+      (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root build-tree))))
       (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
-      (define objects : (Listof Path) (let ([dos (remove-duplicates dep-objects)]) (if (member native.o dos) dos (cons native.o dos))))
+      (define objects : (Listof Path)
+        (let ([dos (remove-duplicates dep-objects)])
+          (if (member native.o dos) dos (cons native.o dos))))
 
-      (define header-specs : (Listof Wisemon-Spec)
-        (if (not (cc-launcher-info-subsystem info)) ; headers for shared object
-            (let ([target-rootdir (assert (path-only native.o))]
-                  [target-incdir (native-subpath->path (cc-native-tree-incdir ntree))]
-                  [target-namedir (cc-library-name native.c)]
-                  [source-rootdir (assert (path-only native.c))])
-              (for/fold ([ss : (Listof Wisemon-Spec) null])
-                        ([header.h (in-list includes)])
-                (define target-tail (find-relative-path source-rootdir header.h))
-                (define spec : (Option Wisemon-Spec)
-                  (and (relative-path? target-tail)
-                       (let ([tails (explode-path target-tail)])
-                         (and (pair? tails)
-                              (andmap path? tails)
-                              (let ([target (if (not target-incdir)
-                                                (apply build-path target-rootdir target-namedir tails)
-                                                (apply build-path target-rootdir target-incdir target-namedir tails))])
-                                (wisemon-spec target #:^ (list header.h)
-                                              #:- (cc-header-sed target header.h)))))))
+      (define dest-libs : (Option (Listof (Pairof Path Path))) (and ->extpath (filter-map ->extpath deplibs)))
+      (define dest-self : (Option (Pairof Path Path)) (and ->extpath (not self:bin?) (->extpath native)))
+      (define dest-incdir : (Option Path) (and (pair? inc:target) (build-path (car inc:target) (cc-library-name native.c))))
 
-                (cond [(not spec) ss]
-                      [else (cons spec ss)])))
-            null))
+      (define dest-headers : (Option (Listof (Pairof Path Path)))
+        (and dest-incdir (not (cc-launcher-info-subsystem info)) ; only send headers of shared objects to destination
+             (cc-destination-headers (assert (path-only native.c)) includes dest-incdir)))
 
+      (define header-specs : (Listof Wisemon-Spec) (make-header-specs (or dest-headers null)))
+      (define extlib-specs : (Listof Wisemon-Spec)
+        (cond [(not dest-self) null]
+              [else (list (wisemon-spec (car dest-self) #:^ (list (cdr dest-self))
+                                        #:- (fg-cp 'misc (cdr dest-self) (car dest-self))))]))
+      
       (define self-specs : (Listof Wisemon-Spec)
         ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-        (list (wisemon-spec native #:^ (append deplibs objects (wisemon-targets-flatten header-specs))
+        (list (wisemon-spec native #:^ (append (if (pair? dest-libs) (map (inst car Path Path) dest-libs) deplibs)
+                                               (if (pair? dest-headers) (map (inst car Path Path) dest-headers) null)
+                                               objects)
                             #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                         #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                        #:libpaths (cc-launcher-info-libpaths info) #:libraries libs
+                                        #:libpaths libdirs #:libraries libs
                                         objects native))
               (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs)))
+
+      (when (and dest-incdir dest-headers)
+        (cc-clear-destination-include dest-incdir dest-headers))
 
       ; WARNING: Order matters
       ; force the `make` to check binaries before shared libraries
       ;   so that updated shared libraries will trigger the remaking of binaries
       (if (or self:bin?)
-          (append self-specs specs header-specs object-specs)
-          (append specs self-specs header-specs object-specs)))))
+          (append self-specs extlib-specs specs header-specs object-specs)
+          (append header-specs extlib-specs specs self-specs object-specs)))))
 
 (define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol)
                                    (Values (Option (Pairof Wisemon-Specification (Listof CC-Launcher-Name)))
@@ -171,7 +196,7 @@
     
     (if (pair? launchers)
         (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
-               [cc-specs (make-cc-specs launchers incdirs (cc-subpath-filter info-ref debug?) debug?)])
+               [cc-specs (make-cc-specs launchers incdirs (cc-subpath-filter info-ref debug?) (cc-destination-filter info-ref debug?) debug?)])
           (values (cons cc-specs launchers) (wisemon-targets-flatten cc-specs)))
         (values #false null))))
 
@@ -209,7 +234,6 @@
 (define cc-subpath-filter : (-> (Option Info-Ref) Boolean CC-Native-Tree)
   (let ([default-subroot : Native-Subpath (list 'subpath)]
         [default-bindir : Native-Subpath (list "bin")]
-        [default-incdir : Native-Subpath (list "include")]
         [default-libdir : Native-Subpath (list "lib")]
         [default-release : Native-Subpath (list "release")]
         [default-debug : Native-Subpath (list "debug")])
@@ -220,14 +244,33 @@
             (values 'native-compiled-release default-release)))
       
       (if (or info-ref)
-          (let* ([subroot (or (datum-filter (info-ref 'native-compiled-subpath λfalse) native-subpath?) default-subroot)]
-                 [dstdir (or (datum-filter (info-ref native-compiled-dist λfalse) native-subpath?) default-dist)]
-                 [bindir (or (datum-filter (info-ref 'native-compiled-bindir λfalse) native-subpath?) default-bindir)]
-                 [incdir (or (datum-filter (info-ref 'native-compiled-incdir λfalse) native-subpath?) default-incdir)]
-                 [libdir (or (datum-filter (info-ref 'native-compiled-libdir λfalse) native-subpath?) default-libdir)])
-            (cc-native-tree (append subroot dstdir) bindir incdir libdir))
-          (cc-native-tree (append default-subroot default-dist)
-                          default-bindir default-incdir default-libdir)))))
+          (let ([subroot (or (datum-filter (info-ref 'native-compiled-subpath λfalse) native-subpath?) default-subroot)]
+                [dstdir (or (datum-filter (info-ref native-compiled-dist λfalse) native-subpath?) default-dist)]
+                [bindir (or (datum-filter (info-ref 'native-compiled-bindir λfalse) native-subpath?) default-bindir)]
+                [libdir (or (datum-filter (info-ref 'native-compiled-libdir λfalse) native-subpath?) default-libdir)])
+            (cc-native-tree (append subroot dstdir) bindir libdir))
+          (cc-native-tree (append default-subroot default-dist) default-bindir default-libdir)))))
+
+(define cc-destination-filter : (-> (Option Info-Ref) Boolean (Option CC-Destination-Tree))
+  (let ([default-drive : String "C:"]
+        [default-incdir : Native-Subpath (list "include")]
+        [default-libdir : Native-Subpath (list "lib")])
+    (lambda [info-ref debug?]
+      (define-values (native-destination-subdist default-dist)
+        (if debug?
+            (values 'native-destination-debug null)
+            (values 'native-destination-release null)))
+
+      (and (or info-ref)
+           (let ([root (datum-filter-map (info-ref 'native-destination-subroot λfalse) native-subpath? native-subpath->path)])
+             (and root
+                  (let ([drive (or (datum-filter (info-ref 'native-destination-drive λfalse) string? path?) default-drive)]
+                        [dstdir (datum-map (info-ref native-destination-subdist λfalse) native-subpath? default-dist native-subpath->path)]
+                        [incdir (datum-map (info-ref 'native-destination-incdir λfalse) native-subpath? default-incdir native-subpath->path)]
+                        [libdir (datum-map (info-ref 'native-destination-libdir λfalse) native-subpath? default-libdir native-subpath->path)])
+                    (cc-destination-tree drive (build-path "/" root)
+                                         (build-path* "/" root incdir)
+                                         (build-path* "/" root libdir dstdir)))))))))
 
 (define cc-libname-filter : (-> (Listof C-Link-Library) (Listof Symbol))
   (lambda [libs]
@@ -273,6 +316,23 @@
       (bytes->string/utf-8
        (subbytes (or (path-get-extension native.cc) fallback-ext) 1))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cc-destination-headers : (-> Path (Listof Path) Path (Listof (Pairof Path Path)))
+  (lambda [source-rootdir includes dest-incdir]
+    (for/fold ([ss : (Listof (Pairof Path Path)) null])
+              ([header.h (in-list includes)])
+      (define target-tail (find-relative-path source-rootdir header.h))
+      (define spec : (Option (Pairof Path Path))
+        (and (relative-path? target-tail)
+             (let ([tails (explode-path target-tail)])
+               (and (pair? tails)
+                    (andmap path? tails)
+                    (let ([target (apply build-path dest-incdir tails)])
+                      (cons target header.h))))))
+      
+      (cond [(not spec) ss]
+            [else (cons spec ss)]))))
+
 (define cc-header-sed : (-> Path Path Void)
   (lambda [target source]
     (make-parent-directory* target)
@@ -281,7 +341,7 @@
       (define /dev/stdin (open-input-file source))
       (define /dev/stdout (open-output-file target #:exists 'truncate/replace))
 
-      (dtrace-info #:topic 'ld "~a ~a ~a" (object-name cc-header-sed) source target)
+      (dtrace-info #:topic 'misc "~a ~a ~a" (object-name cc-header-sed) source target)
 
       (let sed ([protected-level : Natural 0])
         (define line (read-line /dev/stdin 'any))
@@ -298,6 +358,30 @@
 
       (custodian-shutdown-all (current-custodian)))))
 
+(define cc-clear-destination-include : (-> Path (Listof (Pairof Path Path)) Void)
+  (lambda [incdir0 headers]
+    (define incdir (path->directory-path incdir0))
+    
+    (define deleting-files : (Listof Path)
+      (for/list ([file (in-directory incdir)]
+                 #:when (and (not (assoc file headers))
+                             (or (file-exists? file)
+                                 (null? (directory-list file #:build? #false)))))
+        file))
+
+    (for ([file (in-list deleting-files)]
+          #:when (file-exists? file))
+      (fg-rm 'misc file #:fr? #false))
+
+    (for ([folder (in-list (remove-duplicates (filter-map path-only deleting-files)))])
+      (let rmdir ([dir : Path folder])
+        (unless (equal? incdir dir)
+          (when (null? (directory-list dir #:build? #false))
+            (define-values (base _ _?) (split-path dir))
+            (fg-rm 'misc dir #:fr? #false)
+            (when (path? base)
+              (rmdir base))))))))
+
 (define cc-dependent-shared-objects : (-> (Listof C-Link-Library) Wisemon-Specification Boolean (Listof Path))
   (lambda [libs specs libname?]
     (define targets : (Listof Path) (wisemon-targets-flatten specs))
@@ -312,6 +396,19 @@
                   (if (memq name libs) (cons target deplibs) deplibs))
                 deplibs)))
         null)))
+
+(define cc-make-path->dest-path : (-> Path Native-Subpath (-> Path (Option (Pairof Path Path))))
+  (lambda [destdir build-subpath]
+    (define subdir (native-subpath->path build-subpath))
+    (define drop-size (if (not subdir) 2 (+ (length (explode-path subdir)) 2)))
+    
+    (λ [[src : Path]] : (Option (Pairof Path Path))
+      (define coms : (Option (Listof String)) (member "compiled" (map ~a (explode-path src))))
+      
+      (and (list? coms)
+           (> (length coms) drop-size)
+           (cons (apply build-path destdir (drop coms drop-size))
+                 src)))))
 
 (define cc-library-name : (-> Path-String String)
   (lambda [dylib.c]
