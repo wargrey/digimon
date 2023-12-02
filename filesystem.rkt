@@ -120,7 +120,8 @@
                  [(regexp-match? #px"^\\\\" npath) ;;; TODO: deal with UNC paths. \\?\
                   (build-path (or drive (current-drive)) npath)]
                  [else (string->path npath)])]
-          [(eq? (path-convention-type path) systype) path]
+
+          ; `path-convention-type` may not be reliable if both `/` and `\` are mixed in the path value
           [else (path-normalize/system (some-system-path->string path) systype #:drive drive)])))
 
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
