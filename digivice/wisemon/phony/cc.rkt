@@ -370,27 +370,28 @@
 
 (define cc-clear-destination-include : (-> Path (Listof (Pairof Path Path)) Void)
   (lambda [incdir0 headers]
-    (define incdir (path->directory-path incdir0))
+    (when (directory-exists? incdir0)
+      (define incdir (path->directory-path incdir0))
     
-    (define deleting-files : (Listof Path)
-      (for/list ([file (in-directory incdir)]
-                 #:when (and (not (assoc file headers))
-                             (or (file-exists? file)
-                                 (null? (directory-list file #:build? #false)))))
-        file))
-
-    (for ([file (in-list deleting-files)]
-          #:when (file-exists? file))
-      (fg-rm 'misc file #:fr? #false))
-
-    (for ([folder (in-list (remove-duplicates (filter-map path-only deleting-files)))])
-      (let rmdir ([dir : Path folder])
-        (unless (equal? incdir dir)
-          (when (null? (directory-list dir #:build? #false))
-            (define-values (base _ _?) (split-path dir))
-            (fg-rm 'misc dir #:fr? #false)
-            (when (path? base)
-              (rmdir base))))))))
+      (define deleting-files : (Listof Path)
+        (for/list ([file (in-directory incdir)]
+                   #:when (and (not (assoc file headers))
+                               (or (file-exists? file)
+                                   (null? (directory-list file #:build? #false)))))
+          file))
+      
+      (for ([file (in-list deleting-files)]
+            #:when (file-exists? file))
+        (fg-rm 'misc file #:fr? #false))
+      
+      (for ([folder (in-list (remove-duplicates (filter-map path-only deleting-files)))])
+        (let rmdir ([dir : Path folder])
+          (unless (equal? incdir dir)
+            (when (null? (directory-list dir #:build? #false))
+              (define-values (base _ _?) (split-path dir))
+              (fg-rm 'misc dir #:fr? #false)
+              (when (path? base)
+                (rmdir base)))))))))
 
 (define cc-dependent-shared-objects : (-> (Listof C-Link-Library) Wisemon-Specification Boolean (Listof Path))
   (lambda [libs specs libname?]
