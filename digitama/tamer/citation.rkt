@@ -20,7 +20,8 @@
     [(_ key number title
         (~alt (~optional (~seq #:author author) #:defaults ([author #'#false]))
               (~optional (~seq #:date date) #:defaults ([date #'#false]))
-              (~optional (~seq #:note note) #:defaults ([note #'#false])))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -30,7 +31,8 @@
                              #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                              #:url (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
                              #:date date
-                             #:note note)
+                             #:note note
+                             #:doi doi)
                    (format ":~a" 'key)))))]))
 
 (define rfc-bib-entry
@@ -56,7 +58,8 @@
               (~optional (~seq #:chapter chapter) #:defaults ([chapter #'#false]))
               (~optional (~seq #:series series) #:defaults ([series #'#false]))
               (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
-              (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
+              (~optional (~seq #:pages pages) #:defaults ([pages #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -67,6 +70,7 @@
                            #:date date
                            #:url url
                            #:note note
+                           #:doi doi
                            #:is-book? #true)
                  (format ":~a" 'key))))]))
 
@@ -94,7 +98,8 @@
               (~optional (~seq #:note note) #:defaults ([note #'#false]))
               (~optional (~seq #:series series) #:defaults ([series #'#false]))
               (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
-              (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
+              (~optional (~seq #:pages pages) #:defaults ([pages #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -103,7 +108,8 @@
                            #:location (proceedings-location location #:pages pages #:series series #:volume volume)
                            #:date date
                            #:url url
-                           #:note note)
+                           #:note note
+                           #:doi doi)
                  (format ":~a" 'key))))]))
 
 (define proceedings-bib-entry
@@ -127,7 +133,8 @@
               (~optional (~seq #:note note) #:defaults ([note #'#false]))
               (~optional (~seq #:volume volume) #:defaults ([volume #'#false]))
               (~optional (~seq #:number number) #:defaults ([number #'#false]))
-              (~optional (~seq #:pages pages) #:defaults ([pages #'#false])))
+              (~optional (~seq #:pages pages) #:defaults ([pages #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -136,7 +143,8 @@
                            #:location (journal-location location #:pages pages #:number number #:volume volume)
                            #:date date
                            #:url url
-                           #:note note)
+                           #:note note
+                           #:doi doi)
                  (format ":~a" 'key))))]))
 
 (define journal-bib-entry
@@ -158,7 +166,8 @@
         (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:url url) #:defaults ([url #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false]))
-              (~optional (~seq #:degree degree) #:defaults ([degree #'"PhD"])))
+              (~optional (~seq #:degree degree) #:defaults ([degree #'"PhD"]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -167,7 +176,8 @@
                            #:location (dissertation-location #:institution institution #:degree degree)
                            #:date date
                            #:url url
-                           #:note note)
+                           #:note note
+                           #:doi doi)
                  (format ":~a" 'key))))]))
 
 (define dissertation-bib-entry
@@ -188,7 +198,8 @@
     [(_ key title author institution number
         (~alt (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:url url) #:defaults ([url #'#false]))
-              (~optional (~seq #:note note) #:defaults ([note #'#false])))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -197,7 +208,8 @@
                            #:location (techrpt-location #:institution institution #:number number)
                            #:date date
                            #:url url
-                           #:note note)
+                           #:note note
+                           #:doi doi)
                  (format ":~a" 'key))))]))
 
 (define report-bib-entry
@@ -217,7 +229,8 @@
     [(_ key title url
         (~alt (~optional (~seq #:author author) #:defaults ([author #'#false]))
               (~optional (~seq #:date date) #:defaults ([date #'#false]))
-              (~optional (~seq #:note note) #:defaults ([note #'#false])))
+              (~optional (~seq #:note note) #:defaults ([note #'#false]))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
         ...)
      (syntax/loc stx
        (define key
@@ -225,7 +238,8 @@
                            #:author (bib-entry~author author)
                            #:url url
                            #:date date
-                           #:note note)
+                           #:note note
+                           #:doi doi)
                  (format ":~a" 'key))))]))
 
 (define url-bib-entry
