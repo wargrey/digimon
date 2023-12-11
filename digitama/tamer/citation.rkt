@@ -31,8 +31,7 @@
                              #:location (techrpt-location #:institution "RFC Editor" #:number request-for-comments)
                              #:url (format "https://www.rfc-editor.org/rfc/rfc~a.html" request-for-comments)
                              #:date date
-                             #:note note
-                             #:doi doi)
+                             #:note note)
                    (format ":~a" 'key)))))]))
 
 (define rfc-bib-entry
@@ -76,7 +75,7 @@
 
 (define book-bib-entry
   (lambda [key title author publisher
-               #:date [date #false] #:note [note #false] #:url [url #false]
+               #:date [date #false] #:note [note #false] #:url [url #false] #:doi [doi #false]
                #:edition [edition #false] #:chapter [chapter #false] #:series [series #false] #:pages [pages #false] #:volume [volume #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
@@ -85,7 +84,7 @@
                                (cond [(not chapter) (book-location #:edition edition #:publisher publisher)]
                                      [else (book-chapter-location chapter #:publisher publisher #:series series #:pages pages #:volume volume)]))
                #:date     (bib-entry~date date)
-               #:url      url
+               #:url      (bib-entry-uri url doi)
                #:note     note
                #:is-book? #true)))
 
@@ -114,14 +113,14 @@
 
 (define proceedings-bib-entry
   (lambda [key title author location
-               #:date [date #false] #:note [note #false] #:url [url #false]
+               #:date [date #false] #:note [note #false] #:url [url #false] #:doi [doi #false]
                #:number [number #false] #:pages [pages #false] #:volume [volume #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   (bib-entry~author author)
                #:location (proceedings-location location #:pages pages #:number number #:volume volume)
                #:date     (bib-entry~date date)
-               #:url      url
+               #:url      (bib-entry-uri url doi)
                #:note     note)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -149,14 +148,14 @@
 
 (define journal-bib-entry
   (lambda [key title author location
-               #:date [date #false] #:note [note #false] #:url [url #false]
+               #:date [date #false] #:note [note #false] #:url [url #false] #:doi [doi #false]
                #:volume [volume #false] #:number [number #false] #:pages [pages #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   (bib-entry~author author)
                #:location (journal-location location #:pages pages #:number number #:volume volume)
                #:date     (bib-entry~date date)
-               #:url      url
+               #:url      (bib-entry-uri url doi)
                #:note     note)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -182,13 +181,13 @@
 
 (define dissertation-bib-entry
   (lambda [key title author institution #:degree [degree "PhD"]
-               #:date [date #false] #:note [note #false] #:url [url #false]]
+               #:date [date #false] #:note [note #false] #:url [url #false] #:doi [doi #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   (bib-entry~author author)
                #:location (dissertation-location #:institution institution #:degree degree)
                #:date     (bib-entry~date date)
-               #:url      url
+               #:url      (bib-entry-uri url doi)
                #:note     note)))
 
 
@@ -214,13 +213,13 @@
 
 (define report-bib-entry
   (lambda [key title author institution number
-               #:date [date #false] #:note [note #false] #:url [url #false]]
+               #:date [date #false] #:note [note #false] #:url [url #false] #:doi [doi #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
                #:author   (bib-entry~author author)
                #:location (techrpt-location #:institution institution #:number number)
                #:date     (bib-entry~date date)
-               #:url      url
+               #:url      (bib-entry-uri url doi)
                #:note     note)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -270,3 +269,6 @@
     (cond [(list? author) (string-join author ", " #:before-last " and ")]
           [else author])))
 
+(define bib-entry-uri
+  (lambda [url doi]
+    (or doi url)))
