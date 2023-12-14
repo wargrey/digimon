@@ -24,8 +24,8 @@
 (define make-keep-going : (Parameterof Boolean) (make-parameter #false))
 (define make-errno : (Parameterof Byte) (make-parameter 1))
 
-(define make-assume-oldfiles : (Parameterof (Listof Path)) (make-parameter null))
-(define make-assume-newfiles : (Parameterof (Listof Path)) (make-parameter null))
+(define make-assumed-oldfiles : (Parameterof (Listof Path)) (make-parameter null))
+(define make-assumed-newfiles : (Parameterof (Listof Path)) (make-parameter null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-restore-options! : (-> Void)
@@ -41,8 +41,8 @@
     (make-keep-going #false)
     (make-errno 1)
 
-    (make-assume-oldfiles null)
-    (make-assume-newfiles null)))
+    (make-assumed-oldfiles null)
+    (make-assumed-newfiles null)))
 
 (define make-set-verbose! : (-> Boolean Void)
   (lambda [switch]

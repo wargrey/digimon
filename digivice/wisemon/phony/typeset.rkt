@@ -52,7 +52,7 @@
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
-(define make-typesetting-specs : (-> Info-Ref Wisemon-Specification)
+(define make-typesetting-specs : (-> Info-Ref (Values (Listof Path) (Listof Path) Wisemon-Specification))
   (lambda [info-ref]
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
@@ -60,7 +60,9 @@
     (define local-tamer.tex (build-path local-stone "tamer.tex"))
     (define typeset-subdir : String "tex")
 
-    (for/fold ([specs : Wisemon-Specification null])
+    (for/fold ([always-files : (Listof Path) null]
+               [ignored-files : (Listof Path) null]
+               [specs : Wisemon-Specification null])
               ([typesetting (in-list (find-digimon-typesettings info-ref))])
       (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
       (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
@@ -80,104 +82,103 @@
       (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
       (define options : (Listof Keyword) (tex-info-options typesetting))
 
-      (when (or (memq '#:always-make options)
-                (and (memq '#:explicitly-make options)
-                     (member TEXNAME.ext (current-make-real-targets))))
-        (define msecs (sub1 (file-or-directory-modify-seconds TEXNAME.scrbl)))
-
-        (when (> msecs 0)
-          (when (file-exists? TEXNAME.ext)
-            (file-or-directory-modify-seconds TEXNAME.ext msecs))
-          (when (file-exists? TEXNAME.tex)
-            (file-or-directory-modify-seconds TEXNAME.tex msecs))))
-
       (unless (tex-info-engine typesetting)
         (dtrace-note #:topic the-name #:prefix? #false
                      "~a ~a: no suitable engine is found, use `~a` instead"
                      the-name (current-make-phony-goal) tex-fallback-engine))
-      
-      (append specs
-              (if (and raw-tex?)
-                  (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
-                                      (define dest-dir : Path (assert (path-only TEXNAME.ext)))
-                                      (define pwd : Path (assert (path-only TEXNAME.scrbl)))
-                                      
-                                      (typeset-note engine maybe-name TEXNAME.scrbl)
-                                      (tex-render #:fallback tex-fallback-engine #:enable-filter #false
-                                                  engine TEXNAME.scrbl dest-dir)))
-                  
-                  (list (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
-                                      (define dest-dir : Path (assert (path-only TEXNAME.tex)))
-                                      (define pwd : Path (assert (path-only TEXNAME.scrbl)))
-                                      (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
-                                        
-                                      (typeset-note engine maybe-name TEXNAME.scrbl)
-                                        
-                                      (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
-                                            [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
-                                        (parameterize ([current-directory pwd]
-                                                       [current-command-line-arguments (tex-info-extra-argv typesetting)]
-                                                       [current-namespace (make-base-namespace)]
-                                                       [exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
-                                                                                 the-name (current-make-phony-goal) ./TEXNAME.scrbl))])
-                                          (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
-                                          
-                                          (when (file-exists? load.tex)
-                                            (dtrace-debug "~a ~a: load hook: ~a" the-name engine load.tex)
-                                            
-                                            (eval '(require scribble/core scribble/latex-properties))
-                                            (eval `(define (tex:replace-property p)
-                                                     (cond [(not (latex-defaults? p)) p]
-                                                           [else (make-latex-defaults+replacements
-                                                                  (latex-defaults-prefix p)
-                                                                  (latex-defaults-style p)
-                                                                  (latex-defaults-extra-files p)
-                                                                  (hash "scribble-load-replace.tex" ,load.tex))])))
-                                            (eval '(define (tex:replace doc)
-                                                     (define tex:style (part-style doc))
-                                                     (struct-copy part doc
-                                                                  [style (make-style (style-name tex:style)
-                                                                                     (map tex:replace-property
-                                                                                          (style-properties tex:style)))]))))
-                                          
-                                          (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
-                                                   (define TEXNAME.doc (dynamic-require TEXNAME.scrbl 'doc))
-                                                   (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
-                                                           #:render-mixin tex:render-mixin #:dest-dir dest-dir
-                                                           #:prefix-file (and (file-exists? ,docmentclass.tex) ,docmentclass.tex)
-                                                           #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)
-                                                           #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
-                                          
-                                          (when (file-exists? hook.rktl)
-                                            (eval `(define (dynamic-load-character-conversions hook.rktl)
-                                                     (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
-                                                       (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
-                                            (fg-recon-eval engine `(dynamic-load-character-conversions ,hook.rktl)))
-                                            
-                                          (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
 
-                        (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
-                                      (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
-                                      (define dest-dir : Path (assert (path-only pdfinfo.tex)))
+      (values
+       (if (memq '#:always-make options)
+           (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex always-files)
+           always-files)
 
-                                      (define (hypersetup [/dev/stdout : Output-Port]) : Void
-                                        (displayln "\\hypersetup{" /dev/stdout)
-                                        (dtrace-debug "~a ~a: title: ~a" the-name engine title)
-                                        (fprintf /dev/stdout "  pdftitle={~a},~n" title)
-                                        (dtrace-debug "~a ~a: authors: ~a" the-name engine authors)
-                                        (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
-                                        (displayln "}" /dev/stdout)
-                                        (newline /dev/stdout))
-                                      
-                                      (unless (directory-exists? dest-dir)
-                                        (fg-recon-mkdir engine dest-dir))
-                                      
-                                      (fg-recon-save-file engine pdfinfo.tex hypersetup))
+       (if (and (memq '#:explicitly-make options)
+                (not (member TEXNAME.ext (current-make-real-targets))))
+           (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex ignored-files)
+           ignored-files)
+       
+       (append specs
+               (if (and raw-tex?)
+                   (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
+                                       (define dest-dir : Path (assert (path-only TEXNAME.ext)))
+                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
+                                       
+                                       (typeset-note engine maybe-name TEXNAME.scrbl)
+                                       (tex-render #:fallback tex-fallback-engine #:enable-filter #false
+                                                   engine TEXNAME.scrbl dest-dir)))
+                   
+                   (list (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
+                                       (define dest-dir : Path (assert (path-only TEXNAME.tex)))
+                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
+                                       (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
+                                       
+                                       (typeset-note engine maybe-name TEXNAME.scrbl)
+                                       
+                                       (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
+                                             [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])
+                                         (parameterize ([current-directory pwd]
+                                                        [current-command-line-arguments (tex-info-extra-argv typesetting)]
+                                                        [current-namespace (make-base-namespace)]
+                                                        [exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
+                                                                                  the-name (current-make-phony-goal) ./TEXNAME.scrbl))])
+                                           (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+                                           
+                                           (when (file-exists? load.tex)
+                                             (dtrace-debug "~a ~a: load hook: ~a" the-name engine load.tex)
+                                             
+                                             (eval '(require scribble/core scribble/latex-properties))
+                                             (eval `(define (tex:replace-property p)
+                                                      (cond [(not (latex-defaults? p)) p]
+                                                            [else (make-latex-defaults+replacements
+                                                                   (latex-defaults-prefix p)
+                                                                   (latex-defaults-style p)
+                                                                   (latex-defaults-extra-files p)
+                                                                   (hash "scribble-load-replace.tex" ,load.tex))])))
+                                                    (eval '(define (tex:replace doc)
+                                                             (define tex:style (part-style doc))
+                                                             (struct-copy part doc
+                                                                          [style (make-style (style-name tex:style)
+                                                                                             (map tex:replace-property
+                                                                                                  (style-properties tex:style)))]))))
+                                           
+                                           (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
+                                                    (define TEXNAME.doc (dynamic-require TEXNAME.scrbl 'doc))
+                                                    (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
+                                                            #:render-mixin tex:render-mixin #:dest-dir dest-dir
+                                                            #:prefix-file (and (file-exists? ,docmentclass.tex) ,docmentclass.tex)
+                                                            #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)
+                                                            #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
+                                           
+                                           (when (file-exists? hook.rktl)
+                                             (eval `(define (dynamic-load-character-conversions hook.rktl)
+                                                      (let ([ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false))])
+                                                        (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
+                                             (fg-recon-eval engine `(dynamic-load-character-conversions ,hook.rktl)))
+                                           
+                                           (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
+                         
+                         (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
+                                       (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
+                                       (define dest-dir : Path (assert (path-only pdfinfo.tex)))
+                                       
+                                       (define (hypersetup [/dev/stdout : Output-Port]) : Void
+                                         (displayln "\\hypersetup{" /dev/stdout)
+                                         (dtrace-debug "~a ~a: title: ~a" the-name engine title)
+                                         (fprintf /dev/stdout "  pdftitle={~a},~n" title)
+                                         (dtrace-debug "~a ~a: authors: ~a" the-name engine authors)
+                                         (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
+                                         (displayln "}" /dev/stdout)
+                                         (newline /dev/stdout))
+                                       
+                                       (unless (directory-exists? dest-dir)
+                                         (fg-recon-mkdir engine dest-dir))
+                                       
+                                       (fg-recon-save-file engine pdfinfo.tex hypersetup))
+                         
+                         (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
+                                       (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
+                                                   engine TEXNAME.tex (assert (path-only TEXNAME.ext)))))))))))
 
-                        (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
-                                      (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
-                                                  engine TEXNAME.tex (assert (path-only TEXNAME.ext))))))))))
-    
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
     (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
@@ -185,7 +186,10 @@
     (wisemon-make (make-native-library-specs info-ref natives) px.so)
     (wisemon-compile (current-directory) digimon info-ref)
 
-    (wisemon-make (make-typesetting-specs info-ref) (current-make-real-targets))))
+    (let-values ([(always-files ignored-files specs) (make-typesetting-specs info-ref)])
+      (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
+                     [make-assumed-newfiles (append ignored-files (make-assumed-newfiles))])
+        (wisemon-make specs (current-make-real-targets))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))

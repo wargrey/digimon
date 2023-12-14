@@ -129,8 +129,8 @@
       (when (and jobs (> jobs 0))
         (parallel-workers jobs)))
 
-    (parameterize ([make-assume-oldfiles (wisemon-flags-old-file options)]
-                   [make-assume-newfiles (wisemon-flags-new-file options)]
+    (parameterize ([make-assumed-oldfiles (wisemon-flags-old-file options)]
+                   [make-assumed-newfiles (wisemon-flags-new-file options)]
                    [current-logger /dev/dtrace])
       (let-values ([(phonies reals) (wisemon-goal-partition (λargv))])
         (exit (time* (make-digimon (collection-info (or (wisemon-flags-directory options)

@@ -79,9 +79,9 @@
                                (check-prerequisites (cdr prerequisites)
                                                     (cond [(>= self-mtime (make prerequisite existed-targets)) srewen]
                                                           [else (cons prerequisite srewen)])))])))
-             (unless (member t oldfiles)
+             (unless (member t newfiles)
                (define no-target? : Boolean (not (file-exists? t)))
-               
+
                (when (or no-target? (pair? newers)
                          (and always-run-cache
                               (not (hash-has-key? always-run-cache t))))
