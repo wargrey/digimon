@@ -188,11 +188,12 @@
         (cc-clear-destination-include dest-incdir dest-headers))
 
       ; WARNING: Order matters
-      ; force the `make` to check binaries before shared libraries
-      ;   so that updated shared libraries will trigger the remaking of binaries
-      (if (or self:bin?)
-          (append self-specs extlib-specs specs header-specs object-specs)
-          (append header-specs extlib-specs specs self-specs object-specs)))))
+      ; force the `make` to check independent binaries before shared libraries
+      ;   so that updated shared libraries will trigger the remaking of dependent binaries
+      ;   with all prerequisites remade
+      (cond [(not self:bin?) (append header-specs extlib-specs specs self-specs object-specs)]
+            [(pair? dest-libs) (append header-specs extlib-specs specs self-specs object-specs)]
+            [else (append self-specs extlib-specs specs header-specs object-specs)]))))
 
 (define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol)
                                    (Values (Option (Pairof Wisemon-Specification (Listof CC-Launcher-Name)))
