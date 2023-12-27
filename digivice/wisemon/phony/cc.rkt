@@ -68,22 +68,29 @@
 
 (define digimon-native-files->launcher-names : (->* ((Listof CC-Launcher-Name) (Listof Path) Boolean)
                                                     ((Option Symbol))
-                                                    (Listof CC-Launcher-Name))
+                                                    (Values (Listof CC-Launcher-Name) (Listof CC-Launcher-Name)))
   (lambda [info-targets targets debug? [force-lang #false]]
-    (define launchers
-      (for/list : (Listof Any) ([p (in-list targets)])
+    (define-values (known-launchers unknown-paths)
+      (for/fold ([known-launchers : (Listof CC-Launcher-Name) null]
+                 [unknown-paths : (Listof Path) null])
+                ([p (in-list targets)])
         (let ([info-p (assoc p info-targets)])
-          (cond [(pair? info-p) info-p]
-                [else (cons p (list 'CONSOLE))]))))
+          (if (pair? info-p)
+              (values (cons info-p known-launchers) unknown-paths)
+              (values known-launchers (cons p unknown-paths))))))
 
-    (for/list ([launcher (in-list launchers)])
-      (cc-launcher-filter launcher debug? force-lang))))
+    (values (for/list ([launcher (in-list (reverse known-launchers))])
+              (cc-launcher-filter launcher debug? force-lang))
+            (for/list ([path (in-list (reverse unknown-paths))])
+              (cc-launcher-filter (cons path (list 'CONSOLE))
+                                  debug? force-lang)))))
 
 (define make-object-spec : (->* (Path Path Boolean (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
-                                ((Listof String))
+                                ((Listof String) (Listof Path) (Listof Path))
                                 Wisemon-Spec)
-  (lambda [source.c object.o cpp-file? macros includes debug? [extra-includes null]]
-    (wisemon-spec object.o #:^ (cons source.c (c-include-headers source.c includes #:check-source? #false #:topic (current-make-phony-goal)))
+  (lambda [source.c object.o cpp-file? macros includes debug? [extra-includes null] [extra-headers null] [extra-shared-objects null]]
+    (wisemon-spec object.o #:^ (append (cons source.c (append extra-headers extra-shared-objects))
+                                       (c-include-headers source.c includes #:check-source? #false #:topic (current-make-phony-goal)))
                   #:- (c-compile #:cpp? cpp-file? #:verbose? (compiler-verbose) #:debug? debug?
                                  #:includes (append extra-includes includes) #:macros macros
                                  source.c object.o))))
@@ -134,20 +141,11 @@
       (define incdirs : (Listof C-Toolchain-Path-String) (append inc:target (cc-launcher-info-includes info)))
       (define libdirs : (Listof C-Toolchain-Path-String) (append lib:target (cc-launcher-info-libpaths info)))
       (define libs : (Listof C-Link-Library) (cc-launcher-info-libraries info))
+      (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
       
       (define includes : (Listof Path)
         (c-include-headers #:check-source? #true #:topic (current-make-phony-goal)
                            native.c (cc-launcher-info-includes info)))
-
-      (define sources : (Listof Path) (c-headers->sources includes))
-      (define-values (dep-objects object-specs)
-        (for/fold ([objs : (Listof Path) null]
-                   [specs : (Listof Wisemon-Spec) null])
-                  ([src (in-list sources)])
-          (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root build-tree))))
-          (values (cons obj.o objs)
-                  (cons (make-object-spec src obj.o cpp? macros incdirs debug? extra-incdirs)
-                        specs))))
 
       (define native : Path
         (assert
@@ -156,59 +154,81 @@
              (c-source->shared-object-file #:subnative lib:build #:lib-prefixed? libname?
                                            native.c #false (cc-launcher-info-name info)))))
 
+      (define dest-libs : (Option (Listof (Pairof Path Path))) (and ->extpath (filter-map ->extpath deplibs)))
+      (define dest-self : (Option (Pairof Path Path)) (and ->extpath (not self:bin?) (->extpath native)))
+      (define dest-incdir : (Option Path) (and (pair? inc:target) (build-path (car inc:target) (cc-library-name native.c))))
+      
+      (define dest-headers : (Option (Listof (Pairof Path Path)))
+        (and dest-incdir (not (cc-launcher-info-subsystem info)) ; only send headers of shared objects to destination
+             (cc-destination-headers (assert (path-only native.c)) includes dest-incdir)))
+      
+      ; (define extra-headers : (Listof Path) (if (pair? dest-headers) (map (inst car Path Path) dest-headers) null))
+      (define extra-shared-objects : (Listof Path) (if (pair? dest-libs) (map (inst car Path Path) dest-libs) deplibs))
+      
+      (define header-specs : (Listof Wisemon-Spec) (make-header-specs (or dest-headers null)))
+      (define extlib-specs : (Listof Wisemon-Spec) (if (not dest-self) null (list (make-distributed-shared-object-spec (car dest-self) (cdr dest-self)))))
+
+      (define sources : (Listof Path) (c-headers->sources includes))
+      (define-values (dep-objects object-specs)
+        (for/fold ([objs : (Listof Path) null]
+                   [specs : (Listof Wisemon-Spec) null])
+                  ([src (in-list sources)])
+          (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root build-tree))))
+          (values (cons obj.o objs)
+                  (cons (make-object-spec src obj.o cpp? macros incdirs debug? extra-incdirs null extra-shared-objects)
+                        specs))))
+
       (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root build-tree))))
-      (define deplibs : (Listof Path) (cc-dependent-shared-objects libs specs libname?))
       (define objects : (Listof Path)
         (let ([dos (remove-duplicates dep-objects)])
           (if (member native.o dos) dos (cons native.o dos))))
 
-      (define dest-libs : (Option (Listof (Pairof Path Path))) (and ->extpath (filter-map ->extpath deplibs)))
-      (define dest-self : (Option (Pairof Path Path)) (and ->extpath (not self:bin?) (->extpath native)))
-      (define dest-incdir : (Option Path) (and (pair? inc:target) (build-path (car inc:target) (cc-library-name native.c))))
-
-      (define dest-headers : (Option (Listof (Pairof Path Path)))
-        (and dest-incdir (not (cc-launcher-info-subsystem info)) ; only send headers of shared objects to destination
-             (cc-destination-headers (assert (path-only native.c)) includes dest-incdir)))
-
-      (define header-specs : (Listof Wisemon-Spec) (make-header-specs (or dest-headers null)))
-      (define extlib-specs : (Listof Wisemon-Spec) (if (not dest-self) null (list (make-distributed-shared-object-spec (car dest-self) (cdr dest-self)))))
-      
       (define self-specs : (Listof Wisemon-Spec)
         ; TODO: why includes duplicate inside the spec, but be okay outside the spec
-        (list (wisemon-spec native #:^ (append (if (pair? dest-libs) (map (inst car Path Path) dest-libs) deplibs)
-                                               (if (pair? dest-headers) (map (inst car Path Path) dest-headers) null)
-                                               objects)
+        (list (wisemon-spec native #:^ (append ; don't burden objects with extra headers
+                                        (if (pair? dest-headers) (map (inst car Path Path) dest-headers) null)
+                                        objects)
                             #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                         #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                         #:libpaths libdirs #:libraries libs
                                         objects native))
-              (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs)))
+              (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs null extra-shared-objects)))
 
       (when (and dest-incdir dest-headers)
         (cc-clear-destination-include dest-incdir dest-headers))
 
-      ; WARNING: Order matters
-      ; force the `make` to check independent binaries before shared libraries
-      ;   so that updated shared libraries will trigger the remaking of dependent binaries
-      ;   with all prerequisites remade
-      (cond [(not self:bin?) (append header-specs extlib-specs specs self-specs object-specs)]
-            [(pair? dest-libs) (append header-specs extlib-specs specs self-specs object-specs)]
-            [else (append self-specs extlib-specs specs header-specs object-specs)]))))
+      (append specs self-specs extlib-specs header-specs object-specs))))
 
 (define make-cc-spec+targets : (-> (Option Info-Ref) Boolean (Option Symbol)
                                    (Values (Option (Pairof Wisemon-Specification (Listof CC-Launcher-Name)))
                                            (Listof Path)))
   (lambda [info-ref debug? force-lang]
-    (define launchers : (Listof CC-Launcher-Name)
-      (let ([info-targets (if (not info-ref) null (find-digimon-native-launcher-names info-ref debug? force-lang))]
-            [real-targets (current-make-real-targets)])
-        (cond [(pair? real-targets) (digimon-native-files->launcher-names info-targets real-targets debug? force-lang)]
-              [else info-targets])))
+    (define real-targets : (Listof Path) (current-make-real-targets))
     
-    (if (pair? launchers)
+    (define info-launchers : (Listof CC-Launcher-Name)
+      (cond [(not info-ref) null]
+            [else (find-digimon-native-launcher-names info-ref debug? force-lang)]))
+    
+    (define-values (real-launchers extra-real-launchers)
+      (if (pair? real-targets)
+          (digimon-native-files->launcher-names info-launchers real-targets debug? force-lang)
+          (values null null)))
+    
+    (if (pair? info-launchers)
         (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
-               [cc-specs (make-cc-specs launchers incdirs (cc-subpath-filter info-ref debug?) (cc-destination-filter info-ref debug?) debug?)])
-          (values (cons cc-specs launchers) (wisemon-targets-flatten cc-specs)))
+               [subfilter (cc-subpath-filter info-ref debug?)]
+               [dstfilter (cc-destination-filter info-ref debug?)])
+          (if (null? real-launchers)
+              (let* ([actual-launchers (if (null? real-targets) info-launchers extra-real-launchers)]
+                     [actual-specs (make-cc-specs actual-launchers incdirs subfilter dstfilter debug?)])
+                (values (cons actual-specs actual-launchers)
+                        (wisemon-targets-flatten actual-specs)))
+              (let* ([info-specs (make-cc-specs info-launchers incdirs subfilter dstfilter debug?)]
+                     [real-specs (make-cc-specs real-launchers incdirs subfilter dstfilter debug?)]
+                     [extra-specs (make-cc-specs extra-real-launchers incdirs subfilter dstfilter debug?)])
+                (values (cons (append info-specs extra-specs)
+                              (append real-launchers extra-real-launchers))
+                        (wisemon-targets-flatten (append real-specs extra-specs))))))
         (values #false null))))
 
 (define make-cc : (-> (Option Info-Ref) Boolean Any)

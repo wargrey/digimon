@@ -85,12 +85,12 @@
                (when (or no-target? (pair? newers)
                          (and always-run-cache
                               (not (hash-has-key? always-run-cache t))))
-                 (define ./target (find-relative-path (current-directory) t))
+                 (define ./target (find-relative-path (current-directory) t #:more-than-root? #true))
                  (define indent (~space (* (length ts) 2)))
                  
                  (for ([p (in-list newers)])
                    (wisemon-log-message name 'debug t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
-                                        indent (find-relative-path (current-directory) p) ./target))
+                                        indent (find-relative-path (current-directory) p #:more-than-root? #true) ./target))
 
                  (cond [(and always-run-cache) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
                        [(or no-target?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
