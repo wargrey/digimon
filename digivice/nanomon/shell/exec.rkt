@@ -18,6 +18,7 @@
 (require "../../../filesystem.rkt")
 
 (require "../../../digitama/exec.rkt")
+(require "../../../digitama/system.rkt")
 (require "../../../digitama/collection.rkt")
 (require "../../../digitama/git/lstree.rkt")
 (require "../../../digitama/git/langstat.rkt")
@@ -71,6 +72,7 @@
                                   (current-directory))))
 
     (parameterize ([current-make-real-targets (list path.c)]
+                   [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.c)))])
       (define-values (cc-specs.launchers targets) (make-cc-spec+targets (and maybe-info (pkg-info-ref maybe-info)) #false lang-name))
 
@@ -108,9 +110,10 @@
                             (pkg-info-ref maybe-info)))
 
     (parameterize ([current-make-real-targets (list path.scrbl)]
+                   [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
       (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets (and maybe-info (pkg-info-ref maybe-info))))
-
+      
       (when (pair? targets)
         (make-typeset specs always-files ignored-files targets)
         (fg-recon-open-file 'exec (car targets))))))

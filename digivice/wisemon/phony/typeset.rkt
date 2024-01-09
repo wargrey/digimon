@@ -53,9 +53,9 @@
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
-(define digimon-scrbles->typesettings : (->* ((Listof Tex-Info) (Listof Path))
-                                             ((Option (-> (Listof Symbol))))
-                                             (Listof Tex-Info))
+(define digimon-scribbles->typesettings : (->* ((Listof Tex-Info) (Listof Path))
+                                               ((Option (-> (Listof Symbol))))
+                                               (Listof Tex-Info))
   (lambda [info-targets targets [list-engines #false]]
     (for/fold ([required-typesets : (Listof Tex-Info) null])
               ([p (in-list targets)])
@@ -175,7 +175,7 @@
                                            
                                            (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
                          
-                         (wisemon-spec pdfinfo.tex #:^ (list local-info.rkt TEXNAME.scrbl) #:-
+                         (wisemon-spec pdfinfo.tex #:^ (filter file-exists? (list local-info.rkt TEXNAME.scrbl)) #:-
                                        (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
                                        (define dest-dir : Path (assert (path-only pdfinfo.tex)))
                                        
@@ -202,7 +202,7 @@
     (define-values (always-files ignored-files specs)
       (make-typesetting-specs
        (cond [(null? real-goals) all-typesettings]
-             [else (digimon-scrbles->typesettings all-typesettings real-goals)])))
+             [else (digimon-scribbles->typesettings all-typesettings real-goals)])))
 
     (values always-files ignored-files specs (wisemon-targets-flatten specs))))
 
