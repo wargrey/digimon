@@ -100,13 +100,19 @@
                      "~a ~a: no suitable engine is found, use `~a` instead"
                      the-name (current-make-phony-goal) tex-fallback-engine))
 
+      (define real-target? : Boolean
+        (and (or (member TEXNAME.scrbl (current-make-real-targets))
+                 (member TEXNAME.ext (current-make-real-targets)))
+             #true))
+
       (values
-       (if (memq '#:always-make options)
+       (if (or (memq '#:always-make options)
+               (and real-target? (memq '#:explicitly-make options)))
            (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex always-files)
            always-files)
 
        (if (and (memq '#:explicitly-make options)
-                (not (member TEXNAME.ext (current-make-real-targets))))
+                (not real-target?))
            (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex ignored-files)
            ignored-files)
 
