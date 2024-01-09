@@ -8,7 +8,9 @@
 (require "../parameter.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
-(require (only-in "../../wisemon/parameter.rkt" current-make-real-targets))
+(require "../../wisemon/phony/typeset.rkt")
+(require (only-in "../../wisemon/parameter.rkt"
+                  current-make-real-targets))
 
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")
@@ -30,7 +32,7 @@
     (define lang : (Option String)
       (or (nanomon-lang)
           (let* ([gf (make-git-file path)]
-                 [gl (git-files->langfiles (list gf) null #false)])
+                 [gl (git-files->langfiles (list gf) null git-default-subgroups)])
             (and (= (hash-count gl) 1)
                  (git-language-name (cdar (hash->list gl)))))))
 
@@ -42,6 +44,8 @@
       [("c++") (shell-cpp path 'cpp)]
       [("cpp") (shell-cpp path 'cpp)]
       [("c") (shell-c path 'c)]
+      [("scribble") (shell-typeset path 'scribble)]
+      [("tex") (shell-typeset path 'tex)]
       [else (nanomon-errno 126)
             (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
                                               (continuation-marks #false)))])
@@ -91,6 +95,25 @@
 (define shell-cpp : (-> Path Symbol Any)
   (lambda [path.c lang-name]
     (shell-c path.c lang-name)))
+
+(define shell-typeset : (-> Path Symbol Any)
+  (lambda [path.scrbl lang-name]
+    (define maybe-info : (Option Pkg-Info)
+      (single-collection-info #:bootstrap? #true
+                              (or (path-only path.scrbl)
+                                  (current-directory))))
+
+    (unless (not maybe-info)
+      (make-typeset-prepare (pkg-info-name maybe-info)
+                            (pkg-info-ref maybe-info)))
+
+    (parameterize ([current-make-real-targets (list path.scrbl)]
+                   [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
+      (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets (and maybe-info (pkg-info-ref maybe-info))))
+
+      (when (pair? targets)
+        (make-typeset specs always-files ignored-files targets)
+        (fg-recon-open-file 'exec (car targets))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell

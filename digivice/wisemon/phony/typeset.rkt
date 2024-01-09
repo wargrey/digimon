@@ -32,13 +32,14 @@
    [dependencies : (Listof (U Regexp Byte-Regexp))]
    [options : (Listof Keyword)]
    [extra-argv : (Vectorof String)])
-  #:type-name Tex-Info)
+  #:type-name Tex-Info
+  #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typesettings : (->* (Info-Ref)
-                                         ((Option (-> (Listof Symbol))) #:name Symbol #:info-id Symbol)
+                                         ((Option (-> (Listof Symbol))) #:info-id Symbol)
                                          (Listof Tex-Info))
-  (lambda [#:name [name the-name] #:info-id [symid 'typesettings] info-ref [list-engines #false]]
+  (lambda [#:info-id [symid 'typesettings] info-ref [list-engines #false]]
     (define maybe-typesettings (info-ref symid (λ [] null)))
     
     (unless (list? maybe-typesettings)
@@ -52,8 +53,20 @@
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
-(define make-typesetting-specs : (-> Info-Ref (Values (Listof Path) (Listof Path) Wisemon-Specification))
-  (lambda [info-ref]
+(define digimon-scrbles->typesettings : (->* ((Listof Tex-Info) (Listof Path))
+                                             ((Option (-> (Listof Symbol))))
+                                             (Listof Tex-Info))
+  (lambda [info-targets targets [list-engines #false]]
+    (for/fold ([required-typesets : (Listof Tex-Info) null])
+              ([p (in-list targets)])
+      (let ([info-p (findf (λ [[ti : Tex-Info]] (equal? p (tex-info-path ti))) info-targets)])
+        (if (not info-p)
+            (let ([typeset/fly (typeset-filter-texinfo p null (or list-engines tex-list-engines))])
+              (if (not typeset/fly) required-typesets (cons typeset/fly required-typesets)))
+            (cons info-p required-typesets))))))
+
+(define make-typesetting-specs : (-> (Listof Tex-Info) (Values (Listof Path) (Listof Path) Wisemon-Specification))
+  (lambda [typesettings]
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
     (define local-stone : Path (digimon-path 'stone))
@@ -63,7 +76,7 @@
     (for/fold ([always-files : (Listof Path) null]
                [ignored-files : (Listof Path) null]
                [specs : Wisemon-Specification null])
-              ([typesetting (in-list (find-digimon-typesettings info-ref))])
+              ([typesetting (in-list typesettings)])
       (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
       (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
       (define raw-tex? (regexp-match? #px"\\.tex$" TEXNAME.scrbl))
@@ -96,7 +109,8 @@
                 (not (member TEXNAME.ext (current-make-real-targets))))
            (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex ignored-files)
            ignored-files)
-       
+
+       ;;; NOTE: order matters
        (append specs
                (if (and raw-tex?)
                    (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
@@ -107,7 +121,11 @@
                                        (tex-render #:fallback tex-fallback-engine #:enable-filter #false
                                                    engine TEXNAME.scrbl dest-dir)))
                    
-                   (list (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
+                   (list (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
+                                       (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
+                                                   engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
+
+                         (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.tex)))
                                        (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
@@ -173,23 +191,40 @@
                                        (unless (directory-exists? dest-dir)
                                          (fg-recon-mkdir engine dest-dir))
                                        
-                                       (fg-recon-save-file engine pdfinfo.tex hypersetup))
-                         
-                         (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
-                                       (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
-                                                   engine TEXNAME.tex (assert (path-only TEXNAME.ext)))))))))))
+                                       (fg-recon-save-file engine pdfinfo.tex hypersetup)))))))))
 
-(define make~typeset : Make-Info-Phony
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define make-typeset-specs+targets : (-> (Option Info-Ref) (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
+  (lambda [info-ref]
+    (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref)))
+    (define real-goals : (Listof Path) (current-make-real-targets))
+
+    (define-values (always-files ignored-files specs)
+      (make-typesetting-specs
+       (cond [(null? real-goals) all-typesettings]
+             [else (digimon-scrbles->typesettings all-typesettings real-goals)])))
+
+    (values always-files ignored-files specs (wisemon-targets-flatten specs))))
+
+(define make-typeset-prepare : (-> String Info-Ref Any)
   (lambda [digimon info-ref]
     (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
     
     (wisemon-make (make-native-library-specs info-ref natives) px.so)
-    (wisemon-compile (current-directory) digimon info-ref)
+    (wisemon-compile (current-directory) digimon info-ref)))
 
-    (let-values ([(always-files ignored-files specs) (make-typesetting-specs info-ref)])
-      (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
-                     [make-assumed-newfiles (append ignored-files (make-assumed-newfiles))])
-        (wisemon-make specs (current-make-real-targets))))))
+(define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Void)
+  (lambda [specs always-files ignored-files targets]
+    (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
+                   [make-assumed-newfiles (append ignored-files (make-assumed-newfiles))])
+      (wisemon-make specs targets))))
+
+(define make~typeset : Make-Info-Phony
+  (lambda [digimon info-ref]
+    (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets info-ref))
+    
+    (make-typeset-prepare digimon info-ref)
+    (make-typeset specs always-files ignored-files targets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))

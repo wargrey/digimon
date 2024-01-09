@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/string)
-
 (require typed/setup/getinfo)
 
 (require "path.rkt")

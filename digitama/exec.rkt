@@ -3,13 +3,15 @@
 (provide (all-defined-out))
 
 (require racket/string)
-(require racket/port)
+(require racket/system)
 
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
 (require "../port.rkt")
 (require "../format.rkt")
 (require "../symbol.rkt")
+
+(require "system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
@@ -162,6 +164,18 @@
     (dtrace-info #:topic operation "(call-to-save-file ~a ~a)" path (object-name write))
     (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler operation e))])
       (call-with-output-file* path write #:exists 'truncate/replace))))
+
+(define fg-recon-open-file : (-> Symbol Path-String Void)
+  (lambda [operation file]
+    (when (file-exists? file)
+      (dtrace-info #:topic operation "open ~a" file)
+
+      (case digimon-system
+        [(windows) (shell-execute "open" (if (path? file) (path->string file) file) "" (current-directory) 'sw_shownormal)]
+        [else (let ([open (find-executable-path "open")])
+                (when (or open) (system*/exit-code open file)))])
+      
+      (void))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg-mv : (-> Symbol Path-String Path-String Void)
