@@ -377,24 +377,27 @@
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
-    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] . bibentries]
-      (define bibliography-self
-        (apply bibliography #:tag "handbook-bibliography"
-               (append entries (flatten bibentries))))
-
-      (list* (struct-copy part bibliography-self
-                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                          [style (if numbered? placeholder-style (part-style bibliography-self))]
-                          [blocks (append (part-blocks bibliography-self)
-                                          (cond [(not index?) null]
-                                                [else (list (texbook-twocolumn))]))])
-             (cond [(not index?) null]
-                   [else (let ([index-self (index-section #:tag "handbook-index")])
-                           (list (struct-copy part index-self 
-                                              [title-content (list (speak 'index #:dialect 'tamer))]
-                                              [style (make-style #false (if numbered? null (style-properties (part-style index-self))))]
-                                              [blocks (append (part-blocks index-self)
-                                                              (list (texbook-onecolumn)))])))])))))
+    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true] . bibentries]
+      (define all-bibentries
+        (cond [(not racket?) (flatten bibentries)]
+              [else (append entries (flatten bibentries))]))
+      
+      (list (if (pair? all-bibentries)
+                (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
+                  (list (struct-copy part bibliography-self
+                                     [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                                     [style (if numbered? placeholder-style (part-style bibliography-self))])))
+                 null)
+            
+            (if (and index?)
+                (let ([index-self (index-section #:tag "handbook-index")])
+                  (list (struct-copy part index-self 
+                                     [title-content (list (speak 'index #:dialect 'tamer))]
+                                     [style (if numbered? placeholder-style (part-style index-self))]
+                                     [blocks (append (list (texbook-twocolumn))
+                                                     (part-blocks index-self)
+                                                     (list (texbook-onecolumn)))])))
+                null)))))
 
 (define handbook-smart-table
   (lambda []
