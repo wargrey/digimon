@@ -196,7 +196,8 @@
 
 (define-syntax (handbook-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+    [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
+              (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
         ...
         contents ...)
@@ -217,7 +218,7 @@
                  (cons (add1 (car (tamer-index-story)))
                        (tamer-story))))
 
-              (title #:tag (tamer-story->tag (tamer-story))
+              (title #:tag (or tag (tamer-story->tag (tamer-story)))
                      #:style style
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
