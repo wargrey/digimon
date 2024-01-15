@@ -20,6 +20,7 @@
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/collection.rkt")
+(require "../../../digitama/graphviz.rkt")
 (require "../../../digitama/git/lstree.rkt")
 (require "../../../digitama/git/langstat.rkt")
 
@@ -47,6 +48,7 @@
       [("c") (shell-c path 'c)]
       [("scribble") (shell-typeset path 'scribble)]
       [("tex") (shell-typeset path 'tex)]
+      [("graphviz (dot)") (shell-dot path 'png #".png")]
       [else (nanomon-errno 126)
             (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
                                               (continuation-marks #false)))])
@@ -117,6 +119,13 @@
       (when (pair? targets)
         (make-typeset specs always-files ignored-files targets)
         (fg-recon-open-file 'exec (car targets))))))
+
+(define shell-dot : (-> Path Symbol Bytes Any)
+  (lambda [path.gv -T extension]
+    (define dot.ext (assert (gv-script-destination path.gv extension #true)))
+
+    (gv-render path.gv -T #:outfile dot.ext)
+    (fg-recon-open-file 'exec dot.ext)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell

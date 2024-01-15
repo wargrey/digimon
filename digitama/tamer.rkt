@@ -105,6 +105,18 @@
                    (cons htag books))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-dependencies
+  (lambda [src.scrbl]
+    (define pthis (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc)))
+
+    (let search-authors ([blocks (part-blocks pthis)])
+      (cond [(null? blocks) ]
+            [else (let ([block (car blocks)])
+                    (cond [(paragraph? block) (and (eq? (style-name (paragraph-style block)) 'author) (paragraph-content block))]
+                          [(compound-paragraph? block) (search-authors (compound-paragraph-blocks block))]
+                          [else #false]))
+                  (search-authors (cdr blocks))]))))
+
 ;; For LaTeX
 (define handbook-metainfo
   (lambda [src.scrbl author-sep]

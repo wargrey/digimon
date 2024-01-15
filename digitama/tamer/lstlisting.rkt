@@ -162,7 +162,7 @@
 
 (define (lang->class-range lang id)
   (case (string->symbol lang)
-    [(C++) (values (pregexp (format "class\\s+~a\\s*(:[^{]+)?[{]?" id)) #px"[}];")]
+    [(C++) (values (pregexp (format "(class|struct)\\s+~a\\s*(:[^{]+)?[{]?" id)) #px"[}];")]
     [(Java) (values (pregexp (format "(class|interface|enum)\\s+~a\\s*((extends|implements)[^{]+)?[{]?" id)) #px"^[}]")]
     [else (error 'lang->class-range "unsupported language: ~a" lang)]))
 
