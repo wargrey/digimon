@@ -5,6 +5,7 @@
 (require file/convertible)
 
 (require "../graphviz.rkt")
+(require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct dot (script layout size minsize? log-level)
@@ -22,6 +23,7 @@
                     [(svg-bytes) (gv-render src 'svg layout #:size size #:min-size? min? #:stdin-log-level level)]
                     [(pdf-bytes) (gv-render src 'pdf layout #:size size #:min-size? min? #:stdin-log-level level)]
                     [(png-bytes) (gv-render src 'png layout #:size size #:min-size? min? #:stdin-log-level level)]
+                    [(script-path src-path) (if (path-literal? src) src fallback)] ; For `scrbl.rkt`
                     [else fallback]))])))
 
 (define graphviz

@@ -109,7 +109,7 @@
     (cond [(not (string-contains? sp " ")) sp]
           [else (string-append (string lmark) sp (string (or rmark lmark)))])))
 
-(define path-normalize/system : (->* (Path-String) ((U 'windows 'unix) #:drive (Option Path-String)) Path)
+(define path-normalize/system : (->* ((U Path-String Path-For-Some-System)) ((U 'windows 'unix) #:drive (Option Path-String)) Path)
   (lambda [path [systype (system-path-convention-type)] #:drive [drive #false]]
     (cond [(string? path)
            (define separator (if (eq? systype 'unix) "/" "\\"))
@@ -126,7 +126,7 @@
 
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
   (lambda [path]
-    (cond [(relative-path? path) (if (string? path) (string->path path) path)]
+    (cond [(relative-path? path) (path-identity path)]
           [else (let ([elements (explode-path path)])
                   (cond [(or (null? elements) (null? (cdr elements))) (build-path 'same)]
                         [else (apply build-path (cdr elements))]))])))
@@ -167,6 +167,13 @@
              p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define path-identity : (-> (U Bytes Path-String Path-For-Some-System) Path)
+  (lambda [path]
+    (cond [(string? path) (string->path path)]
+          [(path? path) path]
+          [(bytes? path) (bytes->path path)]
+          [else (path-normalize/system path)])))
+
 (define path-exists? : (-> Path-String Boolean)
   (lambda [path]
     (or (link-exists? path)

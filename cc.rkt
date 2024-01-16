@@ -139,7 +139,7 @@
 (define c-include-headers : (->* (Path-String) ((Listof C-Toolchain-Path-String) #:check-source? Boolean #:topic Symbol) (Listof Path))
   (lambda [c [incdirs null] #:check-source? [recur? #false] #:topic [topic 'c-include-headers]]
     (define includes : (Listof Path) (filter relative-path? (c-path-flatten incdirs)))
-    (let include.h ([entry : Path (if (string? c) (string->path c) c)]
+    (let include.h ([entry : Path (path-identity c)]
                     [memory : (Listof Path) null])
       (define dirname : (Option Path) (path-only entry))
       (cond [(not dirname) memory]

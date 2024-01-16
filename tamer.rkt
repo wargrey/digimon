@@ -500,6 +500,17 @@
                            [(null? (cdr rows)) (reverse (cons (append (car rows) empty-cols (make-list col-size 'cont)) swor))]
                            [else (make-table (cddr rows) (cons (append (car rows) empty-cols (cadr rows)) swor))]))))))
 
+(define handbook-seclink
+  (lambda [#:doc [modpath #false] #:tag-prefixes [tps #false]
+           #:underline? [underline? #true] #:captalized? [captalized? #true]
+           #:mode [mode #false]
+           tag . label]
+    (define style (and mode (link-render-style mode)))
+
+    (cond [(pair? label) (apply seclink #:doc modpath #:tag-prefixes tps #:underline? underline? #:link-render-style style tag label)]
+          [(not captalized?) (secref #:doc modpath #:tag-prefixes tps #:underline? underline? #:link-render-style style tag)]
+          [else (Secref #:doc modpath #:tag-prefixes tps #:underline? underline? #:link-render-style style tag)])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-module stx)
   (syntax-parse stx #:literals []

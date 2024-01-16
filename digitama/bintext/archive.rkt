@@ -155,9 +155,7 @@
 (define archive-path->path : (-> Archive-Path Path)
   (lambda [src]
     (simple-form-path
-     (cond [(path? src) src]
-           [(string? src) (string->path src)]
-           [else (bytes->path src)]))))
+     (path-identity src))))
 
 (define archive-entry-reroot : (->* (Path-String (Option Path-String)) ((Option Path-String) (Option Symbol)) String)
   (lambda [name strip-root [zip-root #false] [gen-stdin-name #false]]

@@ -21,7 +21,8 @@
 (require "cc.rkt")
 
 (require/typed
- "../../../digitama/tamer.rkt"
+ "../../../digitama/tamer/scrbl.rkt"
+ [handbook-dependencies (-> Path-String Symbol (Listof Path))]
  [handbook-metainfo (-> Path-String String (Values String String))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -70,7 +71,6 @@
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
     (define local-stone : Path (digimon-path 'stone))
-    (define local-tamer.tex (build-path local-stone "tamer.tex"))
     (define typeset-subdir : String "tex")
 
     (for/fold ([always-files : (Listof Path) null]
@@ -86,14 +86,16 @@
       (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
       (define pdfinfo.tex (path-replace-extension TEXNAME.sub #".hyperref.tex"))
-      (define docmentclass.tex (build-path this-stone "documentclass.tex"))
+      (define doclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
       (define load.tex (build-path this-stone "load.tex"))
-      (define this-tamer.tex (build-path this-stone "tamer.tex"))
       (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
-      (define stone-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
-      (define tex-deps (list docmentclass.tex style.tex load.tex this-tamer.tex local-tamer.tex))
+      (define tamer-deps (if (not raw-tex?) (handbook-dependencies TEXNAME.scrbl 'latex) null))
+      (define render-deps (list doclass.tex style.tex load.tex))
+      (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define options : (Listof Keyword) (tex-info-options typesetting))
+
+      (for-each displayln tamer-deps)
 
       (unless (tex-info-engine typesetting)
         (dtrace-note #:topic the-name #:prefix? #false
@@ -131,7 +133,7 @@
                                        (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
                                                    engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
 
-                         (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append tex-deps scrbl-deps stone-deps))) #:-
+                         (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append scrbl-deps tamer-deps regexp-deps render-deps))) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.tex)))
                                        (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
@@ -169,7 +171,7 @@
                                                     (define TEXNAME.doc (dynamic-require TEXNAME.scrbl 'doc))
                                                     (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
                                                             #:render-mixin tex:render-mixin #:dest-dir dest-dir
-                                                            #:prefix-file (and (file-exists? ,docmentclass.tex) ,docmentclass.tex)
+                                                            #:prefix-file (and (file-exists? ,doclass.tex) ,doclass.tex)
                                                             #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)
                                                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                                            

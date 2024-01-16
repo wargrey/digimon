@@ -23,8 +23,7 @@
     (cond [(not (or (directory-exists? .git) (file-exists? .git)))
            (let-values ([(base name dir?) (split-path (simple-form-path dir))])
              (and (path? base) (git-root base)))]
-          [(string? dir) (string->path dir)]
-          [else dir])))
+          [else (path-identity dir)])))
 
 (define git-submodules : (->* () (Path-String #:recursive? Boolean) (Listof String))
   (lambda [[dir (current-directory)] #:recursive? [recursive? #true]]

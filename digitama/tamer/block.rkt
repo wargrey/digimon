@@ -16,6 +16,7 @@
 
 (require "misc.rkt")
 (require "backend.rkt")
+(require "shadow.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -126,7 +127,7 @@
     (define this-index-story (tamer-index-story))
     (define appendix-index (tamer-appendix-index))
 
-    (make-traverse-block
+    (make-shadow-traverse-block
      (λ [get set!]
        (parameterize ([tamer-index-story this-index-story]
                       [tamer-appendix-index appendix-index])
@@ -150,7 +151,11 @@
          (make-nested-flow block-style
                            (if (list? block)
                                (if (not maybe-anchor) block (cons maybe-anchor block))
-                               (if (not maybe-anchor) (list block) (list maybe-anchor block)))))))))
+                               (if (not maybe-anchor) (list block) (list maybe-anchor block))))))
+
+     (λ [] ; see `scrbl.rkt`
+       (let-values ([(_ block) (traverse index-type (car this-index-story) 1)])
+         (make-nested-flow block-style (if (list? block) block (list block))))))))
 
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]

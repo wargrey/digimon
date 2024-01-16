@@ -105,35 +105,6 @@
                    (cons htag books))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-dependencies
-  (lambda [src.scrbl]
-    (define pthis (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc)))
-
-    (let search-authors ([blocks (part-blocks pthis)])
-      (cond [(null? blocks) ]
-            [else (let ([block (car blocks)])
-                    (cond [(paragraph? block) (and (eq? (style-name (paragraph-style block)) 'author) (paragraph-content block))]
-                          [(compound-paragraph? block) (search-authors (compound-paragraph-blocks block))]
-                          [else #false]))
-                  (search-authors (cdr blocks))]))))
-
-;; For LaTeX
-(define handbook-metainfo
-  (lambda [src.scrbl author-sep]
-    (define pthis (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc)))
-    (define maybe-authors
-      (let search-authors ([blocks (part-blocks pthis)])
-        (and (pair? blocks)
-             (or (let ([block (car blocks)])
-                   (cond [(paragraph? block) (and (eq? (style-name (paragraph-style block)) 'author) (paragraph-content block))]
-                         [(compound-paragraph? block) (search-authors (compound-paragraph-blocks block))]
-                         [else #false]))
-                 (search-authors (cdr blocks))))))
-    
-    (values (content->string (or (part-title-content pthis) null))
-            (if (not maybe-authors) "" (string-join (map content->string maybe-authors) author-sep)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Examples
 (define tamer-zones #;(HastTable Any (Pairof Integer Evaluation)) (make-hash))
 
