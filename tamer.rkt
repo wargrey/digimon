@@ -138,9 +138,7 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")]
-              [dtrace-agent (make-logger 'handbook (current-logger))]
-              [message "check additional resource: ~a [~a]"])
+              [modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
@@ -149,12 +147,7 @@
                       #:style (make-style #false
                                           (foldl (λ [resrcs properties]
                                                    (append properties
-                                                           (filter-map (λ [tamer.res]
-                                                                         (if (file-exists? tamer.res)
-                                                                             (begin (dtrace-debug #:topic dtrace-agent message tamer.res 'ok)
-                                                                                    ((car resrcs) tamer.res))
-                                                                             (begin (dtrace-debug #:topic dtrace-agent message tamer.res 'no)
-                                                                                    #false)))
+                                                           (filter-map (λ [tamer.res] (and (file-exists? tamer.res) ((car resrcs) tamer.res)))
                                                                        (tamer-resource-files modname (cdr resrcs)))))
                                                  (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
                                                        [(list? ext-properties) (if (list? props) (append props ext-properties) (cons props ext-properties))]
