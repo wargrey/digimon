@@ -95,8 +95,6 @@
       (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define options : (Listof Keyword) (tex-info-options typesetting))
 
-      (for-each displayln tamer-deps)
-
       (unless (tex-info-engine typesetting)
         (dtrace-note #:topic the-name #:prefix? #false
                      "~a ~a: no suitable engine is found, use `~a` instead"
@@ -139,6 +137,9 @@
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
                                        
                                        (typeset-note engine maybe-name TEXNAME.scrbl)
+
+                                       (for ([p (in-list tamer-deps)])
+                                         (dtrace-debug "~a ~a: depends on ~a" the-name engine p))
                                        
                                        (let ([src.tex (path-replace-extension TEXNAME.ext #".tex")]
                                              [hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl")])

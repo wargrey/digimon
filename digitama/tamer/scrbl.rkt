@@ -68,24 +68,22 @@
 (define handbook-block-content-extract-path
   (lambda [style children render-mode]
     (append (handbook-style-extract-path style render-mode)
-            
-            (for/fold ([paths null])
-                      ([child (in-list children)])
-              (or (and (traverse-element/shadow? child)
-                       (let ([e ((traverse-element/shadow-element child))])
-                         (and (element? e)
-                              (append paths (handbook-element-extract-path e render-mode)))))
-                  (and (element? child)
-                       (append paths (handbook-element-extract-path child render-mode)))
-                  (and (convertible? child)
-                       (let ([maybe-path (convert child 'script-path #false)])
-                         (cond [(path-literal? maybe-path) (append paths (list (path-identity maybe-path)))]
-                               [(pair? maybe-path) (append paths (for/list ([p (in-list maybe-path)]
-                                                                            #:when (path-literal? p))
-                                                                   (path-identity p)))]
-                               [else paths])))
-                  paths)))))
 
+            (apply append
+                   (for/list ([child (if (list? children) (in-list children) (in-value children))])
+                     (or (and (traverse-element/shadow? child)
+                              (let ([e ((traverse-element/shadow-element child))])
+                                (and (element? e)
+                                     (handbook-element-extract-path e render-mode))))
+                         (and (element? child)
+                              (handbook-element-extract-path child render-mode))
+                         (and (convertible? child)
+                              (let ([maybe-path (convert child 'script-path #false)])
+                                (cond [(path-literal? maybe-path) (list (path-identity maybe-path))]
+                                      [(pair? maybe-path) (for/list ([p (in-list maybe-path)] #:when (path-literal? p)) (path-identity p))]
+                                      [else #false])))
+                         null))))))
+  
 (define handbook-element-extract-path
   (lambda [elem render-mode]
     (define-values (style-paths body-path) (handbook-raw-element-extract-path elem render-mode))
