@@ -14,7 +14,7 @@
 
 (require "../tamer.rkt")
 
-(require "misc.rkt")
+(require "style.rkt")
 (require "backend.rkt")
 (require "shadow.rkt")
 

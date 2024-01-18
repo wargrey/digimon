@@ -107,16 +107,18 @@
                               (or (path-only path.scrbl)
                                   (current-directory))))
 
-    (unless (not maybe-info)
-      (make-typeset-prepare (pkg-info-name maybe-info)
-                            (pkg-info-ref maybe-info)))
-
     (parameterize ([current-make-real-targets (list path.scrbl)]
                    [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
-      (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets (and maybe-info (pkg-info-ref maybe-info))))
+      (define all-typesettings : (Listof Tex-Info)
+        (if (not maybe-info)
+            (make-typeset-prepare "" #false)
+            (make-typeset-prepare (pkg-info-name maybe-info)
+                                  (pkg-info-ref maybe-info))))
+
+      (when (pair? all-typesettings)
+        (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets all-typesettings))
       
-      (when (pair? targets)
         (make-typeset specs always-files ignored-files targets)
         (fg-recon-open-file 'exec (car targets))))))
 

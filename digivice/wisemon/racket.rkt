@@ -76,8 +76,8 @@
 
     (when again? (compile-collection digimon (add1 round)))))
 
-(define compile-directory : (->* (Path-String Info-Ref) (Natural) Void)
-  (lambda [pwd info-ref [round 1]]
+(define compile-directory : (->* (Path-String Info-Ref) (Natural #:for-typesetting? Boolean) Void)
+  (lambda [pwd info-ref [round 1] #:for-typesetting? [for-typesetting? #false]]
     (define verbose? : Boolean (make-verbose))
     (define px.in : Regexp (pregexp (regexp-quote (path->string (current-directory)))))
     (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
@@ -97,7 +97,7 @@
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (λ [s e] (dtrace-error ">> ~a" s))])
-        (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? #true)))
+        (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? (not for-typesetting?))))
 
     (when again? (compile-directory pwd info-ref (add1 round)))))
 

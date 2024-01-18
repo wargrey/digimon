@@ -10,7 +10,7 @@
 (require racket/symbol)
 (require racket/string)
 
-(require "misc.rkt")
+(require "style.rkt")
 (require "block.rkt")
 
 (require "../system.rkt")

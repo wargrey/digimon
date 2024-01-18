@@ -45,7 +45,7 @@
                  #:assume-old [oldfiles null] #:assume-new [newfiles null]]
     (when (or (pair? specs) (pair? targets) (regexp? targets))
       (parameterize ([current-directory cd])
-        (define always-run-cache : (Option (HashTable Path Any)) (and always-run? (make-hash)))
+        (define oldfiles-cache : (HashTable Path Any) (make-hash))
         (define all-targets : (Listof Path)
           (cond [(pair? targets) (map simple-form-path targets)]
                 [(regexp? targets) (wisemon-targets-flatten specs targets)]
@@ -53,7 +53,7 @@
 
         (for ([t (in-list all-targets)])
           (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-warn-exception the-name e)))])
-            (wisemon-make-target specs t the-name dry-run? always-run-cache just-touch?
+            (wisemon-make-target specs t the-name oldfiles-cache dry-run? always-run? just-touch?
                                  (map simple-form-path oldfiles)
                                  (map simple-form-path newfiles))))))))
 

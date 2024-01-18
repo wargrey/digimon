@@ -51,8 +51,8 @@
           [else (dtrace-exception cause #:level 'warning #:topic name #:prefix? #false #:brief? #true)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wisemon-make-target : (-> Wisemon-Specification Path Symbol Boolean (Option (HashTable Path Any)) Boolean (Listof Path) (Listof Path) Void)
-  (lambda [specs target name dry-run? always-run-cache just-touch? oldfiles newfiles]
+(define wisemon-make-target : (-> Wisemon-Specification Path Symbol (HashTable Path Any) Boolean Boolean Boolean (Listof Path) (Listof Path) Void)
+  (lambda [specs target name oldfiles-cache dry-run? always-run? just-touch? oldfiles newfiles]
     (define now : Integer (current-seconds))
 
     (define (wisemon-mtime [file : Path]) : Integer
@@ -65,26 +65,24 @@
       (define spec : (Option Wisemon-Spec) (wisemon-spec-ref specs t))
       
       (cond [(wisemon-spec? spec)
-             (define self-mtime : Integer (wisemon-mtime t))
-             (define newers : (Listof Path)
-               (let check-prerequisites ([prerequisites : (Listof Path) (wisemon-spec-prerequisites spec)]
-                                         [srewen : (Listof Path) null])
-                 (cond [(null? prerequisites) (reverse srewen)]
-                       [else (let ([prerequisite (car prerequisites)]
-                                   [existed-targets (cons t ts)])
-                               (when (member prerequisite existed-targets)
-                                 (throw-exn:wisemon name t (reverse srewen) 'cyclic
-                                                    "detected a cyclic dependency of `~a`" t))
-                               
-                               (check-prerequisites (cdr prerequisites)
-                                                    (cond [(>= self-mtime (make prerequisite existed-targets)) srewen]
-                                                          [else (cons prerequisite srewen)])))])))
-             (unless (member t newfiles)
+             (unless (or (member t newfiles) (hash-has-key? oldfiles-cache t))
                (define no-target? : Boolean (not (file-exists? t)))
-
-               (when (or no-target? (pair? newers)
-                         (and always-run-cache
-                              (not (hash-has-key? always-run-cache t))))
+               (define self-mtime : Integer (wisemon-mtime t))
+               (define newers : (Listof Path)
+                 (let check-prerequisites ([prerequisites : (Listof Path) (wisemon-spec-prerequisites spec)]
+                                           [srewen : (Listof Path) null])
+                   (cond [(null? prerequisites) (reverse srewen)]
+                         [else (let ([prerequisite (car prerequisites)]
+                                     [existed-targets (cons t ts)])
+                                 (when (member prerequisite existed-targets)
+                                   (throw-exn:wisemon name t (reverse srewen) 'cyclic
+                                                      "detected a cyclic dependency of `~a`" t))
+                                 
+                                 (check-prerequisites (cdr prerequisites)
+                                                      (cond [(>= self-mtime (make prerequisite existed-targets)) srewen]
+                                                            [else (cons prerequisite srewen)])))])))
+               
+               (when (or no-target? always-run? (pair? newers) (member t oldfiles))
                  (define ./target (find-relative-path (current-directory) t #:more-than-root? #true))
                  (define indent (~space (* (length ts) 2)))
                  
@@ -92,7 +90,7 @@
                    (wisemon-log-message name 'debug t #:prerequisites newers "~aprerequisite `~a` is newer than the target `~a`"
                                         indent (find-relative-path (current-directory) p #:more-than-root? #true) ./target))
 
-                 (cond [(and always-run-cache) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
+                 (cond [(and always-run?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` unconditionally" indent ./target)]
                        [(or no-target?) (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to absent" indent ./target)]
                        [else (wisemon-log-message name 'note t #:prerequisites newers "~aremaking `~a` due to outdated" indent ./target)])
 
@@ -102,8 +100,8 @@
                          [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
                          [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
 
-                   (when (and always-run-cache)
-                     (hash-set! always-run-cache t #true))
+                   (when (or always-run? (member t oldfiles))
+                     (hash-set! oldfiles-cache t #true))
 
                    (let ([dsize (- (file-size t) size0)]
                          [dms (- (current-inexact-milliseconds) ms0)])
@@ -160,6 +158,7 @@
 (define wisemon-spec-ref : (-> Wisemon-Specification Path-String (Option Wisemon-Spec))
   (lambda [specs target]
     (define t (simple-form-path target))
+    
     (findf (λ [[s : Wisemon-Spec]] : Boolean
              (let ([ts (wisemon-spec-target s)])
                (cond [(list? ts) (and (member t ts) #true)]

@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out) placeholder-style tamer-story-disable-submodule tamer-story-submodule-name)
+(provide (all-defined-out) tamer-story-disable-submodule tamer-story-submodule-name)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
@@ -9,9 +9,10 @@
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
-(provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example scribble/html-properties))
+(provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example))
+(provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
-(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
+(provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
 (provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
@@ -40,6 +41,7 @@
 
 (require (for-label racket))
 
+(require "digitama/tamer/style.rkt")
 (require "digitama/tamer/backend.rkt")
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
@@ -47,7 +49,6 @@
 (require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
-(require "digitama/tamer/misc.rkt")
 (require "digitama/tamer/graphviz.rkt")
 (require "digitama/tamer/color.rkt")
 (require "digitama/tamer/image.rkt")
@@ -60,7 +61,6 @@
 (require "echo.rkt")
 (require "emoji.rkt")
 (require "port.rkt")
-(require "dtrace.rkt")
 (require "tongue.rkt")
 (require "system.rkt")
 (require "format.rkt")
@@ -70,11 +70,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define #%handbook-properties (make-parameter null))
-
-(define noncontent-style (make-style #false '(unnumbered reverl no-index)))
-(define grouper-style (make-style #false '(grouper)))
-(define subsub*toc-style (make-style #false '(toc)))
-(define subtitle-style (make-style "large" null))
 
 (define-syntax (tamer-taming-start! stx)
   (syntax-case stx [scribble +]
@@ -113,11 +108,6 @@
   (lambda keys
     (subscript (apply cite keys))))
 
-(define handbook-prefab-style
-  (lambda properties
-    (make-style #false
-                (filter symbol? properties))))
-
 (define handbook-resolved-info-getter
   (lambda [infobase]
     (curry hash-ref (collect-info-fp (resolve-info-ci infobase)))))
@@ -144,19 +134,7 @@
 
          (list (title #:tag "tamer-book"
                       #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
-                      #:style (make-style #false
-                                          (foldl (λ [resrcs properties]
-                                                   (append properties
-                                                           (filter-map (λ [tamer.res] (and (file-exists? tamer.res) ((car resrcs) tamer.res)))
-                                                                       (tamer-resource-files modname (cdr resrcs)))))
-                                                 (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
-                                                       [(list? ext-properties) (if (list? props) (append props ext-properties) (cons props ext-properties))]
-                                                       [else (if (list? props) (append props (list ext-properties)) (list props ext-properties))])
-                                                 (list (cons make-css-addition "tamer.css")
-                                                       (cons make-tex-addition "tamer.tex")
-                                                       (cons make-js-addition "tamer.js")
-                                                       (cons make-css-style-addition "tamer-style.css")
-                                                       (cons make-js-style-addition "tamer-style.js"))))
+                      #:style (handbook-title-style #false props ext-properties tamer-resource-files modname)
                       (let ([contents (list pre-contents ...)])
                         (append (cond [(pair? contents) contents]
                                       [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -226,9 +204,7 @@
         pre-contents ...)
      (syntax/loc stx
        (handbook-story #:counter-step? counter-step?
-                       #:style (cond [(not style) grouper-style]
-                                     [else (make-style (style-name style)
-                                                       (cons 'grouper (style-properties style)))])
+                       #:style (style-merge-property style grouper-style)
                        pre-contents ...))]))
 
 (define-syntax (handbook-part-section stx)
@@ -238,9 +214,7 @@
         ...
         pre-contents ...)
      (syntax/loc stx
-       (handbook-scenario #:style (cond [(not style) grouper-style]
-                                        [else (make-style (style-name style)
-                                                          (cons 'grouper (style-properties style)))])
+       (handbook-scenario #:style (style-merge-property style grouper-style)
                           pre-contents ...))]))
 
 (define-syntax (handbook-root-story stx)
@@ -380,14 +354,14 @@
                 (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
                   (list (struct-copy part bibliography-self
                                      [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                     [style (if numbered? placeholder-style (part-style bibliography-self))])))
+                                     [style (if numbered? plain (part-style bibliography-self))])))
                  null)
             
             (if (and index?)
                 (let ([index-self (index-section #:tag "handbook-index")])
                   (list (struct-copy part index-self 
                                      [title-content (list (speak 'index #:dialect 'tamer))]
-                                     [style (if numbered? placeholder-style (part-style index-self))]
+                                     [style (if numbered? plain (part-style index-self))]
                                      [blocks (append (list (texbook-twocolumn))
                                                      (part-blocks index-self)
                                                      (list (texbook-onecolumn)))])))
@@ -442,39 +416,41 @@
            #:insertion-color [insertion-color #x20A745] #:deletion-color [deletion-color #xCB2431]
            #:ring-name [ring-name "lang-ring"] #:loc-name [loc-name "line-of-code"]
            ring-chart loc-series]
-    (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
-    (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
-    (define lang-files (git-files->langfiles all-files null subgroups))
-    (define lang-sizes (git-files->langsizes all-files null subgroups))
-    (define lang-stats (git-numstats->langstats all-numstats null subgroups))
+    (make-traverse-block
+     (λ [get set!]      
+       (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
+       (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
+       (define lang-files (git-files->langfiles all-files null subgroups))
+       (define lang-sizes (git-files->langsizes all-files null subgroups))
+       (define lang-stats (git-numstats->langstats all-numstats null subgroups))
+       
+       (define src-file
+         (for/fold ([count 0])
+                   ([lf (in-hash-values lang-files)])
+           (+ count (length (git-language-content lf)))))
+       
+       (define-values (insertions deletions)
+         (if (not lang-delta-only?)
+             (git-numstats->additions+deletions* all-numstats)
+             (git-langstats->additions+deletions* lang-stats)))
+       
+       (define langstats
+         (for/list ([(id lang) (in-hash lang-stats)]
+                    #:when (hash-has-key? lang-sizes id))
+           lang))
+       
+       (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
+                              ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
+                              ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
+                        (tabular #:sep (hspace 1) #:column-properties '(left right)
+                                 (list (let* ([pie-radius (or git-radius 75)]
+                                              [series-height (* (or git-radius pie-radius) 2)]
+                                              [series-width (or git-width 380)])
+                                         (list (handbook-image #:name ring-name
+                                                               (ring-chart pie-radius lang-sizes altcolors))
+                                               (handbook-image #:name loc-name
+                                                               (loc-series series-width series-height langstats altcolors date-delta))))))))))))
     
-    (define src-file
-      (for/fold ([count 0])
-                ([lf (in-hash-values lang-files)])
-        (+ count (length (git-language-content lf)))))
-    
-    (define-values (insertions deletions)
-      (if (not lang-delta-only?)
-          (git-numstats->additions+deletions* all-numstats)
-          (git-langstats->additions+deletions* lang-stats)))
-    
-    (define langstats
-      (for/list ([(id lang) (in-hash lang-stats)]
-                 #:when (hash-has-key? lang-sizes id))
-        lang))
-    
-    (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
-                           ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
-                           ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
-                     (tabular #:sep (hspace 1) #:column-properties '(left right)
-                              (list (let* ([pie-radius (or git-radius 75)]
-                                           [series-height (* (or git-radius pie-radius) 2)]
-                                           [series-width (or git-width 380)])
-                                      (list (handbook-image #:name ring-name
-                                                            (ring-chart pie-radius lang-sizes altcolors))
-                                            (handbook-image #:name loc-name
-                                                            (loc-series series-width series-height langstats altcolors date-delta))))))))))
-
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
     (define col-size (length table-head))

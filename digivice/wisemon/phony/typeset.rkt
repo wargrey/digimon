@@ -85,13 +85,12 @@
       (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir (assert (file-name-from-path TEXNAME.ext))))
       (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
       (define this-stone (build-path local-stone (assert (file-name-from-path (path-replace-extension TEXNAME.scrbl #"")))))
-      (define pdfinfo.tex (path-replace-extension TEXNAME.sub #".hyperref.tex"))
       (define doclass.tex (build-path this-stone "documentclass.tex"))
       (define style.tex (build-path this-stone "style.tex"))
       (define load.tex (build-path this-stone "load.tex"))
-      (define scrbl-deps (scribble-smart-dependencies TEXNAME.scrbl))
+      (define scrbl-deps (filter file-exists? #| <- say commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
       (define tamer-deps (if (not raw-tex?) (handbook-dependencies TEXNAME.scrbl 'latex) null))
-      (define render-deps (list doclass.tex style.tex load.tex))
+      (define render-deps (filter file-exists? (list doclass.tex style.tex load.tex)))
       (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define options : (Listof Keyword) (tex-info-options typesetting))
 
@@ -108,18 +107,18 @@
       (values
        (if (or (memq '#:always-make options)
                (and real-target? (memq '#:explicitly-make options)))
-           (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex always-files)
+           (list* TEXNAME.ext TEXNAME.tex always-files)
            always-files)
 
        (if (and (memq '#:explicitly-make options)
                 (not real-target?))
-           (list* TEXNAME.ext TEXNAME.tex pdfinfo.tex ignored-files)
+           (list* TEXNAME.ext TEXNAME.tex ignored-files)
            ignored-files)
 
        ;;; NOTE: order matters
        (append specs
                (if (and raw-tex?)
-                   (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
+                   (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? #| <- say commented out (require)s |# (tex-smart-dependencies TEXNAME.scrbl)) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.ext)))
                                        (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        
@@ -131,7 +130,8 @@
                                        (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
                                                    engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
 
-                         (wisemon-spec TEXNAME.tex #:^ (cons pdfinfo.tex (filter file-exists? (append scrbl-deps tamer-deps regexp-deps render-deps))) #:-
+                         (wisemon-spec TEXNAME.tex #:^ (list* TEXNAME.scrbl ; please keep the source as the first one
+                                                              local-info.rkt (append scrbl-deps tamer-deps regexp-deps render-deps)) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.tex)))
                                        (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
@@ -173,7 +173,7 @@
                                                     (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
                                                             #:render-mixin tex:render-mixin #:dest-dir dest-dir
                                                             #:prefix-file (and (file-exists? ,doclass.tex) ,doclass.tex)
-                                                            #:style-file (and (file-exists? ,style.tex) ,style.tex) #:style-extra-files (list ,pdfinfo.tex)
+                                                            #:style-file (and (file-exists? ,style.tex) ,style.tex)
                                                             #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                                            
                                            (when (file-exists? hook.rktl)
@@ -182,45 +182,31 @@
                                                         (when (procedure? ecc) (tex:extra-character-conversions ecc)))))
                                              (fg-recon-eval engine `(dynamic-load-character-conversions ,hook.rktl)))
                                            
-                                           (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir)))))
-                         
-                         (wisemon-spec pdfinfo.tex #:^ (filter file-exists? (list local-info.rkt TEXNAME.scrbl)) #:-
-                                       (define-values (title authors) (handbook-metainfo TEXNAME.scrbl "; "))
-                                       (define dest-dir : Path (assert (path-only pdfinfo.tex)))
-                                       
-                                       (define (hypersetup [/dev/stdout : Output-Port]) : Void
-                                         (displayln "\\hypersetup{" /dev/stdout)
-                                         (dtrace-debug "~a ~a: title: ~a" the-name engine title)
-                                         (fprintf /dev/stdout "  pdftitle={~a},~n" title)
-                                         (dtrace-debug "~a ~a: authors: ~a" the-name engine authors)
-                                         (fprintf /dev/stdout "  pdfauthor={~a},~n" authors)
-                                         (displayln "}" /dev/stdout)
-                                         (newline /dev/stdout))
-                                       
-                                       (unless (directory-exists? dest-dir)
-                                         (fg-recon-mkdir engine dest-dir))
-                                       
-                                       (fg-recon-save-file engine pdfinfo.tex hypersetup)))))))))
+                                           (fg-recon-eval engine `(tex:render ,TEXNAME.scrbl #:dest-dir ,dest-dir))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typeset-specs+targets : (-> (Option Info-Ref) (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
-  (lambda [info-ref]
-    (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref)))
-    (define real-goals : (Listof Path) (current-make-real-targets))
-
-    (define-values (always-files ignored-files specs)
-      (make-typesetting-specs
-       (cond [(null? real-goals) all-typesettings]
-             [else (digimon-scribbles->typesettings all-typesettings real-goals)])))
+(define make-typeset-specs+targets : (-> (Listof Tex-Info) (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
+  (lambda [typesettings]
+    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings))
 
     (values always-files ignored-files specs (wisemon-targets-flatten specs))))
 
-(define make-typeset-prepare : (-> String Info-Ref Any)
+(define make-typeset-prepare : (-> String (Option Info-Ref) (Listof Tex-Info))
   (lambda [digimon info-ref]
-    (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
+    (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref)))
+    (define real-goals : (Listof Path) (current-make-real-targets))
+    (define texinfos : (Listof Tex-Info)
+      (cond [(null? real-goals) all-typesettings]
+            [else (digimon-scribbles->typesettings all-typesettings real-goals)]))
+
+    (when (and info-ref)
+      (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
     
-    (wisemon-make (make-native-library-specs info-ref natives) px.so)
-    (wisemon-compile (current-directory) digimon info-ref)))
+      (wisemon-make (make-native-library-specs info-ref natives) px.so)
+      (wisemon-compile (current-directory) digimon info-ref))
+
+    (typeset-compile-source texinfos)
+    texinfos))
 
 (define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Void)
   (lambda [specs always-files ignored-files targets]
@@ -230,10 +216,12 @@
 
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
-    (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets info-ref))
-    
-    (make-typeset-prepare digimon info-ref)
-    (make-typeset specs always-files ignored-files targets)))
+    (define typesettings : (Listof Tex-Info) (make-typeset-prepare digimon info-ref))
+
+    (when (pair? typesettings)
+      (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets typesettings))
+      
+      (make-typeset specs always-files ignored-files targets))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))
@@ -278,6 +266,17 @@
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
                               texin))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define typeset-compile-source : (-> (Listof Tex-Info) Void)
+  (lambda [targets]
+    (define info-ref : Info-Ref
+      (lambda [symid [fallback (λ [] (raise-user-error 'make-typeset "undefined symbol: `~a`" symid))]]
+        (case symid
+          [(scribblings) (list (map tex-info-path targets))]
+          [else (fallback)])))
+
+    (compile-directory (current-directory) info-ref #:for-typesetting? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony

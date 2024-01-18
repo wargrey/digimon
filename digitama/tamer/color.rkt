@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/list)
 (require racket/symbol)
 (require racket/match)
 
@@ -12,6 +11,8 @@
 (require file/convertible)
 
 (require scribble/core)
+
+(require "style.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define fg:rgb
@@ -69,10 +70,6 @@
 (define bg-style-database (make-hasheq))
 (define fg-rich-style-database (make-hash))
 (define bg-rich-style-database (make-hash))
-
-(define style-property-compose
-  (lambda [props c prop?]
-    (cons c (filter-not prop? props))))
 
 (define rgb-hex
   (lambda [c]

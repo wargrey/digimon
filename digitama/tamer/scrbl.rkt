@@ -60,10 +60,10 @@
 
 (define handbook-compound-block-extract-path
   (lambda [style children render-mode]
-    (append (handbook-style-extract-path style render-mode)
-            (apply append
-                   (for/list ([child (in-list children)])
-                     (handbook-block-extract-path child render-mode))))))
+    (apply append
+           (cons (handbook-style-extract-path style render-mode)
+                 (for/list ([child (in-list children)])
+                   (handbook-block-extract-path child render-mode))))))
 
 (define handbook-block-content-extract-path
   (lambda [style children render-mode]
@@ -104,16 +104,16 @@
 (define handbook-style-extract-path
   (lambda [style render-mode]
     (let extract ([props (style-properties style)]
-                  [paths null])
+                  [shtap null])
       (if (pair? props)
           (let-values ([(self rest) (values (car props) (cdr props))])
-            (cond [(tex-addition? self) (extract rest (style-path-cons (tex-addition-path self) paths 'latex render-mode))]
-                  [(css-addition? self) (extract rest (style-path-cons (css-addition-path self) paths 'html render-mode))]
-                  [(js-addition? self) (extract rest (style-path-cons (js-addition-path self) paths 'html render-mode))]
-                  [(css-style-addition? self) (extract rest (style-path-cons (css-style-addition-path self) paths 'html render-mode))]
-                  [(js-style-addition? self) (extract rest (style-path-cons (js-style-addition-path self) paths 'html render-mode))]
-                  [else (extract rest paths)]))
-          (reverse paths)))))
+            (cond [(tex-addition? self) (extract rest (style-path-cons (tex-addition-path self) shtap 'latex render-mode))]
+                  [(css-addition? self) (extract rest (style-path-cons (css-addition-path self) shtap 'html render-mode))]
+                  [(js-addition? self) (extract rest (style-path-cons (js-addition-path self) shtap 'html render-mode))]
+                  [(css-style-addition? self) (extract rest (style-path-cons (css-style-addition-path self) shtap 'html render-mode))]
+                  [(js-style-addition? self) (extract rest (style-path-cons (js-style-addition-path self) shtap 'html render-mode))]
+                  [else (extract rest shtap)]))
+          (reverse shtap)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define style-path-cons
