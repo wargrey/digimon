@@ -2,9 +2,7 @@
 
 (provide (all-defined-out))
 
-(require racket/string)
 (require racket/list)
-
 (require file/convertible)
 
 (require scribble/core)
@@ -16,8 +14,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-metainfo
-  (lambda [src.scrbl author-sep]
-    (define pthis (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc)))
+  (lambda [pthis]
     (define maybe-authors
       (let search-authors ([blocks (part-blocks pthis)])
         (and (pair? blocks)
@@ -28,13 +25,12 @@
                  (search-authors (cdr blocks))))))
     
     (values (content->string (or (part-title-content pthis) null))
-            (if (not maybe-authors) "" (string-join (map content->string maybe-authors) author-sep)))))
+            (if (list? maybe-authors) (map content->string maybe-authors) null))))
 
 (define handbook-dependencies
-  (lambda [src.scrbl render-mode]
+  (lambda [pthis render-mode]
     (remove-duplicates
-     (handbook-part-extract-path (if (part? src.scrbl) src.scrbl (dynamic-require src.scrbl 'doc))
-                                 render-mode))))
+     (handbook-part-extract-path pthis render-mode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-part-extract-path
