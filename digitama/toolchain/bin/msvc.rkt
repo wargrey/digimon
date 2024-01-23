@@ -138,11 +138,14 @@
     (define msvc-env (unbox &msvc-env))
 
     (if (not msvc-env)
-        (or (c-find-binary-path basename topic)
-            (let-values ([(full-vcvarsall.bat vcvarsall.bat) (msvc-vcvarsall-path #false topic)])
-              (and full-vcvarsall.bat
-                   (parameterize ([current-environment-variables (msvc-make-envs full-vcvarsall.bat vcvarsall.bat &msvc-env)])
-                     (c-find-binary-path basename topic)))))
+        (let ([epath (c-find-binary-path basename topic)])
+          (if (not epath)
+              (let-values ([(full-vcvarsall.bat vcvarsall.bat) (msvc-vcvarsall-path #false topic)])
+                (and full-vcvarsall.bat
+                     (parameterize ([current-environment-variables (msvc-make-envs full-vcvarsall.bat vcvarsall.bat &msvc-env)])
+                       (c-find-binary-path basename topic))))
+              (begin (set-box! &msvc-env (current-environment-variables))
+                     epath)))
         (parameterize ([current-environment-variables msvc-env])
           (c-find-binary-path basename topic)))))
 
