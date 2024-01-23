@@ -50,9 +50,11 @@
     (fg-recon-exec
      #:env (toolchain-env compiler)
      'cc
-     (assert (cond [(not cpp?) (force (toolchain-program compiler))]
-                   [else (or (force (cc-++ compiler))
-                             (force (toolchain-program compiler)))]))
+     (assert (let ([cc (force (toolchain-program compiler))]
+                   [cc++ (cc-++ compiler)])
+               (cond [(not cpp?) cc]
+                     [(not cc++) cc]
+                     [else (or (force cc++) cc)])))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
        (case layout
          [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
@@ -90,9 +92,11 @@
     (fg-recon-exec
      #:env (toolchain-env linker)
      'ld
-     (assert (cond [(not cpp?) (force (toolchain-program linker))]
-                   [else (or (force (ld-++ linker))
-                             (force (toolchain-program linker)))]))
+     (assert (let ([ld (force (toolchain-program linker))]
+                   [ld++ (ld-++ linker)])
+               (cond [(not cpp?) ld]
+                     [(not ld++) ld]
+                     [else (or (force ld++) ld)])))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
        (case layout
          [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]

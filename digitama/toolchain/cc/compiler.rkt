@@ -25,7 +25,7 @@
    [includes : CC-Includes]
    [infile : CC-IO-File-Flag]
    [outfile : CC-IO-File-Flag]
-   [++ : (Promise (Option Path))])
+   [++ : (Option (Promise (Option Path)))])
   #:constructor-name make-cc
   #:type-name CC)
 
@@ -61,10 +61,12 @@
                 #:infile [infile cc-default-io-file] #:outfile [outfile cc-default-io-file]
                 #:basename [basename #false] #:env [env #false] #:find-compiler [find-compiler c-find-binary-path]]
     (define cc : Symbol (or basename name))
+    (define cc++ : Symbol (c-cpp-partner cc))
     
     (hash-set! cc-database name
                (make-cc (lazy (find-compiler cc 'cc))
                         layout env
                         macros flags includes
                         infile outfile
-                        (lazy (find-compiler (c-cpp-partner cc) 'cc))))))
+                        (and (not (eq? cc cc++))
+                             (lazy (find-compiler cc++ 'cc)))))))

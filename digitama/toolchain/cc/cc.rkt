@@ -39,8 +39,8 @@
     (define bin : (Option Path) (find-executable-path (string-append (symbol->immutable-string basename) binary.ext) #false #false))
 
     (if (not bin)
-        (dtrace-debug #:topic topic "try searching the path for ~a, failed!" basename)
-        (dtrace-debug #:topic topic "try searching the path for ~a, okay." basename))
+        (dtrace-debug #:topic topic "try searching the path for `~a`, failed!" basename)
+        (dtrace-debug #:topic topic "try searching the path for `~a`, okay." basename))
     
     bin))
 

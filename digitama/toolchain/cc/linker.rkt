@@ -25,7 +25,7 @@
    [libraries : LD-Libraries]
    [infile : LD-IO-File-Flag]
    [outfile : LD-IO-File-Flag]
-   [++ : (Promise (Option Path))])
+   [++ : (Option (Promise (Option Path)))])
   #:constructor-name make-ld
   #:type-name LD)
 
@@ -53,10 +53,12 @@
                 #:infile [infile ld-default-io-file] #:outfile [outfile ld-default-io-file]
                 #:basename [basename #false] #:find-linker [find-linker c-find-binary-path] #:env [env #false]]
     (define ld : Symbol (or basename name))
+    (define ld++ : Symbol (c-cpp-partner ld))
     
     (hash-set! ld-database name
                (make-ld (lazy (find-linker ld 'ld))
                         layout env
                         flags subsystem libpaths libraries
                         infile outfile
-                        (lazy (find-linker (c-cpp-partner ld) 'ld))))))
+                        (and (not (eq? ld ld++))
+                             (lazy (find-linker ld++ 'ld)))))))

@@ -26,7 +26,7 @@
     (void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define environment-variables-try-set! : (-> Environment-Variables String Boolean)
+(define environment-variables-try-set! : (-> Environment-Variables String (Option (Pairof String (Option String))))
   (lambda [env name=value]
     (define maybe (regexp-match #px"^\\s*(\\S+)\\s*=\\s*(.*)$" name=value))
 
@@ -37,7 +37,7 @@
                 (environment-variables-set! env (string->bytes/utf-8 nam)
                                             (and val (string->bytes/utf-8 val))
                                             λfalse)
-                #true)))))
+                (cons nam val))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define environment-variables-push-path! : (-> Environment-Variables (Listof Path-String) [#:name Bytes] Void)

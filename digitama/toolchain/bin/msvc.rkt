@@ -51,7 +51,7 @@
     (if (not pass-to-linker?)
         (append (list "/nologo" "/utf-8")
                 (if (not dll?) (list "/MT") (list "/MD" "/LD")))
-        (append (if (not verbose?) null (list "/VERBOSE"))))))
+        (append (if (not verbose?) null (list #;"/VERBOSE"))))))
 
 (define msvc-subsystem-flags : LD-Subsystem
   (lambda [system cpp? ?subsystem ?entry]
@@ -181,8 +181,12 @@
     
     (let ([/dev/envin (open-input-bytes (get-output-bytes /dev/envout) '/dev/envin)])
       (for ([line (in-lines /dev/envin 'any)])
-        (dtrace-trace #:topic 'env line)
-        (environment-variables-try-set! msvc-env line))
+        (define name=value (environment-variables-try-set! msvc-env line))
+
+        (when (pair? name=value)
+          (dtrace-trace #:topic 'env "~a = ~a"
+                        (car name=value)
+                        (cdr name=value))))
       
       (unless (not &env)
         (set-box! &env msvc-env))
