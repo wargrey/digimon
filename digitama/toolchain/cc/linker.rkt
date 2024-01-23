@@ -44,7 +44,7 @@
 (define c-register-linker : (-> Symbol (Listof (U LD-Options String))
                                 #:flags LD-Flags #:libpaths LD-Libpaths #:libraries LD-Libraries
                                 [#:subsystem LD-Subsystem] [#:infile LD-IO-File-Flag] [#:outfile LD-IO-File-Flag]
-                                [#:basename (Option Symbol)] [#:find-linker (-> Symbol (Option Path))]
+                                [#:basename (Option Symbol)] [#:find-linker (-> Symbol Symbol (Option Path))]
                                 [#:env (U False Environment-Variables (-> Environment-Variables))]
                                 Void)
   (lambda [name layout
@@ -55,8 +55,8 @@
     (define ld : Symbol (or basename name))
     
     (hash-set! ld-database name
-               (make-ld (lazy (find-linker ld))
+               (make-ld (lazy (find-linker ld 'ld))
                         layout env
                         flags subsystem libpaths libraries
                         infile outfile
-                        (lazy (find-linker (c-cpp-partner ld)))))))
+                        (lazy (find-linker (c-cpp-partner ld) 'ld))))))

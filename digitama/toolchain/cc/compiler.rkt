@@ -53,7 +53,7 @@
 (define c-register-compiler : (-> Symbol (Listof (U CC-Options String))
                                   #:macros CC-CPP-Macros #:includes CC-Includes #:flags CC-Flags
                                   [#:infile CC-IO-File-Flag] [#:outfile CC-IO-File-Flag]
-                                  [#:basename (Option Symbol)] [#:find-compiler (-> Symbol (Option Path))]
+                                  [#:basename (Option Symbol)] [#:find-compiler (-> Symbol Symbol (Option Path))]
                                   [#:env (U False Environment-Variables (-> Environment-Variables))]
                                   Void)
   (lambda [name layout
@@ -63,8 +63,8 @@
     (define cc : Symbol (or basename name))
     
     (hash-set! cc-database name
-               (make-cc (lazy (find-compiler cc))
+               (make-cc (lazy (find-compiler cc 'cc))
                         layout env
                         macros flags includes
                         infile outfile
-                        (lazy (find-compiler (c-cpp-partner cc)))))))
+                        (lazy (find-compiler (c-cpp-partner cc) 'cc))))))
