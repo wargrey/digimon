@@ -6,6 +6,7 @@
 
 (require racket/list)
 (require racket/symbol)
+(require racket/promise)
 
 (require "digitama/toolchain/cc/cc.rkt")
 (require "digitama/toolchain/cc/compiler.rkt")
@@ -28,7 +29,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-compiler : (->* () ((Option (Listof Symbol))) (Option CC))
   (lambda [[compilers #false]]
-    (ormap (λ [[compiler : Symbol]] (hash-ref cc-database compiler (λ [] #false)))
+    (ormap (λ [[compiler : Symbol]] (toolchain-promise-filter (hash-ref cc-database compiler (λ [] #false))))
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
@@ -48,7 +49,10 @@
     (make-parent-directory* outfile)
     (fg-recon-exec
      #:env (toolchain-env compiler)
-     'cc (if (not cpp?) (toolchain-program compiler) (cc-++ compiler))
+     'cc
+     (assert (cond [(not cpp?) (force (toolchain-program compiler))]
+                   [else (or (force (cc-++ compiler))
+                             (force (toolchain-program compiler)))]))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
        (case layout
          [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
@@ -62,7 +66,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-pick-linker : (->* () ((Option (Listof Symbol))) (Option LD))
   (lambda [[linkers #false]]
-    (ormap (λ [[linker : Symbol]] (hash-ref ld-database linker (λ [] #false)))
+    (ormap (λ [[linker : Symbol]] (toolchain-promise-filter (hash-ref ld-database linker (λ [] #false))))
            (c-linker-candidates linkers))))
 
 (define c-link : (->* ((U Path-String (Listof Path-String)) Path-String)
@@ -85,7 +89,10 @@
     (void (pretask outfile))
     (fg-recon-exec
      #:env (toolchain-env linker)
-     'ld (if (not cpp?) (toolchain-program linker) (ld-++ linker))
+     'ld
+     (assert (cond [(not cpp?) (force (toolchain-program linker))]
+                   [else (or (force (ld-++ linker))
+                             (force (toolchain-program linker)))]))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
        (case layout
          [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
@@ -193,7 +200,8 @@
 
 (define c-toolchain-name : (-> Tool-Chain Symbol)
   (lambda [tc]
-    (define basename : (Option Path) (file-name-from-path (toolchain-program tc)))
+    (define bin : (Option Path) (force (toolchain-program tc)))
+    (define basename : (Option Path) (and bin (file-name-from-path bin)))
     
     (cond [(path? basename) (string->symbol (path->string (path-replace-extension basename #"")))]
           [else '|should not happen|])))

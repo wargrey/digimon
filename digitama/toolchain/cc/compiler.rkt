@@ -4,6 +4,7 @@
 
 (require racket/path)
 (require racket/string)
+(require racket/promise)
 
 (require "cc.rkt")
 (require "../toolchain.rkt")
@@ -24,7 +25,7 @@
    [includes : CC-Includes]
    [infile : CC-IO-File-Flag]
    [outfile : CC-IO-File-Flag]
-   [++ : Path])
+   [++ : (Promise (Option Path))])
   #:constructor-name make-cc
   #:type-name CC)
 
@@ -60,12 +61,10 @@
                 #:infile [infile cc-default-io-file] #:outfile [outfile cc-default-io-file]
                 #:basename [basename #false] #:env [env #false] #:find-compiler [find-compiler c-find-binary-path]]
     (define cc : Symbol (or basename name))
-    (define program : (Option Path) (find-compiler cc))
-    (define program++ : (Option Path) (find-compiler (c-cpp-partner cc)))
-
-    (when (path? program)
-      (hash-set! cc-database name
-                 (make-cc program layout env
-                          macros flags includes
-                          infile outfile
-                          (or program++ program))))))
+    
+    (hash-set! cc-database name
+               (make-cc (lazy (find-compiler cc))
+                        layout env
+                        macros flags includes
+                        infile outfile
+                        (lazy (find-compiler (c-cpp-partner cc)))))))

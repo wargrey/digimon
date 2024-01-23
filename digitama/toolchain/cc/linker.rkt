@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require racket/promise)
+
 (require "cc.rkt")
 (require "../toolchain.rkt")
 (require "../../../filesystem.rkt")
@@ -23,7 +25,7 @@
    [libraries : LD-Libraries]
    [infile : LD-IO-File-Flag]
    [outfile : LD-IO-File-Flag]
-   [++ : Path])
+   [++ : (Promise (Option Path))])
   #:constructor-name make-ld
   #:type-name LD)
 
@@ -51,12 +53,10 @@
                 #:infile [infile ld-default-io-file] #:outfile [outfile ld-default-io-file]
                 #:basename [basename #false] #:find-linker [find-linker c-find-binary-path] #:env [env #false]]
     (define ld : Symbol (or basename name))
-    (define program : (Option Path) (find-linker ld))
-    (define program++ : (Option Path) (find-linker (c-cpp-partner ld)))
-
-    (when (path? program)
-      (hash-set! ld-database name
-                 (make-ld program layout env
-                          flags subsystem libpaths libraries
-                          infile outfile
-                          (or program++ program))))))
+    
+    (hash-set! ld-database name
+               (make-ld (lazy (find-linker ld))
+                        layout env
+                        flags subsystem libpaths libraries
+                        infile outfile
+                        (lazy (find-linker (c-cpp-partner ld)))))))
