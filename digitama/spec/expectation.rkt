@@ -20,25 +20,42 @@
     [(_ (~optional (~seq (~or #:forall #:∀) tvars) #:defaults ([tvars #'()]))
         (id:id [arg:id : Type:expr] ...)
         (~alt (~optional (~seq #:default-format format) #:defaults ([format #'#false]))
+              (~optional (~seq #:user-format user-format) #:defaults ([user-format #'#false]))
               (~optional (~seq #:name alt-name) #:defaults ([alt-name #'#false]))) ...
         body ...)
      (with-syntax ([expect-id (format-id #'id "expect-~a" (syntax-e #'id))]
-                   [(T ...) (syntax->list #'tvars)])
+                   [check-id (format-id #'id "check-~a" (syntax-e #'id))]
+                   [(T ...) (syntax->list #'tvars)]
+                   [(User-Format ...) (if (syntax-e #'user-format) #'((Option Spec-Issue-Format)) #'())])
        (syntax/loc stx
          (begin (define argv : (Listof String) (list (symbol->immutable-string 'arg) ...))
                 (define argc : Index (length argv))
-                
-                (define make-expect : (-> Symbol Syntax (Listof Any) (All (T ...) (->* (Type ...) (String) #:rest Any Void)))
+
+                (define make-expect : (-> Symbol Syntax (Listof Any) (All (T ...) (->* (Type ... User-Format ...) (String) #:rest Any Void)))
                   (lambda [name loc exprs]
-                    (define #:forall (T ...) (expect-id [arg : Type] ... . [argl : Any *]) : Void
-                      (parameterize ([default-spec-issue-expectation (or alt-name name)]
-                                     [default-spec-issue-message (spec-message argl)]
-                                     [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
-                                     [default-spec-issue-expressions exprs]
-                                     [default-spec-issue-arguments argv]
-                                     [default-spec-issue-parameters (list arg ...)]
-                                     [default-spec-issue-format (or (default-spec-issue-format) format)])
-                        body ... (void)))
+                    (define #:forall (T ...) (check-id [arg : Type] ...) : Void
+                      body ... (void))
+                    
+                    (define expect-id
+                      (if (not 'user-format)
+                          (lambda #:forall (T ...) [[arg : Type] ... . [argl : Any *]] : Void
+                            (parameterize ([default-spec-issue-expectation (or alt-name name)]
+                                           [default-spec-issue-message (spec-message argl)]
+                                           [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
+                                           [default-spec-issue-expressions exprs]
+                                           [default-spec-issue-arguments argv]
+                                           [default-spec-issue-parameters (list arg ...)]
+                                           [default-spec-issue-format (spec-format-stack format (default-spec-issue-format))])
+                              (check-id arg ...)))
+                          (lambda #:forall (T ...) [[arg : Type] ... [uformat : (Option Spec-Issue-Format)] . [argl : Any *]] : Void
+                            (parameterize ([default-spec-issue-expectation (or alt-name name)]
+                                           [default-spec-issue-message (spec-message argl)]
+                                           [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
+                                           [default-spec-issue-expressions exprs]
+                                           [default-spec-issue-arguments argv]
+                                           [default-spec-issue-parameters (list arg ...)]
+                                           [default-spec-issue-format (spec-format-stack uformat (spec-format-stack format (default-spec-issue-format)))])
+                              (check-id arg ...)))))
                     expect-id))
 
                 (define-syntax (expect-id stx)
@@ -51,14 +68,25 @@
   (syntax-parse stx #:literals [:]
     [(_ (?:id [arg:id : Type:expr] ...)
         (~alt (~optional (~seq #:default-format format) #:defaults ([format #'#false]))
+              (~optional (~seq #:user-format user-format) #:defaults ([user-format #'#false]))
               (~optional (~seq #:name alt-name) #:defaults ([alt-name #'#false]))) ...
         body ...)
      (syntax/loc stx
        (define-spec-expectation (? [arg : Type] ...)
          #:default-format format
+         #:user-format user-format
          #:name 'alt-name
          (or (let () (void) body ...)
              (spec-misbehave))))]))
+
+(define-syntax (define-spec-expectation* stx)
+  (syntax-parse stx #:literals [:]
+    [(_ (~optional (~seq (~or #:forall #:∀) tvars) #:defaults ([tvars #'()]))
+        (id:id argl ...) rest ... body ...)
+     (with-syntax ([id* (format-id #'id "~a*" (syntax-e #'id))])
+       (syntax/loc stx
+         (begin (define-spec-expectation #:forall tvars (id argl ...) rest ...)
+                (define-spec-expectation #:forall tvars (id* argl ...) #:user-format usr-format rest ...))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-boolean-expectation (eq [given : Any] [expected : Any]) (eq? expected given))
@@ -195,22 +223,41 @@
     (parameterize ([default-spec-issue-exception maybe-e])
       (spec-misbehave))))
 
-(define-spec-expectation #:forall (T) (satisfy [predicate : (-> T Boolean)] [given : T])
+(define-spec-expectation* #:forall (T) (satisfy [predicate : (-> T Boolean)] [given : T])
   (or (predicate given)
       (spec-misbehave)))
 
-(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
+(define-spec-expectation* #:forall (T) (dissatisfy [predicate : (-> T Boolean)] [given : T])
+  (and (predicate given)
+       (spec-misbehave)))
+
+(define-spec-expectation* #:forall (L R) (is [check : (-> L R Boolean)] [lhs : L] [rhs : R])
+  (or (check lhs rhs)
+      (spec-misbehave)))
+
+(define-spec-expectation* #:forall (L R) (isnt [check : (-> L R Boolean)] [lhs : L] [rhs : R])
+  (and (check lhs rhs)
+       (spec-misbehave)))
+
+(define-spec-expectation* #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
   (or (andmap predicate givens)
       (spec-misbehave)))
+
+(define-spec-expectation* #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (or (ormap predicate givens)
+      (spec-misbehave)))
+
+(define-spec-expectation* #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (and (ormap predicate givens)
+       (spec-misbehave)))
+
+(define-spec-expectation* #:forall (T) (ordered [given : (Sequenceof T)] [op : (-> T T Boolean)])
+  (when (> (sequence-length given) 1)
+    (for/fold ([r : T (sequence-ref given 0)])
+              ([s (sequence-tail given 1)])
+      (if (op r s) s (spec-misbehave)))))
 
 (define-spec-expectation (regexp-match [px : Spec-Match-Datum] [given : (U Path-String Bytes Input-Port)])
   (or (cond [(input-port? given) (regexp-match-peek px given)]
             [else (regexp-match? px given)])
       (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (ordered [given : (Sequenceof T)] [op : (-> T T Boolean)])
-  (for/fold ([r : (Option T) #false])
-            ([s given])
-    (cond [(not r) s]
-          [(op r s) s]
-          [else (spec-misbehave)])))

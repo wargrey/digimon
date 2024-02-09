@@ -11,6 +11,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
+(define-type Spec-Issue-Format-Datum (U String Void False))
+(define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
@@ -21,7 +23,7 @@
 (define default-spec-issue-arguments : (Parameterof (Listof String)) (make-parameter null))
 (define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
-(define default-spec-issue-format : (Parameterof (Option (-> Any String))) (make-parameter #false))
+(define default-spec-issue-format : (Parameterof (Option Spec-Issue-Format)) (make-parameter #false))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
 
@@ -38,7 +40,7 @@
    [parameters : (Listof Any)]
    [exception : (Option exn:fail)]
    
-   [format : (Option (-> Any String))])
+   [format : (Option Spec-Issue-Format)])
   #:type-name Spec-Issue
   #;transparent)
 
@@ -113,7 +115,7 @@
 
     (let ([exprs (spec-issue-expressions issue)]
           [argus (spec-issue-arguments issue)]
-          [paras (map (or (spec-issue-format issue) ~s) (spec-issue-parameters issue))])
+          [paras (map (spec-make-param->string (spec-issue-format issue)) (spec-issue-parameters issue))])
       (when (spec-issue-expectation issue)
         (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
       
@@ -195,3 +197,21 @@
                   (display-stack (cdr stacks) sofni)))
             (for ([info (in-list (reverse (remove-duplicates sofni)))])
               (eechof #:fgcolor color "~a »»»» ~a: ~a~n" headspace (cdr info) (car info))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-make-param->string : (-> (Option Spec-Issue-Format) (-> Any String))
+  (lambda [spec-format]
+    (or (and spec-format
+             (λ [para]
+               (let* ([desc (spec-format para ~s)])
+                 (if (string? desc) desc (~s para)))))
+        ~s)))
+
+(define spec-format-stack : (-> (Option Spec-Issue-Format) (Option Spec-Issue-Format) (Option Spec-Issue-Format))
+  (lambda [usr-format fallback-format]
+    (cond [(not usr-format) fallback-format]
+          [(not fallback-format) usr-format]
+          [else (λ [[para : Any] [fallback : (-> Any Spec-Issue-Format-Datum)]] : Spec-Issue-Format-Datum
+                  (usr-format para
+                              (λ [para]
+                                (fallback-format para fallback))))])))

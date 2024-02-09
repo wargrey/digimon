@@ -15,10 +15,6 @@
       (build-path (if (equal? this-name bin) parent-dir this-dir) "lib"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cvoid*?
-  (lambda [v]
-    (and v (cpointer? v))))
-
 (define c-extern
   (lambda [variable ctype]
     (get-ffi-obj variable #false ctype)))

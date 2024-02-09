@@ -15,9 +15,7 @@
     [(argl)
      (and (pair? argl) (string? (car argl))
           (spec-message (car argl) (cdr argl)))]
-    [(fmt argl)
-     (cond [(null? argl) fmt]
-           [else (apply format fmt argl)])]))
+    [(fmt argl) (~string fmt argl)]))
 
 (define spec-location : (-> Syntax (Option srcloc))
   (lambda [stx]
@@ -28,23 +26,23 @@
            (srcloc src line column (syntax-position stx) (syntax-span stx))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define spec-format/octet : (-> Any String)
-  (lambda [v]
+(define spec-format/octet : Spec-Issue-Format
+  (lambda [v fallback]
     (cond [(byte? v) (~binstring v 8)]
           [(integer? v) (~binstring v)]
           [(bytes? v) (~binstring v)]
-          [else (~s v)])))
+          [else (fallback v)])))
 
-(define spec-format/bin : (-> Any String)
-  (lambda [v]
+(define spec-format/bin : Spec-Issue-Format
+  (lambda [v fallback]
     (cond [(byte? v) (~binstring v)]
           [(integer? v) (~binstring v)]
           [(bytes? v) (~binstring v)]
-          [else (~s v)])))
+          [else (fallback v)])))
 
-(define spec-format/hex : (-> Any String)
-  (lambda [v]
+(define spec-format/hex : Spec-Issue-Format
+  (lambda [v fallback]
     (cond [(byte? v) (byte->hexstring v)]
           [(integer? v) (~hexstring v)]
           [(bytes? v) (~hexstring v)]
-          [else (~s v)])))
+          [else (fallback v)])))

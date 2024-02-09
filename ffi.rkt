@@ -51,3 +51,8 @@
     [(_ sym:id (~optional #:in) lib (~optional #:as) type)
      (syntax/loc stx
        (define sym (digimon-ffi-obj 'sym lib type)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cpointer*?
+  (lambda [v]
+    (and v (cpointer? v))))

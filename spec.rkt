@@ -5,12 +5,13 @@
                      [spec-begin begin-spec]
                      [spec-begin begin-example]))
 
-(provide Spec-Summary Spec-Behavior Spec-Feature)
+(provide Spec-Summary Spec-Behavior Spec-Feature Spec-Issue-Format Spec-Issue-Format-Datum)
 (provide spec-feature? spec-behavior? spec-feature-brief default-spec-issue-handler)
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
 (provide define-feature define-scenario define-behavior define-context describe context)
 (provide let/spec let*/spec let-values/spec let*-values/spec for/spec for*/spec it $!)
 (provide collapse ignore pending make-it)
+(provide spec-format/octet spec-format/bin spec-format/hex)
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
 (provide (all-from-out "digitama/spec/expectation.rkt"))
@@ -18,6 +19,7 @@
 (require "digitama/spec/issue.rkt")
 (require "digitama/spec/prompt.rkt")
 (require "digitama/spec/seed.rkt")
+(require "digitama/spec/misc.rkt")
 
 (require "digitama/spec/expectation.rkt")
 (require "digitama/spec/behavior.rkt")
