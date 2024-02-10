@@ -401,14 +401,14 @@
                                           (bytes 3 7 5 7 3 2 2 0 0 0 0 0 0 0 0 0 6 4 3)))
                        
                        (it "should be inflated and restored to its original text" #:do
-                           (expect-no-exception (λ [] ($! plaintext (inflate deflated-twocities))))
+                           (expect-noexcept (λ [] ($! plaintext (inflate deflated-twocities))))
                            (expect-bytes= (sha256-bytes plaintext)
                                           (bytes #xd0 #x18 #xba #xfe #x40 #x0d #xaf #xbe #x80 #xf4 #x92 #x82 #x00 #x00 #x27 #xfb
                                                  #x11 #x09 #x5a #x46 #x7d #x2d #x77 #xe2 #x56 #x56 #xd0 #xe2 #xba #x7a #xb1 #xf8)))))
 
             (context "when provided with a dynamic deflated block, but without distance codes" #:do
                      (it "should be inflated and restored to its original text as well" #:do
-                         (expect-no-exception
+                         (expect-noexcept
                           (λ [] (expect-bytes= (inflate deflated-dist0)
                                                (bytes 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
                                                       15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0))))))))

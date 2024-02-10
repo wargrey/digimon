@@ -4,6 +4,7 @@
 
 (require racket/port)
 (require racket/list)
+(require racket/symbol)
 
 (require "../../emoji.rkt")
 (require "../../format.rkt")
@@ -11,6 +12,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
+(define-type Spec-Sexps (Listof Datum))
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
 
@@ -19,8 +21,8 @@
 (define default-spec-issue-expectation : (Parameterof (Option Symbol)) (make-parameter #false))
 (define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
 (define default-spec-issue-location : (Parameterof (Option srcloc)) (make-parameter #false))
-(define default-spec-issue-expressions : (Parameterof (Listof Any)) (make-parameter null))
-(define default-spec-issue-arguments : (Parameterof (Listof String)) (make-parameter null))
+(define default-spec-issue-expressions : (Parameterof (Syntaxof Spec-Sexps)) (make-parameter #'(list)))
+(define default-spec-issue-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
 (define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 (define default-spec-issue-format : (Parameterof (Option Spec-Issue-Format)) (make-parameter #false))
@@ -35,8 +37,8 @@
    [expectation : (Option Symbol)]
    [message : (Option String)]
    [location : (Option srcloc)]
-   [expressions : (Listof Any)]
-   [arguments : (Listof String)]
+   [expressions : (Syntaxof Spec-Sexps)]
+   [arguments : (Listof Symbol)]
    [parameters : (Listof Any)]
    [exception : (Option exn:fail)]
    
@@ -113,8 +115,8 @@
       (unless (not e)
         (spec-display-message headspace color null (object-name e) (exn-message e))))
 
-    (let ([exprs (spec-issue-expressions issue)]
-          [argus (spec-issue-arguments issue)]
+    (let ([exprs (syntax-e (spec-issue-expressions issue))]
+          [argus (map symbol->immutable-string (spec-issue-arguments issue))]
           [paras (map (spec-make-param->string (spec-issue-format issue)) (spec-issue-parameters issue))])
       (when (spec-issue-expectation issue)
         (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
