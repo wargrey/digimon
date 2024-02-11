@@ -12,7 +12,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
-(define-type Spec-Sexps (Listof Datum))
+(define-type Spec-Sexps (Listof Syntax))
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
 
@@ -129,7 +129,7 @@
               [argu (in-list argus)]
               [para (in-list paras)])
           (eechof #:fgcolor color "~a   ~a~a: ~a" headspace (~space (max (- asize (string-length argu)) 0)) argu para)
-          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" (~space (max (- psize (string-length para)) 0)) expr))))))
+          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" (~space (max (- psize (string-length para)) 0)) (syntax->datum expr)))))))
   
 (define spec-issue-error-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkred] #:indent [headspace ""]]
