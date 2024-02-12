@@ -5,9 +5,20 @@
 (provide (all-from-out ffi/unsafe/define))
 (provide (all-from-out ffi/unsafe/alloc))
 
+(provide (all-from-out '#%foreign))
+(provide (rename-out [ctype-c->scheme ctype-c->racket]
+                     [ctype-scheme->c ctype-racket->c]))
+
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require ffi/unsafe/alloc)
+
+(require racket/unsafe/ops)
+
+(require (only-in '#%foreign
+                  ctype-basetype
+                  ctype-c->scheme
+                  ctype-scheme->c))
 
 (require "digitama/ffi.rkt")
 (require "digitama/path.rkt")

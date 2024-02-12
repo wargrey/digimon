@@ -3,6 +3,7 @@
 (provide (except-out (all-defined-out) Spec-Match-Datum $?-logging-routine-values))
 
 (require racket/sequence)
+(require racket/list)
 
 (require "prompt.rkt")
 (require "issue.rkt")
@@ -11,12 +12,6 @@
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
-
-(require typed/racket/unsafe)
-
-(unsafe-require/typed
- racket/base
- [procedure-rename (All (f) (-> f Symbol f))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-spec-expectation stx)
@@ -249,9 +244,18 @@
   (or (andmap predicate givens)
       (spec-misbehave)))
 
+(define-spec-expectation #:forall (T) (dissatisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (and (andmap predicate givens)
+       (spec-misbehave)))
+
 (define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
   (or (ormap predicate givens)
       (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (satisfy-any* [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (let ([n (count predicate givens)])
+    (unless (< 0 n (length givens))
+      (spec-misbehave))))
 
 (define-spec-expectation #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Listof T)])
   (and (ormap predicate givens)
