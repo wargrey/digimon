@@ -244,10 +244,6 @@
   (or (andmap predicate givens)
       (spec-misbehave)))
 
-(define-spec-expectation #:forall (T) (dissatisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (and (andmap predicate givens)
-       (spec-misbehave)))
-
 (define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
   (or (ormap predicate givens)
       (spec-misbehave)))
