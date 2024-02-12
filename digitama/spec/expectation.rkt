@@ -114,9 +114,9 @@
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
 
-(define-spec-boolean-expectation (octet= [given : Byte] [expected : Byte])       #:default-format spec-format/octet (= given expected))
-(define-spec-boolean-expectation (octets= [given : Bytes] [expected : Bytes])    #:default-format spec-format/octet (bytes=? given expected))
-(define-spec-boolean-expectation (bytes= [given : Bytes] [expected : Bytes])     #:default-format spec-format/hex (bytes=? given expected))
+(define-spec-boolean-expectation (octet= [given : Byte] [expected : Byte])    #:default-format spec-format/octet (= given expected))
+(define-spec-boolean-expectation (octets= [given : Bytes] [expected : Bytes]) #:default-format spec-format/octet (bytes=? given expected))
+(define-spec-boolean-expectation (bytes= [given : Bytes] [expected : Bytes])  #:default-format spec-format/hex (bytes=? given expected))
 
 (define-spec-boolean-expectation (string= [given : String] [expected : String]) (string=? given expected))
 (define-spec-boolean-expectation (string-ci= [given : String] [expected : String]) (string-ci=? given expected))
@@ -228,6 +228,22 @@
 (define-spec-expectation #:forall (L R) (isnt [check : (-> L R Boolean)] [given : L] [expected : R])
   (and (check given expected)
        (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (are [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
+  (let prove ([prev : T (car givens)]
+              [rest : (Listof T) (cdr givens)])
+    (and (pair? rest)
+         (let ([self (car rest)])
+           (cond [(check prev self) (prove self (cdr rest))]
+                 [else (spec-misbehave)])))))
+
+(define-spec-expectation #:forall (T) (arent [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
+  (let prove ([prev : T (car givens)]
+              [rest : (Listof T) (cdr givens)])
+    (and (pair? rest)
+         (let ([self (car rest)])
+           (cond [(check prev self) (spec-misbehave)]
+                 [else (prove self (cdr rest))])))))
 
 (define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
   (or (andmap predicate givens)
