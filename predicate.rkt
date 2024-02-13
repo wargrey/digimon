@@ -2,23 +2,40 @@
 
 (provide (all-defined-out))
 
+(require "digitama/predicate.rkt")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define is-listof? : (All (T) (-> Any (-> Any Boolean : T) Boolean : #:+ (Listof T) #:- (! (Listof T))))
+(define listof? : (All (T) (case-> [Any (-> Any Boolean : T) -> Boolean : #:+ (Listof T) #:- (! (Listof T))]
+                                   [Any (-> Any Boolean) -> Boolean]))
   (lambda [v ?]
     (and (list? v)
          (andmap ? v))))
 
-(define is-listof+? : (All (T) (-> Any (-> Any Boolean : T) Boolean : #:+ (Pairof T (Listof T)) #:- (! (Pairof T (Listof T)))))
+(define listof+? : (All (T) (case-> [Any (-> Any Boolean : T) -> Boolean : #:+ (Pairof T (Listof T)) #:- (! (Pairof T (Listof T)))]
+                                    [Any (-> Any Boolean) -> Boolean]))
   (lambda [v ?]
     (and (list? v)
          (pair? v)
          (andmap ? v))))
+
+(define make-listof? : (All (T) (case-> [(-> Any Boolean : T) -> (-> Any Boolean : #:+ (Listof T) #:- (! (Listof T)))]
+                                        [(-> Any Boolean) -> (-> Any Boolean)]))
+  (lambda [?]
+    (λ [v] (listof? v ?))))
+
+(define make-listof+? : (All (T) (case-> [(-> Any Boolean : T) -> (-> Any Boolean : #:+ (Pairof T (Listof T)) #:- (! (Pairof T (Listof T))))]
+                                         [(-> Any Boolean) -> (-> Any Boolean)]))
+  (lambda [?]
+    (λ [v] (listof+? v ?))))
 
 (define disjoin? : (All (a b c) (case-> [Any (-> Any Boolean : a) (-> Any Boolean : b) -> Boolean : #:+ (U a b) #:- (! (U a b))]
                                         [Any (-> Any Boolean : a) (-> Any Boolean : b) (-> Any Boolean : c) -> Boolean : #:+ (U a b c) #:- (! (U a b c))]))
   (case-lambda
     [(v p1? p2?) (or (p1? v) (p2? v))]
     [(v p1? p2? p3?) (or (p1? v) (p2? v) (p3? v))]))
+
+(define listof-zero? : (-> Any Boolean) (make-listof? real-zero?))
+(define listof+zero? : (-> Any Boolean) (make-listof+? real-zero?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bs-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))

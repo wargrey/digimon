@@ -6,8 +6,7 @@
 (require racket/symbol)
 
 (require "digitama/cmdopt.rkt")
-
-(require "number.rkt")
+(require "digitama/predicate.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))

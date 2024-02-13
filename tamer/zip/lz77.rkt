@@ -9,10 +9,10 @@
 (require digimon/cmdopt)
 (require digimon/dtrace)
 (require digimon/format)
-(require digimon/number)
 (require digimon/debug)
 (require digimon/echo)
 
+(require digimon/digitama/predicate)
 (require digimon/digitama/bintext/lz77)
 (require digimon/digitama/bintext/archive)
 (require digimon/digitama/bintext/zipconfig)
