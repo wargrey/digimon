@@ -67,3 +67,34 @@
 (define cpointer*?
   (lambda [v]
     (and v (cpointer? v))))
+
+(define make-ctype*
+  (lambda [ctype out-hook [in-hook #false]]
+    (define basetype (ctype-basetype ctype))
+    (define racket->c (ctype-scheme->c ctype))
+    (define c->racket (ctype-c->scheme ctype))
+
+    (define (ctype-in-hook rkt)
+      (define v (in-hook rkt))
+      (if (void? v) rkt v))
+    
+    (define (ctype-out-hook rkt)
+      (define v (out-hook rkt))
+      (if (void? v) rkt v))
+
+    (make-ctype (or basetype ctype)
+                (cond [(not in-hook) racket->c]
+                      [(not racket->c) in-hook]
+                      [else (λ [rkt] (ctype-in-hook rkt))])
+                (cond [(not out-hook) c->racket]
+                      [(not c->racket) ctype-out-hook]
+                      [else (λ [c] (ctype-out-hook (c->racket c)))]))))
+
+(define ctype-bind-box
+  (lambda [ctype &dest]
+    (unless (box? &dest)
+      (raise-argument-error
+       'ctype-bind-box "box?" &dest))
+    
+    (make-ctype* ctype
+                 (λ [r] (unsafe-set-box! &dest r)))))
