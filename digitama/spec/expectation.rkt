@@ -99,6 +99,7 @@
 (define-spec-boolean-expectation (directory-exists [given : Path-String]) (directory-exists? given))
 
 (define-spec-boolean-expectation (= [given : Real] [expected : Real]) (= given expected))
+(define-spec-boolean-expectation (!= [given : Real] [expected : Real]) (not (= given expected)))
 (define-spec-boolean-expectation (< [given : Real] [origin : Real]) (< given origin))
 (define-spec-boolean-expectation (> [given : Real] [origin : Real]) (> given origin))
 (define-spec-boolean-expectation (<= [given : Real] [origin : Real]) (<= given origin))
@@ -108,6 +109,7 @@
 (define-spec-boolean-expectation (0x= [given : Integer] [expected : Integer]) #:default-format spec-format/hex (= given expected))
 
 (define-spec-boolean-expectation (fl= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (<= (magnitude (- given expected)) epsilon))
+(define-spec-boolean-expectation (fl!= [given : Flonum] [expected : Flonum] [epsilon : Nonnegative-Flonum]) (> (magnitude (- given expected)) epsilon))
 
 (define-spec-boolean-expectation (octet= [given : Byte] [expected : Byte])    #:default-format spec-format/octet (= given expected))
 (define-spec-boolean-expectation (octets= [given : Bytes] [expected : Bytes]) #:default-format spec-format/octet (bytes=? given expected))
@@ -122,6 +124,67 @@
 (define-spec-boolean-expectation (eof [given : Any])
   (cond [(input-port? given) (eof-object? (peek-byte given))]
         [else (eof-object? given)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-spec-expectation #:forall (T) (satisfy [predicate : (-> T Boolean)] [given : T])
+  (or (predicate given)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (dissatisfy [predicate : (-> T Boolean)] [given : T])
+  (and (predicate given)
+       (spec-misbehave)))
+
+(define-spec-expectation #:forall (G E) (is [check : (-> G E Boolean)] [given : G] [expected : E])
+  (or (check given expected)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (G E) (isnt [check : (-> G E Boolean)] [given : G] [expected : E])
+  (and (check given expected)
+       (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (are [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
+  (let prove ([prev : T (car givens)]
+              [rest : (Listof T) (cdr givens)])
+    (and (pair? rest)
+         (let ([self (car rest)])
+           (cond [(check prev self) (prove self (cdr rest))]
+                 [else (spec-misbehave)])))))
+
+(define-spec-expectation #:forall (T) (arent [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
+  (let prove ([prev : T (car givens)]
+              [rest : (Listof T) (cdr givens)])
+    (and (pair? rest)
+         (let ([self (car rest)])
+           (cond [(check prev self) (spec-misbehave)]
+                 [else (prove self (cdr rest))])))))
+
+(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (or (andmap predicate givens)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (or (ormap predicate givens)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (satisfy-any* [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (let ([n (count predicate givens)])
+    (unless (< 0 n (length givens))
+      (spec-misbehave))))
+
+(define-spec-expectation #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Listof T)])
+  (and (ormap predicate givens)
+       (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (ordered [givens : (Sequenceof T)] [op : (-> T T Boolean)])
+  (when (> (sequence-length givens) 1)
+    (for/fold ([r : T (sequence-ref givens 0)])
+              ([s (sequence-tail givens 1)])
+      (if (op r s) s (spec-misbehave)))))
+
+(define-spec-expectation (match [pattern : Spec-Match-Datum] [given : (U Path-String Bytes Input-Port)])
+  (or (cond [(input-port? given) (regexp-match-peek pattern given)]
+            [else (regexp-match? pattern given)])
+      (spec-misbehave)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Match-Datum (U Byte-Regexp Regexp Bytes String))
@@ -207,63 +270,3 @@
   (when (exn:fail? maybe-e)
     (parameterize ([default-spec-issue-exception maybe-e])
       (spec-misbehave))))
-
-(define-spec-expectation #:forall (T) (satisfy [predicate : (-> T Boolean)] [given : T])
-  (or (predicate given)
-      (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (dissatisfy [predicate : (-> T Boolean)] [given : T])
-  (and (predicate given)
-       (spec-misbehave)))
-
-(define-spec-expectation #:forall (L R) (is [check : (-> L R Boolean)] [given : L] [expected : R])
-  (or (check given expected)
-      (spec-misbehave)))
-
-(define-spec-expectation #:forall (L R) (isnt [check : (-> L R Boolean)] [given : L] [expected : R])
-  (and (check given expected)
-       (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (are [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
-  (let prove ([prev : T (car givens)]
-              [rest : (Listof T) (cdr givens)])
-    (and (pair? rest)
-         (let ([self (car rest)])
-           (cond [(check prev self) (prove self (cdr rest))]
-                 [else (spec-misbehave)])))))
-
-(define-spec-expectation #:forall (T) (arent [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
-  (let prove ([prev : T (car givens)]
-              [rest : (Listof T) (cdr givens)])
-    (and (pair? rest)
-         (let ([self (car rest)])
-           (cond [(check prev self) (spec-misbehave)]
-                 [else (prove self (cdr rest))])))))
-
-(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (or (andmap predicate givens)
-      (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (or (ormap predicate givens)
-      (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (satisfy-any* [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (let ([n (count predicate givens)])
-    (unless (< 0 n (length givens))
-      (spec-misbehave))))
-
-(define-spec-expectation #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (and (ormap predicate givens)
-       (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (ordered [givens : (Sequenceof T)] [op : (-> T T Boolean)])
-  (when (> (sequence-length givens) 1)
-    (for/fold ([r : T (sequence-ref givens 0)])
-              ([s (sequence-tail givens 1)])
-      (if (op r s) s (spec-misbehave)))))
-
-(define-spec-expectation (match [pattern : Spec-Match-Datum] [given : (U Path-String Bytes Input-Port)])
-  (or (cond [(input-port? given) (regexp-match-peek pattern given)]
-            [else (regexp-match? pattern given)])
-      (spec-misbehave)))
