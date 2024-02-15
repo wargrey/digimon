@@ -45,7 +45,7 @@
       
       (list* (wisemon-spec c.o #:^ (cons c (c-include-headers c #:topic (current-make-phony-goal)))
                            #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose)
-                                          #:includes (cons rootdir includes) #:macros macros
+                                          #:includes (cons rootdir includes) #:macros (cons '__racket__ macros)
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
