@@ -5,9 +5,6 @@
 (require racket/symbol)
 (require racket/match)
 
-(require racket/class)
-(require racket/draw)
-
 (require file/convertible)
 
 (require scribble/core)
@@ -80,10 +77,7 @@
   (let ([fallback (list 0 0 0)])
     (lambda [c]
       (cond [(exact-nonnegative-integer? c) (color-hex->rgb-list c)]
-            [(symbol? c) (rgb-list (send the-color-database find-color (symbol->immutable-string c)))]
             [(convertible? c) (convert c 'rgb-byte-list fallback)]
-            [(string? c) (rgb-list (send the-color-database find-color c))]
-            [(is-a? c color%) (list (send c red) (send c green) (send c blue))]
             [(color-property? c) (rgb-list (color-property-color c))]
             [(background-color-property? c) (rgb-list (background-color-property-color c))]
             [else (match c
