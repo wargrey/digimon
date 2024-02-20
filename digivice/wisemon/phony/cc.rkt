@@ -214,7 +214,7 @@
           (digimon-native-files->launcher-names info-launchers real-targets debug? force-lang)
           (values null null)))
     
-    (if (pair? info-launchers)
+    (if (or (pair? info-launchers) (pair? real-targets))
         (let* ([incdirs (if (not info-ref) null (list (path->string (digimon-path 'zone))))]
                [subfilter (cc-subpath-filter info-ref debug?)]
                [dstfilter (cc-destination-filter info-ref debug?)])
