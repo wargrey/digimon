@@ -68,6 +68,18 @@
   (lambda [v]
     (and v (cpointer? v))))
 
+(define make-ctype/release
+  (lambda [ctype deallocator]
+    (define basetype (ctype-basetype ctype))
+    (define racket->c (ctype-scheme->c ctype))
+    (define c->racket (ctype-c->scheme ctype))
+
+    (define (wrap datum)
+      ((deallocator (λ [] datum))))
+
+    (make-ctype (or basetype ctype) racket->c
+                (λ [c] (wrap (if c->racket (c->racket c) c))))))
+
 (define make-ctype*
   (lambda [ctype out-hook [in-hook #false]]
     (define basetype (ctype-basetype ctype))
