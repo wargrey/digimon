@@ -3,7 +3,6 @@
 (provide (except-out (all-defined-out) Spec-Match-Datum $?-logging-routine-values))
 
 (require racket/sequence)
-(require racket/list)
 
 (require "prompt.rkt")
 (require "issue.rkt")
@@ -32,32 +31,33 @@
                 (define #:forall (T ...) (λcheck-id [arg : Type] ...) : Void
                   body ... (void))
 
-                (define #:forall (T ...) λexpect-id : (->* (Syntax (Syntaxof Spec-Sexps) Type ...) ((U String Spec-Issue-Format)) #:rest Any Void)
+                (define #:forall (T ...) λexpect-id : (->* (Spec-Syntax Type ...) ((U String Spec-Issue-Format)) #:rest Any Void)
                   (case-lambda
-                    [(loc exprs arg ...)
+                    [(stx arg ...)
                      (parameterize ([default-spec-issue-expectation expectation-name]
                                     [default-spec-issue-arguments expectation-argv]
                                     [default-spec-issue-parameters (list arg ...)]
-                                    [default-spec-issue-expressions exprs]
-                                    [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
+                                    [default-spec-issue-expressions (Spec-Syntax-expressions stx)]
+                                    [default-spec-issue-locations (cons (Spec-Syntax-location stx) (default-spec-issue-locations))]
                                     [default-spec-issue-message #false]
                                     [default-spec-issue-format (spec-format-stack format (default-spec-issue-format))])
                        (λcheck-id arg ...))]
-                    [(loc exprs arg ... usrf . argl)
+                    [(stx arg ... usrf . argl)
                      (parameterize ([default-spec-issue-expectation expectation-name]
                                     [default-spec-issue-arguments expectation-argv]
                                     [default-spec-issue-parameters (list arg ...)]
-                                    [default-spec-issue-expressions exprs]
-                                    [default-spec-issue-location (or (default-spec-issue-location) (spec-location loc))]
+                                    [default-spec-issue-expressions (Spec-Syntax-expressions stx)]
+                                    [default-spec-issue-locations (cons (Spec-Syntax-location stx) (default-spec-issue-locations))]
                                     [default-spec-issue-message (if (string? usrf) (spec-message usrf argl) (spec-message argl))]
                                     [default-spec-issue-format (let ([stdf (spec-format-stack format (default-spec-issue-format))])
                                                                  (if (procedure? usrf) (spec-format-stack usrf stdf) stdf))])
                        (λcheck-id arg ...))]))
 
                 (define-syntax (expect-id stx)
-                  (with-syntax ([loc (datum->syntax stx '|use stx directly causes recursively macro expanding| stx)])
+                  ; using stx directly causes recursively macro expanding
+                  (with-syntax ([loc (datum->syntax stx 'expect-id stx)])
                     (syntax-parse stx
-                      [(_:id . arglist) (syntax/loc stx (λexpect-id #'loc #'arglist . arglist))]
+                      [(_:id . arglist) (syntax/loc stx (λexpect-id (Spec-Syntax #'loc #'arglist) #| <= hide them from type-checking error info |# . arglist))]
                       [_:id (syntax/loc stx λexpect-id)]))))))]))
 
 (define-syntax (define-spec-boolean-expectation stx)
@@ -81,12 +81,12 @@
 (define-spec-boolean-expectation (not-eqv [given : Any] [origin : Any]) (not (eqv? given origin)))
 (define-spec-boolean-expectation (not-equal [given : Any] [origin : Any]) (not (equal? given origin)))
 
-(define-spec-boolean-expectation (member [given : Any] [range : (Listof Any)]) (member given range))
-(define-spec-boolean-expectation (memv [given : Any] [range : (Listof Any)]) (memv given range))
-(define-spec-boolean-expectation (memq [given : Any] [range : (Listof Any)]) (memq given range))
-(define-spec-boolean-expectation (not-member [given : Any] [range : (Listof Any)]) (not (member given range)))
-(define-spec-boolean-expectation (not-memv [given : Any] [range : (Listof Any)]) (not (memv given range)))
-(define-spec-boolean-expectation (not-memq [given : Any] [range : (Listof Any)]) (not (memq given range)))
+(define-spec-boolean-expectation (member [given : Any] [range : (Sequenceof Any)]) (for/or : Boolean ([e range]) (equal? given e)))
+(define-spec-boolean-expectation (memv [given : Any] [range : (Sequenceof Any)]) (for/or : Boolean ([e range]) (eqv? given e)))
+(define-spec-boolean-expectation (memq [given : Any] [range : (Sequenceof Any)]) (for/or : Boolean ([e range]) (eq? given e)))
+(define-spec-boolean-expectation (not-member [given : Any] [range : (Sequenceof Any)]) (for/and : Boolean ([e range]) (not (equal? given e))))
+(define-spec-boolean-expectation (not-memv [given : Any] [range : (Sequenceof Any)]) (for/and : Boolean ([e range]) (not (eqv? given e))))
+(define-spec-boolean-expectation (not-memq [given : Any] [range : (Sequenceof Any)]) (for/and : Boolean ([e range]) (not (eq? given e))))
 
 (define-spec-boolean-expectation (zero [given : Number]) (zero? given))
 (define-spec-boolean-expectation (null [given : Any]) (null? given))
@@ -142,37 +142,36 @@
   (and (check given expected)
        (spec-misbehave)))
 
-(define-spec-expectation #:forall (T) (are [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
-  (let prove ([prev : T (car givens)]
-              [rest : (Listof T) (cdr givens)])
-    (and (pair? rest)
-         (let ([self (car rest)])
-           (cond [(check prev self) (prove self (cdr rest))]
-                 [else (spec-misbehave)])))))
-
-(define-spec-expectation #:forall (T) (arent [check : (-> T T Boolean)] [givens : (List* T (Listof T))])
-  (let prove ([prev : T (car givens)]
-              [rest : (Listof T) (cdr givens)])
-    (and (pair? rest)
-         (let ([self (car rest)])
-           (cond [(check prev self) (spec-misbehave)]
-                 [else (prove self (cdr rest))])))))
-
-(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (or (andmap predicate givens)
+(define-spec-expectation #:forall (G E) (are [check : (-> G E Boolean)] [given : (Sequenceof G)] [expected : (Sequenceof E)])
+  (if (= (sequence-length given) (sequence-length expected))
+      (for ([g given]
+            [e expected]
+            #:unless (check g e))
+        (spec-misbehave))
       (spec-misbehave)))
 
-(define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (or (ormap predicate givens)
-      (spec-misbehave)))
-
-(define-spec-expectation #:forall (T) (satisfy-any* [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (let ([n (count predicate givens)])
-    (unless (< 0 n (length givens))
+(define-spec-expectation #:forall (G E) (arent [check : (-> G E Boolean)] [given : (Sequenceof G)] [expected : (Sequenceof E)])
+  (when (= (sequence-length given) (sequence-length expected))
+    (for ([g given]
+          [e expected]
+          #:when (check g e))
       (spec-misbehave))))
 
-(define-spec-expectation #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Listof T)])
-  (and (ormap predicate givens)
+(define-spec-expectation #:forall (T) (satisfy-all [predicate : (-> T Boolean)] [givens : (Sequenceof T)])
+  (or (sequence-andmap predicate givens)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (satisfy-any [predicate : (-> T Boolean)] [givens : (Sequenceof T)])
+  (or (sequence-ormap predicate givens)
+      (spec-misbehave)))
+
+(define-spec-expectation #:forall (T) (satisfy-any+ [predicate : (-> T Boolean)] [givens : (Sequenceof T)] [min : Index])
+  (let ([n (sequence-count predicate givens)])
+    (unless (< min n (sequence-length givens))
+      (spec-misbehave))))
+
+(define-spec-expectation #:forall (T) (satisfy-none [predicate : (-> T Boolean)] [givens : (Sequenceof T)])
+  (and (sequence-ormap predicate givens)
        (spec-misbehave)))
 
 (define-spec-expectation #:forall (T) (ordered [givens : (Sequenceof T)] [op : (-> T T Boolean)])

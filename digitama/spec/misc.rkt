@@ -17,14 +17,6 @@
           (spec-message (car argl) (cdr argl)))]
     [(fmt argl) (~string fmt argl)]))
 
-(define spec-location : (-> Syntax (Option srcloc))
-  (lambda [stx]
-    (let ([src (syntax-source stx)]
-          [line (syntax-line stx)]
-          [column (syntax-column stx)])                        
-      (and (or (path? src) (path-string? src)) line column
-           (srcloc src line column (syntax-position stx) (syntax-span stx))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-format/octet : Spec-Issue-Format
   (lambda [v fallback]

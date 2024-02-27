@@ -16,11 +16,13 @@
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
 
+(struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]))
+
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
 (define default-spec-issue-expectation : (Parameterof (Option Symbol)) (make-parameter #false))
 (define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
-(define default-spec-issue-location : (Parameterof (Option srcloc)) (make-parameter #false))
+(define default-spec-issue-locations : (Parameterof (Listof Syntax)) (make-parameter null))
 (define default-spec-issue-expressions : (Parameterof (Syntaxof Spec-Sexps)) (make-parameter #'(list)))
 (define default-spec-issue-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
 (define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
@@ -36,7 +38,7 @@
 
    [expectation : (Option Symbol)]
    [message : (Option String)]
-   [location : (Option srcloc)]
+   [locations : (Listof Syntax)]
    [expressions : (Syntaxof Spec-Sexps)]
    [arguments : (Listof Symbol)]
    [parameters : (Listof Any)]
@@ -53,7 +55,7 @@
                 
                 (default-spec-issue-expectation)
                 (default-spec-issue-message)
-                (default-spec-issue-location)
+                (default-spec-issue-locations)
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
@@ -71,7 +73,7 @@
                 
                 (default-spec-issue-expectation)
                 (default-spec-issue-message)
-                (default-spec-issue-location)
+                (default-spec-issue-locations)
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
@@ -104,12 +106,8 @@
     (let ([message (spec-issue-message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))
-    
-    (let ([location (spec-issue-location issue)])
-      (unless (not location)
-        (eechof #:fgcolor color "~a location: ~a~n" headspace
-                (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
-                  (srcloc->string location)))))
+
+    (spec-display-locations (spec-issue-locations issue) color headspace "location")
 
     (let ([e (spec-issue-exception issue)])
       (unless (not e)
@@ -141,12 +139,7 @@
 
 (define spec-issue-todo-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkmagenta] #:indent [headspace ""]]
-    (let ([location (spec-issue-location issue)])
-      (unless (not location)
-        (eechof #:fgcolor color "~a TODO: ~a~n" headspace
-                (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
-                  (srcloc->string location)))))
-    
+    (spec-display-locations (spec-issue-locations issue) color headspace "TODO")
     (let ([message (spec-issue-message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))))
@@ -171,6 +164,20 @@
         (spec-issue-misbehavior-display issue)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-display-locations : (-> (Listof Syntax) Symbol String String Void)
+  (lambda [syntaxes color headspace tip]
+    (define locations (reverse (filter-map spec-location syntaxes)))
+    
+    (when (pair? locations)
+      (define subspace : String
+        (cond [(null? (cdr locations)) headspace]
+              [else (string-append headspace (make-string (+ (string-length tip) 4) #\space))]))
+      
+      (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
+        (eechof #:fgcolor color "~a ~a: ~a~n" headspace tip (srcloc->string (car locations)))
+        (for ([loc (in-list (cdr locations))])
+          (eechof #:fgcolor color "~a ~a~n" subspace (srcloc->string loc)))))))
+
 (define spec-display-message : (-> String Symbol (Listof Symbol) Any String Void)
   (lambda [headspace color attributes prefix message]
     (define messages : (Listof String) (call-with-input-string message port->lines))
@@ -217,3 +224,11 @@
                   (usr-format para
                               (λ [para]
                                 (fallback-format para fallback))))])))
+
+(define spec-location : (-> Syntax (Option srcloc))
+  (lambda [stx]
+    (let ([src (syntax-source stx)]
+          [line (syntax-line stx)]
+          [column (syntax-column stx)])                        
+      (and (or (path? src) (path-string? src)) line column
+           (srcloc src line column (syntax-position stx) (syntax-span stx))))))
