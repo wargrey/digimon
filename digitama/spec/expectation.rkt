@@ -48,7 +48,7 @@
                                     [default-spec-issue-parameters (list arg ...)]
                                     [default-spec-issue-expressions (Spec-Syntax-expressions stx)]
                                     [default-spec-issue-locations (cons (Spec-Syntax-location stx) (default-spec-issue-locations))]
-                                    [default-spec-issue-message (if (string? usrf) (spec-message usrf argl) (spec-message argl))]
+                                    [default-spec-issue-message (λ [] (if (string? usrf) (spec-message usrf argl) (spec-message argl)))]
                                     [default-spec-issue-format (let ([stdf (spec-format-stack format (default-spec-issue-format))])
                                                                  (if (procedure? usrf) (spec-format-stack usrf stdf) stdf))])
                        (λcheck-id arg ...))]))

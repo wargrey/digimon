@@ -11,8 +11,9 @@
 (require "../../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
 (define-type Spec-Sexps (Listof Syntax))
+(define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
+(define-type Spec-Issue-Message-Datum (U String (-> (Option String))))
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
 
@@ -21,7 +22,7 @@
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
 (define default-spec-issue-expectation : (Parameterof (Option Symbol)) (make-parameter #false))
-(define default-spec-issue-message : (Parameterof (Option String)) (make-parameter #false))
+(define default-spec-issue-message : (Parameterof (Option Spec-Issue-Message-Datum)) (make-parameter #false))
 (define default-spec-issue-locations : (Parameterof (Listof Syntax)) (make-parameter null))
 (define default-spec-issue-expressions : (Parameterof (Syntaxof Spec-Sexps)) (make-parameter #'(list)))
 (define default-spec-issue-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
@@ -37,7 +38,7 @@
    [brief : (Option String)]
 
    [expectation : (Option Symbol)]
-   [message : (Option String)]
+   [message : (Option Spec-Issue-Message-Datum)]
    [locations : (Listof Syntax)]
    [expressions : (Syntaxof Spec-Sexps)]
    [arguments : (Listof Symbol)]
@@ -103,7 +104,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-issue-misbehavior-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkred] #:indent [headspace ""]]
-    (let ([message (spec-issue-message issue)])
+    (let ([message (spec-issue->message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))
 
@@ -140,7 +141,7 @@
 (define spec-issue-todo-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkmagenta] #:indent [headspace ""]]
     (spec-display-locations (spec-issue-locations issue) color headspace "TODO")
-    (let ([message (spec-issue-message issue)])
+    (let ([message (spec-issue->message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))))
 
@@ -171,7 +172,7 @@
     (when (pair? locations)
       (define subspace : String
         (cond [(null? (cdr locations)) headspace]
-              [else (string-append headspace (make-string (+ (string-length tip) 4) #\space))]))
+              [else (string-append headspace (make-string (+ (string-length tip) 2) #\space))]))
       
       (parameterize ([current-directory-for-user (default-spec-issue-rootdir)])
         (eechof #:fgcolor color "~a ~a: ~a~n" headspace tip (srcloc->string (car locations)))
@@ -224,6 +225,14 @@
                   (usr-format para
                               (λ [para]
                                 (fallback-format para fallback))))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-issue->message : (-> Spec-Issue (Option String))
+  (lambda [self]
+    (define message (spec-issue-message self))
+    (and message
+         (cond [(string? message) message]
+               [else (message)]))))
 
 (define spec-location : (-> Syntax (Option srcloc))
   (lambda [stx]
