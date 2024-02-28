@@ -10,7 +10,7 @@
 (provide make-spec-behavior make-spec-feature spec-behaviors-fold)
 (provide define-feature define-scenario define-behavior define-context describe context)
 (provide let/spec let*/spec let-values/spec let*-values/spec for/spec for*/spec it $!)
-(provide collapse ignore pending make-it)
+(provide collapse ignore pending make-it spec-misbehave (rename-out [make-it pass]))
 (provide spec-format/octet spec-format/bin spec-format/hex)
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
