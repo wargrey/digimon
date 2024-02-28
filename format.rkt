@@ -14,6 +14,7 @@
 (require racket/string)
 (require racket/symbol)
 (require racket/math)
+(require racket/port)
 
 (require racket/format)
 (require racket/pretty)
@@ -86,9 +87,11 @@
           [(boolean? val) (~binstring (if val 1 0))]
           [else (~binstring (string->bytes/utf-8 (~a val)))])))
 
-(define ~space : (-> Natural String)
-  (let ([space : (HashTable Natural String) (make-hasheq)])
-    (lambda [n]
+(define ~space : (-> Integer String)
+  (let ([space : (HashTable Integer String) (make-hasheq)])
+    (lambda [n0]
+      (define n : Index (if (index? n0) n0 0))
+      
       (hash-ref! space n
                  (λ [] (make-string n #\space))))))
 
@@ -121,6 +124,10 @@
 (define ~string : (-> String (Listof Any) String)
   (lambda [msgfmt argl]
     (if (null? argl) msgfmt (apply format msgfmt argl))))
+
+(define ~string-lines : (-> String (Pairof String (Listof String)))
+  (lambda [s]
+    (assert (call-with-input-string s port->lines) pair?)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define generate-immutable-string : (-> (U String Symbol) String)

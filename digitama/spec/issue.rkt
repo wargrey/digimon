@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/port)
 (require racket/list)
 (require racket/symbol)
 
@@ -116,19 +115,27 @@
 
     (let ([exprs (syntax-e (spec-issue-expressions issue))]
           [argus (map symbol->immutable-string (spec-issue-arguments issue))]
-          [paras (map (spec-make-param->string (spec-issue-format issue)) (spec-issue-parameters issue))])
+          [paras (map ~string-lines (map (spec-make-param->string (spec-issue-format issue)) (spec-issue-parameters issue)))])
       (when (spec-issue-expectation issue)
         (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
       
       (when (pair? argus)
         (define asize : Index (apply max (map string-length argus)))
-        (define psize : Index (apply max (map string-length paras)))
+        (define psize : Index (apply max (for/list : (Listof Index) ([para (in-list paras)])
+                                           (string-length (car para)))))
 
         (for ([expr (in-list exprs)]
               [argu (in-list argus)]
               [para (in-list paras)])
-          (eechof #:fgcolor color "~a   ~a~a: ~a" headspace (~space (max (- asize (string-length argu)) 0)) argu para)
-          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" (~space (max (- psize (string-length para)) 0)) (syntax->datum expr)))))))
+          (define datum-space : String (~space (- asize (string-length argu))))
+          (define subdatum-space : String (~space asize))
+          (define expr-space : String (~space (- psize (string-length (car para)))))
+          
+          (eechof #:fgcolor color "~a    ~a~a: ~a" headspace datum-space argu (car para))
+          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" expr-space (syntax->datum expr))
+
+          (for ([subline (in-list (cdr para))])
+            (eechof #:fgcolor color "~a    ~a  ~a~n" headspace subdatum-space subline)))))))
   
 (define spec-issue-error-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkred] #:indent [headspace ""]]
@@ -160,7 +167,7 @@
       (define type : Spec-Issue-Type (spec-issue-type issue))
       
       (fprintf /dev/stdout "~a - ~a~n" type (spec-issue-brief issue))
-
+      
       (when (eq? type 'misbehaved)
         (spec-issue-misbehavior-display issue)))))
 
@@ -181,7 +188,7 @@
 
 (define spec-display-message : (-> String Symbol (Listof Symbol) Any String Void)
   (lambda [headspace color attributes prefix message]
-    (define messages : (Listof String) (call-with-input-string message port->lines))
+    (define messages : (Listof String) (~string-lines message))
     (define head : String (format "~a: " prefix))
 
     (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace head (car messages))

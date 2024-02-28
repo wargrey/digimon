@@ -139,12 +139,21 @@
                              [memory : Integer] [cpu : Natural] [real : Natural] [gc : Natural] [seed:orders : (Listof Natural)]) : (Listof Natural)
         (define type : Spec-Issue-Type (spec-issue-type issue))
         (define headline : String (format "~a~a ~a - " (~space (+ indent indent)) (~symbol type) (if (null? seed:orders) 1 (car seed:orders))))
-        (define headspace : String (~space (string-length headline)))
+        (define headspace : String (~space (string-utf-8-length headline)))
+        (define briefs : (Pairof String (Listof String)) (~string-lines (or (spec-issue-brief issue) "")))
+        (define fgc : Symbol (~fgcolor type))
 
-        (echof #:fgcolor (~fgcolor type) "~a~a" headline (spec-issue-brief issue))
+        (echof #:fgcolor fgc "~a~a" headline (car briefs))
+
+        (when (and (eq? type 'pass) (not no-timing-info?))
+          (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc)))
+          (newline))
+        
+        (for ([subline (in-list (cdr briefs))])
+          (echof #:fgcolor fgc "~a~a" headspace subline)
+          (newline))
 
         (case type
-          [(pass) (when (not no-timing-info?) (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc)))) (newline)]
           [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
           [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
           [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
