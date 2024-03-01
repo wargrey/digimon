@@ -45,6 +45,11 @@
     (unless (cc? compiler)
       (error 'c-compile "no suitable C compiler is found: ~a"
              (c-compiler-candidates compilers)))
+
+    (define all-Ds : CC-Macros
+      (let ([Ds (apply append (map c-macro-normalize macros))])
+        (cond [(assoc "Flonum" Ds) Ds]
+              [else (cons (cons "Flonum" "double") Ds)])))
     
     (make-parent-directory* outfile)
     (fg-recon-exec
@@ -58,8 +63,7 @@
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
        (case layout
          [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
-         [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?)
-                                         digimon-system cpp? (apply append (map c-macro-normalize macros)))]
+         [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?) digimon-system cpp? all-Ds)]
          [(includes) (remove-duplicates ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?))]
          [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
          [(outfile) ((cc-outfile compiler) outfile digimon-system cpp?)]
