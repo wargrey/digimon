@@ -10,6 +10,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define env:sep : Bytes (if (eq? (system-type 'os) 'windows) #";" #":"))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define environment-variables-remove! : (-> Environment-Variables Bytes Void)
   (lambda [env name]
     (environment-variables-set! env name #false)
@@ -26,18 +27,19 @@
     (void)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define environment-variables-try-set! : (-> Environment-Variables String (Option (Pairof String (Option String))))
+(define environment-variables-try-set! : (case-> [Environment-Variables String -> (Option (Pairof String (Option String)))]
+                                                 [Environment-Variables Bytes -> (Option (Pairof Bytes (Option Bytes)))])
   (lambda [env name=value]
-    (define maybe (regexp-match #px"^\\s*(\\S+)\\s*=\\s*(.*)$" name=value))
+    (define maybe (regexp-match #px#"^\\s*(\\S+?)\\s*=\\s*(.*)$" name=value))
 
     (and maybe (pair? (cdr maybe)) (pair? (cddr maybe))
          (let ([nam (cadr maybe)]
                [val (caddr maybe)])
-           (and (non-empty-string? nam)
-                (environment-variables-set! env (string->bytes/utf-8 nam)
-                                            (and val (string->bytes/utf-8 val))
-                                            λfalse)
-                (cons nam val))))))
+           (and (bytes-environment-variable-name? nam)
+                (environment-variables-set! env nam (and val val) λfalse)
+                (cond [(bytes? name=value) (cons nam val)]
+                      [else (cons (bytes->string/utf-8 nam)
+                                  (and val (bytes->string/utf-8 val)))]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define environment-variables-push-path! : (-> Environment-Variables (Listof Path-String) [#:name Bytes] Void)
