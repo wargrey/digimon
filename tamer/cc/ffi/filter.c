@@ -1,6 +1,6 @@
-#include "nested/seed.h"
+#include "nested/version.h"
 
-__lambda__ double random_filter() {
-    return random_seed() * 0.1;
+/////////////////////////////////////////////////////////////////////////////////////////////////// 
+__lambda__ double stdc_version_filter() {
+    return stdc_version() * 0.01;
 }
-

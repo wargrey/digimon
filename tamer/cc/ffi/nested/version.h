@@ -5,7 +5,6 @@
 
 #include "empty.h"
 
-int random_seed();
+long stdc_version();
 
 #endif /* NESTED_H */
-

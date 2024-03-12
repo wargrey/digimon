@@ -5,30 +5,31 @@
 (require digimon/spec)
 
 (require "ffi/filter.rkt")
-(require "ffi/seed.rkt")
+(require "ffi/version.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-feature prelude #:do
   (describe "C" #:do
             (describe "shared object for FFI" #:do
-                      (context "nested" #:do
-                               (describe random_seed #:do
-                                         (it "should return a small integer" #:do
-                                             (expect-satisfy exact-integer? (random_seed))
-                                             (expect-< (random_seed) 64))))
-                      (context "filter" #:do
-                               (describe random_filter #:do
-                                         (it "should return a small double flonum" #:do
-                                             (expect-satisfy flonum? (random_filter))
-                                             (expect-< (random_filter) 64.0))))))
+              (context "nested" #:do
+                (describe stdc_version #:do
+                  (it "should return a long integer" #:do
+                    (expect-satisfy exact-integer? (stdc_version))
+                    (expect-> (stdc_version) 198400))))
+              (context "filter" #:do
+                (describe stdc_version_filter #:do
+                  (it "should return a double flonum" #:do
+                    (expect-satisfy flonum? (stdc_version_filter))
+                    (displayln (stdc_version_filter))
+                    (expect-> (stdc_version_filter) 1984.0))))))
   (describe "C++" #:do
-            (describe "shared object for FFI" #:do
-                      (context "seed" #:do
-                               (describe random_seed_plus #:do
-                                         (it "should return a large integer" #:do
-                                             (expect-satisfy exact-integer? (random_seed_plus))
-                                             (expect->= (random_seed_plus) 64)))))))
-  
+    (describe "shared object for FFI" #:do
+      (context "version" #:do
+        (describe stdc_version_plus #:do
+          (it "should return a long integer" #:do
+            (expect-satisfy exact-integer? (stdc_version_plus))
+            (expect-> (stdc_version_plus) 198400)))))))
+
 
 
 

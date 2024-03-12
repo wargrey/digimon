@@ -1,10 +1,10 @@
 #include <iostream>
 
-#include "../ffi/nested/seed.h"
+#include "../ffi/nested/version.h"
 
 /**************************************************************************************************/
 int main(int argc, char* argv[]) {
-    std::cout << "the seed is " << random_seed() << std::endl;
+    std::cout << "the standard C++ version is " << stdc_version() << "L" << std::endl;
+    
     return 0;
 }
-

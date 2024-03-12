@@ -6,10 +6,10 @@
   (require digimon/ffi)
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define-ffi-definer define-nested (digimon-ffi-lib "seed"))
+  (define-ffi-definer define-version (digimon-ffi-lib "version"))
   
-  (define-nested random_seed_plus (_fun -> _int)))
+  (define-version stdc_version_plus (_fun -> _long)))
 
 (require/typed/provide
  (submod "." unsafe)
- [random_seed_plus (-> Natural)])
+ [stdc_version_plus (-> Natural)])

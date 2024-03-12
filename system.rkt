@@ -3,7 +3,6 @@
 (provide (all-defined-out) current-digimon current-digivice current-free-zone)
 (provide #%info digimon-waketime digimon-uptime digimon-partner digimon-system digimon-path digivice-path)
 
-(require racket/format)
 (require racket/match)
 (require racket/port)
 (require racket/place)

@@ -6,12 +6,12 @@
   (require digimon/ffi)
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define-ffi-definer define-nested (digimon-ffi-lib "filter"))
+  (define-ffi-definer define-filter (digimon-ffi-lib "filter"))
 
-  (define-nested random_seed (_fun -> _int))
-  (define-nested random_filter (_fun -> _double)))
+  (define-filter stdc_version (_fun -> _long))
+  (define-filter stdc_version_filter (_fun -> _double)))
 
 (require/typed/provide
  (submod "." unsafe)
- [random_seed (-> Natural)]
- [random_filter (-> Nonnegative-Flonum)])
+ [stdc_version (-> Natural)]
+ [stdc_version_filter (-> Nonnegative-Flonum)])

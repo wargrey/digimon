@@ -1,11 +1,10 @@
 #include <stdio.h>
 
-#include "../ffi/nested/seed.h"
+#include "../ffi/nested/version.h"
 
-/**************************************************************************************************/
+///////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[]) {
-    printf("the seed is %d\n", random_seed());
+    printf("the standard C version is %ldL\n", stdc_version());
 
     return 0;
 }
-
