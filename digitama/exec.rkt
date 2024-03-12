@@ -11,7 +11,7 @@
 (require "../format.rkt")
 (require "../symbol.rkt")
 
-(require "system.rkt")
+(require "minimal/system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)

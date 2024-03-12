@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 (provide (all-from-out racket/port))
+(provide (all-from-out "digitama/minimal/port.rkt"))
 (provide EvtSelf port-always-write-evt port-always-write-special-evt)
 
 (require racket/port)
@@ -11,7 +12,9 @@
 (require "digitama/unsafe/ops.rkt")
 (require "digitama/evt.rkt")
 (require "digitama/port.rkt")
-(require "digitama/system.rkt")
+
+(require "digitama/minimal/port.rkt")
+(require "digitama/minimal/system.rkt")
 
 (require "format.rkt")
 (require "function.rkt")
@@ -23,12 +26,6 @@
 (define-type Port-Chain-Block-Info (-> Index (Values Natural Natural)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define /dev/stdin : Input-Port (current-input-port))
-(define /dev/stdout : Output-Port (current-output-port))
-(define /dev/stderr : Output-Port (current-error-port))
-(define /dev/eof : Input-Port (open-input-bytes #"" '/dev/null))
-(define /dev/null : Output-Port (open-output-nowhere '/dev/null))
-
 (define /dev/zero : Input-Port
   (make-input-port '/dev/zero
                    (λ [[bs : Bytes]]

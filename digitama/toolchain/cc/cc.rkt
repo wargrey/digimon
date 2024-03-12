@@ -4,28 +4,28 @@
 
 (require racket/symbol)
 
-(require "../toolchain.rkt")
+(require "../../minimal/system.rkt")
 (require "../../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define object.ext : Bytes (if (eq? os 'windows) #".obj" #".o"))
-(define binary.ext : String (if (eq? os 'windows) ".exe" ""))
-(define library.ext : String (if (eq? os 'windows) ".lib" ".a"))
+(define object.ext : Bytes (if (eq? digimon-system 'windows) #".obj" #".o"))
+(define binary.ext : String (if (eq? digimon-system 'windows) ".exe" ""))
+(define library.ext : String (if (eq? digimon-system 'windows) ".lib" ".a"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-compiler-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))
   (lambda [compilers]
     (cond [(pair? compilers) compilers]
-          [(eq? os 'macosx) '(clang gcc)]
-          [(eq? os 'unix) '(gcc clang)]
-          [else '(msvc)])))
+          [(eq? digimon-system 'macosx) '(clang gcc)]
+          [(eq? digimon-system 'unix) '(gcc clang)]
+          [else '(msvc gcc)])))
 
 (define c-linker-candidates : (-> (Option (Listof Symbol)) (Listof Symbol))
   (lambda [linkers]
     (cond [(pair? linkers) linkers]
-          [(eq? os 'macosx) '(clang gcc)]
-          [(eq? os 'unix) '(gcc clang)]
-          [else '(msvc)])))
+          [(eq? digimon-system 'macosx) '(clang gcc)]
+          [(eq? digimon-system 'unix) '(gcc clang)]
+          [else '(msvc gcc)])))
 
 (define c-cpp-partner : (-> Symbol Symbol)
   (lambda [cc]

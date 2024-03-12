@@ -16,8 +16,9 @@
 
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/exec.rkt")
-(require "../../../port.rkt")
 (require "../../../dtrace.rkt")
+
+(require "../../../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Sample-Info (Pairof (Pairof Path Path) (Pairof Index (Option Index))))

@@ -6,7 +6,7 @@
 (require "../phony.rkt")
 
 (require "../spec.rkt")
-(require "../native.rkt")
+(require "../ffi.rkt")
 (require "../racket.rkt")
 
 (require "../../../dtrace.rkt")
@@ -63,7 +63,7 @@
 (define make~prove : Make-Free-Phony
   (lambda [digimon info-ref]
     (unless (not info-ref)
-      (wisemon-make (make-native-library-specs info-ref) px.so)
+      (wisemon-make (make-ffi-library-specs info-ref) px.so)
       (wisemon-compile (current-directory) digimon info-ref))
 
     (wisemon-make (make-prove-specs info-ref) (current-make-real-targets) #true)))

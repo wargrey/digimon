@@ -10,7 +10,8 @@
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
 (require "../thread.rkt")
-(require "../port.rkt")
+
+(require "../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags

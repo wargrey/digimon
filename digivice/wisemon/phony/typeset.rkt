@@ -13,7 +13,7 @@
 (require "../../../predicate.rkt")
 
 (require "../parameter.rkt")
-(require "../native.rkt")
+(require "../ffi.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
 (require "../path.rkt")
@@ -230,7 +230,7 @@
     (when (and info-ref)
       (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
     
-      (wisemon-make (make-native-library-specs info-ref natives) px.so)
+      (wisemon-make (make-ffi-library-specs info-ref natives) px.so)
       (wisemon-compile (current-directory) digimon info-ref))
 
     (typeset-compile-source texinfos)

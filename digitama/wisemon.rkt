@@ -3,11 +3,11 @@
 (provide (all-defined-out))
 
 (require "exec.rkt")
+(require "minimal/port.rkt")
 
 (require "../dtrace.rkt")
 (require "../format.rkt")
 (require "../echo.rkt")
-(require "../port.rkt")
 
 (require "../exception.rkt")
 (require "../filesystem.rkt")

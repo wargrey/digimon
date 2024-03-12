@@ -9,21 +9,18 @@
 (require racket/bool)
 
 (require "../../../dtrace.rkt")
-(require "../../../cc.rkt")
 
 (require "../../../filesystem.rkt")
 (require "../../../predicate.rkt")
-(require "../../../function.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/path.rkt")
-(require "../../../digitama/system.rkt")
 (require "../../../digitama/toolchain/cc/cc.rkt")
-(require "../../../digitama/toolchain/cc/configuration.rkt")
 
 (require "../parameter.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
+(require "../native.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type CC-Launcher-Name (Pairof Path CC-Launcher-Info))
@@ -33,6 +30,7 @@
    [name : (Option String)]
    [subsystem : (Option Symbol)] ; `#false` means building `shared object`
    [entry : (Option Keyword)]
+   [compilers : (Listof Symbol)]
    [macros : (Listof C-Compiler-Macro)]
    [includes : (Listof C-Toolchain-Path-String)]
    [libpaths : (Listof C-Toolchain-Path-String)]
@@ -58,18 +56,26 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-native-launcher-names : (->* (Info-Ref Boolean) ((Option Symbol)) (Listof CC-Launcher-Name))
   (lambda [info-ref debug? [force-lang #false]]
+    (define-values (launchers default-compilers) (find-digimon-native-launcher-names* info-ref debug? force-lang))
+    launchers))
+  
+  
+(define find-digimon-native-launcher-names* : (->* (Info-Ref Boolean) ((Option Symbol)) (Values (Listof CC-Launcher-Name) (Listof Symbol)))
+  (lambda [info-ref debug? [force-lang #false]]
     (define maybe-launchers (info-ref 'native-launcher-names (λ [] null)))
+    (define default-compilers (cc-launcher-compiler-filter info-ref))
 
     (unless (list? maybe-launchers)
       (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" maybe-launchers))
 
-    (for/list ([launcher (in-list maybe-launchers)])
-      (cc-launcher-filter launcher debug? force-lang))))
+    (values (for/list ([launcher (in-list maybe-launchers)])
+              (cc-launcher-filter launcher debug? force-lang default-compilers))
+            default-compilers)))
 
-(define digimon-native-files->launcher-names : (->* ((Listof CC-Launcher-Name) (Listof Path) Boolean)
+(define digimon-native-files->launcher-names : (->* ((Listof CC-Launcher-Name) (Listof Path) Boolean (Listof Symbol))
                                                     ((Option Symbol))
                                                     (Values (Listof CC-Launcher-Name) (Listof CC-Launcher-Name)))
-  (lambda [info-targets targets debug? [force-lang #false]]
+  (lambda [info-targets targets debug? default-compilers [force-lang #false]]
     (define-values (known-launchers unknown-paths)
       (for/fold ([known-launchers : (Listof CC-Launcher-Name) null]
                  [unknown-paths : (Listof Path) null])
@@ -80,19 +86,20 @@
               (values known-launchers (cons p unknown-paths))))))
 
     (values (for/list ([launcher (in-list (reverse known-launchers))])
-              (cc-launcher-filter launcher debug? force-lang))
+              (cc-launcher-filter launcher debug? force-lang default-compilers))
             (for/list ([path (in-list (reverse unknown-paths))])
               (cc-launcher-filter (cons path (list 'CONSOLE))
-                                  debug? force-lang)))))
+                                  debug? force-lang default-compilers)))))
 
-(define make-object-spec : (->* (Path Path Boolean (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
+(define make-object-spec : (->* (Path Path Boolean (Listof Symbol) (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
                                 ((Listof String) (Listof Path) (Listof Path))
                                 Wisemon-Spec)
-  (lambda [source.c object.o cpp-file? macros includes debug? [extra-includes null] [extra-headers null] [extra-shared-objects null]]
+  (lambda [source.c object.o cpp-file? compilers macros includes debug? [extra-includes null] [extra-headers null] [extra-shared-objects null]]
     (wisemon-spec object.o #:^ (append (cons source.c (append extra-headers extra-shared-objects))
                                        (c-include-headers source.c includes #:check-source? #false #:topic (current-make-phony-goal)))
                   #:- (c-compile #:cpp? cpp-file? #:verbose? (compiler-verbose) #:debug? debug?
                                  #:includes (append extra-includes includes) #:macros macros
+                                 #:compilers compilers
                                  source.c object.o))))
 
 (define make-distributed-shared-object-spec : (-> Path Path Wisemon-Spec)
@@ -125,6 +132,8 @@
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
+      (define compilers : (Listof Symbol) (cc-launcher-info-compilers info))
+
       (define self:bin? : Boolean (and (cc-launcher-info-subsystem info) #true))
       (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define libname? : Boolean (not (eq? digimon-system 'windows)))
@@ -175,7 +184,7 @@
                   ([src (in-list sources)])
           (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root build-tree))))
           (values (cons obj.o objs)
-                  (cons (make-object-spec src obj.o cpp? macros incdirs debug? extra-incdirs null extra-shared-objects)
+                  (cons (make-object-spec src obj.o cpp? compilers macros incdirs debug? extra-incdirs null extra-shared-objects)
                         specs))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root build-tree))))
@@ -190,9 +199,9 @@
                                         objects)
                             #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
                                         #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                        #:libpaths libdirs #:libraries libs
+                                        #:libpaths libdirs #:libraries libs #:linkers compilers
                                         objects native))
-              (make-object-spec native.c native.o cpp? macros incdirs debug? extra-incdirs null extra-shared-objects)))
+              (make-object-spec native.c native.o cpp? compilers macros incdirs debug? extra-incdirs null extra-shared-objects)))
 
       (when (and dest-incdir dest-headers)
         (cc-clear-destination-include dest-incdir dest-headers))
@@ -204,14 +213,14 @@
                                            (Listof Path)))
   (lambda [info-ref debug? force-lang]
     (define real-targets : (Listof Path) (current-make-real-targets))
-    
-    (define info-launchers : (Listof CC-Launcher-Name)
-      (cond [(not info-ref) null]
-            [else (find-digimon-native-launcher-names info-ref debug? force-lang)]))
+
+    (define-values (info-launchers default-compilers)
+      (cond [(not info-ref) (values null null)]
+            [else (find-digimon-native-launcher-names* info-ref debug? force-lang)]))
     
     (define-values (real-launchers extra-real-launchers)
       (if (pair? real-targets)
-          (digimon-native-files->launcher-names info-launchers real-targets debug? force-lang)
+          (digimon-native-files->launcher-names info-launchers real-targets debug? default-compilers force-lang)
           (values null null)))
     
     (if (or (pair? info-launchers) (pair? real-targets))
@@ -247,8 +256,12 @@
     (make-cc info-ref #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cc-launcher-filter : (-> Any Boolean (Option Symbol) CC-Launcher-Name)
-  (lambda [native debug? force-lang]
+(define cc-launcher-compiler-filter : (-> Info-Ref (Listof Symbol))
+  (lambda [info-ref]
+    (c-compiler-filter info-ref "~a-toolchain-names" 'native)))
+
+(define cc-launcher-filter : (-> Any Boolean (Option Symbol) (Listof Symbol) CC-Launcher-Name)
+  (lambda [native debug? force-lang default-compilers]
     (if (and (pair? native)
              (or (string? (car native))
                  (path? (car native))))
@@ -259,7 +272,7 @@
                                 [else p])])
           (cons native.cc
                 (cond [(cc-launcher-info? config) config]
-                      [else (cc-filter-name config debug? force-lang)])))
+                      [else (cc-filter-name config debug? default-compilers force-lang)])))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
 (define cc-subpath-filter : (-> (Option Info-Ref) Boolean CC-Native-Tree)
@@ -310,8 +323,8 @@
       (cond [(symbol? lib) (cons lib libaries)]
             [else (append (cdr lib) libaries)]))))
 
-(define cc-filter-name : (-> Any Boolean (Option Symbol) CC-Launcher-Info)
-  (lambda [argv debug? force-lang]
+(define cc-filter-name : (-> Any Boolean (Listof Symbol) (Option Symbol) CC-Launcher-Info)
+  (lambda [argv debug? default-compilers force-lang]
     (let partition ([lang : (Option Symbol) force-lang]
                     [biname : (Option String) #false]
                     [subsystem : (Option Symbol) #false]
@@ -338,7 +351,7 @@
                   [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
                   [else (partition lang biname subsystem entry srehto rest)]))
           (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
-            (cc-launcher-info lang biname subsystem entry macros includes libpaths libraries))))))
+            (cc-launcher-info lang biname subsystem entry default-compilers macros includes libpaths libraries))))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]

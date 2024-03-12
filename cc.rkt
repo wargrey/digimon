@@ -13,11 +13,11 @@
 (require "digitama/toolchain/cc/linker.rkt")
 (require "digitama/toolchain/cc/configuration.rkt")
 
+(require "digitama/minimal/system.rkt")
 (require "digitama/toolchain/toolchain.rkt")
 (require "digitama/exec.rkt")
 (require "digitama/path.rkt")
 
-(require "digitama/system.rkt")
 (require "filesystem.rkt")
 (require "dtrace.rkt")
 

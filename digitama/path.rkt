@@ -7,7 +7,7 @@
 (require racket/symbol)
 (require racket/string)
 
-(require "system.rkt")
+(require "minimal/system.rkt")
 (require "../predicate.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

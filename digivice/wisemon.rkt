@@ -10,11 +10,12 @@
 
 (require "../digitama/collection.rkt")
 
+(require "../digitama/minimal/system.rkt")
+(require "../digitama/minimal/port.rkt")
+
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
-(require "../system.rkt")
-(require "../port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags

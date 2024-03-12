@@ -5,8 +5,6 @@
 (require racket/promise)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define os : Symbol (system-type 'os))
-
 (struct toolchain
   ([program : (Promise (Option Path))]
    [option-layout : (Listof (U Symbol String))]
