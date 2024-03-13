@@ -12,6 +12,10 @@
   (lambda [system cpp? hints verbose? debug?]
     (cond [(eq? system 'macosx) (clang-compile-flags system cpp? hints verbose? debug?)]
           [else (append (list "-c" "-fPIC" "-Wall")
+
+                        ; doesn't work...
+                        (list "-finput-charset=UTF-8" "-fextended-identifiers" "-fexec-charset=UTF-8")
+
                         (if (not debug?) (list "-O2") (list "-Og" "-g"))
                         (cond [(not cpp?) (list "-x" "c" "-std=c17")]
                               [else (list "-x" "c++" "-std=c++17")])
