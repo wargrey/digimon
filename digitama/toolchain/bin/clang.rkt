@@ -27,7 +27,6 @@
                   [else (list "-x" "c++" "-std=c++17")])
             (case system
               [(macosx) (list "-fno-common")]
-              [(illumos) (list "-m64")]
               [else null])
             (list "-fcolor-diagnostics" "-fansi-escape-codes")
             (if (not verbose?) null (list "-v")))))
