@@ -2,6 +2,8 @@
 
 (require racket/string)
 
+(require "../std.rkt")
+
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 (require "../cc/cc.rkt")
@@ -23,13 +25,13 @@
                  extra-macros))))
 
 (define msvc-compile-flags : CC-Flags
-  (lambda [system cpp? hints verbose? debug?]
+  (lambda [system cpp? std verbose? debug?]
     (append (list "/nologo" "/FC" "/c" ; compiling only, no link
                   #;"/constexpr"
                   "/EHsc" "/W3" "/sdl" ; security features and warnings
                   "/utf-8")
             (if (not debug?) (list "/O2") (list "/Od" "/ZI" "/JMC"))
-            (if (not cpp?) (list "/TC" "/std:c17") (list "/TP" "/std:c++17"))
+            (if (not cpp?) (list "/TC" (msvc-stdc->string std)) (list "/TP" (msvc-stdcpp->string std)))
             (if (not verbose?) null (list "/showIncludes")))))
 
 (define msvc-include-paths : CC-Includes
@@ -47,7 +49,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define msvc-linker-flags : LD-Flags
-  (lambda [system cpp? dll? hints verbose? pass-to-linker?]
+  (lambda [system cpp? dll? verbose? pass-to-linker?]
     (if (not pass-to-linker?)
         (append (list "/nologo" "/utf-8")
                 (if (not dll?) (list "/MT") (list "/MD" "/LD")))
@@ -201,6 +203,25 @@
     (or (unbox &msvc-env)
         (let-values ([(full-path path) (msvc-vcvarsall-path #true 'env)])
           (msvc-make-envs full-path path &msvc-env)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define msvc-stdc->string : (-> (Option CC-Standard-Version) String)
+  (lambda [std]
+    (cond [(index? std) (msvc-std:string 'c (cc-standard-short-version->string std))]
+          [(symbol? std) (msvc-std:string std)]
+          [else (msvc-stdc->string cc-default-standard-version)])))
+
+(define msvc-stdcpp->string : (-> (Option CC-Standard-Version) String)
+  (lambda [std]
+    (cond [(index? std) (msvc-std:string 'c++ (cc-standard-short-version->string std))]
+          [(symbol? std) (msvc-std:string std)]
+          [else (msvc-stdcpp->string cc-default-standard-version)])))
+
+(define msvc-std:string : (case-> [Any -> String]
+                                  [Any Any -> String])
+  (case-lambda
+    [(std) (format "/std:~a" std)]
+    [(prefix std) (format "/std:~a~a" prefix std)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register

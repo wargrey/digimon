@@ -7,6 +7,7 @@
 (require racket/promise)
 
 (require "cc.rkt")
+(require "../std.rkt")
 (require "../toolchain.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -14,7 +15,7 @@
 (define-type CC-Options (U 'flags 'macros 'includes 'infile 'outfile))
 
 (define-type CC-CPP-Macros (-> CC-Macros Symbol Boolean CC-Macros (Listof String)))
-(define-type CC-Flags (-> Symbol Boolean (Listof Any) Boolean Boolean (Listof String)))
+(define-type CC-Flags (-> Symbol Boolean (Option CC-Standard-Version) Boolean Boolean (Listof String)))
 (define-type CC-Includes (-> (Listof Path) Symbol Boolean (Listof String)))
 
 (define-type CC-IO-File-Flag (-> Path-String Symbol Boolean (Listof String)))

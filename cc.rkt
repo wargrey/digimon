@@ -14,6 +14,7 @@
 (require "digitama/toolchain/cc/configuration.rkt")
 
 (require "digitama/minimal/system.rkt")
+(require "digitama/toolchain/std.rkt")
 (require "digitama/toolchain/toolchain.rkt")
 (require "digitama/exec.rkt")
 (require "digitama/path.rkt")
@@ -33,11 +34,11 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:cpp? Boolean #:verbose? Boolean #:debug? Boolean
+                         (#:standard (Option CC-Standard-Version) #:cpp? Boolean #:verbose? Boolean #:debug? Boolean
                           #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
                           #:compilers (Option (Listof Symbol)))
                          Void)
-  (lambda [#:cpp? [cpp? #false] #:verbose? [verbose? #false] #:debug? [debug? #false]
+  (lambda [#:standard [std #false] #:cpp? [cpp? #false] #:verbose? [verbose? #false] #:debug? [debug? #false]
            #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]
            infile outfile]
     (define compiler : (Option CC) (c-pick-compiler compilers))
@@ -62,7 +63,7 @@
                      [else (or (force cc++) cc)])))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
        (case layout
-         [(flags) ((cc-flags compiler) digimon-system cpp? null verbose? debug?)]
+         [(flags) ((cc-flags compiler) digimon-system cpp? std verbose? debug?)]
          [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?) digimon-system cpp? all-Ds)]
          [(includes) (remove-duplicates ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?))]
          [(infile) ((cc-infile compiler) infile digimon-system cpp?)]
@@ -103,8 +104,8 @@
                      [else (or (force ld++) ld)])))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout linker))])
        (case layout
-         [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #false)]
-         [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) null verbose? #true)]
+         [(flags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) verbose? #false)]
+         [(ldflags) ((ld-flags linker) digimon-system cpp? (not ?subsystem) verbose? #true)]
          [(subsystem) ((ld-subsystem linker) digimon-system cpp? ?subsystem ?entry)]
          [(libpath) (remove-duplicates ((ld-libpaths linker) (c-path-flatten libpaths) digimon-system cpp?))]
          [(libraries) (let ([ld-lib (ld-libraries linker)])

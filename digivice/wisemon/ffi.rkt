@@ -36,6 +36,7 @@
     (define rootdir (path->string (digimon-path 'zone)))
     (define configs (#%info 'ffi-toolchain-config))
     (define compilers (ffi-compiler-filter #%info))
+    (define standard (c-language-standard-filter #%info (if cpp? 'ffi-cpp-standard 'ffi-c-standard)))
     (define-values (macros includes libpaths libraries) (c-configuration-filter (if (list? configs) configs null) digimon-system))
 
     (for/fold ([specs : Wisemon-Specification null])
@@ -45,10 +46,10 @@
       (define c.o : Path (assert (c-source->object-file c)))
       
       (list* (wisemon-spec c.o #:^ (cons c (c-include-headers c #:topic (current-make-phony-goal)))
-                           #:- (c-compile #:cpp? cpp? #:verbose? (compiler-verbose)
+                           #:- (c-compile #:standard standard #:cpp? cpp? #:compilers compilers
                                           #:includes (cons rootdir includes)
                                           #:macros (cons '__racket__ macros)
-                                          #:compilers compilers
+                                          #:verbose? (compiler-verbose)
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
@@ -56,10 +57,10 @@
                            [objects.h (c-include-headers c #:check-source? #true #:topic (current-make-phony-goal))]
                            [objects (cons c.o (c-headers->files objects.h c-source->object-file))])
                       (cons (wisemon-spec c.so #:^ objects
-                                          #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                                          #:- (c-link #:linkers compilers #:cpp? cpp?
                                                       #:subsystem #false #:entry #false
                                                       #:libpaths libpaths #:libraries libraries
-                                                      #:linkers compilers
+                                                      #:verbose? (compiler-verbose)
                                                       objects c.so))
                             specs))]
                    [else specs])))))

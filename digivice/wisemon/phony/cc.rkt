@@ -91,15 +91,17 @@
               (cc-launcher-filter (cons path (list 'CONSOLE))
                                   debug? force-lang default-compilers)))))
 
-(define make-object-spec : (->* (Path Path Boolean (Listof Symbol) (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
+(define make-object-spec : (->* (Path Path
+                                      Boolean (Listof Symbol) (Option CC-Standard-Version)
+                                      (Listof C-Compiler-Macro) (Listof C-Toolchain-Path-String) Boolean)
                                 ((Listof String) (Listof Path) (Listof Path))
                                 Wisemon-Spec)
-  (lambda [source.c object.o cpp-file? compilers macros includes debug? [extra-includes null] [extra-headers null] [extra-shared-objects null]]
+  (lambda [source.c object.o cpp-file? compilers standard macros includes debug? [extra-includes null] [extra-headers null] [extra-shared-objects null]]
     (wisemon-spec object.o #:^ (append (cons source.c (append extra-headers extra-shared-objects))
                                        (c-include-headers source.c includes #:check-source? #false #:topic (current-make-phony-goal)))
-                  #:- (c-compile #:cpp? cpp-file? #:verbose? (compiler-verbose) #:debug? debug?
+                  #:- (c-compile #:compilers compilers #:standard standard #:cpp? cpp-file?
                                  #:includes (append extra-includes includes) #:macros macros
-                                 #:compilers compilers
+                                 #:verbose? (compiler-verbose) #:debug? debug?
                                  source.c object.o))))
 
 (define make-distributed-shared-object-spec : (-> Path Path Wisemon-Spec)
@@ -132,12 +134,14 @@
     (for/fold ([specs : Wisemon-Specification null])
               ([launcher (in-list launchers)])
       (define-values (native.c info) (values (car launcher) (cdr launcher)))
+      (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
+      (define cpp? : Boolean (eq? lang 'cpp))
+      
       (define compilers : (Listof Symbol) (cc-launcher-info-compilers info))
+      (define standard (c-language-standard-filter #%info (if cpp? 'native-cpp-standard 'native-c-standard)))
 
       (define self:bin? : Boolean (and (cc-launcher-info-subsystem info) #true))
-      (define lang : Symbol (or (cc-launcher-info-lang info) (cc-lang-from-extension native.c)))
       (define libname? : Boolean (not (eq? digimon-system 'windows)))
-      (define cpp? : Boolean (eq? lang 'cpp))
 
       (define X: : (Option Path-String) (and dest-tree (cc-destination-tree-drive dest-tree)))
       (define bin:build : Native-Subpath (append (cc-native-tree-root build-tree) (cc-native-tree-bindir build-tree)))
@@ -184,7 +188,7 @@
                   ([src (in-list sources)])
           (define obj.o (assert (c-source->object-file src lang #:subnative (cc-native-tree-root build-tree))))
           (values (cons obj.o objs)
-                  (cons (make-object-spec src obj.o cpp? compilers macros incdirs debug? extra-incdirs null extra-shared-objects)
+                  (cons (make-object-spec src obj.o cpp? compilers standard macros incdirs debug? extra-incdirs null extra-shared-objects)
                         specs))))
 
       (define native.o : Path (assert (c-source->object-file native.c lang #:subnative (cc-native-tree-root build-tree))))
@@ -197,11 +201,12 @@
         (list (wisemon-spec native #:^ (append ; don't burden objects with extra headers
                                         (if (pair? dest-headers) (map (inst car Path Path) dest-headers) null)
                                         objects)
-                            #:- (c-link #:cpp? cpp? #:verbose? (compiler-verbose)
+                            #:- (c-link #:linkers compilers #:cpp? cpp?
                                         #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
-                                        #:libpaths libdirs #:libraries libs #:linkers compilers
+                                        #:libpaths libdirs #:libraries libs
+                                        #:verbose? (compiler-verbose)
                                         objects native))
-              (make-object-spec native.c native.o cpp? compilers macros incdirs debug? extra-incdirs null extra-shared-objects)))
+              (make-object-spec native.c native.o cpp? compilers standard macros incdirs debug? extra-incdirs null extra-shared-objects)))
 
       (when (and dest-incdir dest-headers)
         (cc-clear-destination-include dest-incdir dest-headers))

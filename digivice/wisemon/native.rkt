@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide c-compiler-filter λfalse)
+(provide (all-defined-out) λfalse CC-Standard-Version)
 (provide (all-from-out "../../cc.rkt"))
 (provide (all-from-out "../../digitama/system.rkt"))
 (provide (all-from-out "../../digitama/toolchain/cc/configuration.rkt"))
@@ -11,6 +11,7 @@
 (require "../../function.rkt")
 
 (require "../../digitama/system.rkt")
+(require "../../digitama/toolchain/std.rkt")
 (require "../../digitama/toolchain/cc/configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -22,6 +23,13 @@
     
     (c-compilers-merge (c-compilers-merge null sys-cc)
                         all-cc)))
+
+(define c-language-standard-filter : (-> Info-Ref Symbol (Option CC-Standard-Version))
+  (lambda [info-ref std-id]
+    (define maybe-std (info-ref std-id λfalse))
+    
+    (and (cc-standard-version? maybe-std)
+         maybe-std)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-compilers-merge : (-> (Listof Symbol) Any (Listof Symbol))

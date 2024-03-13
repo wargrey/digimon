@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type LD-Options (U 'flags 'libpath 'libraries 'subsystem 'infiles 'outfile 'ldflags))
 
-(define-type LD-Flags (-> Symbol Boolean Boolean (Listof Any) Boolean Boolean (Listof String)))
+(define-type LD-Flags (-> Symbol Boolean Boolean Boolean Boolean (Listof String)))
 (define-type LD-Libpaths (-> (Listof Path) Symbol Boolean (Listof String)))
 (define-type LD-Libraries (-> (Listof Symbol) (Option Keyword) Symbol Boolean (Listof String)))
 (define-type LD-Subsystem (-> Symbol Boolean (Option Symbol) (Option Keyword) (Listof String)))

@@ -6,6 +6,7 @@
 (require racket/symbol)
 (require racket/string)
 
+(require "../std.rkt")
 (require "../cc/compiler.rkt")
 (require "../cc/linker.rkt")
 
@@ -20,11 +21,11 @@
                  extra-macros))))
 
 (define clang-compile-flags : CC-Flags
-  (lambda [system cpp? hints verbose? debug?]
+  (lambda [system cpp? std verbose? debug?]
     (append (list "-c" "-fPIC" "-Wall")
             (if (not debug?) (list "-O2") (list "-Og" "-g"))
-            (cond [(not cpp?) (list "-x" "c" "-std=c17")]
-                  [else (list "-x" "c++" "-std=c++17")])
+            (cond [(not cpp?) (list "-x" "c" (clang-stdc->string std))]
+                  [else (list "-x" "c++" (clang-stdcpp->string std))])
             (case system
               [(macosx) (list "-fno-common")]
               [else null])
@@ -43,7 +44,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define clang-linker-flags : LD-Flags
-  (lambda [system cpp? shared-object? hints verbose? pass-to-linker?]
+  (lambda [system cpp? shared-object? verbose? pass-to-linker?]
     (append (cond [(not shared-object?) null]
                   [else (case system
                           ;;; WARNING
@@ -52,7 +53,6 @@
                           ;   instead of being linked at compile time.
                           [(macosx) (list #| MH_DYLIB file type |# "-dynamiclib")]
                           [else (list "-fPIC" "-shared")])])
-            (if (not cpp?) (list "-std=c17") (list "-std=c++17"))
             (case system
               [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
               [(illumos) (list "-m64")]
@@ -91,6 +91,25 @@
 (define clang-search-path : (-> String Path-String String)
   (lambda [-option dir]
     (string-append -option (path->string/quote dir))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define clang-stdc->string : (-> (Option CC-Standard-Version) String)
+  (lambda [std]
+    (cond [(index? std) (clang-std=string 'c (cc-standard-short-version->string std))]
+          [(symbol? std) (clang-std=string std)]
+          [else (clang-stdc->string cc-default-standard-version)])))
+
+(define clang-stdcpp->string : (-> (Option CC-Standard-Version) String)
+  (lambda [std]
+    (cond [(index? std) (clang-std=string 'c++ (cc-standard-short-version->string std))]
+          [(symbol? std) (clang-std=string std)]
+          [else (clang-stdcpp->string cc-default-standard-version)])))
+
+(define clang-std=string : (case-> [Any -> String]
+                                   [Any Any -> String])
+  (case-lambda
+    [(std) (format "-std=~a" std)]
+    [(prefix std) (format "-std=~a~a" prefix std)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ register
