@@ -5,7 +5,7 @@
 (require racket/symbol)
 
 (require "../../minimal/system.rkt")
-(require "../../../dtrace.rkt")
+#;(require "../../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define object.ext : Bytes (if (eq? digimon-system 'windows) #".obj" #".o"))
@@ -38,7 +38,7 @@
   (lambda [basename topic]
     (define bin : (Option Path) (find-executable-path (string-append (symbol->immutable-string basename) binary.ext) #false #false))
 
-    (if (not bin)
+    #;(if (not bin)
         (dtrace-debug #:topic topic "try searching the path for `~a`, failed!" basename)
         (dtrace-debug #:topic topic "try searching the path for `~a`, okay." basename))
     

@@ -22,6 +22,30 @@
       (regexp-match? px:panose s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define string-empty? : (-> String Boolean)
+  (lambda [s]
+    (zero? (string-length s))))
+
+(define string-blank? : (-> String Boolean)
+  (lambda [s]
+    (or (zero? (string-length s))
+        (regexp-match? #px"^\\s+$" s))))
+
+(define string-list-normalize-empties : (-> (Listof String) (Listof String))
+  (lambda [strs]
+    (let normalize ([src : (Listof String) strs]
+                    [srts : (Listof String) null]
+                    [last-empty? : Boolean #true])
+      (if (pair? src)
+          (let*-values ([(self tail) (values (car src) (cdr src))]
+                        [(size) (string-length self)])
+            (cond [(string-blank? self) (normalize tail srts #true)]
+                  [(not last-empty?) (normalize tail (cons self srts) #false)]
+                  [(null? srts) (normalize tail (cons self srts) #false)]
+                  [else (normalize tail (cons self (cons "" srts)) #false)]))
+          (reverse srts)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define locale-bytes->unicode-string : (->* (Bytes (U String Symbol False)) (Natural Natural #:error-char (Option Char)) String)
   (lambda [raw lc-all [start 0] [end (bytes-length raw)] #:error-char [echar #false]]
     (case lc-all
