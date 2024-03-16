@@ -163,14 +163,15 @@
        (define expected : Bytes (problem-testcase-output t))
        (parameterize ([current-input-port (open-input-bytes (problem-testcase-input t))])
          (define raw (shell-exec-a.out target self-env stdin-log-level))
-         (define eols (regexp-match #px#"[\r\n]+$" raw))
-         (define-values (nl given)
-           (if eols
-               (values "" (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))))
-               (values "\n" raw)))
-         (cond [(bytes=? given expected) (dtrace-notice "~acase ~a: ok" nl i)]
-               [(> (bytes-length expected) 0) (dtrace-error "~acase ~a: failed, expecting~n~a" nl i expected)]
-               [else (dtrace-warning "~acase ~a: undefined" nl i)])))]))
+         (when (problem-info-result problem-info)
+           (define eols (regexp-match #px#"[\r\n]+$" raw))
+           (define-values (nl given)
+             (if eols
+                 (values "" (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))))
+                 (values "\n" raw)))
+           (cond [(bytes=? given expected) (dtrace-notice "~acase ~a: ok" nl i)]
+                 [(> (bytes-length expected) 0) (dtrace-error "~acase ~a: failed, expecting~n~a" nl i expected)]
+                 [else (dtrace-warning "~acase ~a: undefined" nl i)]))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell
