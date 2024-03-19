@@ -1,20 +1,26 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (except-out (all-defined-out) Spec-Issue-Argument-Datum))
 
 (require racket/list)
 (require racket/symbol)
+(require racket/match)
 
 (require "../../emoji.rkt")
 (require "../../format.rkt")
 (require "../../echo.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Spec-Sexps (Listof Syntax))
+(define-type Spec-Sexps (Listof (Syntaxof Any)))
 (define-type Spec-Issue-Type (U 'misbehaved 'todo 'skip 'panic 'pass))
 (define-type Spec-Issue-Message-Datum (U String (-> (Option String))))
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
+(define-type Spec-Issue-Argument-Datum (Immutable-Vector String (Pairof String (Listof String)) (Option (Syntaxof Any))))
+
+(define-type Spec-Issue-Extra-Argument
+  (U (Vector Symbol Any (Option (Syntaxof Any)))     
+     (Pairof Symbol Any)))
 
 (struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]))
 
@@ -24,10 +30,11 @@
 (define default-spec-issue-message : (Parameterof (Option Spec-Issue-Message-Datum)) (make-parameter #false))
 (define default-spec-issue-locations : (Parameterof (Listof Syntax)) (make-parameter null))
 (define default-spec-issue-expressions : (Parameterof (Syntaxof Spec-Sexps)) (make-parameter #'(list)))
-(define default-spec-issue-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
-(define default-spec-issue-parameters : (Parameterof (Listof Any)) (make-parameter null))
+(define default-spec-issue-arguments : (Parameterof (Listof Any)) (make-parameter null))
+(define default-spec-issue-parameters : (Parameterof (Listof Symbol)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 (define default-spec-issue-format : (Parameterof (Option Spec-Issue-Format)) (make-parameter #false))
+(define default-spec-issue-extra-arguments : (Parameterof (Listof Spec-Issue-Extra-Argument)) (make-parameter null))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
 
@@ -40,8 +47,9 @@
    [message : (Option Spec-Issue-Message-Datum)]
    [locations : (Listof Syntax)]
    [expressions : (Syntaxof Spec-Sexps)]
-   [arguments : (Listof Symbol)]
-   [parameters : (Listof Any)]
+   [arguments : (Listof Any)]
+   [parameters : (Listof Symbol)]
+   [extras : (Listof Spec-Issue-Extra-Argument)]
    [exception : (Option exn:fail)]
    
    [format : (Option Spec-Issue-Format)])
@@ -59,12 +67,13 @@
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
+                (default-spec-issue-extra-arguments)
                 (default-spec-issue-exception)
 
                 (default-spec-issue-format))))
 
 ;; NOTE
-; If a panic issue is catched, it means the code of the specification itself has bugs.
+; If a panic issue is caught, it means the code of the specification itself has bugs.
 ; Or `expect-throw` and `expect-no-exception` should be used instead.
 (define make-spec-panic-issue : (-> exn:fail Spec-Issue)
   (lambda [e]
@@ -77,6 +86,7 @@
                 (default-spec-issue-expressions)
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
+                (default-spec-issue-extra-arguments)
                 e
                 
                 (default-spec-issue-format))))
@@ -101,53 +111,74 @@
       [(panic) bomb#])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define spec-issue-misbehavior-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
-  (lambda [issue [color 'darkred] #:indent [headspace ""]]
+(define spec-issue-misbehavior-display : (->* (Spec-Issue)
+                                              (Symbol #:indent String #:no-location? Boolean #:no-argument-expression? Boolean)
+                                              Void)
+  (lambda [#:indent [headspace ""] #:no-location? [no-loc? #false] #:no-argument-expression? [no-exprs? #false]
+           issue [color 'darkred]]
     (let ([message (spec-issue->message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))
 
-    (spec-display-locations (spec-issue-locations issue) color headspace "location")
+    (when (not no-loc?)
+      (spec-display-locations (spec-issue-locations issue) color headspace "location"))
 
     (let ([e (spec-issue-exception issue)])
       (unless (not e)
         (spec-display-message headspace color null (object-name e) (exn-message e))))
 
-    (let ([exprs (syntax-e (spec-issue-expressions issue))]
-          [argus (map symbol->immutable-string (spec-issue-arguments issue))]
-          [paras (map ~string-lines (map (spec-make-param->string (spec-issue-format issue)) (spec-issue-parameters issue)))])
-      (when (spec-issue-expectation issue)
-        (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
-      
-      (when (pair? argus)
-        (define asize : Index (apply max (map string-length argus)))
-        (define psize : Index (apply max (for/list : (Listof Index) ([para (in-list paras)])
-                                           (string-length (car para)))))
+    (when (spec-issue-expectation issue)
+      (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
 
-        (for ([expr (in-list exprs)]
-              [argu (in-list argus)]
-              [para (in-list paras)])
-          (define datum-space : String (~space (- asize (string-length argu))))
-          (define subdatum-space : String (~space asize))
-          (define expr-space : String (~space (- psize (string-length (car para)))))
-          
-          (eechof #:fgcolor color "~a    ~a~a: ~a" headspace datum-space argu (car para))
-          (eechof #:fgcolor 'darkgrey " ~a; ~s~n" expr-space (syntax->datum expr))
+    (define self-argv : (Listof Spec-Issue-Argument-Datum)
+      (map (spec-make-argument (spec-issue-format issue))
+           (spec-issue-parameters issue)
+           (spec-issue-arguments issue)
+           (syntax-e (spec-issue-expressions issue))))
 
-          (for ([subline (in-list (cdr para))])
-            (eechof #:fgcolor color "~a    ~a  ~a~n" headspace subdatum-space subline)))))))
-  
+    (define all-argv : (Listof Spec-Issue-Argument-Datum)
+      (let ([es (spec-issue-extras issue)])
+        (if (pair? es)
+            (let ([eformat (spec-make-argument-for-extra (spec-issue-format issue))])
+              (append self-argv
+                      (for/list : (Listof Spec-Issue-Argument-Datum) ([e (in-list es)])
+                        (eformat e))))
+            self-argv)))
+
+    (when (pair? all-argv)
+      (define psize : Index (apply max (map spec-arg-name-length all-argv)))
+      (define asize : Index (apply max (map spec-arg-head-length all-argv)))
+
+      (for ([argu (in-list all-argv)])
+        (define-values (name vals expr) (values (vector-ref argu 0) (vector-ref argu 1) (vector-ref argu 2)))
+        (define datum-space : String (~space (- psize (string-length name))))
+        (define subdatum-space : String (~space psize))
+        (define expr-space : String (~space (- asize (string-length (car vals)))))
+        
+        (eechof #:fgcolor color "~a   ~a~a: ~a" headspace datum-space name (car vals))
+
+        (if (and expr (not no-exprs?))
+            (eechof #:fgcolor 'darkgrey " ~a; ~s~n" expr-space (syntax->datum expr))
+            (eechof "~n"))
+        
+        (for ([subline (in-list (cdr vals))])
+          (eechof #:fgcolor color "~a   ~a  ~a~n" headspace subdatum-space subline))))))
+
 (define spec-issue-error-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
   (lambda [issue [color 'darkred] #:indent [headspace ""]]
     (define errobj : (Option exn:fail) (spec-issue-exception issue))
 
     (unless (not errobj)
       (spec-display-message headspace color '(inverse) (object-name errobj) (exn-message errobj))
-      (spec-display-stacks errobj 'darkgrey headspace))))
 
-(define spec-issue-todo-display : (->* (Spec-Issue) (Symbol #:indent String) Void)
-  (lambda [issue [color 'darkmagenta] #:indent [headspace ""]]
-    (spec-display-locations (spec-issue-locations issue) color headspace "TODO")
+      (unless (exn:fail:user? errobj)
+        (spec-display-stacks errobj 'darkgrey headspace)))))
+
+(define spec-issue-todo-display : (->* (Spec-Issue) (Symbol #:indent String #:no-location? Boolean) Void)
+  (lambda [issue [color 'darkmagenta] #:indent [headspace ""] #:no-location? [no-loc? #false]]
+    (when (not no-loc?)
+      (spec-display-locations (spec-issue-locations issue) color headspace "TODO"))
+    
     (let ([message (spec-issue->message issue)])
       (unless (not message)
         (spec-display-message headspace color null 'reason message)))))
@@ -169,7 +200,8 @@
       (fprintf /dev/stdout "~a - ~a~n" type (spec-issue-brief issue))
       
       (when (eq? type 'misbehaved)
-        (spec-issue-misbehavior-display issue)))))
+        (spec-issue-misbehavior-display #:indent (if (> indention 0) (~space indention) "")
+                                        issue)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-display-locations : (-> (Listof Syntax) Symbol String String Void)
@@ -188,7 +220,7 @@
 
 (define spec-display-message : (-> String Symbol (Listof Symbol) Any String Void)
   (lambda [headspace color attributes prefix message]
-    (define messages : (Listof String) (~string-lines message))
+    (define messages : (Pairof String (Listof String)) (~string-lines message))
     (define head : String (format "~a: " prefix))
 
     (eechof #:fgcolor color #:attributes attributes "~a ~a~a~n" headspace head (car messages))
@@ -216,13 +248,35 @@
               (eechof #:fgcolor color "~a »»»» ~a: ~a~n" headspace (cdr info) (car info))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define spec-make-param->string : (-> (Option Spec-Issue-Format) (-> Any String))
+(define spec-arg-name-length : (-> Spec-Issue-Argument-Datum Index)
+  (lambda [ss]
+    (string-length (vector-ref ss 0))))
+
+(define spec-arg-head-length : (-> Spec-Issue-Argument-Datum Index)
+  (lambda [ss]
+    (string-length (car (vector-ref ss 1)))))
+
+(define spec-s : (-> Symbol Any (Option (Syntaxof Any)) Spec-Issue-Argument-Datum)
+  (lambda [name val expr]
+    (vector-immutable (symbol->immutable-string name) (~string-lines (~s val)) expr)))
+
+(define spec-make-argument : (-> (Option Spec-Issue-Format) (-> Symbol Any (Option (Syntaxof Any)) Spec-Issue-Argument-Datum))
   (lambda [spec-format]
     (or (and spec-format
-             (λ [para]
-               (let* ([desc (spec-format para ~s)])
-                 (if (string? desc) desc (~s para)))))
-        ~s)))
+             (λ [[name : Symbol] [val : Any] [expr : (Option (Syntaxof Any))]]
+               (let ([desc (spec-format val ~s)])
+                 (vector-immutable (symbol->immutable-string name)
+                                   (~string-lines (if (string? desc) desc (~s val)))
+                                   expr))))
+        spec-s)))
+
+(define spec-make-argument-for-extra : (-> (Option Spec-Issue-Format) (-> Spec-Issue-Extra-Argument Spec-Issue-Argument-Datum))
+  (lambda [spec-format]
+    (define make-argv (spec-make-argument spec-format))
+    
+    (match-lambda
+      [(vector name val expr) (make-argv name val expr)]
+      [(cons name val) (make-argv name val #false)])))
 
 (define spec-format-stack : (-> (Option Spec-Issue-Format) (Option Spec-Issue-Format) (Option Spec-Issue-Format))
   (lambda [usr-format fallback-format]

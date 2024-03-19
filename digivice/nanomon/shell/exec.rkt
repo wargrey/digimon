@@ -17,6 +17,8 @@
 (require "../../../environ.rkt")
 (require "../../../dtrace.rkt")
 (require "../../../filesystem.rkt")
+(require "../../../spec.rkt")
+(require "../../../string.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/system.rkt")
@@ -30,7 +32,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~~exec : (-> Path Thread Any)
   (lambda [path env-thread]
-    (dtrace-notice #:topic the-name "target: ~a" path)
+    (dtrace-notice #:topic the-name "source: ~a" path)
     
     (define lang : (Option String)
       (or (nanomon-lang)
@@ -41,20 +43,23 @@
 
     (when (or lang)
       (dtrace-notice #:topic the-name "language: ~a" lang))
+
+    (define status
+      (case (and lang (string-downcase lang))
+        [("racket") (shell-rkt path)]
+        [("c++") (shell-cpp path 'cpp)]
+        [("cpp") (shell-cpp path 'cpp)]
+        [("c") (shell-c path 'c)]
+        [("scribble") (shell-typeset path 'scribble)]
+        [("tex") (shell-typeset path 'tex)]
+        [("graphviz (dot)") (shell-dot path 'png #".png")]
+        [else (nanomon-errno 126)
+              (raise (make-exn:fail:unsupported (if (not lang)
+                                                    (format "exec: don't know how to run this file: ~a" path)
+                                                    (format "exec: don't know how to run ~a file: ~a" lang path))
+                                                (continuation-marks #false)))]))
     
-    (case (and lang (string-downcase lang))
-      [("racket") (shell-rkt path)]
-      [("c++") (shell-cpp path 'cpp)]
-      [("cpp") (shell-cpp path 'cpp)]
-      [("c") (shell-c path 'c)]
-      [("scribble") (shell-typeset path 'scribble)]
-      [("tex") (shell-typeset path 'tex)]
-      [("graphviz (dot)") (shell-dot path 'png #".png")]
-      [else (nanomon-errno 126)
-            (raise (make-exn:fail:unsupported (format "exec: don't know how to run this script: ~a" path)
-                                              (continuation-marks #false)))])
-    
-    (thread-send env-thread 0)))
+    (thread-send env-thread status)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-rkt : (-> Path Any)
@@ -67,7 +72,7 @@
           (dynamic-require main 0)
           (dynamic-require path.rkt 0)))))
 
-(define shell-c : (-> Path Symbol Any)
+(define shell-c : (-> Path Symbol Natural)
   (lambda [path.c lang-name]
     (define maybe-info : (Option Pkg-Info)
       (single-collection-info #:bootstrap? #true
@@ -93,13 +98,16 @@
                      (environment-variables-push-path! env #:name epath extra-libraries)
                      (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
                      env)))
-            (define problem-info : (Option Problem-Info) (read-cpp-problem-info path.c))
-            (if (not problem-info)
-                (shell-exec-a.out (car targets) self-env #false)
-                (shell-exec-a.out problem-info (car targets) self-env 'debug)))
+            
+            (parameterize ([current-environment-variables (or self-env (current-environment-variables))])
+              (define problem-info : (Option Problem-Info) (read-cpp-problem-info path.c))
+              (define args : (Vectorof String) (current-command-line-arguments))
+              (if (not problem-info)
+                  (shell-exec-a.out (car targets) args #false)
+                  (shell-exec-a.out problem-info (car targets) args 'debug))))
           127 #| deadcode, command cannot be found |#))))
 
-(define shell-cpp : (-> Path Symbol Any)
+(define shell-cpp : (-> Path Symbol Natural)
   (lambda [path.c lang-name]
     (shell-c path.c lang-name)))
 
@@ -136,42 +144,50 @@
 (define shell-echo-problem-info : (-> Problem-Info Void)
   (lambda [pinfo]
     (when (pair? (problem-info-description pinfo))
-      (dtrace-debug "#% ~a:" 'problem)
+      (dtrace-debug "@~a:" 'problem)
       (for ([brief (in-list (problem-info-description pinfo))])
         (dtrace-note "~a" brief)))
     (when (pair? (problem-info-arguments pinfo))
-      (dtrace-debug "#% ~a:" 'input)
+      (dtrace-debug "@~a:" 'input)
       (for ([input (in-list (problem-info-arguments pinfo))])
         (dtrace-note "~a" input)))
     (when (problem-info-result pinfo)
-      (dtrace-debug "#% ~a:" 'output)
+      (dtrace-debug "@~a:" 'output)
       (when (problem-info-result pinfo)
         (dtrace-note "~a" (problem-info-result pinfo))))))
 
-(define shell-exec-a.out : (case-> [Problem-Info Path (Option Environment-Variables) (Option Dtrace-Level) -> Void]
-                                   [Path (Option Environment-Variables) (Option Dtrace-Level) -> Bytes])
+(define shell-exec-a.out : (case-> [Problem-Info Path (Vectorof String) (Option Dtrace-Level) -> Natural]
+                                   [Path (Vectorof String) (Option Dtrace-Level) -> Natural])
   (case-lambda
-    [(target self-env stdin-log-level)
+    [(a.out args stdin-log-level)
+     (define &status : (Boxof Nonnegative-Integer) (box 0))
+
      (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                          #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
-                         #:env self-env
-                         'exec target (list (vector->list (current-command-line-arguments))))]
-    [(problem-info target self-env stdin-log-level)
+                         'exec a.out args &status)
+     (unbox &status)]
+    [(problem-info a.out args stdin-log-level)
      (shell-echo-problem-info problem-info)
-     (for ([t (in-list (problem-info-testcases problem-info))]
-           [i (in-naturals 1)])
-       (define expected : Bytes (problem-testcase-output t))
-       (parameterize ([current-input-port (open-input-bytes (problem-testcase-input t))])
-         (define raw (shell-exec-a.out target self-env stdin-log-level))
-         (when (problem-info-result problem-info)
-           (define eols (regexp-match #px#"[\r\n]+$" raw))
-           (define-values (nl given)
-             (if eols
-                 (values "" (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))))
-                 (values "\n" raw)))
-           (cond [(bytes=? given expected) (dtrace-notice "~acase ~a: ok" nl i)]
-                 [(> (bytes-length expected) 0) (dtrace-error "~acase ~a: failed, expecting~n~a" nl i expected)]
-                 [else (dtrace-warning "~acase ~a: undefined" nl i)]))))]))
+
+     (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
+                    [default-spec-exec-stdout-port (current-output-port)])
+       (spec-prove #:no-summary? #false #:no-location-info? #true #:no-argument-expression? #true
+                   (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
+                     #:do #:before shell-try-sync-stdout-with-dtrace
+                     #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
+                            (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
+                            (define brief (problem-spec-brief t))
+                            (cond [(and (string-blank? bargs) (not result))
+                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do #;(pending))]
+                                  [(regexp? result)
+                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do (expect-match-stdout a.out args bargs result))]
+                                  [else
+                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do (expect-stdout a.out args bargs result))])))))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define shell-try-sync-stdout-with-dtrace : (-> Void)
+  (lambda []
+    (collect-garbage 'major)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell

@@ -23,12 +23,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdin 'stdout 'stderr))
-(define-type Maybe-Alt-Env (U False Environment-Variables (-> Environment-Variables)))
+(define-type Exec-Alt-Env (U False Environment-Variables (-> Environment-Variables)))
+
+(define-type Exec-Error-Handler (U (-> Symbol Path Natural Bytes Void) (Boxof Nonnegative-Integer)))
+(define-type Exec-Arguments (U (Listof (Listof String)) (Vectorof String)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-recon-exec : (->* (Symbol Path (Listof (Listof String)))
-                             ((Option (-> Symbol Path Natural Void))
-                              #:silent (Listof Exec-Silent) #:env Maybe-Alt-Env
+(define fg-recon-exec : (->* (Symbol Path Exec-Arguments)
+                             ((Option Exec-Error-Handler)
+                              #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                               #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
                               #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                              Void)
@@ -36,23 +39,23 @@
     (lambda [#:silent [silents null] #:env [alt-env #false]
              #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
              #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-             operation program options [on-error-do #false]]
+             operation program arguments [on-error-do #false]]
       ((inst fg-recon-exec* Void)
        #:silent silents #:env alt-env
        #:/dev/stdin /dev/stdin #:stdin-log-level log-level
        #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
-       operation program options stdout-void (void) on-error-do))))
+       operation program arguments stdout-void (void) on-error-do))))
 
-(define fg-recon-exec* : (All (a) (->* (Any Path (Listof (Listof String)) (-> String a a) a)
-                                       ((Option (-> Symbol Path Natural Void))
-                                        #:silent (Listof Exec-Silent) #:env Maybe-Alt-Env
+(define fg-recon-exec* : (All (a) (->* (Any Path Exec-Arguments (-> String a a) a)
+                                       ((Option Exec-Error-Handler)
+                                        #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                                         #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
                                         #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                        a))
   (lambda [#:silent [silents null] #:env [alt-env #false]
            #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-           operation:any program options stdout-fold initial-datum [on-error-do #false]]
+           operation:any program arguments stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -65,7 +68,7 @@
       (define-values (status datum:out)
         (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (fg-recon-fork operation program options alt-env))
+            (fg-recon-fork operation program arguments alt-env))
 
           (define ghostcat : Thread
             (thread (λ [] (when (or /dev/stdin)
@@ -110,14 +113,14 @@
       (fg-recon-handle-status operation program status /dev/byterr on-error-do)
       datum:out)))
 
-(define fg-recon-exec/pipe : (->* (Any Path (Listof (Listof String)))
-                                  ((Option (-> Symbol Path Natural Void))
-                                   #:env Maybe-Alt-Env #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
+(define fg-recon-exec/pipe : (->* (Any Path Exec-Arguments)
+                                  ((Option Exec-Error-Handler)
+                                   #:env Exec-Alt-Env #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
                                    #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
                                   Bytes)
   (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level #false]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-           operation:any program options [on-error-do #false]]
+           operation:any program arguments [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
                    [current-custodian (make-custodian)])
@@ -129,7 +132,7 @@
         (with-handlers ([exn? (λ [[e : exn]] e)])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
             ; because subprocess only accepts file stream ports as pipes
-            (fg-recon-fork operation program options alt-env))
+            (fg-recon-fork operation program arguments alt-env))
 
           (define-values (ghostcat/out ghostcat/err ghostcat/subout)
             (values (thread (λ [] (when (input-port? /dev/outin)
@@ -256,10 +259,13 @@
       (fg-cat operation file /dev/stdout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-recon-fork : (-> Symbol Path (Listof (Listof String)) Maybe-Alt-Env
+(define fg-recon-fork : (-> Symbol Path Exec-Arguments Exec-Alt-Env
                             (Values Subprocess Input-Port Output-Port Input-Port))
-  (lambda [operation program options alt-env]
-    (define args : (Listof String) (apply append options))
+  (lambda [operation program arguments alt-env]
+    (define args : (Listof String)
+      (if (vector? arguments)
+          (vector->list arguments)
+          (apply append arguments)))
 
     (define subenv : (Option Environment-Variables)
       (cond [(not alt-env) #false]
@@ -290,17 +296,19 @@
           [(exn:fail? e) (clean) (raise e)]
           [else #;(exn:break? e) (clean)])))
 
-(define fg-recon-handle-status : (-> Symbol Path (U Natural exn 'running) Output-Port (Option (-> Symbol Path Natural Void)) Void)
+(define fg-recon-handle-status : (-> Symbol Path (U Natural exn 'running) Output-Port (Option Exec-Error-Handler) Void)
   (lambda [operation program status /dev/byterr on-error-do]
     (cond [(exact-integer? status)
            (unless (eq? status 0)
-             (let ([maybe-errmsg (get-output-bytes /dev/byterr)])
-               (when (> (bytes-length maybe-errmsg) 0)
-                 (dtrace-error (bytes->string/utf-8 maybe-errmsg) #:topic operation #:prefix? #false)))
+             (define maybe-errmsg (get-output-bytes /dev/byterr))
              
-             ((or on-error-do void) operation program (assert status exact-nonnegative-integer?))
+             (cond [(box? on-error-do) (set-box! on-error-do status)]
+                   [(and on-error-do) (on-error-do operation program status maybe-errmsg)])
+             
              (custodian-shutdown-all (current-custodian))
-             
-             (raise-user-error operation "~a: exit status: ~a" (file-name-from-path program) status))]
+
+             (if (= (bytes-length maybe-errmsg) 0)
+                 (raise-user-error operation "~a -> ~a" program status)
+                 (raise-user-error operation "~a -> ~a~npossible reason: ~a" program status maybe-errmsg)))]
           [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))]
           [else (custodian-shutdown-all (current-custodian))])))

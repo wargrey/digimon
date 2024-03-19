@@ -4,6 +4,7 @@
 (provide (all-from-out racket/string))
 
 (require racket/string)
+(require racket/list)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-uri? : (-> String Boolean)
@@ -30,6 +31,23 @@
   (lambda [s]
     (or (zero? (string-length s))
         (regexp-match? #px"^\\s+$" s))))
+
+(define string!empty? : (-> String Boolean)
+  (lambda [s]
+    (not (string-empty? s))))
+
+(define string!blank? : (-> String Boolean)
+  (lambda [s]
+    (not (string-blank? s))))
+
+(define string-filter : (-> String (Option String))
+  (lambda [s]
+    (and (string!blank? s)
+         s)))
+
+(define string-list-trim-empties : (-> (Listof String) (Listof String))
+  (lambda [strs]
+    (dropf-right (dropf strs string-blank?) string-blank?)))
 
 (define string-list-normalize-empties : (-> (Listof String) (Listof String))
   (lambda [strs]

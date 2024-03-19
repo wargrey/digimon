@@ -18,13 +18,20 @@
   #:program the-name
   #:args [shell file . args]
 
-  #:usage-help "An utility for testing #lang"
+  #:usage-help "A utility to assist the building system"
   #:once-each
   [[(#\l lang)                                       lang          "replace the #lang line with ~1 for lexer"]
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                     the-print-width]]
    [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]
-   [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]])
+   [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]
+
+   ; The C++ extension for VSCode isn't smart enough
+   ;   we have to trick it for not launching the debugger when
+   ;   our task script has already run the program.
+   ; Besides, in Windows, the debugger always starts another terminal
+   ;   and causes the one running out task script hidden.
+   [(pretend)           #:=> cmdopt-string->byte status #: Byte    "replace normal exit status with ~1"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -59,6 +66,13 @@
                               (nanomon-errno)])))
               (thread-safe-shutdown (current-custodian) root-custodian)))))
 
+(define trick-exit : (-> Byte (Option Byte) Nothing)
+  (lambda [status pretend]
+    (exit
+     (cond [(not pretend) status]
+           [(zero? status) pretend]
+           [else status]))))
+
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (nanomon-restore-options!)
@@ -68,6 +82,7 @@
       (wisemon-display-help))
 
     (define-values (name target argv) (λargv))
+    (define pretend-status : (Option Byte) (nanomon-flags-pretend options))
 
     (parameterize ([current-logger /dev/dtrace]
                    [nanomon-lang (nanomon-flags-lang options)]
@@ -78,11 +93,12 @@
       (if (not shell)
           (let ([retcode (nanomon-errno)])
             (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
-            (exit retcode))
-          (exit (time* (let ([tracer (thread (make-nanomon-log-trace))])
-                         (begin0 (exec-shell shell (cmdopt-string->path the-name target))
-                                 (dtrace-datum-notice eof)
-                                 (thread-wait tracer)))))))))
+            (trick-exit retcode pretend-status))
+          (trick-exit (time* (let ([tracer (thread (make-nanomon-log-trace))])
+                               (begin0 (exec-shell shell (cmdopt-string->path the-name target))
+                                       (dtrace-datum-notice eof)
+                                       (thread-wait tracer))))
+                      pretend-status)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nanomon-event-echo : Dtrace-Receiver

@@ -15,6 +15,8 @@
 
 (provide (all-from-out "digitama/spec/issue.rkt"))
 (provide (all-from-out "digitama/spec/expectation.rkt"))
+(provide (all-from-out "digitama/spec/expect/logging.rkt"))
+(provide (all-from-out "digitama/spec/expect/exec.rkt"))
 
 (require "digitama/spec/issue.rkt")
 (require "digitama/spec/prompt.rkt")
@@ -24,6 +26,9 @@
 (require "digitama/spec/expectation.rkt")
 (require "digitama/spec/behavior.rkt")
 (require "digitama/spec/dsl.rkt")
+
+(require "digitama/spec/expect/logging.rkt")
+(require "digitama/spec/expect/exec.rkt")
 
 (require "format.rkt")
 (require "debug.rkt")
@@ -64,7 +69,10 @@
 (define default-spec-behavior-prove : (Parameterof Spec-Behavior-Prove) (make-parameter spec-behavior-prove))
 (define default-spec-issue-fgcolor : (Parameterof Spec-Issue-Fgcolor) (make-parameter spec-issue-fgcolor))
 (define default-spec-issue-symbol : (Parameterof Spec-Issue-Symbol) (make-parameter spec-issue-moji))
-(define default-spec-hide-timing-info : (Parameterof Boolean) (make-parameter #false))
+
+(define default-spec-no-timing-info : (Parameterof Boolean) (make-parameter #false))
+(define default-spec-no-location-info : (Parameterof Boolean) (make-parameter #false))
+(define default-spec-no-argument-expression : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-summary-fold
@@ -119,8 +127,15 @@
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
 
-(define spec-prove : (-> (U Spec-Feature Spec-Behavior) [#:selector Spec-Prove-Selector] [#:hide-timing-info? Boolean] Natural)
-  (lambda [feature #:selector [selector null] #:hide-timing-info? [no-timing-info? (default-spec-hide-timing-info)]]
+(define spec-prove : (->* ((U Spec-Feature Spec-Behavior))
+                          (#:selector Spec-Prove-Selector #:no-summary? Boolean
+                           #:no-timing-info? Boolean #:no-location-info? Boolean #:no-argument-expression? Boolean)
+                          Natural)
+  (lambda [#:selector [selector null] #:no-summary? [no-summary? #false]
+           #:no-timing-info? [no-timing-info? (default-spec-no-timing-info)]
+           #:no-location-info? [no-loc? (default-spec-no-location-info)]
+           #:no-argument-expression? [no-expr? (default-spec-no-argument-expression)]
+           feature]
     (define ~fgcolor : Spec-Issue-Fgcolor (default-spec-issue-fgcolor))
     (define ~symbol : Spec-Issue-Symbol (default-spec-issue-symbol))
     
@@ -146,19 +161,18 @@
         (echof #:fgcolor fgc "~a~a" headline (car briefs))
 
         (when (and (eq? type 'pass) (not no-timing-info?))
-          (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc)))
-          (newline))
-        
+          (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc))))
+
+        (newline)
         (for ([subline (in-list (cdr briefs))])
-          (echof #:fgcolor fgc "~a~a" headspace subline)
-          (newline))
+          (echof #:fgcolor fgc "~a~a~n" headspace subline))
 
         (case type
-          [(misbehaved) (newline) (spec-issue-misbehavior-display issue #:indent headspace)]
-          [(todo) (newline) (spec-issue-todo-display issue #:indent headspace)]
-          [(skip) (newline) (spec-issue-skip-display issue #:indent headspace)]
-          [(panic) (newline) (spec-issue-error-display issue #:indent headspace)])
-        
+          [(misbehaved) (spec-issue-misbehavior-display issue #:indent headspace #:no-location? no-loc? #:no-argument-expression? no-expr?)]
+          [(todo) (spec-issue-todo-display issue #:indent headspace #:no-location? no-loc?)]
+          [(skip) (spec-issue-skip-display issue #:indent headspace)]
+          [(panic) (spec-issue-error-display issue #:indent headspace)])
+
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
       (define-values (summaries memory cpu real gc)
@@ -173,16 +187,17 @@
       (define panic : Natural (hash-ref summary 'panic (λ [] 0)))
       (define failures : Natural (+ misbehavior panic))
 
-      (if (positive? population)
-          (let ([~s (λ [[ms : Natural]] : String (~r (* ms 0.001) #:precision '(= 3)))]
-                [pass (hash-ref summary 'pass (λ [] 0))]
-                [todo (hash-ref summary 'todo (λ [] 0))]
-                [skip (hash-ref summary 'skip (λ [] 0))])
-            (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
-                   (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
-            (echof #:fgcolor (if (> failures 0) 'lightyellow 'lightcyan) "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
-                   (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") skip todo
-                   (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
-          (echof #:fgcolor 'darkcyan "~nNo particular sample!~n"))
+      (when (not no-summary?)
+        (if (positive? population)
+            (let ([~s (λ [[ms : Natural]] : String (~r (* ms 0.001) #:precision '(= 3)))]
+                  [pass (hash-ref summary 'pass (λ [] 0))]
+                  [todo (hash-ref summary 'todo (λ [] 0))]
+                  [skip (hash-ref summary 'skip (λ [] 0))])
+              (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
+                     (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
+              (echof #:fgcolor (if (> failures 0) 'lightyellow 'lightcyan) "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
+                     (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") skip todo
+                     (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
+            (echof #:fgcolor 'darkcyan "~nNo particular sample!~n")))
 
       failures)))

@@ -32,7 +32,7 @@
                              (list -output-directory)
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                          [else (path->string TEXNAME.tex)])))
-                       (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer]]
+                       (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer] [errmsg : Bytes]]
                          (define log-now (file-mtime TEXNAME.log))
                          (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
                                [(> log-now 0) (tex-log-cat renderer TEXNAME.log)])))

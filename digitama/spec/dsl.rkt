@@ -98,7 +98,8 @@
                    [empty? (null? (syntax->list #'(expr ...)))])
        (syntax/loc stx
          (if (and empty?)
-             (make-spec-behavior (spec-format brief)
+             (make-spec-behavior #:before setup #:after teardown 
+                                 (spec-format brief)
                                  (λ [] (parameterize ([default-spec-issue-locations (cons #'_it (default-spec-issue-locations))])
                                          (spec-misbehave 'todo))))
              (make-spec-behavior (spec-format brief)

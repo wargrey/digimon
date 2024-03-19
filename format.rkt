@@ -126,8 +126,13 @@
     (if (null? argl) msgfmt (apply format msgfmt argl))))
 
 (define ~string-lines : (-> String (Pairof String (Listof String)))
-  (lambda [s]
-    (assert (call-with-input-string s port->lines) pair?)))
+  (let ([empty-lines (list "")])
+    (lambda [s]
+      (if (regexp-match? #px"[\r\n]+" s)
+          (let ([lines (call-with-input-string s port->lines)])
+            (cond [(null? lines) empty-lines]
+                  [else lines]))
+          (list s)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define generate-immutable-string : (-> (U String Symbol) String)
