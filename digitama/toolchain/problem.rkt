@@ -4,10 +4,7 @@
 
 (require racket/list)
 
-(require "parameter.rkt")
-
 (require "../../filesystem.rkt")
-(require "../../token.rkt")
 (require "../../string.rkt")
 (require "../../dtrace.rkt")
 
@@ -31,55 +28,9 @@
   #:transparent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-cpp-problem-info : (-> Path (Option Problem-Info))
-  (lambda [main.cpp]
-    (call-with-input-file* main.cpp
-      (λ [[/dev/stdin : Input-Port]]
-        (let try-next-comment-block : (Option Problem-Info) ()
-          (syn-token-skip-whitespace /dev/stdin)
-          
-          (cond [(regexp-try-match #px"^[/][*][*]\\s*" /dev/stdin)
-                 (let*-values ([(head continue?) (read-cpp-problem-title /dev/stdin)]
-                               [(body) (if (not continue?) null (read-cpp-problem-description /dev/stdin))]
-                               [(args result rest) (problem-description-split-input-output body)]
-                               [(specs description) (problem-description-split-spec main.cpp rest)])
-                   (if (pair? specs)
-                       (make-problem-info head description args result specs)
-                       (try-next-comment-block)))]
-                [(regexp-try-match #px"^[/][*]" /dev/stdin)
-                 (regexp-match #px".+?[*][/]" /dev/stdin)
-                 (try-next-comment-block)]
-                [(regexp-try-match #px"^[/][/]" /dev/stdin)
-                 (read-line /dev/stdin)
-                 (try-next-comment-block)]
-                [else #false]))))))
+(define problem-topic-name : Symbol 'spec)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-cpp-problem-title : (-> Input-Port (Values (Option String) Boolean))
-  (lambda [/dev/stdin]
-    (define self (read-line /dev/stdin))
-      
-    (if (or (eof-object? self)
-            (regexp-match #px"[*]+[/].*" self))
-        (values #false #false)
-        (values (string-trim self) #true))))
-
-(define read-cpp-problem-description : (-> Input-Port (Listof String))
-  (lambda [/dev/stdin]
-    (let read-desc ([senil : (Listof String) null])
-      (define self (read-line /dev/stdin))
-      
-      (if (string? self)
-          (if (regexp-match #px"[*]+[/].*" self)
-              
-              (let ([last (string-trim self #px"(^\\s*[*]?\\s*)|(\\s*[*]+[/].*$)")])
-                (if (string-blank? last)
-                    (reverse senil)
-                    (reverse (cons last senil))))
-
-              (read-desc (cons (string-trim self #px"(^\\s*[*]\\s)|(\\s*$)") senil)))
-          (reverse senil)))))
-
 (define problem-description-split-input-output : (-> (Listof String) (Values (Listof String) (Option String) (Listof String)))
   (lambda [lines]
     (let split ([src : (Listof String) lines]
@@ -119,7 +70,7 @@
   (lambda [main.cpp head lines idx]
     (define brief : String (problem-spec-description head idx))
 
-    (dtrace-debug #:topic the-name "parsing ~a" brief)
+    (dtrace-debug #:topic problem-topic-name "parsing ~a" brief)
     
     (let parse ([src : (Listof String) lines]
                 [is : (Listof String) null]
@@ -163,7 +114,7 @@
     (if (file-exists? path)
         (append (file->lines path) rest)
         (let ()
-          (dtrace-warning #:topic the-name "ignored `~a` due to not found" file)
+          (dtrace-warning #:topic problem-topic-name "ignored `~a` due to not found" file)
           rest))))
 
 (define problem-spec-join : (-> (Listof String) String)

@@ -6,7 +6,6 @@
 
 (require "../shell.rkt")
 (require "../parameter.rkt")
-(require "../problem.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
 (require "../../wisemon/phony/typeset.rkt")
@@ -27,6 +26,8 @@
 (require "../../../digitama/git/lstree.rkt")
 (require "../../../digitama/git/langstat.rkt")
 
+(require "../../../digitama/toolchain/problem.rkt")
+(require "../../../digitama/toolchain/spec/clang.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -100,7 +101,7 @@
                      env)))
             
             (parameterize ([current-environment-variables (or self-env (current-environment-variables))])
-              (define problem-info : (Option Problem-Info) (read-cpp-problem-info path.c))
+              (define problem-info : (Option Problem-Info) (read-clang-problem-info path.c))
               (define args : (Vectorof String) (current-command-line-arguments))
               (if (not problem-info)
                   (shell-exec-a.out (car targets) args #false)
@@ -168,26 +169,10 @@
      (unbox &status)]
     [(problem-info a.out args stdin-log-level)
      (shell-echo-problem-info problem-info)
-
      (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
                     [default-spec-exec-stdout-port (current-output-port)])
        (spec-prove #:no-summary? #false #:no-location-info? #true #:no-argument-expression? #true
-                   (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
-                     #:do #:before shell-try-sync-stdout-with-dtrace
-                     #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
-                            (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
-                            (define brief (problem-spec-brief t))
-                            (cond [(and (string-blank? bargs) (not result))
-                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do #;(pending))]
-                                  [(regexp? result)
-                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do (expect-match-stdout a.out args bargs result))]
-                                  [else
-                                   (it brief #:do #:after shell-try-sync-stdout-with-dtrace #:do (expect-stdout a.out args bargs result))])))))]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell-try-sync-stdout-with-dtrace : (-> Void)
-  (lambda []
-    (collect-garbage 'major)))
+                   (clang-problem->feature problem-info a.out args)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : Nanomon-Shell
