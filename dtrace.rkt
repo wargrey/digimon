@@ -57,19 +57,12 @@
       [(emergency alert critical) 'fatal]
       [else 'debug])))
 
-(define dtrace-received-message-topic : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Option Symbol))
-  (lambda [log]
-    (vector-ref log 3)))
-
-(define dtrace-received-message-values : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Values Symbol String Any Symbol))
-  (lambda [log]
-    (define level : Symbol (vector-ref log 0))
-    (define message : String (vector-ref log 1))
-    (define udata : Any (vector-ref log 2))
-    
-    (if (dtrace? udata)
-        (values (dtrace-level udata) message (dtrace-urgent udata) level)
-        (values level message udata level))))
+(define dtrace-sync : (-> Void)
+  (lambda []
+    (define ghostcat (thread thread-receive))
+    (dtrace-sentry-info "use this if you don't want dtrace output is interleaved with standard output"
+                        #:handler (λ whocares (thread-send ghostcat 'okay)) #:end? #false)
+    (thread-wait ghostcat)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-dtrace-loop : (->* ()

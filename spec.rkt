@@ -97,15 +97,15 @@
                          [else (regexp-match? pattern brief)])))
 
              (let ([maybe-exn (with-handlers ([exn:fail? (λ [[e : exn:fail]] e)]) (pre-action) #false)])
-               (spec-seed-copy seed (downfold brief (length namepath) (spec-seed-datum seed)) (cons brief namepath)
-                               #:exceptions (cons maybe-exn (spec-seed-exceptions seed))))))
+               (spec-seed-copy #:exceptions (cons maybe-exn (spec-seed-exceptions seed))
+                               seed (downfold brief (length namepath) (spec-seed-datum seed)) (cons brief namepath)))))
       
       (define (upfold-feature [brief : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)] [children-seed : (Spec-Seed s)]) : (Spec-Seed s)
         (with-handlers ([exn:fail? (λ [[e : exn]] (eprintf "[#:after] ~a" (exn-message e)))]) (post-action))
-        (spec-seed-copy children-seed
+        (spec-seed-copy #:exceptions (cdr (spec-seed-exceptions children-seed))
+                        children-seed
                         (upfold brief (length (spec-seed-namepath children-seed)) (spec-seed-datum seed) (spec-seed-datum children-seed))
-                        (cdr (spec-seed-namepath children-seed))
-                        #:exceptions (cdr (spec-seed-exceptions children-seed))))
+                        (cdr (spec-seed-namepath children-seed))))
       
       (define (fold-behavior [brief : String] [action : (-> Void)] [timeout : Natural] [seed : (Spec-Seed s)]) : (Spec-Seed s)
         (define fixed-action : (-> Void)
@@ -121,8 +121,8 @@
         (define namepath : (Listof String) (spec-seed-namepath seed))
         (define-values (issue memory cpu real gc) (time-apply* (λ [] (prove brief namepath fixed-action))))
 
-        (spec-seed-copy seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath
-                        #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))))
+        (spec-seed-copy #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))
+                        seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath))
 
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
@@ -195,8 +195,8 @@
                   [skip (hash-ref summary 'skip (λ [] 0))])
               (echof #:fgcolor 'lightcyan "~nFinished in ~a wallclock seconds (~a task + ~a gc = ~a CPU).~n"
                      (~s real) (~s (max (- cpu gc) 0)) (~s gc) (~s cpu))
-              (echof #:fgcolor (if (> failures 0) 'lightyellow 'lightcyan) "~a, ~a, ~a, ~a skipped, ~a pending, ~a% Okay.~n"
-                     (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") skip todo
+              (echof #:fgcolor (if (> failures 0) 'lightyellow 'lightcyan) "~a, ~a, ~a, ~a pending, ~a skipped, ~a% Okay.~n"
+                     (~n_w population "sample") (~n_w misbehavior "misbehavior") (~n_w panic "panic") todo skip
                      (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population))))
             (echof #:fgcolor 'darkcyan "~nNo particular sample!~n")))
 

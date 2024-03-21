@@ -42,3 +42,17 @@
     (or (eq? received racket) ; already filtered by racket logging facility
         (eq? listened received)
         (dtrace-level<? received listened))))
+
+(define dtrace-received-message-topic : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Option Symbol))
+  (lambda [log]
+    (vector-ref log 3)))
+
+(define dtrace-received-message-values : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Values Symbol String Any Symbol))
+  (lambda [log]
+    (define level : Symbol (vector-ref log 0))
+    (define message : String (vector-ref log 1))
+    (define udata : Any (vector-ref log 2))
+    
+    (if (dtrace? udata)
+        (values (dtrace-level udata) message (dtrace-urgent udata) level)
+        (values level message udata level))))
