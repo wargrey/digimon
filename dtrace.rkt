@@ -1,8 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out) dtrace-level<?)
-
-(require racket/port)
+(provide (all-defined-out) Dtrace-Receiver dtrace-level<?)
 
 (require "digitama/dtrace.rkt")
 (require "digitama/bytes.rkt")
@@ -21,7 +19,6 @@
 ;;; Please keep above in mind whenever you want to send messages to `current-logger`.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Dtrace-Receiver (-> Symbol String Any Symbol Any))
 (define-type Dtrace-Level (U 'emergency 'alert 'critical 'fatal 'error 'warning 'notice 'info 'note 'debug 'trace))
 
 (define dtrace-topic : Symbol 'dtrace)
@@ -60,60 +57,57 @@
       [(emergency alert critical) 'fatal]
       [else 'debug])))
 
-(define dtrace-received-message : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Values Symbol String Any (Option Symbol) Symbol))
+(define dtrace-received-message-topic : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Option Symbol))
+  (lambda [log]
+    (vector-ref log 3)))
+
+(define dtrace-received-message-values : (-> (Immutable-Vector Symbol String Any (Option Symbol)) (Values Symbol String Any Symbol))
   (lambda [log]
     (define level : Symbol (vector-ref log 0))
     (define message : String (vector-ref log 1))
     (define udata : Any (vector-ref log 2))
-    (define topic : (Option Symbol) (vector-ref log 3))
-
+    
     (if (dtrace? udata)
-        (values (dtrace-level udata) message (dtrace-urgent udata) topic level)
-        (values level message udata topic level))))
+        (values (dtrace-level udata) message (dtrace-urgent udata) level)
+        (values level message udata level))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-dtrace-loop : (->* ()
                                 (Dtrace-Level Logger 
-                                              #:exit-predicate? (-> Any Boolean) #:atexit (-> Any) #:display-exit-message? Boolean
                                               #:silent-topics (Listof Symbol) #:false-receiver Dtrace-Receiver #:dtrace-receiver Dtrace-Receiver
                                               #:topic-receivers (Listof (Pairof Symbol Dtrace-Receiver)) #:default-receiver Dtrace-Receiver)
                                 (-> Void))
   (lambda [[dt-level 'note] [logger /dev/dtrace]
-                            #:exit-predicate? [exit? eof-object?] #:atexit [atexit void] #:display-exit-message? [show? #true]
                             #:silent-topics [silent-topics dtrace-silent-topics]
                             #:false-receiver [false-receiver void] #:dtrace-receiver [dtrace-receiver dtrace-event-echo]
                             #:topic-receivers [receivers null] #:default-receiver [default-receiver dtrace-event-echo]]
     (define /dev/log : Log-Receiver (make-log-receiver logger (dtrace-symbol->level dt-level)))
 
-    (define (quit [rdt-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)] [rlevel : Symbol]) : Void
-      (when (and show? (not (string=? message "")) (dtrace-level-okay? dt-level rdt-level rlevel))
-        (dtrace-receiver rdt-level message urgent-data dtrace-topic))
-      (void (atexit)))
-
-    (define (trace-topics [rdt-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)] [rlevel : Symbol]) : Any
-      (when (dtrace-level-okay? dt-level rdt-level rlevel)
-        (cond [(eq? topic dtrace-topic) (dtrace-receiver rdt-level message urgent-data dtrace-topic)]
-              [(not topic) (false-receiver rdt-level message urgent-data '_)]
-              [else (default-receiver rdt-level message urgent-data topic)])))
+    (define (trace-topics [recv-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)]) : Any
+      (cond [(eq? topic dtrace-topic) (dtrace-receiver recv-level message urgent-data dtrace-topic)]
+            [(not topic) (false-receiver recv-level message urgent-data '_)]
+            [else (default-receiver recv-level message urgent-data topic)]))
     
-    (define (dispatch-topics [rdt-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)] [rlevel : Symbol]) : Any
-      (when (dtrace-level-okay? dt-level rdt-level rlevel)
-        (cond [(eq? topic dtrace-topic) (dtrace-receiver rdt-level message urgent-data dtrace-topic)]
-              [(not topic) (false-receiver rdt-level message urgent-data '_)]
-              [else (let ([maybe-receiver (assq topic receivers)])
-                      (cond [(and maybe-receiver) ((cdr maybe-receiver) rdt-level message urgent-data (assert topic))]
-                            [else (default-receiver rdt-level message urgent-data topic)]))])))
-      
+    (define (dispatch-topics [recv-level : Symbol] [message : String] [urgent-data : Any] [topic : (Option Symbol)]) : Any
+      (cond [(eq? topic dtrace-topic) (dtrace-receiver recv-level message urgent-data dtrace-topic)]
+            [(not topic) (false-receiver recv-level message urgent-data '_)]
+            [else (let ([maybe-receiver (assq topic receivers)])
+                    (cond [(and maybe-receiver) ((cdr maybe-receiver) recv-level message urgent-data (assert topic))]
+                          [else (default-receiver recv-level message urgent-data topic)]))]))
+  
     (define dispatch (if (pair? receivers) dispatch-topics trace-topics))
 
     (define (trace) : Void
       (define log : (Immutable-Vector Symbol String Any (Option Symbol)) (sync/enable-break /dev/log))
-      (define-values  (rdt-level message udata topic rlevel) (dtrace-received-message log))
+      (define topic : (Option Symbol) (dtrace-received-message-topic log))
 
-      (cond [(exit? udata) (quit rdt-level message udata topic rlevel)]
-            [(not (dtrace-level-okay? dt-level rdt-level rlevel)) (trace)]
-            [(memq topic silent-topics) (trace)]
-            [else (dispatch rdt-level message udata topic rlevel) (trace)]))
+      (if (not (memq topic silent-topics))
+          (let-values ([(recv-level message udata rkt-level) (dtrace-received-message-values log)])
+            (cond [(not (dtrace-level-okay? dt-level recv-level rkt-level)) (trace)]
+                  [(not (sentry? udata)) (dispatch recv-level message udata topic) (trace)]
+                  [else ((sentry-handler udata) recv-level message (sentry-hint udata) (or topic '_))
+                        (unless (sentry-terminate? udata) (trace))]))
+          (trace)))
     
     trace))
 
@@ -125,21 +119,17 @@
   (lambda [proc [level 'note] [logger /dev/dtrace]
                 #:silent-topics [silent-topics dtrace-silent-topics] #:false-receiver [false-receiver dtrace-event-echo]
                 #:dtrace-receiver [dtrace-receiver dtrace-event-echo] #:topic-receivers [receivers null] #:default-receiver [receiver dtrace-event-echo]]
-    (define sentry : Symbol (gensym 'dtrace))
-    (define (sentry? urgent) : Boolean (eq? urgent sentry))
-    
     (define dtrace : Thread
-      (thread (make-dtrace-loop level logger
-                                #:exit-predicate? sentry? #:display-exit-message? #false #:silent-topics silent-topics
-                                #:false-receiver false-receiver #:dtrace-receiver dtrace-receiver
-                                #:topic-receivers receivers #:default-receiver receiver)))
+      (thread (make-dtrace-loop #:false-receiver false-receiver #:dtrace-receiver dtrace-receiver
+                                #:topic-receivers receivers #:default-receiver receiver
+                                level logger)))
 
     (begin0
       (parameterize ([current-logger logger])
         (with-syntax ([exn:break? void]
                       [exn:fail? dtrace-exception])
           (proc)))
-      (log-message logger (dtrace-symbol->level level) "Done" sentry)
+      (log-message logger (dtrace-symbol->level level) "Done" (dtrace-sentry #false void #true))
       (thread-wait dtrace))))
 
 (define open-output-dtrace : (->* ()
@@ -240,6 +230,14 @@
   (let ([dtrace (lambda [[level : Symbol]] : (->* (Any) (#:topic Any #:prefix? Boolean String) #:rest Any Void)
                   (λ [u #:topic [t /dev/dtrace] #:prefix? [? #true] [msgfmt ""] . messages]
                     (dtrace-send t level (~string msgfmt messages) u ?)))])
+    (values (dtrace 'trace) (dtrace 'debug) (dtrace 'note) (dtrace 'info) (dtrace 'notice) (dtrace 'warning)
+            (dtrace 'error) (dtrace 'fatal) (dtrace 'critical) (dtrace 'altert) (dtrace 'emergency))))
+
+(define-values (dtrace-sentry-trace dtrace-sentry-debug dtrace-sentry-note dtrace-sentry-info dtrace-sentry-notice dtrace-sentry-warning
+                                    dtrace-sentry-error dtrace-sentry-fatal dtrace-sentry-critical dtrace-sentry-alert dtrace-sentry-emergency)
+  (let ([dtrace (lambda [[level : Symbol]] : (->* (Any) (#:handler Dtrace-Receiver #:topic Any #:prefix? Boolean String #:end? Boolean) #:rest Any Void)
+                  (λ [u #:handler [handler void] #:topic [t /dev/dtrace] #:prefix? [? #true] #:end? [end? #true] [msgfmt ""] . messages]
+                    (dtrace-send t level (~string msgfmt messages) (dtrace-sentry u handler end?) ?)))])
     (values (dtrace 'trace) (dtrace 'debug) (dtrace 'note) (dtrace 'info) (dtrace 'notice) (dtrace 'warning)
             (dtrace 'error) (dtrace 'fatal) (dtrace 'critical) (dtrace 'altert) (dtrace 'emergency))))
 

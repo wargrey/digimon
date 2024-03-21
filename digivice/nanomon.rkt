@@ -30,7 +30,7 @@
    ;   we have to trick it for not launching the debugger when
    ;   our task script has already run the program.
    ; Besides, in Windows, the debugger always starts another terminal
-   ;   and causes the one running out task script hidden.
+   ;   and causes the one running our task script hidden.
    [(pretend)           #:=> cmdopt-string->byte status #: Byte    "replace normal exit status with ~1"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
@@ -96,7 +96,7 @@
             (trick-exit retcode pretend-status))
           (trick-exit (time* (let ([tracer (thread (make-nanomon-log-trace))])
                                (begin0 (exec-shell shell (cmdopt-string->path the-name target))
-                                       (dtrace-datum-notice eof)
+                                       (dtrace-sentry-notice #:end? #true eof)
                                        (thread-wait tracer))))
                       pretend-status)))))
 

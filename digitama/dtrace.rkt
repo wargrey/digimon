@@ -2,6 +2,16 @@
 
 (provide (all-defined-out))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Dtrace-Receiver (-> Symbol String Any Symbol Any))
+
+(struct sentry
+  ([hint : Any]
+   [handler : Dtrace-Receiver]
+   [terminate? : Boolean])
+  #:constructor-name dtrace-sentry)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define dtrace-severities : (Immutable-HashTable Symbol Byte)
   (hasheq 'emergency 0
           'alert 1

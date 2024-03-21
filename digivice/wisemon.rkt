@@ -97,7 +97,8 @@
                                      retcode)
                                    (custodian-shutdown-all (current-custodian)))))
                        
-                       (dtrace-datum-notice eof "Leave Digimon Zone: ~a" (current-digimon))
+                       (dtrace-sentry-notice #:handler racket-event-echo #:end? #true
+                                             eof "Leave Digimon Zone: ~a" (current-digimon))
                        (thread-wait tracer))))]
           [else ; some phonies allow non-package projects
            (let ([tracer (thread (make-racket-log-trace))])
@@ -114,7 +115,7 @@
                                    (custodian-shutdown-all (current-custodian))
                                    (dtrace-notice "Leave Free Phony: ~a" (current-make-phony-goal)))))
                        
-                       (dtrace-datum-notice eof "")
+                       (dtrace-sentry-notice #:end? #true eof "")
                        (thread-wait tracer))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
