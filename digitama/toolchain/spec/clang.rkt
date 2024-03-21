@@ -51,17 +51,17 @@
              (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (cond [(and (string-blank? bargs) (not result))
-                    (it brief #:do #:after dtrace-sync #:do #;(pending))]
+                    (it brief #:do #:before dtrace-sync #:do #;(pending))]
                    [(regexp? result)
-                    (it brief #:do #:after dtrace-sync #:do (expect-match-stdout a.out args bargs result))]
+                    (it brief #:do #:before dtrace-sync #:do (expect-match-stdout a.out args bargs result))]
                    [else
-                    (it brief #:do #:after dtrace-sync #:do (expect-stdout a.out args bargs result))])))))
+                    (it brief #:do #:before dtrace-sync #:do (expect-stdout a.out args bargs result))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))
   (lambda [/dev/stdin]
     (define self (read-line /dev/stdin))
-      
+    
     (if (or (eof-object? self)
             (regexp-match #px"[*]+[/].*" self))
         (values #false #false)
