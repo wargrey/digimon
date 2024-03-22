@@ -82,23 +82,25 @@
       (wisemon-display-help))
 
     (define-values (name target argv) (λargv))
-    (define pretend-status : (Option Byte) (nanomon-flags-pretend options))
-
-    (parameterize ([current-logger /dev/dtrace]
-                   [nanomon-lang (nanomon-flags-lang options)]
-                   [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
-                   [current-command-line-arguments (list->vector argv)])
-      (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol name)))
-
-      (if (not shell)
-          (let ([retcode (nanomon-errno)])
-            (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
-            (trick-exit retcode pretend-status))
-          (trick-exit (time* (let ([tracer (thread (make-nanomon-log-trace))])
-                               (begin0 (exec-shell shell (cmdopt-string->path the-name target))
+    
+    (let ([tracer (thread (make-nanomon-log-trace))])
+      (dtrace-info #:topic the-name "shell: ~a" name)
+      
+      (parameterize ([current-logger /dev/dtrace]
+                     [nanomon-lang (nanomon-flags-lang options)]
+                     [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
+                     [current-command-line-arguments (list->vector argv)])  
+        (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol name)))
+        (define pretend-status : (Option Byte) (nanomon-flags-pretend options))
+        
+        (if (not shell)
+            (let ([retcode (nanomon-errno)])
+              (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
+              (trick-exit retcode pretend-status))
+            (trick-exit (time* (begin0 (exec-shell shell (cmdopt-string->path the-name target))
                                        (dtrace-sentry-notice #:end? #true eof)
-                                       (thread-wait tracer))))
-                      pretend-status)))))
+                                       (thread-wait tracer)))
+                        pretend-status))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nanomon-event-echo : Dtrace-Receiver

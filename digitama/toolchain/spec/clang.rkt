@@ -68,7 +68,7 @@
   (lambda [/dev/stdin]
     (let read-desc ([senil : (Listof String) null])
       (define self (read-line /dev/stdin))
-      
+
       (if (string? self)
           (if (regexp-match #px"[*]+[/].*" self)
               
@@ -77,5 +77,5 @@
                     (reverse senil)
                     (reverse (cons last senil))))
 
-              (read-desc (cons (string-trim self #px"(^\\s*[*]\\s)|(\\s*$)") senil)))
+              (read-desc (cons (string-trim self #px"(^\\s*[*]\\s?)|(\\s*$)") senil)))
           (reverse senil)))))
