@@ -12,7 +12,7 @@
 (struct problem-spec
   ([brief : String]
    [input : String]
-   [output : (U String Regexp False)])
+   [output : (Listof (U String Regexp))])
   #:type-name Problem-Spec
   #:constructor-name make-problem-spec
   #:transparent)
@@ -61,10 +61,10 @@
             (cond [(not body) (split ids-- tail ss head pos)]
                   [(null? head) (split ids-- tail ss head pos)]
                   [else (split ids-- tail (cons (problem-description->spec main.cpp (car head) (cdr head) idx) ss) body pos)]))
-          (cond [(not body) (values null (string-list-normalize-empties src))]
-                [(null? src) (values (reverse ss) (string-list-normalize-empties body))]
+          (cond [(not body) (values null (string-list-normalize-blanks src))]
+                [(null? src) (values (reverse ss) (string-list-normalize-blanks body))]
                 [else (values (reverse (cons (problem-description->spec main.cpp (car src) (cdr src) idx) ss))
-                              (string-list-normalize-empties body))])))))
+                              (string-list-normalize-blanks body))])))))
 
 (define problem-description->spec : (-> Path String (Listof String) Nonnegative-Fixnum Problem-Spec)
   (lambda [main.cpp head lines idx]
@@ -74,28 +74,28 @@
     
     (let parse ([src : (Listof String) lines]
                 [is : (Listof String) null]
-                [os : (Option (Listof String)) #false]
+                [os : (Listof (Listof String)) null]
                 [ydob : (Listof String) null]
                 [dir : (Option Symbol) #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
-               (cond [(string-prefix? self "input") (parse rest is os ydob 'input)]
-                     [(string-prefix? self "output") (parse rest is os ydob 'output)]
+               (cond [(regexp-match? "^(input:?|[>][>])" self) (parse rest is os ydob 'input)]
+                     [(regexp-match? "^(output:?|[<][<])" self) (parse rest is (problem-output-prepare os) ydob 'output)]
                      [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os ydob dir)]
                      [(eq? dir 'input) (parse rest (cons self is) os ydob dir)]
-                     [(eq? dir 'output) (parse rest is (cons self (or os null)) ydob dir)]
+                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) ydob dir)]
                      [else (parse rest is os (cons self ydob) dir)]))]
 
-            [(not dir) ; no #:input ior #:output
-             (let-values ([(is os) (splitf-at (string-list-trim-empties (reverse ydob)) string!blank?)])
+            [(not dir) ; no (#:input ior #:output)
+             (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
-                                    (if (string-blank? output) #false output))))]
+                                    (if (string-blank? output) null (list output)))))]
 
             [else
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
-                                (and os (problem-spec-join (reverse os))))]))))
+                                (map problem-spec-rjoin (reverse os)))]))))
 
 (define problem-spec-description : (-> String Nonnegative-Fixnum String)
   (lambda [headline idx]
@@ -119,8 +119,18 @@
 
 (define problem-spec-join : (-> (Listof String) String)
   (lambda [lines]
-    (string-join (string-list-normalize-empties lines) "\n")))
+    (string-join (string-list-normalize-blanks lines) "\n")))
+
+(define problem-spec-rjoin : (-> (Listof String) String)
+  (lambda [lines]
+    (string-join (string-list-normalize-blanks (reverse lines)) "\n")))
 
 (define problem-spec-predicate : (-> String Any)
   (lambda [self]
     (regexp-match #px"^(@|\\\\)(test)" self)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define problem-output-prepare : (-> (Listof (Listof String)) (Listof (Listof String)))
+  (lambda [os]
+    (cond [(null? os) (list null)]
+          [else (cons null os)])))

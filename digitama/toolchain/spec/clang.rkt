@@ -43,19 +43,16 @@
     (and problem-info
         (clang-problem->feature problem-info a.out args))))
 
-(define clang-problem->feature : (-> Problem-Info Path (Vectorof String)  Spec-Feature)
+(define clang-problem->feature : (-> Problem-Info Path (Vectorof String) Spec-Feature)
   (lambda [problem-info a.out args]
     (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
       #:do #:before dtrace-sync
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
-             (cond [(and (string-blank? bargs) (not result))
-                    (it brief #:do #:before dtrace-sync #:do #;(pending))]
-                   [(regexp? result)
-                    (it brief #:do #:before dtrace-sync #:do (expect-match-stdout a.out args bargs result))]
-                   [else
-                    (it brief #:do #:before dtrace-sync #:do (expect-stdout a.out args bargs result))])))))
+             (if (and (string-blank? bargs) (null? result))
+                 (it brief #:do #:before dtrace-sync #:do #;(pending))
+                 (it brief #:do #:before dtrace-sync #:do (expect-stdout a.out args bargs result)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

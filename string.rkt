@@ -45,19 +45,19 @@
     (and (string!blank? s)
          s)))
 
-(define string-list-trim-empties : (-> (Listof String) (Listof String))
-  (lambda [strs]
-    (dropf-right (dropf strs string-blank?) string-blank?)))
+(define string-list-trim-blanks : (->* ((Listof String)) ((-> String Boolean)) (Listof String))
+  (lambda [strs [blank? string-blank?]]
+    (dropf-right (dropf strs blank?) blank?)))
 
-(define string-list-normalize-empties : (-> (Listof String) (Listof String))
-  (lambda [strs]
+(define string-list-normalize-blanks : (->* ((Listof String)) ((-> String Boolean)) (Listof String))
+  (lambda [strs [blank? string-blank?]]
     (let normalize ([src : (Listof String) strs]
                     [srts : (Listof String) null]
                     [last-empty? : Boolean #true])
       (if (pair? src)
           (let*-values ([(self tail) (values (car src) (cdr src))]
                         [(size) (string-length self)])
-            (cond [(string-blank? self) (normalize tail srts #true)]
+            (cond [(blank? self) (normalize tail srts #true)]
                   [(not last-empty?) (normalize tail (cons self srts) #false)]
                   [(null? srts) (normalize tail (cons self srts) #false)]
                   [else (normalize tail (cons self (cons "" srts)) #false)]))
