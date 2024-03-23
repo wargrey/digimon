@@ -4,8 +4,8 @@
 
 (require "nanomon/parameter.rkt")
 (require "nanomon/shell.rkt")
+(require "wizarmon/echo.rkt")
 
-(require "../continuation.rkt")
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
@@ -69,7 +69,7 @@
 
     (define-values (name target argv) (λargv))
     
-    (let ([tracer (thread (make-nanomon-log-trace))])
+    (let ([tracer (thread (make-wizarmon-log-trace (nanomon-verbose)))])
       (dtrace-info #:topic the-name "shell: ~a" name)
       
       (parameterize ([current-logger /dev/dtrace]
@@ -85,24 +85,6 @@
             (exit (time* (begin0 (exec-shell shell (cmdopt-string->path the-name target))
                                  (dtrace-sentry-notice #:end? #true eof)
                                  (thread-wait tracer)))))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define nanomon-event-echo : Dtrace-Receiver
-  (lambda [level message urgent topic]
-    (dtrace-event-echo level message urgent topic)
-
-    (when (and (exn:fail? urgent) (nanomon-verbose))
-      (let ([/dev/stderr (open-output-string)])
-        (display-continuation-stacks urgent /dev/stderr)
-        (let ([errmsg (get-output-string /dev/stderr)])
-          (unless (string=? errmsg "")
-            (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic)))))))
-
-(define make-nanomon-log-trace : (-> (-> Void))
-  (lambda []
-    (make-dtrace-loop #:default-receiver nanomon-event-echo
-                      (cond [(nanomon-verbose) 'trace]
-                            [else 'info]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))

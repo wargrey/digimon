@@ -3,9 +3,9 @@
 (provide main)
 
 (require "wizarmon/parameter.rkt")
+(require "wizarmon/echo.rkt")
 (require "wizarmon/exec.rkt")
 
-(require "../continuation.rkt")
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
@@ -72,7 +72,7 @@
 
     (define-values (target argv) (λargv))
     
-    (let ([tracer (thread (make-wizarmon-log-trace))])
+    (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-verbose)))])
       (dtrace-notice #:topic the-name "source: ~a" target)
       
       (parameterize ([current-logger /dev/dtrace]
@@ -85,24 +85,6 @@
                                    (dtrace-sentry-notice #:end? #true eof)
                                    (thread-wait tracer)))
                     pretend-status)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wizarmon-event-echo : Dtrace-Receiver
-  (lambda [level message urgent topic]
-    (dtrace-event-echo level message urgent topic)
-
-    (when (and (exn:fail? urgent) (wizarmon-verbose))
-      (let ([/dev/stderr (open-output-string)])
-        (display-continuation-stacks urgent /dev/stderr)
-        (let ([errmsg (get-output-string /dev/stderr)])
-          (unless (string=? errmsg "")
-            (dtrace-event-echo 'trace (get-output-string /dev/stderr) #false topic)))))))
-
-(define make-wizarmon-log-trace : (-> (-> Void))
-  (lambda []
-    (make-dtrace-loop #:default-receiver wizarmon-event-echo
-                      (cond [(wizarmon-verbose) 'trace]
-                            [else 'info]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main (current-command-line-arguments))
