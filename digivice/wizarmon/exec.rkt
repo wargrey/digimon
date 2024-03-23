@@ -4,38 +4,35 @@
 
 (require racket/pretty)
 
-(require "../shell.rkt")
-(require "../parameter.rkt")
+(require "parameter.rkt")
 
-(require "../../wisemon/phony/cc.rkt")
-(require "../../wisemon/phony/typeset.rkt")
-(require (only-in "../../wisemon/parameter.rkt"
+(require "../wisemon/phony/cc.rkt")
+(require "../wisemon/phony/typeset.rkt")
+(require (only-in "../wisemon/parameter.rkt"
                   current-make-real-targets))
 
-(require "../../../wisemon.rkt")
-(require "../../../environ.rkt")
-(require "../../../dtrace.rkt")
-(require "../../../filesystem.rkt")
-(require "../../../spec.rkt")
+(require "../../wisemon.rkt")
+(require "../../environ.rkt")
+(require "../../dtrace.rkt")
+(require "../../filesystem.rkt")
+(require "../../spec.rkt")
 
-(require "../../../digitama/exec.rkt")
-(require "../../../digitama/system.rkt")
-(require "../../../digitama/collection.rkt")
-(require "../../../digitama/graphviz.rkt")
-(require "../../../digitama/git/lstree.rkt")
-(require "../../../digitama/git/langstat.rkt")
+(require "../../digitama/exec.rkt")
+(require "../../digitama/system.rkt")
+(require "../../digitama/collection.rkt")
+(require "../../digitama/graphviz.rkt")
+(require "../../digitama/git/lstree.rkt")
+(require "../../digitama/git/langstat.rkt")
 
-(require "../../../digitama/toolchain/problem.rkt")
-(require "../../../digitama/toolchain/spec/clang.rkt")
-(require "../../../digitama/toolchain/cc/configuration.rkt")
+(require "../../digitama/toolchain/problem.rkt")
+(require "../../digitama/toolchain/spec/clang.rkt")
+(require "../../digitama/toolchain/cc/configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~~exec : (-> Path Thread Any)
   (lambda [path env-thread]
-    (dtrace-notice #:topic the-name "source: ~a" path)
-
     (define lang : (Option String)
-      (or (nanomon-lang)
+      (or (wizarmon-lang)
           (let* ([gf (make-git-file path)]
                  [gl (git-files->langfiles (list gf) null git-default-subgroups)])
             (and (= (hash-count gl) 1)
@@ -53,7 +50,7 @@
         [("scribble") (shell-typeset path 'scribble)]
         [("tex") (shell-typeset path 'tex)]
         [("graphviz (dot)") (shell-dot path 'png #".png")]
-        [else (nanomon-errno 126)
+        [else (wizarmon-errno 126)
               (raise (make-exn:fail:unsupported (if (not lang)
                                                     (format "exec: don't know how to run this file: ~a" path)
                                                     (format "exec: don't know how to run ~a file: ~a" lang path))
@@ -172,8 +169,3 @@
                     [default-spec-exec-stdout-port (current-output-port)])
        (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true
                    (clang-problem->feature problem-info a.out args)))]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define exec-shell : Nanomon-Shell
-  (nanomon-make-shell #:name 'exec #:shell shell~~exec
-                      #:desc "Run source file (of Racket, C/C++, Scribble/tex, and Graphviz)"))

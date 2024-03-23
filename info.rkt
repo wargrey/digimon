@@ -16,8 +16,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define raco-commands
-  '(["wisemon" digimon/digivice/wisemon "compile and build collection before or after installing it" #false]
-    ["nanomon" digimon/digivice/nanomon "run and test `#lang`s" #false]))
+  '(["wisemon"  digimon/digivice/wisemon  "yet another building system for Racket, C/C++, Scribble/tex and more" #false]
+    ["wizarmon" digimon/digivice/wizarmon "run source file of Racket, C/C++, Scribble/tex, and more" #false]
+    ["nanomon"  digimon/digivice/nanomon  "a utility to assist the building system" #false]))
 
 (define scribblings
   '(["tamer/digimon.scrbl" (main-doc multi-page)]))

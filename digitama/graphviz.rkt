@@ -3,8 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/symbol)
-
-(require "../filesystem.rkt")
+(require racket/path)
 
 (require "exec.rkt")
 

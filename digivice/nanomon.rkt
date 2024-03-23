@@ -24,14 +24,7 @@
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                     the-print-width]]
    [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]
-   [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]
-
-   ; The C++ extension for VSCode isn't smart enough
-   ;   we have to trick it for not launching the debugger when
-   ;   our task script has already run the program.
-   ; Besides, in Windows, the debugger always starts another terminal
-   ;   and causes the one running our task script hidden.
-   [(pretend)           #:=> cmdopt-string->byte status #: Byte    "replace normal exit status with ~1"]])
+   [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
   (lambda [[retcode 0]]
@@ -66,13 +59,6 @@
                               (nanomon-errno)])))
               (thread-safe-shutdown (current-custodian) root-custodian)))))
 
-(define trick-exit : (-> Byte (Option Byte) Nothing)
-  (lambda [status pretend]
-    (exit
-     (cond [(not pretend) status]
-           [(zero? status) pretend]
-           [else status]))))
-
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]
     (nanomon-restore-options!)
@@ -91,16 +77,14 @@
                      [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
                      [current-command-line-arguments (list->vector argv)])  
         (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol name)))
-        (define pretend-status : (Option Byte) (nanomon-flags-pretend options))
         
         (if (not shell)
             (let ([retcode (nanomon-errno)])
               (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
-              (trick-exit retcode pretend-status))
-            (trick-exit (time* (begin0 (exec-shell shell (cmdopt-string->path the-name target))
-                                       (dtrace-sentry-notice #:end? #true eof)
-                                       (thread-wait tracer)))
-                        pretend-status))))))
+              (exit retcode))
+            (exit (time* (begin0 (exec-shell shell (cmdopt-string->path the-name target))
+                                 (dtrace-sentry-notice #:end? #true eof)
+                                 (thread-wait tracer)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define nanomon-event-echo : Dtrace-Receiver
