@@ -22,6 +22,7 @@
 (define default-spec-exec-stdin-log-level : (Parameterof (Option Symbol)) (make-parameter #false))
 (define default-spec-exec-stdout-port : (Parameterof (Option Output-Port)) (make-parameter #false))
 (define default-spec-exec-stderr-port : (Parameterof (Option Output-Port)) (make-parameter #false))
+(define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-expectation (stdout [bin : Path-String] [argv : (Vectorof String)] [stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
@@ -31,7 +32,7 @@
   (define raw : Bytes
     (fg-recon-exec/pipe #:/dev/stdin /dev/stdin #:stdin-log-level (default-spec-exec-stdin-log-level)
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
-                        'exec (if (string? bin) (string->path bin) bin) argv))
+                        (default-spec-exec-operation-name) (if (string? bin) (string->path bin) bin) argv))
 
   ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important 
   (define eols (regexp-match #px#"[\r\n]+$" raw))
