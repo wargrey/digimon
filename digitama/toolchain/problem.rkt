@@ -31,6 +31,21 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define problem-topic-name : Symbol 'spec)
 
+(define dtrace-problem-info : (-> Problem-Info Void)
+  (lambda [pinfo]
+    (when (pair? (problem-info-description pinfo))
+      (dtrace-debug "@~a:" 'problem)
+      (for ([brief (in-list (problem-info-description pinfo))])
+        (dtrace-note "~a" brief)))
+    (when (pair? (problem-info-arguments pinfo))
+      (dtrace-debug "@~a:" 'input)
+      (for ([input (in-list (problem-info-arguments pinfo))])
+        (dtrace-note "~a" input)))
+    (when (problem-info-result pinfo)
+      (dtrace-debug "@~a:" 'output)
+      (when (problem-info-result pinfo)
+        (dtrace-note "~a" (problem-info-result pinfo))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define problem-description-split-input-output : (-> (Listof String) (Values (Listof String) (Option String) (Listof String)))
   (lambda [lines]
