@@ -126,7 +126,7 @@
                                                    (let ([ghostcat (thread (λ [] (write-special (prove brief namepath action) /dev/issout)))])
                                                      (with-handlers ([exn? (λ [[e : exn]] (kill-thread ghostcat) (write-special e /dev/issout))])
                                                        (unless (sync/timeout/enable-break (/ self-timeout 1000.0) (thread-dead-evt ghostcat))
-                                                         (spec-throw "timeout (longer than ~as)" (~gctime timeout)))))
+                                                         (spec-throw "timeout (longer than ~as)" (~gctime self-timeout)))))
                                                    (let ([result (read-byte-or-special /dev/issin)])
                                                      (cond [(spec-issue? result) (spec-misbehave result)]
                                                            [(exn:fail? result) (spec-misbehave result)]

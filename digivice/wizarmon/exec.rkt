@@ -167,4 +167,5 @@
      (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
                     [default-spec-exec-stdout-port (current-output-port)])
        (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true
-                   (clang-problem->feature problem-info a.out args (wizarmon-timeout))))]))
+                   #:timeout (wizarmon-timeout) #:pre-spec dtrace-sync #:post-behavior dtrace-sync
+                   (clang-problem->feature problem-info a.out args)))]))
