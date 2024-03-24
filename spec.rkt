@@ -36,6 +36,7 @@
 (require "echo.rkt")
 
 (require racket/string)
+(require racket/port)
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
@@ -79,12 +80,15 @@
 (define spec-summary-fold
   : (All (s) (-> (U Spec-Feature Spec-Behavior) s
                  #:downfold (-> String Index s s) #:upfold (-> String Index s s s) #:herefold (-> String Spec-Issue Index Integer Natural Natural Natural s s)
-                 [#:selector Spec-Prove-Selector]
+                 [#:selector Spec-Prove-Selector] [#:pre-behavior (-> Any)] [#:post-behavior (-> Any)] [#:timeout (Option Natural)]
                  (Pairof Spec-Summary s)))
-  (lambda [feature seed:datum #:downfold downfold #:upfold upfold #:herefold herefold #:selector [selector null]]
+  (lambda [#:downfold downfold #:upfold upfold #:herefold herefold #:selector [selector null]
+           #:pre-behavior [before-behavior void] #:post-behavior [after-behavior void] #:timeout [default-timeout #false]
+           feature seed:datum]
     (define prove : Spec-Behavior-Prove (default-spec-behavior-prove))
     (define selectors : (Vectorof Spec-Prove-Pattern) (list->vector selector))
     (define selcount : Index (vector-length selectors))
+    (define behavior-timeout : Natural (or default-timeout 0))
     
     (parameterize ([current-custodian (make-custodian)]) ;;; Prevent test routines from shutting down the current custodian accidently.
       (define (downfold-feature [brief : String] [pre-action : (-> Any)] [post-action : (-> Any)] [seed : (Spec-Seed s)]) : (Option (Spec-Seed s))
@@ -110,18 +114,25 @@
       
       (define (fold-behavior [brief : String] [action : (-> Void)] [timeout : Natural] [seed : (Spec-Seed s)]) : (Spec-Seed s)
         (define namepath : (Listof String) (spec-seed-namepath seed))
+        (define self-timeout : Natural (if (> timeout 0) timeout behavior-timeout))
+
+        (before-behavior)
         (define-values (issue memory cpu real gc)
-          (time-apply*
-           (λ [] (cond [(findf exn? (spec-seed-exceptions seed))
-                        => (λ [[e : exn:fail]] (prove brief namepath (λ [] (spec-misbehave e))))]
-                       [(> timeout 0)
-                        (prove brief namepath
-                               (λ [] (let ([ghostcat (thread action)])
-                                       (with-handlers ([exn:fail? (λ [[e : exn:fail]] (kill-thread ghostcat) (spec-misbehave e))]
-                                                       [exn:break? (λ [[e : exn:break]] (kill-thread ghostcat) (raise e))])
-                                         (unless (sync/timeout/enable-break (/ timeout 1000.0) (thread-dead-evt ghostcat))
-                                           (spec-throw "timeout (longer than ~as)" (~gctime timeout)))))))]
-                       [else (prove brief namepath action)]))))
+          (cond [(findf exn? (spec-seed-exceptions seed))
+                 => (λ [[e : exn:fail]] (time-apply* (λ [] (prove brief namepath (λ [] (spec-misbehave e))))))]
+                [(> self-timeout 0)
+                 (time-apply* (λ [] (prove brief namepath
+                                           (λ [] (let-values ([(/dev/issin /dev/issout) (make-pipe-with-specials)])
+                                                   (let ([ghostcat (thread (λ [] (write-special (prove brief namepath action) /dev/issout)))])
+                                                     (with-handlers ([exn? (λ [[e : exn]] (kill-thread ghostcat) (write-special e /dev/issout))])
+                                                       (unless (sync/timeout/enable-break (/ self-timeout 1000.0) (thread-dead-evt ghostcat))
+                                                         (spec-throw "timeout (longer than ~as)" (~gctime timeout)))))
+                                                   (let ([result (read-byte-or-special /dev/issin)])
+                                                     (cond [(spec-issue? result) (spec-misbehave result)]
+                                                           [(exn:fail? result) (spec-misbehave result)]
+                                                           [(exn:break? result) (raise result)])))))))]
+                [else (time-apply* (λ [] (prove brief namepath action)))]))
+        (after-behavior)
 
         (spec-seed-copy #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))
                         seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath))
@@ -132,13 +143,16 @@
 (define spec-prove : (->* ((U Spec-Feature Spec-Behavior))
                           (#:selector Spec-Prove-Selector #:no-summary? Boolean
                            #:no-timing-info? Boolean #:no-location-info? Boolean #:no-argument-expression? Boolean
-                           #:pre-action (-> Any) #:post-action (-> Any))
+                           #:pre-spec (-> Any) #:post-spec (-> Any) #:pre-behavior (-> Any) #:post-behavior (-> Any)
+                           #:timeout (Option Natural))
                           Natural)
   (lambda [#:selector [selector null] #:no-summary? [no-summary? #false]
            #:no-timing-info? [no-timing-info? (default-spec-no-timing-info)]
            #:no-location-info? [no-loc? (default-spec-no-location-info)]
            #:no-argument-expression? [no-expr? (default-spec-no-argument-expression)]
-           #:pre-action [before void]  #:post-action [after void]
+           #:pre-spec [before-spec void]  #:post-spec [after-spec void]
+           #:pre-behavior [before-behavior void]  #:post-behavior [after-behavior void]
+           #:timeout [timeout #false]
            feature]
     (define ~fgcolor : Spec-Issue-Fgcolor (default-spec-issue-fgcolor))
     (define ~symbol : Spec-Issue-Symbol (default-spec-issue-symbol))
@@ -179,13 +193,14 @@
 
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
-      (before)
+      (before-spec)
       (define-values (summaries memory cpu real gc)
         (time-apply* (λ [] ((inst spec-summary-fold (Listof Natural))
                             feature null
                             #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                            #:pre-behavior before-behavior #:post-behavior after-behavior #:timeout timeout
                             #:selector selector))))
-      (after)
+      (after-spec)
 
       (define summary : Spec-Summary (car summaries))
       (define population : Natural (apply + (hash-values summary)))

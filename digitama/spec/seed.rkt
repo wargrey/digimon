@@ -4,6 +4,7 @@
 
 (require "issue.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Summary (Immutable-HashTable Spec-Issue-Type Natural))
 
 (struct (Datum) spec-seed
@@ -13,6 +14,7 @@
    [exceptions : (Listof (Option exn:fail))])
   #:type-name Spec-Seed)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-spec-seed : (All (s) (-> s (Spec-Seed s)))
   (lambda [datum]
     ((inst spec-seed s) datum null (make-immutable-hasheq) null)))
