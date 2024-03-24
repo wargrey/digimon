@@ -5,6 +5,7 @@
 (require "parameter.rkt")
 
 (require "exec/c.rkt")
+(require "exec/python.rkt")
 (require "exec/scrbl.rkt")
 (require "exec/dot.rkt")
 
@@ -32,6 +33,7 @@
       [("c++") (shell-cpp path 'cpp)]
       [("cpp") (shell-cpp path 'cpp)]
       [("c") (shell-c path 'c)]
+      [("python") (shell-python path 'python)]
       [("scribble") (shell-typeset path 'scribble)]
       [("tex") (shell-typeset path 'tex)]
       [("graphviz (dot)") (shell-dot path 'png #".png")]

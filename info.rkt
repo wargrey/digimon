@@ -17,7 +17,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define raco-commands
   '(["wisemon"  digimon/digivice/wisemon  "yet another building system for Racket, C/C++, Scribble/tex and more" #false]
-    ["wizarmon" digimon/digivice/wizarmon "run source file of C/C++, Scribble/tex, and more" #false]
+    ["wizarmon" digimon/digivice/wizarmon "run source file of C/C++, Scribble/tex, Python, and more" #false]
     ["nanomon"  digimon/digivice/nanomon  "a utility to assist the building system" #false]))
 
 (define scribblings

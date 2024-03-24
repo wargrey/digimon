@@ -23,7 +23,8 @@
    [description : (Listof String)]
    [arguments : (Listof String)]
    [result : (Option String)]
-   [specs : (Listof Problem-Spec)])
+   [specs : (Listof Problem-Spec)]
+   [attachment : Any])
   #:constructor-name make-problem-info
   #:type-name Problem-Info
   #:transparent)
@@ -58,7 +59,7 @@
             (cond [(regexp-match #px"^(@|\\\\)(arg|param)" self) (split tail (cons (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") sgra) result rest)]
                   [(regexp-match #px"^(@|\\\\)(returns?|result)" self) (split tail sgra (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") rest)]
                   [else (split tail sgra result (cons self rest))]))
-          (values (reverse sgra)
+          (values (string-list-normalize-blanks (reverse sgra))
                   (if (string-blank? result) #false result)
                   (reverse rest))))))
 
@@ -96,8 +97,8 @@
                 [dir : (Option Symbol) #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
-               (cond [(regexp-match? "^(input:?|[>][>])" self) (parse rest is os to ydob 'input)]
-                     [(regexp-match? "^(output:?|[<][<])" self) (parse rest is (problem-output-prepare os) to ydob 'output)]
+               (cond [(regexp-match? "^(input:?|[>]{2})" self) (parse rest is os to ydob 'input)]
+                     [(regexp-match? "^(output:?|[<]{2})" self) (parse rest is (problem-output-prepare os) to ydob 'output)]
                      [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os to ydob dir)]
                      [(regexp-match? "^(timeout:?)" self) (parse rest is os (problem-spec-extract-timeout self) ydob dir)]
                      [(eq? dir 'input) (parse rest (cons self is) os to ydob dir)]

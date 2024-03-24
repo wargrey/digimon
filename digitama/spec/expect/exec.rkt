@@ -23,14 +23,14 @@
 (define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-expectation (stdout [program : Path-String] [argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
+(define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
   (define /dev/stdout : (Option Output-Port) (default-spec-exec-stdout-port))
   
   (define raw : Bytes
     (fg-recon-exec/pipe #:/dev/stdin (if (bytes? /dev/stdin) (open-input-bytes /dev/stdin) (open-input-string /dev/stdin))
                         #:stdin-log-level (default-spec-exec-stdin-log-level)
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
-                        (default-spec-exec-operation-name) (if (string? program) (string->path program) program) argv))
+                        (default-spec-exec-operation-name) (if (string? program) (string->path program) program) cmd-argv))
 
   ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important 
   (define eols (regexp-match #px#"[\r\n]+$" raw))

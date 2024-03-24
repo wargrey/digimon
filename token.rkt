@@ -214,6 +214,12 @@
           [else (string->symbol (format "~a" src))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define syn-token-skip-shebang-line : (-> Input-Port Void)
+  (lambda [/dev/stdin]
+    (when (regexp-match? #px"^[#][!]" /dev/stdin)
+      (read-line /dev/stdin)
+      (void))))
+
 (define syn-token-skip-whitespace : (-> Input-Port Void)
   (lambda [/dev/stdin]
     (regexp-match-positions #px"^\\s*" /dev/stdin)

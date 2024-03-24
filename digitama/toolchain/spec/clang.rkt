@@ -10,7 +10,6 @@
 
 (require "../../../token.rkt")
 (require "../../../string.rkt")
-(require "../../../dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-info : (-> Path (Option Problem-Info))
@@ -26,7 +25,7 @@
                                [(args result rest) (problem-description-split-input-output body)]
                                [(specs description) (problem-description-split-spec main.cpp rest)])
                    (if (pair? specs)
-                       (make-problem-info head description args result specs)
+                       (make-problem-info head description args result specs #false)
                        (try-next-comment-block)))]
                 [(regexp-try-match #px"^[/][*]" /dev/stdin)
                  (regexp-match #px".+?[*][/]" /dev/stdin)
@@ -37,22 +36,22 @@
                 [else #false]))))))
 
 (define read-clang-problem-feature : (-> Path Path (Vectorof String) (Option Spec-Feature))
-  (lambda [main.cpp a.out args]
+  (lambda [main.cpp a.out cmd-argv]
     (define problem-info : (Option Problem-Info) (read-clang-problem-info main.cpp))
     
     (and problem-info
-        (clang-problem->feature problem-info a.out args))))
+         (clang-problem->feature problem-info a.out cmd-argv))))
 
 (define clang-problem->feature : (-> Problem-Info Path (Vectorof String) Spec-Feature)
-  (lambda [problem-info a.out args]
+  (lambda [problem-info a.out cmd-argv]
     (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
-             (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
+             (define-values (args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (define timeout (problem-spec-timeout t))
-             (if (and (string-blank? bargs) (null? result))
+             (if (and (string-blank? args) (null? result))
                  (it brief #:do #;(pending))
-                 (it brief #:do #:millisecond (or timeout 0) #:do (expect-stdout a.out args bargs result)))))))
+                 (it brief #:do #:millisecond (or timeout 0) #:do (expect-stdout a.out cmd-argv args result)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

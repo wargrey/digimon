@@ -52,10 +52,10 @@
 
             (parameterize ([current-environment-variables (or self-env (current-environment-variables))])
               (define problem-info : (Option Problem-Info) (read-clang-problem-info path.c))
-              (define args : (Vectorof String) (current-command-line-arguments))
+              (define cmd-argv : (Vectorof String) (current-command-line-arguments))
               (if (not problem-info)
-                  (shell-exec-a.out (car targets) args #false)
-                  (shell-exec-a.out problem-info (car targets) args 'debug))))
+                  (shell-exec-a.out (car targets) cmd-argv #false)
+                  (shell-exec-a.out problem-info (car targets) cmd-argv 'debug))))
           127 #| deadcode, command cannot be found |#))))
 
 (define shell-cpp : (-> Path Symbol Natural)
@@ -66,17 +66,17 @@
 (define shell-exec-a.out : (case-> [Problem-Info Path (Vectorof String) (Option Dtrace-Level) -> Natural]
                                    [Path (Vectorof String) (Option Dtrace-Level) -> Natural])
   (case-lambda
-    [(a.out args stdin-log-level)
+    [(a.out cmd-argv stdin-log-level)
      (define &status : (Boxof Nonnegative-Integer) (box 0))
 
      (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                          #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
-                         'exec a.out args &status)
+                         'exec a.out cmd-argv &status)
      (unbox &status)]
-    [(problem-info a.out args stdin-log-level)
+    [(problem-info a.out cmd-argv stdin-log-level)
      (dtrace-problem-info problem-info)
      (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
                     [default-spec-exec-stdout-port (current-output-port)])
-       (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true
-                   #:timeout (wizarmon-timeout) #:pre-spec dtrace-sync #:post-behavior dtrace-sync
-                   (clang-problem->feature problem-info a.out args)))]))
+       (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
+                   #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
+                   (clang-problem->feature problem-info a.out cmd-argv)))]))
