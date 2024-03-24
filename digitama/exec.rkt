@@ -15,11 +15,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
+(struct exn:exec exn:fail:user () #:constructor-name make-exn:exec)
 
 (define exec-abort : (-> String Any * Nothing)
   (lambda [msgfmt . argl]
     (raise (make-exn:recon (~string msgfmt argl)
                            (current-continuation-marks)))))
+
+(define exec-throw : (-> String Any * Nothing)
+  (lambda [msgfmt . argl]
+    (raise (make-exn:exec (~string msgfmt argl)
+                          (current-continuation-marks)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Exec-Silent (U 'stdin 'stdout 'stderr))
@@ -308,7 +314,7 @@
              (custodian-shutdown-all (current-custodian))
 
              (if (= (bytes-length maybe-errmsg) 0)
-                 (raise-user-error operation "~a -> ~a" program status)
-                 (raise-user-error operation "~a -> ~a~npossible reason: ~a" program status maybe-errmsg)))]
+                 (exec-throw "~a -> ~a" program status)
+                 (exec-throw "~a -> ~a~npossible reason: ~a" program status maybe-errmsg)))]
           [(exn? status) (fg-recon-handler operation status (λ [] (custodian-shutdown-all (current-custodian))))]
           [else (custodian-shutdown-all (current-custodian))])))

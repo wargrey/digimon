@@ -107,7 +107,7 @@
       [(pass) green-heart#]
       [(misbehaved) broken-heart#]
       [(skip) arrow-heart#]
-      [(todo) growing-heart#]
+      [(todo) bookmark#]
       [(panic) bomb#])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

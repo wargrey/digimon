@@ -20,35 +20,31 @@
 
   #:usage-help "A utility to assist the building system"
   #:once-each
-  [[(#\l lang)                                       lang          "treat the source as having the type ~1"]
-   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
-                                                                    the-print-width]]
-   [(#\s slient quiet)  #:=> wizarmon-silent                        "suppress lang's standard output"]
-   [(#\v verbose)       #:=> wizarmon-verbose                       "run with verbose messages"]
+  [[(#\l lang)                                      lang              "treat the source as having the type ~1"]
+   [(timeout)           #:=> cmdopt-string->natural ms    #: Natural  "set the timeout of execution to ~1 millisecond"]
+   
+   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index    ["use ~1 as the default width for pretty printing (default: ~a)"
+                                                                       the-print-width]]
+
+   [(#\s slient quiet)  #:=> wizarmon-silent                          "suppress the standard output"]
+   [(#\v verbose)       #:=> wizarmon-verbose                         "run with verbose messages"]
 
    ; The C++ extension for VSCode isn't smart enough
    ;   we have to trick it for not launching the debugger when
    ;   our task script has already run the program.
    ; Besides, in Windows, the debugger always starts another terminal
    ;   and causes the one running our task script hidden.
-   [(pretend)           #:=> cmdopt-string->byte status #: Byte    "replace normal exit status with ~1"]])
+   [(pretend)           #:=> cmdopt-string->byte status   #: Byte     "replace normal exit status with ~1"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Path Byte)
   (lambda [target]
-    (define root-thread : Thread (current-thread))
     (define root-custodian : Custodian (current-custodian))
     (parameterize ([current-custodian (make-custodian)]
                    [current-error-port (open-output-dtrace 'error)]
                    [current-output-port (if (wizarmon-silent) /dev/null (current-output-port))])
       (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
-                (define ghostcat : Thread
-                  (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]
-                                                [exn:break? void])
-                                  (shell~~exec target root-thread)))))
-
-                (yield (thread-receive-evt))
-                (let ([retcode (thread-receive)])
+                (let ([retcode (shell-exec target)])
                   (cond [(byte? retcode) retcode]
                         [(not (exn:fail? retcode)) 0]
                         [else (dtrace-exception retcode #:level 'fatal #:brief? #false)
@@ -73,10 +69,9 @@
     (define-values (target argv) (λargv))
     
     (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-verbose)))])
-      (dtrace-notice #:topic the-name "source: ~a" target)
-      
       (parameterize ([current-logger /dev/dtrace]
                      [wizarmon-lang (wizarmon-flags-lang options)]
+                     [wizarmon-timeout (or (wizarmon-flags-timeout options) (wizarmon-timeout))]
                      [pretty-print-columns (or (wizarmon-flags-print-columns options) the-print-width)]
                      [current-command-line-arguments (list->vector argv)])  
         (define pretend-status : (Option Byte) (wizarmon-flags-pretend options))

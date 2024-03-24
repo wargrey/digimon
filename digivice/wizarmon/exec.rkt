@@ -29,8 +29,10 @@
 (require "../../digitama/toolchain/cc/configuration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell~~exec : (-> Path Thread Any)
-  (lambda [path env-thread]
+(define shell-exec : (-> Path Any)
+  (lambda [path]
+    (dtrace-notice #:topic the-name "source: ~a" path)
+    
     (define lang : (Option String)
       (or (wizarmon-lang)
           (let* ([gf (make-git-file path)]
@@ -41,22 +43,19 @@
     (when (or lang)
       (dtrace-notice #:topic the-name "language: ~a" lang))
 
-    (define status
-      (case (and lang (string-downcase lang))
-        [("racket") (shell-rkt path)]
-        [("c++") (shell-cpp path 'cpp)]
-        [("cpp") (shell-cpp path 'cpp)]
-        [("c") (shell-c path 'c)]
-        [("scribble") (shell-typeset path 'scribble)]
-        [("tex") (shell-typeset path 'tex)]
-        [("graphviz (dot)") (shell-dot path 'png #".png")]
-        [else (wizarmon-errno 126)
-              (raise (make-exn:fail:unsupported (if (not lang)
-                                                    (format "exec: don't know how to run this file: ~a" path)
-                                                    (format "exec: don't know how to run ~a file: ~a" lang path))
-                                                (continuation-marks #false)))]))
-    
-    (thread-send env-thread status)))
+    (case (and lang (string-downcase lang))
+      [("racket") (shell-rkt path)]
+      [("c++") (shell-cpp path 'cpp)]
+      [("cpp") (shell-cpp path 'cpp)]
+      [("c") (shell-c path 'c)]
+      [("scribble") (shell-typeset path 'scribble)]
+      [("tex") (shell-typeset path 'tex)]
+      [("graphviz (dot)") (shell-dot path 'png #".png")]
+      [else (wizarmon-errno 126)
+            (raise (make-exn:fail:unsupported (if (not lang)
+                                                  (format "exec: don't know how to run this file: ~a" path)
+                                                  (format "exec: don't know how to run ~a file: ~a" lang path))
+                                              (continuation-marks #false)))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-rkt : (-> Path Any)
@@ -168,4 +167,4 @@
      (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
                     [default-spec-exec-stdout-port (current-output-port)])
        (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true
-                   (clang-problem->feature problem-info a.out args)))]))
+                   (clang-problem->feature problem-info a.out args (wizarmon-timeout))))]))

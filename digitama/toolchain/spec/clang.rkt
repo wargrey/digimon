@@ -36,23 +36,26 @@
                  (try-next-comment-block)]
                 [else #false]))))))
 
-(define read-clang-problem-feature : (-> Path Path (Vectorof String) (Option Spec-Feature))
-  (lambda [main.cpp a.out args]
+(define read-clang-problem-feature : (-> Path Path (Vectorof String) Natural (Option Spec-Feature))
+  (lambda [main.cpp a.out args default-timeout]
     (define problem-info : (Option Problem-Info) (read-clang-problem-info main.cpp))
     
     (and problem-info
-        (clang-problem->feature problem-info a.out args))))
+        (clang-problem->feature problem-info a.out args default-timeout))))
 
-(define clang-problem->feature : (-> Problem-Info Path (Vectorof String) Spec-Feature)
-  (lambda [problem-info a.out args]
+(define clang-problem->feature : (-> Problem-Info Path (Vectorof String) Natural Spec-Feature)
+  (lambda [problem-info a.out args default-timeout]
     (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
       #:do #:before dtrace-sync
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (bargs result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
+             (define timeout (problem-spec-timeout t))
              (if (and (string-blank? bargs) (null? result))
-                 (it brief #:do #:before dtrace-sync #:do #;(pending))
-                 (it brief #:do #:before dtrace-sync #:do (expect-stdout a.out args bargs result)))))))
+                 (it brief #:do #:after dtrace-sync #:do #;(pending))
+                 (it brief
+                   #:do #:after dtrace-sync #:millisecond (or timeout default-timeout)
+                   #:do (expect-stdout a.out args bargs result)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

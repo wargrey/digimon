@@ -126,6 +126,15 @@
             [(pair? range) (if (<= (car range) n (cdr range)) n (error option "expected ~a in range [~a, ~a], but given ~a" type (car range) (cdr range) s))]
             [else n]))))
 
+(define make-cmdopt-string->real : (All (a) (->* ((-> Any Boolean : #:+ a)) ((U (Pairof Real Real) Real False) Any) (-> Symbol String a)))
+  (lambda [predicative? [range #false] [type 'real]]
+    (λ [[option : Symbol] [s : String]] : a
+      (define n : (Option Number) (string->number s))
+      (cond [(not (and (real? n) (predicative? n))) (error option "expected `~a`, but given '~a'" (object-name predicative?) s)]
+            [(real? range) (if (>= n range) n (error option "expected ~a in range [~a, +∞), but given ~a" type range s))]
+            [(pair? range) (if (<= (car range) n (cdr range)) n (error option "expected ~a in range [~a, ~a], but given ~a" type (car range) (cdr range) s))]
+            [else n]))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cmdopt-string->byte (make-cmdopt-string->integer byte?))
 (define cmdopt-string+>byte (make-cmdopt-string->integer positive-byte?))
@@ -133,6 +142,7 @@
 (define cmdopt-string+>index (make-cmdopt-string->integer positive-index?))
 (define cmdopt-string->natural (make-cmdopt-string->integer exact-nonnegative-integer?))
 (define cmdopt-string+>natural (make-cmdopt-string->integer exact-positive-integer?))
+(define cmdopt-string+>flonum (make-cmdopt-string->real positive-flonum?))
 
 (define cmdopt-string->port (make-cmdopt-string->integer index? (cons 0 65535) "port number"))
 (define cmdopt-string+>port (make-cmdopt-string->integer positive-index? (cons 1 65535) "port number"))

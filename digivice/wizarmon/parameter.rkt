@@ -9,6 +9,8 @@
 (define the-print-width : Index 160)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define wizarmon-timeout : (Parameterof Natural) (make-parameter 0))
+
 (define wizarmon-lang : (Parameterof (Option String)) (make-parameter #false))
 (define wizarmon-errno : (Parameterof Byte) (make-parameter 1))
 (define wizarmon-verbose : (Parameterof Boolean) (make-parameter #false))

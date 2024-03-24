@@ -12,7 +12,8 @@
 (struct problem-spec
   ([brief : String]
    [input : String]
-   [output : (Listof (U String Regexp))])
+   [output : (Listof (U String Regexp))]
+   [timeout : (Option Natural)])
   #:type-name Problem-Spec
   #:constructor-name make-problem-spec
   #:transparent)
@@ -75,27 +76,31 @@
     (let parse ([src : (Listof String) lines]
                 [is : (Listof String) null]
                 [os : (Listof (Listof String)) null]
+                [to : (Option Natural) #false]
                 [ydob : (Listof String) null]
                 [dir : (Option Symbol) #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
-               (cond [(regexp-match? "^(input:?|[>][>])" self) (parse rest is os ydob 'input)]
-                     [(regexp-match? "^(output:?|[<][<])" self) (parse rest is (problem-output-prepare os) ydob 'output)]
-                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os ydob dir)]
-                     [(eq? dir 'input) (parse rest (cons self is) os ydob dir)]
-                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) ydob dir)]
-                     [else (parse rest is os (cons self ydob) dir)]))]
+               (cond [(regexp-match? "^(input:?|[>][>])" self) (parse rest is os to ydob 'input)]
+                     [(regexp-match? "^(output:?|[<][<])" self) (parse rest is (problem-output-prepare os) to ydob 'output)]
+                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os to ydob dir)]
+                     [(regexp-match? "^(timeout:?)" self) (parse rest is os (problem-spec-extract-timeout self) ydob dir)]
+                     [(eq? dir 'input) (parse rest (cons self is) os to ydob dir)]
+                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) to ydob dir)]
+                     [else (parse rest is os to (cons self ydob) dir)]))]
 
             [(not dir) ; no (#:input ior #:output)
              (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
-                                    (if (string-blank? output) null (list output)))))]
+                                    (if (string-blank? output) null (list output)))
+                                  to))]
 
             [else
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
-                                (map problem-spec-rjoin (reverse os)))]))))
+                                (map problem-spec-rjoin (reverse os))
+                                to)]))))
 
 (define problem-spec-description : (-> String Nonnegative-Fixnum String)
   (lambda [headline idx]
@@ -128,6 +133,17 @@
 (define problem-spec-predicate : (-> String Any)
   (lambda [self]
     (regexp-match #px"^(@|\\\\)(test)" self)))
+
+(define problem-spec-extract-timeout : (-> String (Option Natural))
+  (lambda [self]
+    (define tokens (string-split self))
+
+    (or (and (pair? tokens)
+             (let ([to (string->number (last tokens))])
+               (cond [(exact-nonnegative-integer? to) to]
+                     [else #false])))
+        (and (dtrace-warning #:topic problem-topic-name "invalid ~a" self)
+             #false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define problem-output-prepare : (-> (Listof (Listof String)) (Listof (Listof String)))

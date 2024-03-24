@@ -11,8 +11,6 @@
 
 (require "../../exec.rkt")
 
-(require "type.rkt")
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Stdout-Expect-Bytes (U Bytes Byte-Regexp))
 (define-type Spec-Stdout-Expect-String (U String Regexp))
@@ -25,14 +23,14 @@
 (define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-expectation (stdout [bin : Path-String] [argv : (Vectorof String)] [stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
-  (define /dev/stdin : Input-Port (if (bytes? stdin) (open-input-bytes stdin) (open-input-string stdin)))
+(define-spec-expectation (stdout [program : Path-String] [argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
   (define /dev/stdout : (Option Output-Port) (default-spec-exec-stdout-port))
   
   (define raw : Bytes
-    (fg-recon-exec/pipe #:/dev/stdin /dev/stdin #:stdin-log-level (default-spec-exec-stdin-log-level)
+    (fg-recon-exec/pipe #:/dev/stdin (if (bytes? /dev/stdin) (open-input-bytes /dev/stdin) (open-input-string /dev/stdin))
+                        #:stdin-log-level (default-spec-exec-stdin-log-level)
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
-                        (default-spec-exec-operation-name) (if (string? bin) (string->path bin) bin) argv))
+                        (default-spec-exec-operation-name) (if (string? program) (string->path program) program) argv))
 
   ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important 
   (define eols (regexp-match #px#"[\r\n]+$" raw))

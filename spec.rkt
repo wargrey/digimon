@@ -22,6 +22,7 @@
 (require "digitama/spec/prompt.rkt")
 (require "digitama/spec/seed.rkt")
 (require "digitama/spec/misc.rkt")
+(require "digitama/spec/exn.rkt")
 
 (require "digitama/spec/expectation.rkt")
 (require "digitama/spec/behavior.rkt")
@@ -108,18 +109,19 @@
                         (cdr (spec-seed-namepath children-seed))))
       
       (define (fold-behavior [brief : String] [action : (-> Void)] [timeout : Natural] [seed : (Spec-Seed s)]) : (Spec-Seed s)
-        (define fixed-action : (-> Void)
-          (cond [(findf exn? (spec-seed-exceptions seed))
-                 => (λ [[e : exn:fail]] (λ [] (spec-misbehave e)))]
-                [(> timeout 0)
-                 (λ [] (let ([ghostcat (thread action)])
-                         (with-handlers ([exn:fail? (λ [[e : exn:fail]] (kill-thread ghostcat) (spec-misbehave e))]
-                                         [exn:break? (λ [[e : exn:break]] (kill-thread ghostcat) (raise e))])
-                           (unless (sync/timeout/enable-break (/ timeout 1000.0) (thread-dead-evt ghostcat))
-                             (error 'spec "timeout (longer than ~a)" (~gctime timeout))))))]
-                [else action]))
         (define namepath : (Listof String) (spec-seed-namepath seed))
-        (define-values (issue memory cpu real gc) (time-apply* (λ [] (prove brief namepath fixed-action))))
+        (define-values (issue memory cpu real gc)
+          (time-apply*
+           (λ [] (cond [(findf exn? (spec-seed-exceptions seed))
+                        => (λ [[e : exn:fail]] (prove brief namepath (λ [] (spec-misbehave e))))]
+                       [(> timeout 0)
+                        (prove brief namepath
+                               (λ [] (let ([ghostcat (thread action)])
+                                       (with-handlers ([exn:fail? (λ [[e : exn:fail]] (kill-thread ghostcat) (spec-misbehave e))]
+                                                       [exn:break? (λ [[e : exn:break]] (kill-thread ghostcat) (raise e))])
+                                         (unless (sync/timeout/enable-break (/ timeout 1000.0) (thread-dead-evt ghostcat))
+                                           (spec-throw "timeout (longer than ~as)" (~gctime timeout)))))))]
+                       [else (prove brief namepath action)]))))
 
         (spec-seed-copy #:summary (hash-update (spec-seed-summary seed) (spec-issue-type issue) add1 (λ [] 0))
                         seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath))
@@ -129,12 +131,14 @@
 
 (define spec-prove : (->* ((U Spec-Feature Spec-Behavior))
                           (#:selector Spec-Prove-Selector #:no-summary? Boolean
-                           #:no-timing-info? Boolean #:no-location-info? Boolean #:no-argument-expression? Boolean)
+                           #:no-timing-info? Boolean #:no-location-info? Boolean #:no-argument-expression? Boolean
+                           #:pre-action (-> Any) #:post-action (-> Any))
                           Natural)
   (lambda [#:selector [selector null] #:no-summary? [no-summary? #false]
            #:no-timing-info? [no-timing-info? (default-spec-no-timing-info)]
            #:no-location-info? [no-loc? (default-spec-no-location-info)]
            #:no-argument-expression? [no-expr? (default-spec-no-argument-expression)]
+           #:pre-action [before void]  #:post-action [after void]
            feature]
     (define ~fgcolor : Spec-Issue-Fgcolor (default-spec-issue-fgcolor))
     (define ~symbol : Spec-Issue-Symbol (default-spec-issue-symbol))
@@ -175,11 +179,13 @@
 
         (if (null? seed:orders) null (cons (add1 (car seed:orders)) (cdr seed:orders))))
 
+      (before)
       (define-values (summaries memory cpu real gc)
         (time-apply* (λ [] ((inst spec-summary-fold (Listof Natural))
                             feature null
                             #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
                             #:selector selector))))
+      (after)
 
       (define summary : Spec-Summary (car summaries))
       (define population : Natural (apply + (hash-values summary)))
