@@ -119,9 +119,9 @@
 
 (define python-cmd-args : (-> String (Vectorof String) Boolean (Vectorof String))
   (lambda [mod.py cmd-argv doctest?]
-    (if (not doctest?)
-        (vector-append (vector mod.py) cmd-argv)
-        (vector-append (vector "-m" "doctest" "-v" mod.py) cmd-argv))))
+    (cond [(not doctest?) (vector-append (vector mod.py) cmd-argv)]
+          [(wizarmon-verbose) (vector-append (vector "-m" "doctest" "-v" mod.py) cmd-argv)]
+          [else (vector-append (vector "-m" "doctest" mod.py) cmd-argv)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-python-problem-title : (-> Input-Port Regexp (Values (Option String) Boolean))
@@ -141,7 +141,7 @@
 
       (if (string? self)
           (cond [(regexp-match? px:docstring self) (values (reverse senil) (reverse stsetcod))]
-                [(regexp-match? #px"\\s*[#]" self) (read-desc senil stsetcod doctest?)]
+                [(regexp-match? #px"^\\s*[#]" self) (read-desc senil stsetcod doctest?)]
                 [(regexp-match? #px"^\\s*[>]{3}\\s+\\S+" self) (read-desc senil (cons self stsetcod) #true)]
                 [(or doctest?) (if (string-blank? self) (read-desc senil stsetcod #false) (read-desc senil (cons self stsetcod) doctest?))]
                 [else (read-desc (cons self senil) stsetcod doctest?)])

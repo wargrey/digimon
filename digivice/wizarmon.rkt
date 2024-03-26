@@ -18,7 +18,7 @@
   #:program the-name
   #:args [file . args]
 
-  #:usage-help "run source file of C/C++, Scribble/tex, and more"
+  #:usage-help "run source file of C/C++, Scribble/tex, Python, and more"
   #:once-each
   [[(#\l lang)                                      lang              "treat the source as having the type ~1"]
    [(timeout)           #:=> cmdopt-string->natural ms    #: Natural  "set the timeout of execution to ~1 millisecond"]
