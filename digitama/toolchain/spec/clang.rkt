@@ -49,9 +49,10 @@
              (define-values (args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (define timeout (problem-spec-timeout t))
-             (if (and (string-blank? args) (null? result))
+             (if (and (string-blank? args) (not result))
                  (it brief #:do #;(pending))
-                 (it brief #:do #:millisecond (or timeout 0) #:do (expect-stdout a.out cmd-argv args result)))))))
+                 (it brief #:do #:millisecond (or timeout 0)
+                   #:do (expect-stdout a.out cmd-argv args (or result null))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

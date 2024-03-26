@@ -8,6 +8,7 @@
 (require "../expectation.rkt")
 (require "../prompt.rkt")
 (require "../issue.rkt")
+(require "../timeout.rkt")
 
 (require "../../exec.rkt")
 
@@ -23,30 +24,31 @@
 (define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected-any : Spec-Stdout-Expectation])
+(define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected : Spec-Stdout-Expectation])
   (define /dev/stdout : (Option Output-Port) (default-spec-exec-stdout-port))
-  
+
   (define raw : Bytes
     (fg-recon-exec/pipe #:/dev/stdin (if (bytes? /dev/stdin) (open-input-bytes /dev/stdin) (open-input-string /dev/stdin))
                         #:stdin-log-level (default-spec-exec-stdin-log-level)
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
+                        #:pre-fork spec-timeout-start #:post-fork spec-timeout-terminate
                         (default-spec-exec-operation-name) (if (string? program) (string->path program) program) cmd-argv))
 
-  ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important 
+  ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important
   (define eols (regexp-match #px#"[\r\n]+$" raw))
-  (when (and (not eols) /dev/stdout)
+  (when (and (not eols) /dev/stdout (> (bytes-length raw) 0))
     (newline /dev/stdout))
 
-  (unless (null? expected-any)
+  (unless (null? expected)
     (define given0 : Bytes (if eols (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))) raw))
-    (define unicode? : Boolean (and (or (string? (car expected-any)) (regexp? (car expected-any)))))
+    (define unicode? : Boolean (and (or (string? (car expected)) (regexp? (car expected)))))
     (define given : (U String Bytes) (if (not unicode?) given0 (bytes->string/utf-8 given0)))
 
     ; the issue format should be combined with existing `default-spec-issue-format`
     ; nevertheless, it is not a big deal here               
     (parameterize ([default-spec-issue-extra-arguments (list (vector 'given given #false))]
                    [default-spec-issue-format (if (not unicode?) spec-exec-bytes-format spec-exec-string-format)])
-      (or (for/or : Boolean ([expected (if (pair? expected-any) (in-list expected-any) (in-value expected-any))])
+      (or (for/or : Boolean ([expected (if (pair? expected) (in-list expected) (in-value expected))])
             (cond [(bytes? expected) (equal? given expected)]
                   [(string? expected) (equal? given expected)]
                   [else (regexp-match? expected given)]))

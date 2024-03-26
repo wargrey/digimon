@@ -39,28 +39,33 @@
                              ((Option Exec-Error-Handler)
                               #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                               #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
-                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
+                              #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                              #:pre-fork (-> Void) #:post-fork (-> Void))
                              Void)
   (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
     (lambda [#:silent [silents null] #:env [alt-env #false]
              #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
              #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-             operation program arguments [on-error-do #false]]
+             #:pre-fork [pre-fork void] #:post-fork [post-fork void]
+           operation program arguments [on-error-do #false]]
       ((inst fg-recon-exec* Void)
        #:silent silents #:env alt-env
        #:/dev/stdin /dev/stdin #:stdin-log-level log-level
        #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
+       #:pre-fork pre-fork #:post-fork post-fork
        operation program arguments stdout-void (void) on-error-do))))
 
 (define fg-recon-exec* : (All (a) (->* (Any Path Exec-Arguments (-> String a a) a)
                                        ((Option Exec-Error-Handler)
                                         #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                                         #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
-                                        #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
+                                        #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                                        #:pre-fork (-> Void) #:post-fork (-> Void))
                                        a))
   (lambda [#:silent [silents null] #:env [alt-env #false]
            #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level 'note]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+           #:pre-fork [pre-fork void] #:post-fork [post-fork void]
            operation:any program arguments stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -74,7 +79,7 @@
       (define-values (status datum:out)
         (with-handlers ([exn? (λ [[e : exn]] (values e initial-datum))])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
-            (fg-recon-fork operation program arguments alt-env))
+            (fg-recon-fork operation program arguments alt-env pre-fork))
 
           (define ghostcat : Thread
             (thread (λ [] (when (or /dev/stdin)
@@ -113,6 +118,7 @@
                   datum)))
 
           (subprocess-wait /usr/bin/$0)
+          (post-fork)
           (thread-wait ghostcat)
           (values (subprocess-status /usr/bin/$0) final-datum)))
 
@@ -122,10 +128,12 @@
 (define fg-recon-exec/pipe : (->* (Any Path Exec-Arguments)
                                   ((Option Exec-Error-Handler)
                                    #:env Exec-Alt-Env #:/dev/stdin (Option Input-Port) #:stdin-log-level (Option Symbol)
-                                   #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port))
+                                   #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
+                                   #:pre-fork (-> Void) #:post-fork (-> Void))
                                   Bytes)
   (lambda [#:env [alt-env #false] #:/dev/stdin [/dev/stdin #false] #:stdin-log-level [log-level #false]
            #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
+           #:pre-fork [pre-fork void] #:post-fork [post-fork void]
            operation:any program arguments [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -138,7 +146,7 @@
         (with-handlers ([exn? (λ [[e : exn]] e)])
           (define-values (/usr/bin/$0 /dev/outin /dev/subout /dev/errin)
             ; because subprocess only accepts file stream ports as pipes
-            (fg-recon-fork operation program arguments alt-env))
+            (fg-recon-fork operation program arguments alt-env pre-fork))
 
           (define-values (ghostcat/out ghostcat/err ghostcat/subout)
             (values (thread (λ [] (when (input-port? /dev/outin)
@@ -151,6 +159,7 @@
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)
           (subprocess-wait /usr/bin/$0)
+          (post-fork)
           (thread-wait ghostcat/subout)
           (subprocess-status /usr/bin/$0)))
 
@@ -265,9 +274,9 @@
       (fg-cat operation file /dev/stdout))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-recon-fork : (-> Symbol Path Exec-Arguments Exec-Alt-Env
+(define fg-recon-fork : (-> Symbol Path Exec-Arguments Exec-Alt-Env (-> Void)
                             (Values Subprocess Input-Port Output-Port Input-Port))
-  (lambda [operation program arguments alt-env]
+  (lambda [operation program arguments alt-env pre-fork]
     (define args : (Listof String)
       (if (vector? arguments)
           (vector->list arguments)
@@ -279,7 +288,8 @@
             [else (alt-env)]))
     
     (dtrace-info #:topic operation "~a ~a" program (string-join args))
-    
+
+    (pre-fork)
     (cond [(not subenv) (apply subprocess #false #false #false program args)]
           [else (parameterize ([current-environment-variables subenv])
                   (apply subprocess #false #false #false program args))])))

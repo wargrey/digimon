@@ -12,7 +12,7 @@
 (struct problem-spec
   ([brief : String]
    [input : String]
-   [output : (Listof (U String Regexp))]
+   [output : (Option (Listof (U String Regexp)))]
    [timeout : (Option Natural)])
   #:type-name Problem-Spec
   #:constructor-name make-problem-spec
@@ -92,31 +92,32 @@
     (let parse ([src : (Listof String) lines]
                 [is : (Listof String) null]
                 [os : (Listof (Listof String)) null]
-                [to : (Option Natural) #false]
+                [timeout : (Option Natural) #false]
                 [ydob : (Listof String) null]
-                [dir : (Option Symbol) #false])
+                [dir : (Option Symbol) #false]
+                [defout? : Boolean #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
-               (cond [(regexp-match? "^(input:?|[>]{2})" self) (parse rest is os to ydob 'input)]
-                     [(regexp-match? "^(output:?|[<]{2})" self) (parse rest is (problem-output-prepare os) to ydob 'output)]
-                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os to ydob dir)]
-                     [(regexp-match? "^(timeout:?)" self) (parse rest is os (problem-spec-extract-timeout self) ydob dir)]
-                     [(eq? dir 'input) (parse rest (cons self is) os to ydob dir)]
-                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) to ydob dir)]
-                     [else (parse rest is os to (cons self ydob) dir)]))]
+               (cond [(regexp-match? "^(input:?|[>]{2})" self) (parse rest (problem-input-prepare is self) os timeout ydob 'input defout?)]
+                     [(regexp-match? "^(output:?|[<]{2})" self) (parse rest is (problem-output-prepare os self) timeout ydob 'output #true)]
+                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os timeout ydob dir defout?)]
+                     [(regexp-match? "^(timeout:?)" self) (parse rest is os (problem-spec-extract-timeout self) ydob dir defout?)]
+                     [(eq? dir 'input) (parse rest (cons self is) os timeout ydob dir defout?)]
+                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) timeout ydob dir defout?)]
+                     [else (parse rest is os timeout (cons self ydob) dir defout?)]))]
 
             [(not dir) ; no (#:input ior #:output)
              (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
-                                    (if (string-blank? output) null (list output)))
-                                  to))]
+                                    (and (not (string-blank? output)) (list output)))
+                                  timeout))]
 
             [else
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
-                                (map problem-spec-rjoin (reverse os))
-                                to)]))))
+                                (and defout? (map problem-spec-rjoin (reverse os)))
+                                timeout)]))))
 
 (define problem-spec-description : (-> String Nonnegative-Fixnum String)
   (lambda [headline idx]
@@ -127,16 +128,24 @@
         (format "case ~a: ~a" idx (string-trim maybe-brief)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define problem-spec-include : (-> Path String (Listof String) (Listof String))
-  (lambda [src line rest]
-    (define file : String (string-trim line #px"(^\\S+\\s*)|(\\s*$)"))
-    (define path : Path (build-path (assert (path-only src)) file))
+(define problem-spec-one-line-datum : (-> String (Option String))
+  (lambda [self]
+    (define content : String (string-trim self #px"(^\\S+\\s*)|(\\s*$)"))
 
-    (if (file-exists? path)
-        (append (file->lines path) rest)
-        (let ()
-          (dtrace-warning #:topic problem-topic-name "ignored `~a` due to not found" file)
-          rest))))
+    (if (string-blank? content) #false content)))
+
+(define problem-spec-include : (-> Path String (Listof String) (Listof String))
+  (lambda [src self rest]
+    (define file : (Option String) (problem-spec-one-line-datum self))
+
+    (if (string? file)
+        (let ([path (build-path (assert (path-only src)) file)])
+          (if (file-exists? path)
+              (append (file->lines path) rest)
+              (and (dtrace-warning #:topic problem-topic-name "ignored `~a` due to not found" file)
+                   rest)))
+        (and (dtrace-warning #:topic problem-topic-name "invalid ~a" self)
+             rest))))
 
 (define problem-spec-join : (-> (Listof String) String)
   (lambda [lines]
@@ -152,17 +161,28 @@
 
 (define problem-spec-extract-timeout : (-> String (Option Natural))
   (lambda [self]
-    (define tokens (string-split self))
+    (define content : (Option String) (problem-spec-one-line-datum self))
 
-    (or (and (pair? tokens)
-             (let ([to (string->number (last tokens))])
+    (or (and content
+             (let ([to (string->number content)])
                (cond [(exact-nonnegative-integer? to) to]
                      [else #false])))
         (and (dtrace-warning #:topic problem-topic-name "invalid ~a" self)
              #false))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define problem-output-prepare : (-> (Listof (Listof String)) (Listof (Listof String)))
-  (lambda [os]
-    (cond [(null? os) (list null)]
-          [else (cons null os)])))
+(define problem-input-prepare : (-> (Listof String) String (Listof String))
+  (lambda [is self]
+    (define one-line-datum : (Option String) (problem-spec-one-line-datum self))
+
+    (if (not one-line-datum) is (cons one-line-datum is))))
+
+(define problem-output-prepare : (-> (Listof (Listof String)) String (Listof (Listof String)))
+  (lambda [os self]
+    (define one-line-datum : (Option String) (problem-spec-one-line-datum self))
+
+    (if (not one-line-datum)
+        (cond [(null? os) (list null)]
+              [else (cons null os)])
+        (cond [(null? os) (list (list one-line-datum))]
+              [else (cons (list one-line-datum) os)]))))

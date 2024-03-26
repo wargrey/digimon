@@ -69,9 +69,11 @@
     [(a.out cmd-argv stdin-log-level)
      (define &status : (Boxof Nonnegative-Integer) (box 0))
 
+     (dtrace-sync)
      (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                          #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
                          'exec a.out cmd-argv &status)
+     (dtrace-sync)
      (unbox &status)]
     [(problem-info a.out cmd-argv stdin-log-level)
      (dtrace-problem-info problem-info)

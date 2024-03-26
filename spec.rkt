@@ -22,7 +22,7 @@
 (require "digitama/spec/prompt.rkt")
 (require "digitama/spec/seed.rkt")
 (require "digitama/spec/misc.rkt")
-(require "digitama/spec/exn.rkt")
+(require "digitama/spec/timeout.rkt")
 
 (require "digitama/spec/expectation.rkt")
 (require "digitama/spec/behavior.rkt")
@@ -122,15 +122,11 @@
                  => (λ [[e : exn:fail]] (time-apply* (λ [] (prove brief namepath (λ [] (spec-misbehave e))))))]
                 [(> self-timeout 0)
                  (time-apply* (λ [] (prove brief namepath
-                                           (λ [] (let-values ([(/dev/issin /dev/issout) (make-pipe-with-specials)])
-                                                   (let ([ghostcat (thread (λ [] (write-special (prove brief namepath action) /dev/issout)))])
-                                                     (with-handlers ([exn? (λ [[e : exn]] (kill-thread ghostcat) (write-special e /dev/issout))])
-                                                       (unless (sync/timeout/enable-break (/ self-timeout 1000.0) (thread-dead-evt ghostcat))
-                                                         (spec-throw "timeout (longer than ~as)" (~gctime self-timeout)))))
-                                                   (let ([result (read-byte-or-special /dev/issin)])
-                                                     (cond [(spec-issue? result) (spec-misbehave result)]
-                                                           [(exn:fail? result) (spec-misbehave result)]
-                                                           [(exn:break? result) (raise result)])))))))]
+                                           (λ [] (let* ([sentry (make-spec-timeout-sentry)]
+                                                        [result (spec-timeout-invoke sentry self-timeout (λ [] (prove brief namepath action)))])
+                                                   (cond [(spec-issue? result) (spec-misbehave result)]
+                                                         [(exn:fail? result) (spec-misbehave result)]
+                                                         [(exn:break? result) (raise result)]))))))]
                 [else (time-apply* (λ [] (prove brief namepath action)))]))
         (after-behavior)
 

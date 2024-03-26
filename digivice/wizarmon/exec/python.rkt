@@ -43,13 +43,17 @@
   (lambda [maybe-problem-info python mod.py cmd-argv stdin-log-level]
     (if (list? maybe-problem-info)
 
-        (let ([&status : (Boxof Natural) (box 0)]) 
+        (let ([&status : (Boxof Natural) (box 0)])
+          (dtrace-sync)
           (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                               #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
                               'exec python (python-cmd-args mod.py cmd-argv (pair? maybe-problem-info)) &status)
+          (dtrace-sync)
           (unbox &status))
 
         (let ([specs (problem-info-specs maybe-problem-info)])
+          (dtrace-problem-info maybe-problem-info)
+          
           (if (pair? specs)
               (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
                              [default-spec-exec-stdout-port (current-output-port)])
@@ -68,10 +72,15 @@
         
         (let try-next-docstring : (Option Problem-Info) ()
           (syn-token-skip-whitespace /dev/stdin)
+
+          (define px:docstring-end : (Option Regexp)
+            (cond [(regexp-try-match #px"^\"{3}" /dev/stdin) #px"\"{3}"]
+                  [(regexp-try-match #px"^'{3}" /dev/stdin) #px"'{3}"]
+                  [else #false]))
           
-          (cond [(regexp-try-match #px"^\"{3}" /dev/stdin)
-                 (let*-values ([(head continue?) (read-python-problem-title /dev/stdin #px"\"{3}")]
-                               [(body doctests) (if (not continue?) (values null null) (read-python-problem-description /dev/stdin #px"\"{3}"))]
+          (cond [(or px:docstring-end)
+                 (let*-values ([(head continue?) (read-python-problem-title /dev/stdin px:docstring-end)]
+                               [(body doctests) (if (not continue?) (values null null) (read-python-problem-description /dev/stdin px:docstring-end))]
                                [(args result rest) (problem-description-split-input-output body)]
                                [(specs description) (problem-description-split-spec mod.py rest)])
                    (if (or (pair? specs) (pair? doctests))
@@ -89,30 +98,30 @@
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
-             (define timeout (problem-spec-timeout t))
-             (cond [(and (string-blank? usr-args) (null? result))
+             (define timeout (or (problem-spec-timeout t) 0))
+             (cond [(and (string-blank? usr-args) (not result))
                     (it brief #:do #;(pending))]
-                   [(pair? result) ; a complete test spec overrides the doctests
-                    (it brief #:do #:millisecond (or timeout 0)
+                   [(list? result) ; a complete test spec overrides the doctests
+                    (it brief #:do #:millisecond timeout
                       #:do (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result))]
-                   [else ; output is not important, or let doctest do its job
-                    (it brief #:do #:millisecond (or timeout 0)
+                   [else ; let doctest do its job
+                    (it brief #:do #:millisecond timeout
                       #:do (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
                                   [doctest? (pair? (python-problem-attachment-doctests attachment))])
-                             (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args result)))])))))
+                             (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null)))])))))
 
 (define python-interpreter : (-> Path (Option Path))
   (lambda [mod.py]
     (define python3 (find-executable-path "python3"))
-    (define python (or python3 (find-executable-path "python"))) 
+    (define python (or python3 (find-executable-path "python")))
 
     python))
 
 (define python-cmd-args : (-> String (Vectorof String) Boolean (Vectorof String))
   (lambda [mod.py cmd-argv doctest?]
     (if (not doctest?)
-        (vector-append (vector "-s" mod.py) cmd-argv)
-        (vector-append (vector "-s" "-m" "doctest" "-v" mod.py) cmd-argv))))
+        (vector-append (vector mod.py) cmd-argv)
+        (vector-append (vector "-m" "doctest" "-v" mod.py) cmd-argv))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-python-problem-title : (-> Input-Port Regexp (Values (Option String) Boolean))
@@ -133,7 +142,7 @@
       (if (string? self)
           (cond [(regexp-match? px:docstring self) (values (reverse senil) (reverse stsetcod))]
                 [(regexp-match? #px"\\s*[#]" self) (read-desc senil stsetcod doctest?)]
-                [(regexp-match? #px"\\s*[>]{3}\\s+" self) (read-desc senil (cons self stsetcod) #true)]
+                [(regexp-match? #px"^\\s*[>]{3}\\s+\\S+" self) (read-desc senil (cons self stsetcod) #true)]
                 [(or doctest?) (if (string-blank? self) (read-desc senil stsetcod #false) (read-desc senil (cons self stsetcod) doctest?))]
-                [else (read-desc (cons (string-trim self) senil) stsetcod doctest?)])
+                [else (read-desc (cons self senil) stsetcod doctest?)])
           (values (reverse senil) (reverse stsetcod))))))
