@@ -31,7 +31,7 @@
     (fg-recon-exec/pipe #:/dev/stdin (if (bytes? /dev/stdin) (open-input-bytes /dev/stdin) (open-input-string /dev/stdin))
                         #:stdin-log-level (default-spec-exec-stdin-log-level)
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
-                        #:pre-fork spec-timeout-start #:post-fork spec-timeout-terminate
+                        #:pre-fork spec-timeout-start #:post-fork spec-timeout-start #:atexit spec-timeout-terminate
                         (default-spec-exec-operation-name) (if (string? program) (string->path program) program) cmd-argv))
 
   ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important
