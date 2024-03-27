@@ -20,6 +20,7 @@
 (provide (rename-out [tamer-deftech tamer-defterm]))
 (provide (rename-out [tamer-deftech handbook-deftech]))
 (provide (rename-out [tamer-deftech handbook-defterm]))
+(provide (rename-out [handbook-acknowledgement handbook-acknowledgment]))
 
 (provide (rename-out [dot? graphviz?]))
 (provide (rename-out [graph.gv graph.dot]))
@@ -332,6 +333,13 @@
 (define handbook-endnotes
   (lambda []
     ((tamer-endnote-section))))
+
+(define handbook-acknowledgement
+  (lambda [#:numbered? [numbered? #false] . contents]
+    (list (section #:tag "handbook-bibliography"
+                   #:style (if (not numbered?) noncontent-style #false)
+                   (speak 'acknowledgment #:dialect 'tamer))
+          contents)))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"

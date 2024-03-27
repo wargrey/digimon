@@ -5,6 +5,8 @@
  (reference . "Reference")
  (appendix . "Appendix")
  (bibliography . "Bibliography")
+ (acknowledgment . "Acknowledgments")
+ (acknowledgement . "Acknowledgments")
  (digimon . "Partner Digimon")
  (index . "Index")
  (solution . "Solution")
