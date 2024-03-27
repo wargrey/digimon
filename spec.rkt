@@ -134,6 +134,7 @@
                         seed (herefold brief issue (length namepath) memory cpu real gc (spec-seed-datum seed)) namepath))
 
       (let ([s (spec-behaviors-fold downfold-feature upfold-feature fold-behavior (make-spec-seed seed:datum) feature)])
+        (custodian-shutdown-all (current-custodian))
         (cons (spec-seed-summary s) (spec-seed-datum s))))))
 
 (define spec-prove : (->* ((U Spec-Feature Spec-Behavior))

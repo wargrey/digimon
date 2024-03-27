@@ -9,7 +9,7 @@
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
-(require "../thread.rkt")
+(require "../custodian.rkt")
 
 (require "../digitama/minimal/port.rkt")
 
@@ -39,17 +39,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Path Byte)
   (lambda [target]
-    (define root-custodian : Custodian (current-custodian))
-    (parameterize ([current-custodian (make-custodian)]
-                   [current-error-port (open-output-dtrace 'error)]
-                   [current-output-port (if (wizarmon-silent) /dev/null (current-output-port))])
-      (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
-                (let ([retcode (shell-exec target)])
-                  (cond [(byte? retcode) retcode]
-                        [(not (exn:fail? retcode)) 0]
-                        [else (dtrace-exception retcode #:level 'fatal #:brief? #false)
-                              (wizarmon-errno)])))
-              (thread-safe-shutdown (current-custodian) root-custodian)))))
+    (call-in-nested-custodian
+     (λ [] (parameterize ([current-error-port (open-output-dtrace 'error)]
+                          [current-output-port (if (wizarmon-silent) /dev/null (current-output-port))])
+             (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                             [exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:level 'fatal #:brief? #false) (wizarmon-errno))])
+               (let ([retcode (shell-exec target)])
+                 (if (byte? retcode) retcode 0))))))))
 
 (define trick-exit : (-> Byte (Option Byte) Nothing)
   (lambda [status pretend]

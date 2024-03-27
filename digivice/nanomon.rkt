@@ -9,7 +9,7 @@
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
-(require "../thread.rkt")
+(require "../custodian.rkt")
 
 (require "../digitama/minimal/port.rkt")
 
@@ -39,25 +39,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Nanomon-Shell Path Byte)
   (lambda [shell target]
-    (define root-thread : Thread (current-thread))
-    (define root-custodian : Custodian (current-custodian))
-    (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
-                   [current-custodian (make-custodian)]
-                   [current-error-port (open-output-dtrace 'error)]
-                   [current-output-port (if (nanomon-silent) /dev/null (current-output-port))])
-      (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
-                (define ghostcat : Thread
-                  (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]
-                                                [exn:break? void])
-                                  ((nanomon-shell-exec shell) target root-thread)))))
-
-                (yield (thread-receive-evt))
-                (let ([retcode (thread-receive)])
-                  (cond [(byte? retcode) retcode]
-                        [(not (exn:fail? retcode)) 0]
-                        [else (dtrace-exception retcode #:level 'fatal #:brief? #false)
-                              (nanomon-errno)])))
-              (thread-safe-shutdown (current-custodian) root-custodian)))))
+    (call-in-nested-custodian
+     (λ [] (let ([root-thread : Thread (current-thread)])
+             (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
+                            [current-error-port (open-output-dtrace 'error)]
+                            [current-output-port (if (nanomon-silent) /dev/null (current-output-port))])
+               (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)])
+                 (define ghostcat : Thread
+                   (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]
+                                                 [exn:break? void])
+                                   ((nanomon-shell-exec shell) target root-thread)))))
+                 
+                 (yield (thread-receive-evt))
+                 (let ([retcode (thread-receive)])
+                   (cond [(byte? retcode) retcode]
+                         [(not (exn:fail? retcode)) 0]
+                         [else (dtrace-exception retcode #:level 'fatal #:brief? #false)
+                               (nanomon-errno)])))))))))
 
 (define main : (-> (U (Listof String) (Vectorof String)) Nothing)
   (lambda [argument-list]

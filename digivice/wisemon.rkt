@@ -16,6 +16,7 @@
 (require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
+(require "../custodian.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags
@@ -88,14 +89,13 @@
                (dtrace-notice "Enter Digimon Zone: ~a" (current-digimon))
                (begin0 (for/fold ([retcode : Byte 0])
                                  ([phony (in-list phonies)])
-                         (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
-                                        [current-custodian (make-custodian)])
-                           (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                   [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
-                                     (cond [(wisemon-info-phony? phony) ((wisemon-info-phony-make phony) (current-digimon) info-ref)]
-                                           [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) info-ref)])
-                                     retcode)
-                                   (custodian-shutdown-all (current-custodian)))))
+                         (call-in-nested-custodian
+                          (λ [] (parameterize ([current-make-phony-goal (wisemon-phony-name phony)])
+                                  (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                                                  [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
+                                    (cond [(wisemon-info-phony? phony) ((wisemon-info-phony-make phony) (current-digimon) info-ref)]
+                                          [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) info-ref)])
+                                    retcode)))))
                        
                        (dtrace-sentry-notice #:handler racket-event-echo #:end? #true
                                              eof "Leave Digimon Zone: ~a" (current-digimon))
@@ -105,15 +105,14 @@
              (parameterize ([current-make-real-targets reals])
                (begin0 (for/fold ([retcode : Byte 0])
                                  ([phony (in-list phonies)])
-                         (parameterize ([current-make-phony-goal (wisemon-phony-name phony)]
-                                        [current-custodian (make-custodian)])
-                           (dtrace-notice "Enter Free Phony: ~a" (current-make-phony-goal))
-                           (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
-                                                   [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
-                                     (cond [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) #false) retcode]
-                                           [else (dtrace-fatal "fatal: not in a digimon zone") (make-errno)]))
-                                   (custodian-shutdown-all (current-custodian))
-                                   (dtrace-notice "Leave Free Phony: ~a" (current-make-phony-goal)))))
+                         (call-in-nested-custodian
+                          (λ [] (parameterize ([current-make-phony-goal (wisemon-phony-name phony)])
+                                  (dtrace-notice "Enter Free Phony: ~a" (current-make-phony-goal))
+                                  (begin0 (with-handlers ([exn:break? (λ [[e : exn:break]] (newline) 130)]
+                                                          [exn:fail? (λ [[e : exn]] (dtrace-exception e #:level 'fatal #:brief? (not (make-verbose))) (make-errno))])
+                                            (cond [(wisemon-free-phony? phony) ((wisemon-free-phony-make phony) (current-digimon) #false) retcode]
+                                                  [else (dtrace-fatal "fatal: not in a digimon zone") (make-errno)]))
+                                          (dtrace-notice "Leave Free Phony: ~a" (current-make-phony-goal)))))))
                        
                        (dtrace-sentry-notice #:end? #true eof "")
                        (thread-wait tracer))))])))
