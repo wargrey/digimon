@@ -336,7 +336,7 @@
 
 (define handbook-acknowledgement
   (lambda [#:numbered? [numbered? #false] . contents]
-    (list (section #:tag "handbook-bibliography"
+    (list (section #:tag "handbook-acknowledgment"
                    #:style (if (not numbered?) noncontent-style #false)
                    (speak 'acknowledgment #:dialect 'tamer))
           contents)))

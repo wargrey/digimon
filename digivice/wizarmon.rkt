@@ -1,6 +1,8 @@
-#lang typed/racket/gui
+#lang typed/racket/base
 
 (provide main)
+
+(require racket/pretty)
 
 (require "wizarmon/parameter.rkt")
 (require "wizarmon/echo.rkt")
