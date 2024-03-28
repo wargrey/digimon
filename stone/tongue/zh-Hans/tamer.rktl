@@ -5,6 +5,8 @@
  (reference . "参考文献")
  (appendix . "附录")
  (bibliography . "文献目录")
+ (acknowledgment . "致谢")
+ (acknowledgement . "致谢")
  (index . "索引")
  (solution . "解")
  (answer . "答"))
