@@ -335,11 +335,11 @@
     ((tamer-endnote-section))))
 
 (define handbook-acknowledgement
-  (lambda [#:numbered? [numbered? #false] . contents]
-    (list (section #:tag "handbook-acknowledgment"
-                   #:style (if (not numbered?) noncontent-style #false)
-                   (speak 'acknowledgment #:dialect 'tamer))
-          contents)))
+  (lambda [#:numbered? [numbered? #false] . pre-contents]
+    (section #:tag "handbook-acknowledgment"
+             #:style (if (not numbered?) noncontent-style #false)
+             (cond [(pair? pre-contents) pre-contents]
+                   [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"
@@ -353,26 +353,32 @@
                                   #:author   (authors "Matthew Flatt" "Eli Barzilay")
                                   #:url      "https://docs.racket-lang.org/scribble/index.html"))])
     ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
-    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true] . bibentries]
+    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
+             #:title-localization? [title-l18n? #false] . bibentries]
       (define all-bibentries
         (cond [(not racket?) (flatten bibentries)]
               [else (append entries (flatten bibentries))]))
       
       (list (if (pair? all-bibentries)
                 (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
-                  (list (struct-copy part bibliography-self
-                                     [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                     [style (if numbered? plain (part-style bibliography-self))])))
+                  (list (cond [(and title-l18n?)
+                               (struct-copy part bibliography-self
+                                            [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                                            [style (if numbered? plain (part-style bibliography-self))])]
+                              [(and numbered?) (struct-copy part bibliography-self [style plain])]
+                              [else bibliography-self])))
                  null)
             
             (if (and index?)
-                (let ([index-self (index-section #:tag "handbook-index")])
-                  (list (struct-copy part index-self 
-                                     [title-content (list (speak 'index #:dialect 'tamer))]
-                                     [style (if numbered? plain (part-style index-self))]
-                                     [blocks (append (list (texbook-twocolumn))
-                                                     (part-blocks index-self)
-                                                     (list (texbook-onecolumn)))])))
+                (let* ([index-origin (index-section #:tag "handbook-index")]
+                       [index-self (struct-copy part index-origin 
+                                                [style (if numbered? plain (part-style index-origin))]
+                                                [blocks (append (list (texbook-twocolumn))
+                                                                (part-blocks index-origin)
+                                                                (list (texbook-onecolumn)))])])
+                  (list (if (and title-l18n?)
+                            (struct-copy part index-self [title-content (list (speak 'index #:dialect 'tamer))])
+                            index-self)))
                 null)))))
 
 (define handbook-smart-table
