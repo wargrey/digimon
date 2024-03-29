@@ -204,6 +204,9 @@
         ...
         pre-contents ...)
      (syntax/loc stx
+       ;;; NOTE
+       ; In the body of part, the `tamer-index-story` is the same as the last chapter of this part,
+       ; whereas the the `tamer-story` is different from the `tamer-index-story`
        (handbook-story #:counter-step? counter-step?
                        #:style (style-merge-property style grouper-style)
                        pre-contents ...))]))
@@ -882,12 +885,14 @@
            id caption srcpath]
     (define ext (path-get-extension srcpath))
     (define language (or alt-lang (source->language srcpath)))
-    (define-values (pxstart pxend) (lang->class-range language id))
+    (define-values (pxstart pxdefend) (lang->class-range language id))
+    (define full-id (merge-ext+id language ext id))
+    (define pxend (or alt-pxend pxdefend))
     
-    ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
-     #:language language #:rootdir rootdir
-     (merge-ext+id language ext id) caption srcpath
-     pxstart (or alt-pxend pxend))))
+    (case alignment
+      [(here) (tamer-code! #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)]
+      [(wide) (tamer-code* #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)]
+      [else   (tamer-code  #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)])))
 
 (define tamer-code-function
   (lambda [#:language [alt-lang #false] #:rootdir [rootdir #false] #:alignment [alignment 'here]
@@ -896,9 +901,12 @@
            id caption srcpath]
     (define ext (path-get-extension srcpath))
     (define language (or alt-lang (source->language srcpath)))
-    (define-values (pxstart pxend) (lang->function-range language id ns))
+    (define-values (pxdefstart pxdefend) (lang->function-range language id ns))
+    (define full-id (merge-ext+id language ext id))
+    (define pxstart (cons pxdefstart subpattern))
+    (define pxend (or alt-pxend pxdefend))
 
-    ((case alignment [(here) tamer-code!] [(wide) tamer-code*] [else tamer-code])
-     #:language language #:rootdir rootdir
-     (merge-ext+id language ext id cls-name) caption srcpath
-     (cons pxstart subpattern) (or alt-pxend pxend))))
+    (case alignment
+      [(here) (tamer-code! #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)]
+      [(wide) (tamer-code* #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)]
+      [else   (tamer-code  #:language language #:rootdir rootdir full-id caption srcpath pxstart pxend)])))

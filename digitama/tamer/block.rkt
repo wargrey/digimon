@@ -94,7 +94,7 @@
 (define tamer-indexed-block
   (lambda [id type label sep tail caption style legend-style label-style caption-style target-style make-block anchor]
     (define sym:tag (tamer-indexed-block-id->symbol id))
-    
+
     (make-tamer-indexed-traverse-block
      #:latex-anchor anchor
      (λ [type chapter-index current-index]
@@ -103,7 +103,7 @@
                             chapter-index current-index
                             legend-style label-style caption-style target-style))
        (values sym:tag (make-block legend)))
-     type style)))
+     type (tamer-index-story) (tamer-appendix-index) style)))
 
 (define tamer-indexed-block-ref
   (lambda [index-type id ref-element label sep]
@@ -111,7 +111,7 @@
     
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
-       (define chpt-idx (and (not (tamer-indexed-block-hide-chapter-index)) (tamer-block-chapter-label chapter-index)))
+       (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chapter-index)))
        (if (not maybe-index)
            (racketerror (ref-element (~a label (or sep "") chpt-idx #\. '?)))
            (make-link-element #false
@@ -119,20 +119,17 @@
                                                      (~a label (or sep "") maybe-index)
                                                      (~a label (or sep "") chpt-idx #\. maybe-index))))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
-     index-type sym:tag)))
+     index-type sym:tag (tamer-index-story) (tamer-appendix-index))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block
-  (lambda [traverse index-type [block-style #false] #:latex-anchor [anchor? #true]]
-    (define this-index-story (tamer-index-story))
-    (define appendix-index (tamer-appendix-index))
-
+  (lambda [traverse index-type index-story index-appendix [block-style #false] #:latex-anchor [anchor? #true]]
     (make-shadow-traverse-block
      (λ [get set!]
-       (parameterize ([tamer-index-story this-index-story]
-                      [tamer-appendix-index appendix-index])
-         (define order (car this-index-story))
-         (define this-story (cdr this-index-story))
+       (parameterize ([tamer-index-story index-story]
+                      [tamer-appendix-index index-appendix])
+         (define order (car index-story))
+         (define this-story (cdr index-story))
          (define global-tags (traverse-indexed-tagbase get index-type))
          (define current-index (hash-ref global-tags this-story (λ [] 1)))
          (define-values (current-tag block) (traverse index-type order current-index))
@@ -154,14 +151,11 @@
                                (if (not maybe-anchor) (list block) (list maybe-anchor block))))))
 
      (λ [] ; see `scrbl.rkt`
-       (let-values ([(_ block) (traverse index-type (car this-index-story) 1)])
+       (let-values ([(_ block) (traverse index-type (car index-story) 1)])
          (make-nested-flow block-style (if (list? block) block (list block))))))))
 
 (define make-tamer-indexed-block-ref
-  (lambda [resolve index-type tag]
-    (define this-index-story (tamer-index-story))
-    (define appendix-index (tamer-appendix-index))
-    
+  (lambda [resolve index-type tag index-story index-appendix]
     (define sym:tag
       (cond [(symbol? tag) tag]
             [(string? tag) (string->symbol tag)]
@@ -169,14 +163,14 @@
     
     (make-delayed-element
      (λ [render% pthis infobase]
-       (parameterize ([tamer-index-story this-index-story]
-                      [tamer-appendix-index appendix-index])
+       (parameterize ([tamer-index-story index-story]
+                      [tamer-appendix-index index-appendix])
          (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
          (define global-tags (traverse-indexed-tagbase get index-type))
-         (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car this-index-story) #false))))
+         (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car index-story) #false))))
          (resolve index-type (car target-info) (cdr target-info))))
-     (λ [] (content-width (resolve index-type (car this-index-story) #false)))
-     (λ [] (content->string (resolve index-type (car this-index-story) #false))))))
+     (λ [] (content-width (resolve index-type (car index-story) #false)))
+     (λ [] (content->string (resolve index-type (car index-story) #false))))))
 
 (define tamer-indexed-block-elemtag
   (lambda [id label chapter-index self-index #:separator [sep " "] #:tail [tail ": "] #:type [type #false] #:style [style 'tt]]
@@ -189,7 +183,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-label
   (lambda [type tag label sep tail chpt-idx0 self-idx label-style target-style]
-    (define chpt-idx (and (not (tamer-indexed-block-hide-chapter-index)) (tamer-block-chapter-label chpt-idx0)))
+    (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chpt-idx0)))
     (define lbl-sep (or sep (tamer-block-label-separator) " "))
     (define lbl-tail (or sep (tamer-block-label-tail) ""))
     (make-target-element target-style
