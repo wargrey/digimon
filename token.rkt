@@ -216,7 +216,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define syn-token-skip-shebang-line : (-> Input-Port Void)
   (lambda [/dev/stdin]
-    (when (regexp-match? #px"^[#][!]" /dev/stdin)
+    (when (regexp-try-match #px"^\\s*[#][!]" /dev/stdin)
       (read-line /dev/stdin)
       (void))))
 
