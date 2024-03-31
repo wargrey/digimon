@@ -9,7 +9,8 @@
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
-(provide (all-from-out scribble/core scribble/manual scriblib/autobib scribble/example))
+(provide (except-out (all-from-out scribble/manual) title author))
+(provide (all-from-out scribble/core scriblib/autobib scribble/example))
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
 (provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
@@ -125,7 +126,8 @@
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
-              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))) ...
+              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
+              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
@@ -133,14 +135,14 @@
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (list (title #:tag "tamer-book"
-                      #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
-                      #:style (handbook-title-style #false props ext-properties tamer-resource-files modname)
-                      (let ([contents (list pre-contents ...)])
-                        (append (cond [(pair? contents) contents]
-                                      [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
-                                                  (current-digimon))])
-                                (cond [(not subtitle) null]
+         (list (λtitle #:tag "tamer-book"
+                       #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
+                       #:style (handbook-title-style #false props ext-properties tamer-resource-files modname)
+                       (let ([contents (list pre-contents ...)])
+                         (append (cond [(pair? contents) contents]
+                                       [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
+                                                   (current-digimon))])
+                                 (cond [(not subtitle) null]
                                        [else (list (linebreak)
                                                    (elem #:style subtitle-style
                                                          subtitle))]))))
@@ -157,10 +159,12 @@
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
-              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))) ...
+              (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
+              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))) ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:subtitle subtitle #:properties props
                                      #:author pre-empty-author #:hide-version? noversion?
+                                     #:λtitle λtitle
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
