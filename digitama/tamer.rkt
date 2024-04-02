@@ -76,9 +76,12 @@
 (define tamer-resource-files
   (lambda [dirname basename .res]
     (define tamer.res (string-append "tamer" .res))
+    (define literacy.res (string-append "literacy" .res))
     (define self.res (string-append basename .res))
     
-    (remove-duplicates (list (collection-file-path tamer.res "digimon" "stone" "typeset")
+    (remove-duplicates (list (collection-file-path literacy.res "digimon" "stone" "typeset")
+                             (collection-file-path tamer.res "digimon" "stone" "typeset")
+                             (build-path dirname literacy.res)
                              (build-path dirname tamer.res)
                              (build-path dirname self.res)))))
 
