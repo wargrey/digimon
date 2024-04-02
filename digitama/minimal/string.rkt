@@ -19,7 +19,8 @@
   (let ([empty-lines (list "")])
     (lambda [s]
       (cond [(regexp-match? #px"[\r\n]+" s)
-             (let ([lines (for/list : (Listof String) ([l (in-lines (if (bytes? s) (open-input-bytes s) (open-input-string s)))]) l)])
+             (let* ([/dev/strin (if (bytes? s) (open-input-bytes s) (open-input-string s))]
+                    [lines (for/list : (Listof String) ([l (in-lines /dev/strin)]) l)])
                (cond [(null? lines) empty-lines]
                      [else lines]))]
             [(bytes? s) (list (bytes->string/utf-8 s))]

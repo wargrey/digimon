@@ -67,9 +67,9 @@
 
     (define prefix
       (let ([enc (tex-config-cjk texdoc)])
-        (cond [(not enc) (or doclass (latex-defaults-prefix self))]
-              [(not doclass) (tex-unicode-filter enc (latex-defaults-prefix self))]
-              [else (tex-unicode-append enc doclass)])))
+        (if (not doclass)
+            (tex-unicode-filter enc (latex-defaults-prefix self))
+            (tex-unicode-append enc doclass))))
 
     (define style.tex (or (tex-config-style texdoc) (latex-defaults-style self)))
     (define extra-files
@@ -139,10 +139,12 @@
 
 (define tex-unicode-append
   (lambda [enc prefix]
-    (bytes-append
-     (cond [(bytes? prefix) prefix]
-           [else (file->bytes (collects-relative->path prefix))])
-     enc)))
+    (define body
+      (cond [(bytes? prefix) prefix]
+            [else (file->bytes (collects-relative->path prefix))]))
+
+    (cond [(not enc) body]
+          [else (bytes-append body enc)])))
 
 (define tex-unicode-filter
   (lambda [enc prefix]
@@ -150,13 +152,16 @@
       '([#px#"\\\\usepackage\\[utf8\\][{]inputenc[}][\n\r]*" ""]
         [#px#"\\\\usepackage\\[T1\\][{]fontenc[}][\n\r]*" ""]))
 
-    (and prefix
-         (bytes-append
-          (if (bytes? prefix)
-              (regexp-replaces prefix px:encs)
-              (call-with-input-file* (collects-relative->path prefix)
-                (λ [/dev/texin] (regexp-replaces /dev/texin px:encs))))
-          enc))))
+    (define body
+      (and prefix
+           (if (bytes? prefix)
+               (regexp-replaces prefix px:encs)
+               (call-with-input-file* (collects-relative->path prefix)
+                 (λ [/dev/texin] (regexp-replaces /dev/texin px:encs))))))
+
+    (if (and body enc)
+        (bytes-append body enc)
+        body)))
 
 
 (define tex-segment

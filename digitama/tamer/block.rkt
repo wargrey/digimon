@@ -103,7 +103,7 @@
                             chapter-index current-index
                             legend-style label-style caption-style target-style))
        (values sym:tag (make-block legend)))
-     type (tamer-index-story) (tamer-appendix-index) style)))
+     type style)))
 
 (define tamer-indexed-block-ref
   (lambda [index-type id ref-element label sep]
@@ -119,11 +119,14 @@
                                                      (~a label (or sep "") maybe-index)
                                                      (~a label (or sep "") chpt-idx #\. maybe-index))))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
-     index-type sym:tag (tamer-index-story) (tamer-appendix-index))))
+     index-type sym:tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-tamer-indexed-traverse-block
-  (lambda [traverse index-type index-story index-appendix [block-style #false] #:latex-anchor [anchor? #true]]
+  (lambda [traverse index-type [block-style #false] #:latex-anchor [anchor? #true]]
+    (define index-story (tamer-index-story))
+    (define index-appendix (tamer-appendix-index))
+    
     (make-shadow-traverse-block
      (λ [get set!]
        (parameterize ([tamer-index-story index-story]
@@ -155,11 +158,14 @@
          (make-nested-flow block-style (if (list? block) block (list block))))))))
 
 (define make-tamer-indexed-block-ref
-  (lambda [resolve index-type tag index-story index-appendix]
+  (lambda [resolve index-type tag]
     (define sym:tag
       (cond [(symbol? tag) tag]
             [(string? tag) (string->symbol tag)]
             [else (string->symbol (~a tag))]))
+
+    (define index-story (tamer-index-story))
+    (define index-appendix (tamer-appendix-index))
     
     (make-delayed-element
      (λ [render% pthis infobase]
