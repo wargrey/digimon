@@ -75,7 +75,6 @@
   (lambda [typesettings]
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
-    (define local-stone : Path (digimon-path 'stone))
     (define typeset-subdir : String "tex")
 
     (for/fold ([always-files : (Listof Path) null]
@@ -84,7 +83,13 @@
               ([typesetting (in-list typesettings)])
       (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
       (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
-      (define scribble.doc : (Option Part) (and (regexp-match? #px"\\.scrbl$" TEXNAME.scrbl) (assert (dynamic-require TEXNAME.scrbl 'doc) part?)))
+
+      (define pwd : Path (assert (path-only TEXNAME.scrbl)))
+      (define scribble.doc : (Option Part)
+        (and (regexp-match? #px"\\.scrbl$" TEXNAME.scrbl)
+             (parameterize ([current-directory pwd])
+               (assert (dynamic-require TEXNAME.scrbl 'doc) part?))))
+
       (define RENAMED.scrbl (or (and maybe-name (path-replace-filename TEXNAME.scrbl maybe-name)) TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination RENAMED.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
       (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir (assert (file-name-from-path TEXNAME.ext))))
@@ -123,7 +128,6 @@
                (if (not scribble.doc)
                    (list (wisemon-spec TEXNAME.ext #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.ext)))
-                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        
                                        (typeset-note engine maybe-name TEXNAME.scrbl)
                                        (tex-render #:fallback tex-fallback-engine #:enable-filter #false
@@ -135,7 +139,6 @@
 
                          (wisemon-spec TEXNAME.tex #:^ (list* pdfinfo.tex (append scrbl-deps tamer-deps regexp-deps)) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.tex)))
-                                       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
                                        
                                        (typeset-note engine maybe-name TEXNAME.scrbl)

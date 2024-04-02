@@ -34,6 +34,7 @@
 (require scribble/example)
 (require scribble/manual)
 (require scriblib/autobib)
+(require scriblib/bibtex)
 (require scriblib/footnote)
 (require scribble/html-properties)
 (require scribble/latex-properties)
@@ -92,24 +93,27 @@
        (begin (tamer-taming-start! scribble)
               (module+ main (call-as-normal-termination tamer-prove))))]))
 
-(define-syntax (define-bib stx)
-  (syntax-parse stx #:literals []
-    [(_ id bib-args ...)
-     (syntax/loc stx (define id (in-bib (make-bib bib-args ...) (format ":~a" 'id))))]))
+(define ~cite (lambda [bib . bibs] (apply (tamer-cite) bib bibs)))
+(define ~cite* (lambda [bib . bibs] (apply (tamer-cites) bib bibs)))
+(define ~author (lambda [bib] ((tamer-cite-author) bib)))
+(define ~year (lambda [bib . bibs] (apply (tamer-cite-year) bib bibs)))
 
-(define ~cite
-  (lambda [bib #:same-author? [same? #false] . bibs]
-    (if (not same?)
-        (apply (tamer-cites) bib bibs)
-        (apply (tamer-cite) bib bibs))))
+(define ~subcite (lambda [bib . bibs] (subscript (apply ~cite bib bibs))))
+(define ~subcite* (lambda [bib . bibs] (subscript (apply ~cite* bib bibs))))
+(define ~subauthor (lambda [bib] (subscript (~author bib))))
+(define ~subyear (lambda [bib . bibs] (subscript (apply ~year bib bibs))))
 
-(define ~subcite
-  (lambda [bib #:same-author? [same? #false] . bibs]
-    (subscript (apply ~cite bib #:same-author? same? bibs))))
+(define $cite (lambda [bib . bibs] (apply global-cite handbook-key-cite tamer-cite bib bibs)))
+(define $cite* (lambda [bib . bibs] (apply global-cite handbook-key-cites tamer-cites bib bibs)))
+(define $author (lambda [bib] ((handbook-cite-author) bib)))
+(define $year (lambda [bib . bibs] (apply (handbook-cite-year) bib bibs)))
 
-(define subcite
-  (lambda keys
-    (subscript (apply cite keys))))
+(define $subcite (lambda [bib . bibs] (subscript (apply $cite bib bibs))))
+(define $subcite* (lambda [bib . bibs] (subscript (apply $cite* bib bibs))))
+(define $subauthor (lambda [bib] (subscript ($author bib))))
+(define $subyear (lambda [bib . bibs] (subscript (apply $year bib bibs))))
+
+(define subcite (lambda keys (subscript (apply cite keys))))
 
 (define handbook-resolved-info-getter
   (lambda [infobase]
@@ -133,13 +137,31 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
+              (~optional (~seq #:tex-bib tex-bib) #:defaults ([tex-bib #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
               [tex-info (handbook-tex-config doclass CJK? tex-load tex-style tex-extra-files)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
+
+         (define-cite ~cite ~inline-cites ~gen-references
+           #:style (default-citation-style)
+           #:cite-author ~cite-author
+           #:cite-year ~cite-year)
+
+         (handbook-reference-section ~gen-references)
+         (handbook-cites ~inline-cites)
+         (handbook-cite ~cite)
+         (handbook-cite-author ~cite-author)
+         (handbook-cite-year ~cite-year)
+
+         (unless (not tex-bib)
+           (define-bibtex-cite* tex-bib ~cite ~inline-cites $cite $inline-cites)
+
+           (handbook-key-cites $inline-cites)
+           (handbook-key-cite $cite))
 
          (list (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
@@ -171,12 +193,13 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
+              (~optional (~seq #:tex-bib tex-bib) #:defaults ([tex-bib #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:author pre-empty-author #:hide-version? noversion?
                                      #:documentclass doclass #:tex-CJK? CJK? #:tex-style tex-style #:tex-extra-files tex-extra-files
-                                     #:tex-package tex-load
+                                     #:tex-package tex-load #:tex-bib tex-bib
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
@@ -192,10 +215,16 @@
      (quasisyntax/loc stx
        (begin (tamer-taming-start! scribble)
 
-              (define-cite ~cite ~cites ~reference #:style number-style)
-              (tamer-reference ~reference)
-              (tamer-cites ~cites)
+              (define-cite ~cite ~inline-cites ~gen-references
+                #:style (default-citation-style)
+                #:cite-author ~cite-author
+                #:cite-year ~cite-year)
+              
+              (tamer-reference-section ~gen-references)
+              (tamer-cites ~inline-cites)
               (tamer-cite ~cite)
+              (tamer-cite-author ~cite-author)
+              (tamer-cite-year ~cite-year)
 
               (define-footnote ~endnote ~endnote-section)
               (tamer-endnote ~endnote)
@@ -348,11 +377,11 @@
   (lambda [#:auto-hide? [auto-hide? #true]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
-    ; It is a good chance to hide other contents such as verbose Literate Chunks if they are moved after.
+    ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
     (define references
-      ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                         #:sec-title (speak 'reference #:dialect 'tamer)))
+      ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
+                                 #:sec-title (speak 'reference #:dialect 'tamer)))
 
     (tamer-story #false)
 
@@ -360,17 +389,19 @@
               (pair? (table-blockss (car (part-blocks references)))))
       references)))
 
-#;(define handbook-bibliography
+(define handbook-bibliography
   (lambda [#:auto-hide? [auto-hide? #true]]
-    (define bibtex
-      ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                         #:sec-title (speak 'reference #:dialect 'tamer)))
+    ;;; NOTE
+    ; This section only contains references in the resulting `part` object,
+    ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
-    (tamer-story #false)
+    (define bibliographies
+      ((handbook-reference-section) #:tag "handbook-bibliography"
+                                    #:sec-title (speak 'bibliography #:dialect 'tamer)))
 
     (when (or (not auto-hide?)
-              (pair? (table-blockss (car (part-blocks references)))))
-      references)))
+              (pair? (table-blockss (car (part-blocks bibliographies)))))
+      bibliographies)))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"

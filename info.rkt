@@ -25,7 +25,8 @@
 
 (define typesettings
   '(["tamer/tex/cjk.tex" "CJK"]
-    ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]))
+    ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]
+    ["tamer/tex/bibtex.scrbl" xelatex]))
 
 (define native-launcher-names
   '(["tamer/cc/launcher/main.c" "cmain" console]
