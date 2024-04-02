@@ -6,7 +6,8 @@
 
 (require "../../filesystem.rkt")
 (require "../../string.rkt")
-(require "../../dtrace.rkt")
+
+(require "../minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct problem-spec

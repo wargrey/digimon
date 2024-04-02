@@ -4,13 +4,12 @@
 
 (require "../shell.rkt")
 
-(require "../../../format.rkt")
-
 (require "../../../git.rkt")
 (require "../../../echo.rkt")
 
 (require "../../../digitama/git/numstat.rkt")
 (require "../../../digitama/git/langstat.rkt")
+(require "../../../digitama/minimal/format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell~~stat : (-> Path Thread Any)

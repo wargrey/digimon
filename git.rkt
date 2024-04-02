@@ -6,7 +6,6 @@
 (provide Git-Numstat Git-Numstat-Line Git-Match-Datum)
 (provide (struct-out Git-Language-With) (struct-out Git-File))
 
-(require "dtrace.rkt")
 (require "filesystem.rkt")
 
 (require "digitama/git/numstat.rkt")
@@ -15,6 +14,7 @@
 (require "digitama/git/submodule.rkt")
 
 (require "digitama/git/parameter.rkt")
+(require "digitama/minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-root : (->* () (Path-String) (Option Path))

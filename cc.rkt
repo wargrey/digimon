@@ -14,13 +14,14 @@
 (require "digitama/toolchain/cc/configuration.rkt")
 
 (require "digitama/minimal/system.rkt")
+(require "digitama/minimal/dtrace.rkt")
+
 (require "digitama/toolchain/std.rkt")
 (require "digitama/toolchain/toolchain.rkt")
 (require "digitama/exec.rkt")
 (require "digitama/path.rkt")
 
 (require "filesystem.rkt")
-(require "dtrace.rkt")
 
 ; register toolchains
 (require (submod "digitama/toolchain/bin/clang.rkt" register))

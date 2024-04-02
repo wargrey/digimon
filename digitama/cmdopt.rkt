@@ -7,8 +7,9 @@
 (require racket/string)
 (require racket/vector)
 (require racket/list)
+(require racket/format)
 
-(require "../format.rkt")
+(require "minimal/format.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))

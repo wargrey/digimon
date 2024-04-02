@@ -4,7 +4,7 @@
 
 (require "exn.rkt")
 
-(require "../../format.rkt")
+(require "../minimal/format.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct spec-sentry-start ())

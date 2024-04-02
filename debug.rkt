@@ -2,7 +2,10 @@
 
 (provide (all-defined-out))
 
-(require "format.rkt")
+(require racket/pretty)
+(require racket/format)
+
+(require "digitama/minimal/format.rkt")
 (require "echo.rkt")
 
 (require (for-syntax racket/base))

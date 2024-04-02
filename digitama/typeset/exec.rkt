@@ -7,7 +7,7 @@
 
 (require "../exec.rkt")
 
-(require "../../dtrace.rkt")
+(require "../minimal/dtrace.rkt")
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -23,12 +23,21 @@
     (unless (directory-exists? dest-dir)
       (fg-recon-mkdir renderer dest-dir))
 
+    (unless (unbox &tex-env)
+      (define tex-env (environment-variables-copy (current-environment-variables)))
+
+      ; to tell tex engines don't break console/log lines too early
+      ; also tex doesn't like too small `max_print_line` and will refuse to execute if so
+      (environment-variables-set! tex-env #"max_print_line" #"1024")
+      (set-box! &tex-env tex-env))
+
     ;;; NOTE: Scribble may generate resources in `(current-directory)`
     (parameterize ([current-directory dest-dir])
       (let rerun ([times : Natural 1])
-        (fg-recon-exec (string->symbol (format "~a[~a]" renderer times))
+        (fg-recon-exec #:env (unbox &tex-env)
+                       (string->symbol (format "~a[~a]" renderer times))
                        (tex-engine-program latex)
-                       (list (list "-interaction=batchmode")
+                       (list (list "-interaction=batchmode" "-halt-on-error")
                              (list -output-directory)
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                          [else (path->string TEXNAME.tex)])))
@@ -52,6 +61,8 @@
           [else (post-exec renderer TEXNAME.ext)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define &tex-env : (Boxof (Option Environment-Variables)) (box #false))
+
 (define tex-log-cat : (-> Symbol Path Void)
   (lambda [renderer TEXNAME.log]
     (call-with-input-file* TEXNAME.log
@@ -59,10 +70,9 @@
         (let cat : Void ([error? : Boolean #false])
           (define log (read-line /dev/login 'any))
           (when (string? log)
-            (case (if (eq? (string-length log) 0) 0 (eq? (string-ref log 0) #\!))
-              [(#true) (dtrace-error log #:topic renderer) (cat #true)]
-              [(#false)
-               (cond [(not error?) (dtrace-debug log #:topic renderer) (cat error?)]
-                     [(regexp-match? #px"^l[.]\\d+" log) (dtrace-note log #:topic renderer) (cat #false)]
-                     [else (dtrace-debug log #:topic renderer) (cat error?)])]
-              [else (cat error?)])))))))
+            (cond [(string=? log "") (cat error?)]
+                  [(eq? (string-ref log 0) #\\) (cat error?)] ; skip tex code line
+                  [(eq? (string-ref log 0) #\!) (dtrace-error log #:topic renderer) (cat #true)]
+                  [(not error?) (dtrace-debug log #:topic renderer) (cat error?)]
+                  [(regexp-match? #px"^l[.]\\d+" log) (dtrace-note log #:topic renderer) (cat #false)]
+                  [else (dtrace-debug log #:topic renderer) (cat error?)])))))))

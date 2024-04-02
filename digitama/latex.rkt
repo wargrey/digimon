@@ -11,7 +11,7 @@
 (require "exec.rkt")
 
 (require "../filesystem.rkt")
-(require "../dtrace.rkt")
+(require "minimal/dtrace.rkt")
 
 ; register renders
 (require (submod "typeset/bin/pdftex.rkt" register))

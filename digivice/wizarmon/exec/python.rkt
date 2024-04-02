@@ -6,7 +6,6 @@
 
 (require "../parameter.rkt")
 
-(require "../../../dtrace.rkt")
 (require "../../../token.rkt")
 (require "../../../string.rkt")
 (require "../../../spec.rkt")
@@ -17,6 +16,9 @@
 (require "../../../digitama/spec/expect/exec.rkt")
 
 (require "../../../digitama/toolchain/problem.rkt")
+
+(require "../../../digitama/minimal/dtrace.rkt")
+(require "../../../digitama/minimal/dtrecho.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct python-problem-attachment

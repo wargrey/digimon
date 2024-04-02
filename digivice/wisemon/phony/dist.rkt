@@ -16,8 +16,8 @@
 
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/exec.rkt")
-(require "../../../dtrace.rkt")
 
+(require "../../../digitama/minimal/dtrace.rkt")
 (require "../../../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

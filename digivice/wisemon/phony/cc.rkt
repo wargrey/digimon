@@ -8,14 +8,13 @@
 (require racket/list)
 (require racket/bool)
 
-(require "../../../dtrace.rkt")
-
 (require "../../../filesystem.rkt")
 (require "../../../predicate.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/path.rkt")
 (require "../../../digitama/toolchain/cc/cc.rkt")
+(require "../../../digitama/minimal/dtrace.rkt")
 
 (require "../parameter.rkt")
 (require "../phony.rkt")

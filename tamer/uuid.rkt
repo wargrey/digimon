@@ -1,11 +1,11 @@
 #lang typed/racket/base
 
 (require "../uuid.rkt")
-(require "../format.rkt")
 (require "../symbol.rkt")
 
 (require racket/future)
 (require racket/symbol)
+(require racket/pretty)
 
 (require typed/db)
 

@@ -10,7 +10,6 @@
 
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")
-(require "../../../dtrace.rkt")
 (require "../../../filesystem.rkt")
 (require "../../../spec.rkt")
 
@@ -21,6 +20,9 @@
 (require "../../../digitama/toolchain/problem.rkt")
 (require "../../../digitama/toolchain/spec/clang.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
+
+(require "../../../digitama/minimal/dtrace.rkt")
+(require "../../../digitama/minimal/dtrecho.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-c : (-> Path Symbol Natural)

@@ -5,10 +5,12 @@
 (require racket/list)
 (require racket/symbol)
 (require racket/match)
+(require racket/format)
 
 (require "../../emoji.rkt")
-(require "../../format.rkt")
 (require "../../echo.rkt")
+
+(require "../minimal/string.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Spec-Sexps (Listof (Syntaxof Any)))

@@ -9,10 +9,11 @@
 (require "../ffi.rkt")
 (require "../racket.rkt")
 
-(require "../../../dtrace.rkt")
-(require "../../../format.rkt")
 (require "../../../filesystem.rkt")
 (require "../../../digitama/exec.rkt")
+
+(require "../../../digitama/minimal/format.rkt")
+(require "../../../digitama/minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-handbooks : (-> Info-Ref (Listof Path))

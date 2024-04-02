@@ -11,7 +11,7 @@
 (require racket/symbol)
 (require racket/match)
 
-(require "dtrace.rkt")
+(require "digitama/minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tongue-Fold (-> Path (Immutable-HashTable Symbol String) (Immutable-HashTable Symbol String)))

@@ -13,7 +13,8 @@
 (require "../../../symbol.rkt")
 (require "../../../filesystem.rkt")
 (require "../../../environ.rkt")
-(require "../../../dtrace.rkt")
+
+(require "../../minimal/dtrace.rkt")
 
 (define msvc-basename : Symbol 'cl)
 

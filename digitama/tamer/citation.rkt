@@ -8,9 +8,13 @@
 
 (require scribble/manual)
 (require scriblib/autobib)
+(require scriblib/bibtex) ; for acmart
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(define define-bibtex-cite)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; https://tools.ietf.org/html/draft-carpenter-rfc-citation-recs-01#section-5.1
@@ -229,12 +233,14 @@
         (~alt (~optional (~seq #:author author) #:defaults ([author #'#false]))
               (~optional (~seq #:date date) #:defaults ([date #'#false]))
               (~optional (~seq #:note note) #:defaults ([note #'#false]))
-              (~optional (~seq #:doi doi) #:defaults ([doi #'#false])))
+              (~optional (~seq #:doi doi) #:defaults ([doi #'#false]))
+              (~optional (~seq #:accessed accessed) #:defaults ([accessed #'#false])))
         ...)
      (syntax/loc stx
        (define key
          (in-bib (make-bib #:title title
                            #:author (bib-entry~author author)
+                           ;#:location (webpage-location url #:accessed accessed)
                            #:url url
                            #:date date
                            #:note note
@@ -242,9 +248,10 @@
                  (format ":~a" 'key))))]))
 
 (define url-bib-entry
-  (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false]]
+  (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false] #:accessed [accessed #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
+               ;#:location (webpage-location url #:accessed accessed)
                #:author   (bib-entry~author author)
                #:date     (bib-entry~date date)
                #:url      url

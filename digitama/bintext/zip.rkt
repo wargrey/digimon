@@ -18,7 +18,8 @@
 (require "../../stdio.rkt")
 (require "../../format.rkt")
 (require "../../checksum.rkt")
-(require "../../dtrace.rkt")
+
+(require "../minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type PKZIP-Strategy (U (Pairof Symbol Index) Index Symbol ZIP-Strategy False))

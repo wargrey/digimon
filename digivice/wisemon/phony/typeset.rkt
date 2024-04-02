@@ -5,11 +5,13 @@
 (require racket/list)
 (require racket/string)
 
+(require "../../../digitama/minimal/dtrace.rkt")
+(require "../../../digitama/minimal/string.rkt")
+
 (require "../../../digitama/latex.rkt")
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../filesystem.rkt")
-(require "../../../dtrace.rkt")
 (require "../../../predicate.rkt")
 
 (require "../parameter.rkt")
@@ -88,14 +90,9 @@
       (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir (assert (file-name-from-path TEXNAME.ext))))
       (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
       (define this-name (assert (file-name-from-path TEXNAME.scrbl)))
-      (define this-stone (build-path local-stone (path-replace-extension this-name #"")))
-      (define doclass.tex (build-path this-stone "documentclass.tex"))
-      (define style.tex (build-path this-stone "style.tex"))
-      (define load.tex (build-path this-stone "load.tex"))
       (define pdfinfo.tex (path-replace-extension TEXNAME.sub #".pdfinfo.tex"))
       (define scrbl-deps (filter file-exists? #| <- say commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
       (define tamer-deps (if (not scribble.doc) null (handbook-dependencies scribble.doc 'latex)))
-      (define render-deps (filter file-exists? (list doclass.tex style.tex load.tex)))
       (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
       (define options : (Listof Keyword) (tex-info-options typesetting))
 
@@ -136,7 +133,7 @@
                                        (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
                                                    engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
 
-                         (wisemon-spec TEXNAME.tex #:^ (list* pdfinfo.tex (append scrbl-deps tamer-deps regexp-deps render-deps)) #:-
+                         (wisemon-spec TEXNAME.tex #:^ (list* pdfinfo.tex (append scrbl-deps tamer-deps regexp-deps)) #:-
                                        (define dest-dir : Path (assert (path-only TEXNAME.tex)))
                                        (define pwd : Path (assert (path-only TEXNAME.scrbl)))
                                        (define ./TEXNAME.scrbl (find-relative-path pwd TEXNAME.scrbl))
@@ -153,33 +150,17 @@
                                                         [current-namespace (make-base-namespace)]
                                                         [exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
                                                                                   the-name (current-make-phony-goal) ./TEXNAME.scrbl))])
-                                           (eval '(require (prefix-in tex: scribble/latex-render) setup/xref scribble/render))
+                                           (eval '(require (prefix-in tex: scribble/latex-render) scribble/core scribble/render))
+                                           (eval '(require digimon/digitama/tamer/documentclass))
                                            
-                                           (when (file-exists? load.tex)
-                                             (dtrace-debug "~a ~a: ~a: load hook: ~a" the-name engine this-name load.tex)
-                                             
-                                             (eval '(require scribble/core scribble/latex-properties))
-                                             (eval `(define (tex:replace-property p)
-                                                      (cond [(not (latex-defaults? p)) p]
-                                                            [else (make-latex-defaults+replacements
-                                                                   (latex-defaults-prefix p)
-                                                                   (latex-defaults-style p)
-                                                                   (latex-defaults-extra-files p)
-                                                                   (hash "scribble-load-replace.tex" ,load.tex))])))
-                                                    (eval '(define (tex:replace doc)
-                                                             (define tex:style (part-style doc))
-                                                             (struct-copy part doc
-                                                                          [style (make-style (style-name tex:style)
-                                                                                             (map tex:replace-property
-                                                                                                  (style-properties tex:style)))]))))
+                                           (eval `(define (tex:adjust doc pdfinfo.tex)
+                                                    (define adjusted-style (handbook-style-adjust (part-style doc) pdfinfo.tex ',engine))
+                                                    (struct-copy part doc [style adjusted-style])))
                                            
                                            (eval `(define (tex:render TEXNAME.scrbl #:dest-dir dest-dir)
                                                     (define TEXNAME.doc (dynamic-require TEXNAME.scrbl 'doc))
-                                                    (render (list (if (file-exists? ,load.tex) (tex:replace TEXNAME.doc) TEXNAME.doc)) (list ,src.tex)
-                                                            #:render-mixin tex:render-mixin #:dest-dir dest-dir
-                                                            #:prefix-file (and (file-exists? ,doclass.tex) ,doclass.tex)
-                                                            #:style-file (and (file-exists? ,style.tex) ,style.tex)  #:style-extra-files (list ,pdfinfo.tex)
-                                                            #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
+                                                    (render (list (tex:adjust TEXNAME.doc ,pdfinfo.tex)) (list ,src.tex)
+                                                            #:render-mixin tex:render-mixin #:dest-dir dest-dir)))
                                            
                                            (when (file-exists? hook.rktl)
                                              (eval `(define (dynamic-load-character-conversions hook.rktl)
@@ -197,7 +178,13 @@
                                          (displayln "\\hypersetup{" /dev/stdout)
 
                                          (when (non-empty-string? title)
-                                           (dtrace-debug "~a ~a: ~a: title: ~a" the-name engine this-name title)
+                                           (define title-lines (~string-lines title))
+
+                                           (dtrace-debug "~a ~a: ~a: title: ~a" the-name engine this-name (car title-lines))
+                                           
+                                           (for ([subtitle (in-list (cdr title-lines))])
+                                             (dtrace-debug "~a ~a: ~a: subtitle: ~a" the-name engine this-name subtitle))
+                                           
                                            (fprintf /dev/stdout "  pdftitle={~a},~n" title))
 
                                          (when (pair? authors)

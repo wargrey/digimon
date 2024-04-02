@@ -8,6 +8,7 @@
 (require scribble/latex-properties)
 
 (require racket/list)
+(require racket/path)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
@@ -17,20 +18,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-title-style
-  (lambda [name props ext-properties tamer-resource-files modname]
-    (make-style name
-                (foldl (λ [resrcs properties]
-                         (append properties
-                                 (filter-map (λ [tamer.res] (and (file-exists? tamer.res) ((car resrcs) tamer.res)))
-                                             (tamer-resource-files modname (cdr resrcs)))))
-                       (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
-                             [(list? ext-properties) (if (list? props) (append props ext-properties) (cons props ext-properties))]
-                             [else (if (list? props) (append props (list ext-properties)) (list props ext-properties))])
-                       (list (cons make-css-addition "tamer.css")
-                             (cons make-tex-addition "tamer.tex")
-                             (cons make-js-addition "tamer.js")
-                             (cons make-css-style-addition "tamer-style.css")
-                             (cons make-js-style-addition "tamer-style.js"))))))
+  (lambda [name props ext-properties tamer-resource-files scrbl texdoc]
+    (define dirname (path-only scrbl))
+    (define basename (path->string (path-replace-extension (file-name-from-path scrbl) #"")))
+
+    (define initial-props
+      (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
+            [(list? ext-properties) (if (list? props) (append props ext-properties) (cons props ext-properties))]
+            [else (if (list? props) (append props (list ext-properties)) (list props ext-properties))]))
+
+    (define master-properties
+      (foldl (λ [resrcs properties]
+               (append properties
+                       (filter-map (λ [tamer.res] (and (file-exists? tamer.res) ((car resrcs) tamer.res)))
+                                   (tamer-resource-files dirname basename (cdr resrcs)))))
+             (if (not texdoc) initial-props (cons texdoc initial-props))
+             (list (cons make-css-addition ".css")
+                   (cons make-tex-addition ".tex")
+                   (cons make-js-addition ".js")
+                   (cons make-css-style-addition "-style.css")
+                   (cons make-js-style-addition "-style.js"))))
+
+    (make-style name master-properties)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-prefab-style

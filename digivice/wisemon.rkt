@@ -12,8 +12,9 @@
 
 (require "../digitama/minimal/system.rkt")
 (require "../digitama/minimal/port.rkt")
+(require "../digitama/minimal/dtrace.rkt")
+(require "../digitama/minimal/dtrecho.rkt")
 
-(require "../dtrace.rkt")
 (require "../cmdopt.rkt")
 (require "../debug.rkt")
 (require "../custodian.rkt")

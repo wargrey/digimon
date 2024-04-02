@@ -9,7 +9,7 @@
 (require "exec/scrbl.rkt")
 (require "exec/dot.rkt")
 
-(require "../../dtrace.rkt")
+(require "../../digitama/minimal/dtrace.rkt")
 
 (require "../../digitama/git/lstree.rkt")
 (require "../../digitama/git/langstat.rkt")

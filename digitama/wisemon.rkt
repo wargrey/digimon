@@ -2,11 +2,15 @@
 
 (provide (all-defined-out))
 
+(require racket/format)
+
 (require "exec.rkt")
 (require "minimal/port.rkt")
+(require "minimal/string.rkt")
+(require "minimal/format.rkt")
+(require "minimal/dtrace.rkt")
+(require "minimal/dtrecho.rkt")
 
-(require "../dtrace.rkt")
-(require "../format.rkt")
 (require "../echo.rkt")
 
 (require "../exception.rkt")

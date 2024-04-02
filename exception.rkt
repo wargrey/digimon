@@ -2,8 +2,10 @@
 
 (provide (all-defined-out))
 
-(require "dtrace.rkt")
-(require "format.rkt")
+(require "digitama/minimal/dtrace.rkt")
+(require "digitama/minimal/dtrecho.rkt")
+(require "digitama/minimal/string.rkt")
+
 (require "location.rkt")
 
 (require (for-syntax racket/base))

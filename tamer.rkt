@@ -54,6 +54,7 @@
 (require "digitama/tamer/graphviz.rkt")
 (require "digitama/tamer/color.rkt")
 (require "digitama/tamer/image.rkt")
+(require "digitama/tamer/documentclass.rkt")
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -127,17 +128,22 @@
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
-              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))) ...
+              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
+              (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
+              (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
+              (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [modname (path-replace-extension (file-name-from-path (quote-module-path)) #"")])
+              [tex-info (handbook-tex-config doclass CJK? tex-load tex-style tex-extra-files)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
          (list (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
-                       #:style (handbook-title-style #false props ext-properties tamer-resource-files modname)
+                       #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path) tex-info)
                        (let ([contents (list pre-contents ...)])
                          (append (cond [(pair? contents) contents]
                                        [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -160,11 +166,17 @@
               (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
-              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))) ...
+              (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
+              (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
+              (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
+              (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:subtitle subtitle #:properties props
+     (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:author pre-empty-author #:hide-version? noversion?
-                                     #:λtitle λtitle
+                                     #:documentclass doclass #:tex-CJK? CJK? #:tex-style tex-style #:tex-extra-files tex-extra-files
+                                     #:tex-package tex-load
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
@@ -317,6 +329,21 @@
                    #:style style
                    pre-contents)))
 
+(define handbook-endnote
+  (lambda body
+    (apply (tamer-endnote) body)))
+
+(define handbook-endnotes
+  (lambda []
+    ((tamer-endnote-section))))
+
+(define handbook-acknowledgement
+  (lambda [#:numbered? [numbered? #false] . pre-contents]
+    (section #:tag "handbook-acknowledgment"
+             #:style (if (not numbered?) noncontent-style #false)
+             (cond [(pair? pre-contents) pre-contents]
+                   [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
+
 (define handbook-reference
   (lambda [#:auto-hide? [auto-hide? #true]]
     ;;; NOTE
@@ -333,20 +360,17 @@
               (pair? (table-blockss (car (part-blocks references)))))
       references)))
 
-(define handbook-endnote
-  (lambda body
-    (apply (tamer-endnote) body)))
+#;(define handbook-bibliography
+  (lambda [#:auto-hide? [auto-hide? #true]]
+    (define bibtex
+      ((tamer-reference) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
+                         #:sec-title (speak 'reference #:dialect 'tamer)))
 
-(define handbook-endnotes
-  (lambda []
-    ((tamer-endnote-section))))
+    (tamer-story #false)
 
-(define handbook-acknowledgement
-  (lambda [#:numbered? [numbered? #false] . pre-contents]
-    (section #:tag "handbook-acknowledgment"
-             #:style (if (not numbered?) noncontent-style #false)
-             (cond [(pair? pre-contents) pre-contents]
-                   [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
+    (when (or (not auto-hide?)
+              (pair? (table-blockss (car (part-blocks references)))))
+      references)))
 
 (define handbook-appendix
   (let ([entries (list (bib-entry #:key      "Racket"

@@ -6,7 +6,7 @@
 (require racket/string)
 (require racket/symbol)
 
-(require "format.rkt")
+(require "digitama/minimal/string.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))

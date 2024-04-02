@@ -13,13 +13,11 @@
 (require "zipconfig.rkt")
 
 (require "../ioexn.rkt")
-(require "../evt.rkt")
-
 (require "../../port.rkt")
 (require "../../bitstream.rkt")
 (require "../../format.rkt")
-(require "../../dtrace.rkt")
 
+(require "../minimal/dtrace.rkt")
 (require "../unsafe/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

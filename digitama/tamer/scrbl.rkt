@@ -10,6 +10,7 @@
 (require scribble/latex-properties)
 
 (require "shadow.rkt")
+(require "documentclass.rkt")
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -108,6 +109,7 @@
                   [(js-addition? self) (extract rest (style-path-cons (js-addition-path self) shtap 'html render-mode))]
                   [(css-style-addition? self) (extract rest (style-path-cons (css-style-addition-path self) shtap 'html render-mode))]
                   [(js-style-addition? self) (extract rest (style-path-cons (js-style-addition-path self) shtap 'html render-mode))]
+                  [(tex-config? self) (extract rest (append (reverse (tex-config-paths self)) shtap))]
                   [else (extract rest shtap)]))
           (reverse shtap)))))
 

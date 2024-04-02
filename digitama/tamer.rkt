@@ -74,17 +74,13 @@
                             (tamer-story-private-modules)))))))
 
 (define tamer-resource-files
-  (lambda [basename tamer.res]
-    (define local-stone (digimon-path 'stone))
+  (lambda [dirname basename .res]
+    (define tamer.res (string-append "tamer" .res))
+    (define self.res (string-append basename .res))
     
     (remove-duplicates (list (collection-file-path tamer.res "digimon" "stone" "typeset")
-                             (build-path local-stone tamer.res)
-                             (build-path local-stone basename tamer.res)))))
-
-(define tamer-resource-files*
-  (lambda [basename tamer.res]
-    (filter file-exists?
-            (tamer-resource-files basename tamer.res))))
+                             (build-path dirname tamer.res)
+                             (build-path dirname self.res)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Scribble and Racket

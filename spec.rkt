@@ -31,12 +31,14 @@
 (require "digitama/spec/expect/logging.rkt")
 (require "digitama/spec/expect/exec.rkt")
 
-(require "format.rkt")
+(require "digitama/minimal/format.rkt")
+(require "digitama/minimal/string.rkt")
+
 (require "debug.rkt")
 (require "echo.rkt")
 
 (require racket/string)
-(require racket/port)
+(require racket/format)
 
 (require (for-syntax racket/base))
 (require (for-syntax syntax/parse))

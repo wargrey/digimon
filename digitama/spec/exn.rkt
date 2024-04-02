@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "../../format.rkt")
+(require "../minimal/string.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:spec exn:fail:user () #:constructor-name make-exn:spec)
