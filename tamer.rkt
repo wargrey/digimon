@@ -431,7 +431,7 @@
         index-self)))
 
 (define handbook-appendix
-  (lambda [#:reference? [reference? #true] #:bibliography? [bibliography? #true] #:index? [index? #true]
+  (lambda [#:reference-section? [reference? #true] #:bibliography-section? [bibliography? #true] #:index-section? [index? #true]
            #:numbered? [numbered? #false] #:auto-hide [auto-hide? #true] #:prefab-bibentries? [racket? #true]
            #:reference-title [r:title #false] #:bibliography-title [b:title 'bibliography] #:index-title [i:title 'index]
            . bibentries]
