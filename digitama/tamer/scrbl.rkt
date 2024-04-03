@@ -10,7 +10,6 @@
 (require scribble/latex-properties)
 
 (require "shadow.rkt")
-(require "documentclass.rkt")
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -72,13 +71,8 @@
                               (let ([e ((traverse-element/shadow-element child))])
                                 (and (element? e)
                                      (handbook-element-extract-path e render-mode))))
-                         (and (element? child)
-                              (handbook-element-extract-path child render-mode))
-                         (and (convertible? child)
-                              (let ([maybe-path (convert child 'script-path #false)])
-                                (cond [(path-literal? maybe-path) (list (path-identity maybe-path))]
-                                      [(pair? maybe-path) (for/list ([p (in-list maybe-path)] #:when (path-literal? p)) (path-identity p))]
-                                      [else #false])))
+                         (and (element? child) (handbook-element-extract-path child render-mode))
+                         (and (convertible? child) (convert-to-path child))
                          null))))))
   
 (define handbook-element-extract-path
@@ -109,7 +103,7 @@
                   [(js-addition? self) (extract rest (style-path-cons (js-addition-path self) shtap 'html render-mode))]
                   [(css-style-addition? self) (extract rest (style-path-cons (css-style-addition-path self) shtap 'html render-mode))]
                   [(js-style-addition? self) (extract rest (style-path-cons (js-style-addition-path self) shtap 'html render-mode))]
-                  [(tex-config? self) (extract rest (append (reverse (tex-config-paths self)) shtap))]
+                  [(convertible? self) (extract rest (append (reverse (convert-to-path self)) shtap))]
                   [else (extract rest shtap)]))
           (reverse shtap)))))
 
@@ -121,3 +115,15 @@
              (file-exists? maybe-path)
              (cons (path-identity maybe-path) paths))
         paths)))
+
+(define convert-to-path
+  (lambda [c]
+    (define maybe-path (convert c 'script-path #false))
+
+    (cond [(path-literal? maybe-path)
+           (list (path-identity maybe-path))]
+          [(pair? maybe-path)
+           (for/list ([p (in-list maybe-path)]
+                      #:when (path-literal? p))
+             (path-identity p))]
+          [else #false])))

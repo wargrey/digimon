@@ -103,8 +103,8 @@
 (define ~subauthor (lambda [bib] (subscript (~author bib))))
 (define ~subyear (lambda [bib . bibs] (subscript (apply ~year bib bibs))))
 
-(define $cite (lambda [bib . bibs] (apply global-cite handbook-key-cite tamer-cite bib bibs)))
-(define $cite* (lambda [bib . bibs] (apply global-cite handbook-key-cites tamer-cites bib bibs)))
+(define $cite (lambda [bib . bibs] (apply bibtex-cite handbook-key-cite handbook-cite bib bibs)))
+(define $cite* (lambda [bib . bibs] (apply bibtex-cite handbook-key-cites handbook-cites bib bibs)))
 (define $author (lambda [bib] ((handbook-cite-author) bib)))
 (define $year (lambda [bib . bibs] (apply (handbook-cite-year) bib bibs)))
 
@@ -142,7 +142,7 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass CJK? tex-load tex-style tex-extra-files)])
+              [tex-info (handbook-tex-config doclass CJK? tex-load tex-style tex-extra-files tex-bib)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
@@ -152,16 +152,16 @@
            #:cite-year ~cite-year)
 
          (handbook-reference-section ~gen-references)
-         (handbook-cites ~inline-cites)
          (handbook-cite ~cite)
+         (handbook-cites ~inline-cites)
          (handbook-cite-author ~cite-author)
          (handbook-cite-year ~cite-year)
 
          (unless (not tex-bib)
            (define-bibtex-cite* tex-bib ~cite ~inline-cites $cite $inline-cites)
 
-           (handbook-key-cites $inline-cites)
-           (handbook-key-cite $cite))
+           (handbook-key-cite $cite)
+           (handbook-key-cites $inline-cites))
 
          (list (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
@@ -374,7 +374,7 @@
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
 (define handbook-reference
-  (lambda [#:auto-hide? [auto-hide? #true]]
+  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
@@ -387,61 +387,54 @@
 
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks references)))))
-      references)))
+      (cond [(and numbered?) (struct-copy part references [style plain])]
+            [else references]))))
 
 (define handbook-bibliography
-  (lambda [#:auto-hide? [auto-hide? #true]]
+  (lambda [#:auto-hide? [auto-hide? #true] #:title-localization? [title-l18n? #false] #:numbered? [numbered? #false]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
     (define bibliographies
-      ((handbook-reference-section) #:tag "handbook-bibliography"
-                                    #:sec-title (speak 'bibliography #:dialect 'tamer)))
+      (cond [(not title-l18n?) ((handbook-reference-section) #:tag "handbook-bibliography")]
+            [else ((handbook-reference-section) #:tag "handbook-bibliography"
+                                                #:sec-title (speak 'bibliography #:dialect 'tamer))]))
 
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks bibliographies)))))
-      bibliographies)))
+      (cond [(and numbered?) (struct-copy part bibliographies [style plain])]
+            [else bibliographies]))))
 
 (define handbook-appendix
-  (let ([entries (list (bib-entry #:key      "Racket"
-                                  #:title    "Reference: Racket"
-                                  #:author   (authors "Matthew Flatt" "PLT")
-                                  #:date     "2010"
-                                  #:location (techrpt-location #:institution "PLT Design Inc." #:number "PLT-TR-2010-1")
-                                  #:url      "https://racket-lang.org/tr1")
-                       (bib-entry #:key      "Scribble"
-                                  #:title    "The Racket Documentation Tool"
-                                  #:author   (authors "Matthew Flatt" "Eli Barzilay")
-                                  #:url      "https://docs.racket-lang.org/scribble/index.html"))])
-    ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
-    (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
-             #:title-localization? [title-l18n? #false] . bibentries]
-      (define all-bibentries
-        (cond [(not racket?) (flatten bibentries)]
-              [else (append entries (flatten bibentries))]))
-      
-      (list (if (pair? all-bibentries)
-                (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
-                  (list (cond [(and title-l18n?)
-                               (struct-copy part bibliography-self
-                                            [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                            [style (if numbered? plain (part-style bibliography-self))])]
-                              [(and numbered?) (struct-copy part bibliography-self [style plain])]
-                              [else bibliography-self])))
-                 null)
-            
-            (if (and index?)
-                (let* ([index-origin (index-section #:tag "handbook-index")]
-                       [index-self (struct-copy part index-origin 
-                                                [style (if numbered? plain (part-style index-origin))]
-                                                [blocks (append (list (texbook-twocolumn))
-                                                                (part-blocks index-origin)
-                                                                (list (texbook-onecolumn)))])])
-                  (list (if (and title-l18n?)
-                            (struct-copy part index-self [title-content (list (speak 'index #:dialect 'tamer))])
-                            index-self)))
-                null)))))
+  ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
+  (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
+           #:title-localization? [title-l18n? #false] . bibentries]
+    (define all-bibentries
+      (cond [(not racket?) (flatten bibentries)]
+            [else (append (list #%racket.bib #%scribble.bib) (flatten bibentries))]))
+    
+    (list (if (pair? all-bibentries)
+              (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
+                (list (cond [(and title-l18n?)
+                             (struct-copy part bibliography-self
+                                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
+                                          [style (if numbered? plain (part-style bibliography-self))])]
+                            [(and numbered?) (struct-copy part bibliography-self [style plain])]
+                            [else bibliography-self])))
+              null)
+          
+          (if (and index?)
+              (let* ([index-origin (index-section #:tag "handbook-index")]
+                     [index-self (struct-copy part index-origin 
+                                              [style (if numbered? plain (part-style index-origin))]
+                                              [blocks (append (list (texbook-twocolumn))
+                                                              (part-blocks index-origin)
+                                                              (list (texbook-onecolumn)))])])
+                (list (if (and title-l18n?)
+                          (struct-copy part index-self [title-content (list (speak 'index #:dialect 'tamer))])
+                          index-self)))
+              null))))
 
 (define handbook-smart-table
   (lambda []

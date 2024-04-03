@@ -16,10 +16,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-citation-style (make-parameter number-style))
 
-(define global-cite
-  (lambda [$cite ~cite bib . bibs]
-    (cond [(bib? bib) (apply (~cite) bib bibs)]
-          [else (($cite) (string-join (map ~a (cons bib bibs)) " "))])))
+(define bibtex-cite
+  (lambda [key-cite bib-cite bib . bibs]
+    (cond [(bib? bib) (apply (bib-cite) bib bibs)]
+          [else ((key-cite) (string-join (map ~a (cons bib bibs)) " "))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-bib stx)
@@ -283,3 +283,25 @@
 (define bib-entry-uri
   (lambda [url doi]
     (or doi url)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define plt-tr1
+  (make-bib #:title    "Reference: Racket"
+            #:author   (authors "Matthew Flatt" "PLT")
+            #:date     "2010"
+            #:location (techrpt-location #:institution "PLT Design Inc." #:number "PLT-TR-2010-1")
+            #:url      "https://racket-lang.org/tr1"))
+
+(define #%racket.bib
+  (bib-entry #:key      "Racket"
+             #:title    "Reference: Racket"
+             #:author   (authors "Matthew Flatt" "PLT")
+             #:date     "2010"
+             #:location (techrpt-location #:institution "PLT Design Inc." #:number "PLT-TR-2010-1")
+             #:url      "https://racket-lang.org/tr1"))
+
+(define #%scribble.bib
+  (bib-entry #:key      "Scribble"
+             #:title    "The Racket Documentation Tool"
+             #:author   (authors "Matthew Flatt" "Eli Barzilay")
+             #:url      "https://docs.racket-lang.org/scribble/index.html"))

@@ -24,7 +24,9 @@
 
 @handbook-smart-table[]
 
-@$cite{plt-tr1}
+@$cite[plt-tr1]
 @$cite{knuth:1984}
 
-@handbook-bibliography[]
+@include-section{pdftex.scrbl}
+
+@handbook-bibliography[#:numbered? #false]

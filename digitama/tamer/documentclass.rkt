@@ -11,18 +11,24 @@
 (require racket/file)
 (require racket/string)
 (require racket/symbol)
+(require file/convertible)
 
 (require "../minimal/dtrace.rkt")
 (require "../minimal/string.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct tex-config (prefix cjk load style extra-files)
+(struct tex-config (prefix cjk load style extra-files tex.bib)
   #:constructor-name make-tex-config
-  #:transparent)
+  #:transparent
+  #:property prop:convertible
+  (λ [self mime fallback]
+    (case mime
+      [(script-path src-path) (tex-config-paths self)]
+      [else fallback])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-config
-  (lambda [doclass CJK? load style extra-files]
+  (lambda [doclass CJK? load style extra-files pbib]
     (define prefix (tex-documentclass doclass))
     (define enc (and CJK? #"\\usepackage{xeCJK}\n"))
     (define load.tex (tex-segment load))
@@ -32,7 +38,8 @@
          (make-tex-config prefix enc load.tex style.tex
                           (if (pair? extra-files)
                               (map tex-segment extra-files)
-                              null)))))
+                              null)
+                          (tex-segment pbib)))))
 
 (define handbook-style-adjust
   (lambda [s pdfinfo.tex engine]
@@ -99,7 +106,8 @@
 (define tex-config-paths
   (lambda [tinfo]
     (filter path?
-            (list* (tex-config-prefix tinfo)
+            (list* (tex-config-tex.bib tinfo)
+                   (tex-config-prefix tinfo)
                    (tex-config-load tinfo)
                    (tex-config-style tinfo)
                    (tex-config-extra-files tinfo)))))
