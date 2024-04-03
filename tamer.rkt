@@ -391,15 +391,16 @@
             [else references]))))
 
 (define handbook-bibliography
-  (lambda [#:auto-hide? [auto-hide? #true] #:title-localization? [title-l18n? #false] #:numbered? [numbered? #false]]
+  (lambda [#:auto-hide? [auto-hide? #true] #:title [title #false] #:numbered? [numbered? #false]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
     (define bibliographies
-      (cond [(not title-l18n?) ((handbook-reference-section) #:tag "handbook-bibliography")]
+      (cond [(not title) ((handbook-reference-section) #:tag "handbook-bibliography")]
             [else ((handbook-reference-section) #:tag "handbook-bibliography"
-                                                #:sec-title (speak 'bibliography #:dialect 'tamer))]))
+                                                #:sec-title (cond [(symbol? title) (speak title #:dialect 'tamer)]
+                                                                  [else (~a title)]))]))
 
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks bibliographies)))))

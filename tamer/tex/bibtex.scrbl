@@ -24,9 +24,11 @@
 
 @handbook-smart-table[]
 
-@$cite[plt-tr1]
-@$cite{knuth:1984}
-
 @include-section{pdftex.scrbl}
 
-@handbook-bibliography[#:numbered? #false]
+@acks{
+ This example is written with Racket@$cite[plt-tr1] and Scribble
+ and translated into @texbook-prefab-name{tex}@$cite{knuth:1984} before generating.
+}
+
+@handbook-bibliography[#:title "References"]
