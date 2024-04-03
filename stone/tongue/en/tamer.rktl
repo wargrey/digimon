@@ -2,7 +2,7 @@
  (preface . "Preface")
  (story . "")
  (scenario . "")
- (reference . "Reference")
+ (reference . "References")
  (appendix . "Appendix")
  (bibliography . "Bibliography")
  (acknowledgment . "Acknowledgments")

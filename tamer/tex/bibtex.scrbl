@@ -31,4 +31,4 @@
  and translated into @texbook-prefab-name{tex}@$cite{knuth:1984} before generating.
 }
 
-@handbook-bibliography[#:title "References"]
+@handbook-reference[]

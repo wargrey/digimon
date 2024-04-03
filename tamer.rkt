@@ -374,14 +374,22 @@
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
 (define handbook-reference
-  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false]]
+  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:title [title #false]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
+    (define self-title
+      (cond [(symbol? title) (speak title #:dialect 'tamer)]
+            [(not title) (speak 'reference #:dialect 'tamer)]
+            [else (~a title)]))
+
     (define references
-      ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                                 #:sec-title (speak 'reference #:dialect 'tamer)))
+      (if (tamer-story)
+          ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
+                                     #:sec-title self-title)
+          ((handbook-reference-section) #:tag "handbook-bibliography"
+                                        #:sec-title self-title)))
 
     (tamer-story #false)
 
@@ -389,23 +397,6 @@
               (pair? (table-blockss (car (part-blocks references)))))
       (cond [(and numbered?) (struct-copy part references [style plain])]
             [else references]))))
-
-(define handbook-bibliography
-  (lambda [#:auto-hide? [auto-hide? #true] #:title [title #false] #:numbered? [numbered? #false]]
-    ;;; NOTE
-    ; This section only contains references in the resulting `part` object,
-    ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
-
-    (define bibliographies
-      (cond [(not title) ((handbook-reference-section) #:tag "handbook-bibliography")]
-            [else ((handbook-reference-section) #:tag "handbook-bibliography"
-                                                #:sec-title (cond [(symbol? title) (speak title #:dialect 'tamer)]
-                                                                  [else (~a title)]))]))
-
-    (when (or (not auto-hide?)
-              (pair? (table-blockss (car (part-blocks bibliographies)))))
-      (cond [(and numbered?) (struct-copy part bibliographies [style plain])]
-            [else bibliographies]))))
 
 (define handbook-appendix
   ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
