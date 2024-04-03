@@ -373,23 +373,19 @@
              (cond [(pair? pre-contents) pre-contents]
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
+;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
 (define handbook-reference
   (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:title [title #false]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
-    (define self-title
-      (cond [(symbol? title) (speak title #:dialect 'tamer)]
-            [(not title) (speak 'reference #:dialect 'tamer)]
-            [else (~a title)]))
-
     (define references
       (if (tamer-story)
           ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                                     #:sec-title self-title)
-          ((handbook-reference-section) #:tag "handbook-bibliography"
-                                        #:sec-title self-title)))
+                                     #:sec-title (section-title (or title 'reference)))
+          ((handbook-reference-section) #:tag "handbook-reference"
+                                        #:sec-title (section-title (or title 'reference)))))
 
     (tamer-story #false)
 
@@ -398,42 +394,64 @@
       (cond [(and numbered?) (struct-copy part references [style plain])]
             [else references]))))
 
-(define handbook-appendix
-  ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
-  (lambda [#:index-section? [index? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
-           #:title-localization? [title-l18n? #false] . bibentries]
+(define handbook-bibliography
+  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
+           #:title [title 'bibliography] . bibentries]
     (define all-bibentries
       (cond [(not racket?) (flatten bibentries)]
             [else (append (list #%racket.bib #%scribble.bib) (flatten bibentries))]))
     
-    (list (if (pair? all-bibentries)
-              (let ([bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries)])
-                (list (cond [(and title-l18n?)
-                             (struct-copy part bibliography-self
-                                          [title-content (list (speak 'bibliography #:dialect 'tamer))]
-                                          [style (if numbered? plain (part-style bibliography-self))])]
-                            [(and numbered?) (struct-copy part bibliography-self [style plain])]
-                            [else bibliography-self])))
-              null)
+    (when (or (not auto-hide?)
+              (pair? all-bibentries))
+      (define bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries))
+
+      (cond [(and title)
+             (struct-copy part bibliography-self
+                          [title-content (list (section-title title))]
+                          [style (if numbered? plain (part-style bibliography-self))])]
+            [(and numbered?) (struct-copy part bibliography-self [style plain])]
+            [else bibliography-self]))))
+
+(define handbook-index
+  (lambda [#:numbered? [numbered? #false] #:title [title 'index]]
+    (define index-origin (index-section #:tag "handbook-index"))
+    (define index-self
+      (struct-copy part index-origin 
+
+                   ; stop `Scribble` from generating another empty `Index` label
+                   [style (if numbered? plain (handbook-remove-style-name (part-style index-origin)))]
+
+                   [blocks (append (list (texbook-twocolumn))
+                                   (part-blocks index-origin)
+                                   (list (texbook-onecolumn)))]))
+    
+    (if (and title)
+        (struct-copy part index-self
+                     [title-content (list (section-title title))])
+        index-self)))
+
+(define handbook-appendix
+  (lambda [#:reference? [reference? #true] #:bibliography? [bibliography? #true] #:index? [index? #true]
+           #:numbered? [numbered? #false] #:auto-hide [auto-hide? #true] #:prefab-bibentries? [racket? #true]
+           #:reference-title [r:title #false] #:bibliography-title [b:title 'bibliography] #:index-title [i:title 'index]
+           . bibentries]
+    (list (when (and reference?)
+            (handbook-reference #:auto-hide? auto-hide? #:numbered? numbered? #:title r:title))
+
+          (when (and bibliography?)
+            (handbook-bibliography #:auto-hide? auto-hide? #:numbered? numbered? #:title b:title
+                                   #:racket-bibentries? racket?
+                                   bibentries))
           
-          (if (and index?)
-              (let* ([index-origin (index-section #:tag "handbook-index")]
-                     [index-self (struct-copy part index-origin 
-                                              [style (if numbered? plain (part-style index-origin))]
-                                              [blocks (append (list (texbook-twocolumn))
-                                                              (part-blocks index-origin)
-                                                              (list (texbook-onecolumn)))])])
-                (list (if (and title-l18n?)
-                          (struct-copy part index-self [title-content (list (speak 'index #:dialect 'tamer))])
-                          index-self)))
-              null))))
+          (when (and index?)
+            (handbook-index #:numbered? numbered? #:title i:title)))))
 
 (define handbook-smart-table
   (lambda []
     (make-traverse-block
      (λ [get set!]
        (if (false? (handbook-markdown-renderer? get))
-           (table-of-contents)
+           (if (tamer-story) (local-table-of-contents) (table-of-contents))
            (make-delayed-block
             (λ [render% pthis _]
               (define-values (/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout))

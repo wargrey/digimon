@@ -42,6 +42,10 @@
     (make-style name master-properties)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-remove-style-name
+  (lambda [s]
+    (make-style #false (style-properties s))))
+
 (define handbook-prefab-style
   (lambda properties
     (make-style #false

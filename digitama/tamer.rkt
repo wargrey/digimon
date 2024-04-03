@@ -15,6 +15,7 @@
 
 (require "../emoji.rkt")
 (require "../system.rkt")
+(require "../tongue.rkt")
 
 (require (for-syntax racket/base))
 
@@ -212,6 +213,11 @@
                      block))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define section-title
+  (lambda [title]
+    (cond [(symbol? title) (speak title #:dialect 'tamer)]
+          [else (~a title)])))
+
 (define traverse-ref!
   (lambda [get set! symbol make-default]
     (unless (get symbol #false)

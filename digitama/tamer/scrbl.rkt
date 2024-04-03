@@ -71,8 +71,10 @@
                               (let ([e ((traverse-element/shadow-element child))])
                                 (and (element? e)
                                      (handbook-element-extract-path e render-mode))))
-                         (and (element? child) (handbook-element-extract-path child render-mode))
-                         (and (convertible? child) (convert-to-path child))
+                         (and (element? child)
+                              (handbook-element-extract-path child render-mode))
+                         (and (convertible? child)
+                              (convert-to-path child))
                          null))))))
   
 (define handbook-element-extract-path
@@ -126,4 +128,4 @@
            (for/list ([p (in-list maybe-path)]
                       #:when (path-literal? p))
              (path-identity p))]
-          [else #false])))
+          [else null])))
