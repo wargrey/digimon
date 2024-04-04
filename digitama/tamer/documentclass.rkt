@@ -32,8 +32,8 @@
     (define load.tex (tex-segment load))
     (define style.tex (tex-segment style))
 
-    (and (or doclass (pair? options) enc load.tex style.tex (pair? extra-files))
-         (make-tex-config (tex-segment doclass) options
+    (and (or doclass options enc load.tex style.tex (pair? extra-files))
+         (make-tex-config (tex-documentclass doclass) options
                           enc load.tex style.tex
                           (if (pair? extra-files)
                               (map tex-segment extra-files)
@@ -113,6 +113,12 @@
                    (tex-config-tex.bib tinfo)
                    (tex-config-extra-files tinfo)))))
 
+(define tex-documentclass
+  (lambda [doclass]
+    (cond [(or (string? doclass) (path? doclass)) (simple-form-path doclass)]
+          [(symbol? doclass) (string->bytes/utf-8 (format "\\documentclass{~a}~n" doclass))]
+          [else doclass])))
+
 (define tex-documentclass-info
   (lambda [prefix maybe-comments]    
     (define portions (regexp-match #px"^\\s*\\\\documentclass(\\[(.+)\\])?[{](\\w+)[}]\\s*" prefix))
@@ -166,9 +172,11 @@
 
 (define tex-documentclass-option-replace
   (lambda [prefix opts]
-    (if (pair? opts)
-        (regexp-replace #px#"documentclass(\\[.+\\])?" prefix
-                        (tex-documentclass-option-join opts #"," #"documentclass[" #"]"))
+    (if (list? opts)
+        (if (null? opts)
+            (regexp-replace #px#"documentclass(\\[.+\\])?" prefix #"documentclass")
+            (regexp-replace #px#"documentclass(\\[.+\\])?" prefix
+                            (tex-documentclass-option-join opts #"," #"documentclass[" #"]")))
         prefix)))
 
 (define tex-unicode-append
