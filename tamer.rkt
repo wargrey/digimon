@@ -28,6 +28,7 @@
 (provide (rename-out [digraph.gv digraph.dot]))
 
 (require racket/hash)
+(require racket/symbol)
 
 (require scribble/lp2)
 (require scribble/core)
@@ -129,7 +130,7 @@
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
+              (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
@@ -163,7 +164,7 @@
            (handbook-key-cite $cite)
            (handbook-key-cites $inline-cites))
 
-         (list (λtitle #:tag "tamer-book"
+         (cons (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                        #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path) tex-info)
                        (let ([contents (list pre-contents ...)])
@@ -174,18 +175,16 @@
                                        [else (list (linebreak)
                                                    (elem #:style subtitle-style
                                                          subtitle))]))))
-               (cond [(not pre-empty-author)
-                      (apply author
-                             (map ~a (#%info 'pkg-authors
-                                             (const (list (#%info 'pkg-idun
-                                                                  (const (string->symbol digimon-partner))))))))]
-                     [(string? pre-empty-author) (author pre-empty-author)]
-                     [else pre-empty-author]))))]))
+               (cond [(not alt-author) (map author (pkg-author-contents))]
+                     [(procedure? alt-author) (map alt-author (pkg-author-contents))]
+                     [else (for/list ([a (if (list? alt-author) (in-list alt-author) (in-value alt-author))])
+                             (cond [(not (block? a)) (author (pkg-author-content a))]
+                                   [else a]))]))))]))
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
-              (~optional (~seq #:author pre-empty-author) #:defaults ([pre-empty-author #'#false]))
+              (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
@@ -197,7 +196,7 @@
               (~optional (~seq #:tex-bib tex-bib) #:defaults ([tex-bib #'#false]))) ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
-                                     #:author pre-empty-author #:hide-version? noversion?
+                                     #:author alt-author #:hide-version? noversion?
                                      #:documentclass doclass #:tex-CJK? CJK? #:tex-style tex-style #:tex-extra-files tex-extra-files
                                      #:tex-package tex-load #:tex-bib tex-bib
                                      (#%info 'pkg-desc

@@ -218,6 +218,23 @@
     (cond [(symbol? title) (speak title #:dialect 'tamer)]
           [else (~a title)])))
 
+(define pkg-author-contents
+  (lambda []
+    (define authors
+      (#%info 'pkg-authors
+              (λ [] (list (#%info 'pkg-idun
+                                   (λ [] digimon-partner))))))
+    
+    (if (list? authors)
+        (map pkg-author-content authors)
+        (list (pkg-author-content authors)))))
+
+(define pkg-author-content
+  (lambda [author]
+    (cond [(symbol? author) (symbol->immutable-string author)]
+          [(pair? author) (author+email (~a (car author)) (~a (cdr author)))]
+          [else author])))
+
 (define traverse-ref!
   (lambda [get set! symbol make-default]
     (unless (get symbol #false)
