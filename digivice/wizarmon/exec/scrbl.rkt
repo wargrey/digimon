@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require "../parameter.rkt")
+
 (require "../../wisemon/phony/typeset.rkt")
 (require (only-in "../../wisemon/parameter.rkt"
                   current-make-real-targets))
@@ -30,7 +32,8 @@
                                   (pkg-info-ref maybe-info))))
 
       (when (pair? all-typesettings)
-        (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets all-typesettings))
+        (define-values (always-files ignored-files specs targets)
+          (make-typeset-specs+targets all-typesettings (wizarmon-verbose)))
       
         (make-typeset specs always-files ignored-files targets)
         (fg-recon-open-file 'exec (car targets))))))

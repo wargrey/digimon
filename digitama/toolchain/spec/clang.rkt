@@ -22,10 +22,10 @@
           (cond [(regexp-try-match #px"^[/][*][*]" /dev/stdin)
                  (let*-values ([(head continue?) (read-clang-problem-title /dev/stdin)]
                                [(body) (if (not continue?) null (read-clang-problem-description /dev/stdin))]
-                               [(args result rest) (problem-description-split-input-output body)]
+                               [(args results rest) (problem-description-split-input-output body)]
                                [(specs description) (problem-description-split-spec main.cpp rest)])
                    (if (pair? specs)
-                       (make-problem-info head description args result specs #false)
+                       (make-problem-info head description args results specs #false)
                        (try-next-comment-block)))]
                 [(regexp-try-match #px"^[/][*]" /dev/stdin)
                  (regexp-match #px".+?[*][/]" /dev/stdin)

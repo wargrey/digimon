@@ -24,9 +24,8 @@
   '(["tamer/digimon.scrbl" (main-doc multi-page)]))
 
 (define typesettings
-  '(["tamer/tex/cjk.tex" "CJK"]
-    ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]
-    ["tamer/tex/bibtex.scrbl" xelatex]))
+  '(["tamer/tex/cjk.tex" latex "CJK"]
+    ["tamer/tex/pdftex.scrbl" pdflatex "pdflatex"]))
 
 (define native-launcher-names
   '(["tamer/cc/launcher/main.c" "cmain" console]

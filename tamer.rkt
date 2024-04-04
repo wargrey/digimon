@@ -135,6 +135,7 @@
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
               (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:document-options options) #:defaults ([options #'null]))
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
@@ -143,7 +144,7 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass CJK? tex-load tex-style tex-extra-files tex-bib)])
+              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files tex-bib)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
@@ -189,6 +190,7 @@
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
               (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:document-options options) #:defaults ([options #'null]))
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
@@ -197,7 +199,8 @@
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:author alt-author #:hide-version? noversion?
-                                     #:documentclass doclass #:tex-CJK? CJK? #:tex-style tex-style #:tex-extra-files tex-extra-files
+                                     #:documentclass doclass #:document-options options #:tex-CJK? CJK?
+                                     #:tex-style tex-style #:tex-extra-files tex-extra-files
                                      #:tex-package tex-load #:tex-bib tex-bib
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])

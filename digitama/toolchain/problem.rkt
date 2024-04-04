@@ -23,7 +23,7 @@
   ([title : (Option String)]
    [description : (Listof String)]
    [arguments : (Listof String)]
-   [result : (Option String)]
+   [results : (Listof String)]
    [specs : (Listof Problem-Spec)]
    [attachment : Any])
   #:constructor-name make-problem-info
@@ -41,27 +41,27 @@
         (dtrace-note "~a" brief)))
     (when (pair? (problem-info-arguments pinfo))
       (dtrace-debug "@~a:" 'input)
-      (for ([input (in-list (problem-info-arguments pinfo))])
-        (dtrace-note "~a" input)))
-    (when (problem-info-result pinfo)
+      (for ([a (in-list (problem-info-arguments pinfo))])
+        (dtrace-note "~a" a)))
+    (when (pair? (problem-info-results pinfo))
       (dtrace-debug "@~a:" 'output)
-      (when (problem-info-result pinfo)
-        (dtrace-note "~a" (problem-info-result pinfo))))))
+      (for ([r (in-list (problem-info-results pinfo))])
+        (dtrace-note "~a" r)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define problem-description-split-input-output : (-> (Listof String) (Values (Listof String) (Option String) (Listof String)))
+(define problem-description-split-input-output : (-> (Listof String) (Values (Listof String) (Listof String) (Listof String)))
   (lambda [lines]
     (let split ([src : (Listof String) lines]
                 [sgra : (Listof String) null]
-                [result : String ""]
+                [stluser : (Listof String) null]
                 [rest : (Listof String) null])
       (if (pair? src)
           (let-values ([(self tail) (values (car src) (cdr src))])
-            (cond [(regexp-match #px"^(@|\\\\)(arg|param)" self) (split tail (cons (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") sgra) result rest)]
-                  [(regexp-match #px"^(@|\\\\)(returns?|result)" self) (split tail sgra (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") rest)]
-                  [else (split tail sgra result (cons self rest))]))
+            (cond [(regexp-match #px"^(@|\\\\)(arg|param)" self) (split tail (cons (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") sgra) stluser rest)]
+                  [(regexp-match #px"^(@|\\\\)(returns?|result)" self) (split tail sgra (cons (string-trim self #px"(^.\\w+\\s*)|(\\s*$)") stluser) rest)]
+                  [else (split tail sgra stluser (cons self rest))]))
           (values (string-list-normalize-blanks (reverse sgra))
-                  (if (string-blank? result) #false result)
+                  (string-list-normalize-blanks (reverse stluser))
                   (reverse rest))))))
 
 (define problem-description-split-spec : (-> Path (Listof String) (Values (Listof Problem-Spec) (Listof String)))

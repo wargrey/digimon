@@ -22,10 +22,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-render : (->* (Symbol Path-String Path-String)
                           (#:dest-subdir (Option Path-String) #:dest-copy? Boolean
-                           #:fallback Symbol #:retry Byte #:enable-filter Boolean)
+                           #:fallback Symbol #:retry Byte #:enable-filter Boolean
+                           #:halt-on-error? Boolean #:shell-escape? Boolean)
                           Path)
   (lambda [#:dest-subdir [dest-subdir #false] #:dest-copy? [dest-copy? #false]
            #:fallback [fallback 'latex] #:retry [retry 4] #:enable-filter [enable-filter #false]
+           #:halt-on-error? [on-error-stop? #true] #:shell-escape? [shell? #true]
            engine src.tex dest-dir0]
     (unless (file-exists? src.tex)
       (error (or engine fallback) "no such tex file: ~a" src.tex))
@@ -71,8 +73,8 @@
                 (copy-port /dev/texin /dev/texout))
             
               (custodian-shutdown-all (current-custodian)))
-            (tex-exec engine latex TEXNAME.tex dest-dir retry))
-          (tex-exec engine latex src.tex dest-dir retry)))
+            (tex-exec engine latex TEXNAME.tex dest-dir retry on-error-stop? shell?))
+          (tex-exec engine latex src.tex dest-dir retry on-error-stop? shell?)))
 
     (let ([TEXNAME.ext (build-path dest-dir0 (assert (file-name-from-path dest.ext)))])
       (if (not dest-copy?)

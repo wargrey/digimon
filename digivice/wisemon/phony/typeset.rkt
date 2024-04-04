@@ -71,8 +71,8 @@
               (if (not typeset/fly) required-typesets (cons typeset/fly required-typesets)))
             (cons info-p required-typesets))))))
 
-(define make-typesetting-specs : (-> (Listof Tex-Info) (Values (Listof Path) (Listof Path) Wisemon-Specification))
-  (lambda [typesettings]
+(define make-typesetting-specs : (-> (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification))
+  (lambda [typesettings halt-on-error?]
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
     (define typeset-subdir : String "tex")
@@ -131,10 +131,12 @@
                                        
                                        (typeset-note engine maybe-name TEXNAME.scrbl)
                                        (tex-render #:fallback tex-fallback-engine #:enable-filter #false
+                                                   #:halt-on-error? halt-on-error? #:shell-escape? #false
                                                    engine TEXNAME.scrbl dest-dir)))
                    
                    (list (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
                                        (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
+                                                   #:halt-on-error? halt-on-error? #:shell-escape? #false
                                                    engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
 
                          (wisemon-spec TEXNAME.tex #:^ (list* pdfinfo.tex (append scrbl-deps tamer-deps regexp-deps)) #:-
@@ -203,9 +205,9 @@
                                        (fg-recon-save-file engine pdfinfo.tex hypersetup)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typeset-specs+targets : (-> (Listof Tex-Info) (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
-  (lambda [typesettings]
-    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings))
+(define make-typeset-specs+targets : (-> (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
+  (lambda [typesettings halt-on-error?]
+    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings halt-on-error?))
 
     (values always-files ignored-files specs (wisemon-targets-flatten specs))))
 
@@ -237,7 +239,8 @@
     (define typesettings : (Listof Tex-Info) (make-typeset-prepare digimon info-ref))
 
     (when (pair? typesettings)
-      (define-values (always-files ignored-files specs targets) (make-typeset-specs+targets typesettings))
+      (define-values (always-files ignored-files specs targets)
+        (make-typeset-specs+targets typesettings (make-verbose)))
       
       (make-typeset specs always-files ignored-files targets))))
 

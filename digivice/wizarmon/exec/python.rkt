@@ -83,10 +83,10 @@
           (cond [(or px:docstring-end)
                  (let*-values ([(head continue?) (read-python-problem-title /dev/stdin px:docstring-end)]
                                [(body doctests) (if (not continue?) (values null null) (read-python-problem-description /dev/stdin px:docstring-end))]
-                               [(args result rest) (problem-description-split-input-output body)]
+                               [(args results rest) (problem-description-split-input-output body)]
                                [(specs description) (problem-description-split-spec mod.py rest)])
                    (if (or (pair? specs) (pair? doctests))
-                       (make-problem-info head description args result specs
+                       (make-problem-info head description args results specs
                                           (make-python-problem-attachment doctests))
                        (try-next-docstring)))]
                 [(regexp-try-match #px"^\\s*#" /dev/stdin)

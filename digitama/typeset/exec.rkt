@@ -11,8 +11,8 @@
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-exec : (-> Symbol Tex-Engine Path-String Path-String Byte Path)
-  (lambda [renderer latex TEXNAME.tex dest-dir retry]
+(define tex-exec : (-> Symbol Tex-Engine Path-String Path-String Byte Boolean Boolean Path)
+  (lambda [renderer latex TEXNAME.tex dest-dir retry halt-on-error? shell?]
     (define post-exec : (Option Tex-Post-Exec) (tex-engine-post-exec latex))
     (define TEXNAME : Path (assert (file-name-from-path TEXNAME.tex) path?))
     (define TEXNAME.ext : Path (build-path dest-dir (path-replace-extension TEXNAME (tex-engine-extension latex))))
@@ -37,7 +37,9 @@
         (fg-recon-exec #:env (unbox &tex-env)
                        (string->symbol (format "~a[~a]" renderer times))
                        (tex-engine-program latex)
-                       (list (list "-interaction=batchmode" "-halt-on-error")
+                       (list (list "-interaction=batchmode")
+                             (if (not halt-on-error?) null (list "-halt-on-error"))
+                             (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
                              (list -output-directory)
                              (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
                                          [else (path->string TEXNAME.tex)])))

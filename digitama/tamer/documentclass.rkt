@@ -9,7 +9,6 @@
 
 (require racket/path)
 (require racket/file)
-(require racket/string)
 (require racket/symbol)
 (require file/convertible)
 
@@ -17,7 +16,7 @@
 (require "../minimal/string.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct tex-config (prefix cjk load style extra-files tex.bib)
+(struct tex-config (documentclass options cjk load style extra-files tex.bib)
   #:constructor-name make-tex-config
   #:transparent
   #:property prop:convertible
@@ -28,14 +27,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-config
-  (lambda [doclass CJK? load style extra-files pbib]
-    (define prefix (tex-documentclass doclass))
+  (lambda [doclass options CJK? load style extra-files pbib]
     (define enc (and CJK? #"\\usepackage{xeCJK}\n"))
     (define load.tex (tex-segment load))
     (define style.tex (tex-segment style))
 
-    (and (or prefix enc load.tex style.tex (pair? extra-files))
-         (make-tex-config prefix enc load.tex style.tex
+    (and (or doclass (pair? options) enc load.tex style.tex (pair? extra-files))
+         (make-tex-config (tex-segment doclass) options
+                          enc load.tex style.tex
                           (if (pair? extra-files)
                               (map tex-segment extra-files)
                               null)
@@ -59,9 +58,9 @@
 
 (define handbook-documentclass-adjust
   (lambda [texdoc self pdfinfo.tex engine]
-    (define doclass (tex-config-prefix texdoc))
     (define alt-load "scribble-load-replace.tex")
-    
+    (define doclass (tex-config-documentclass texdoc))
+
     (define replacements
       (let ([load.tex (tex-config-load texdoc)]
             [replaces (and (latex-defaults+replacements? self) (latex-defaults+replacements-replacements self))])
@@ -73,10 +72,12 @@
               [else (if (not load.tex) replaces (hash-set replaces alt-load load.tex))])))
 
     (define prefix
-      (let ([enc (tex-config-cjk texdoc)])
-        (if (not doclass)
-            (tex-unicode-filter enc (latex-defaults-prefix self))
-            (tex-unicode-append enc doclass))))
+      (tex-documentclass-option-replace
+       (let ([enc (tex-config-cjk texdoc)])
+         (if (not doclass)
+             (tex-unicode-filter enc (latex-defaults-prefix self))
+             (tex-unicode-append enc doclass)))
+       (tex-config-options texdoc)))
 
     (define style.tex (or (tex-config-style texdoc) (latex-defaults-style self)))
     (define extra-files
@@ -84,9 +85,9 @@
             (cond [(not doclass) (latex-defaults-extra-files self)]
                   [else (tex-config-extra-files texdoc)])))
 
-    (let-values ([(dclass doptions) (tex-documentclass-info prefix)])
+    (let-values ([(dclass doptions) (tex-documentclass-info prefix #true)])
       (dtrace-debug "documentclass: ~a" #:topic engine dclass)
-      (when (string? doptions)
+      (when (bytes? doptions)
         (dtrace-debug "options: ~a" #:topic engine doptions))
       
       (dtrace-debug "embeds `~a` for style" #:topic engine (tex-desc style.tex))
@@ -106,71 +107,91 @@
 (define tex-config-paths
   (lambda [tinfo]
     (filter path?
-            (list* (tex-config-tex.bib tinfo)
-                   (tex-config-prefix tinfo)
+            (list* (tex-config-documentclass tinfo)
                    (tex-config-load tinfo)
                    (tex-config-style tinfo)
+                   (tex-config-tex.bib tinfo)
                    (tex-config-extra-files tinfo)))))
 
-(define tex-documentclass-option
-  (lambda [option]
-    (cond [(symbol? option) (symbol->immutable-string option)]
-          [(string? option) option]
-          [(pair? option)
-           (format "~a=~a" (car option)
-             (case (cdr option)
-               [(#true) 'true]
-               [(#false) 'false]
-               [else (cdr option)]))]
-          [else (format "~a" option)])))
-
-(define tex-documentclass
-  (lambda [doclass]
-    (cond [(or (not doclass) (null? doclass)) #false]
-          [(list? doclass)
-           (cond [(null? (cdr doclass)) (tex-documentclass (car doclass))]
-                 [else (string->bytes/utf-8 (format "\\documentclass[~a]{~a}\n"
-                                              (string-join (map tex-documentclass-option (cdr doclass)) ",")
-                                              (car doclass)))])]
-          [(or (path? doclass) (path-string? doclass)) (simple-form-path doclass)]
-          [else (string->bytes/utf-8 (format "\\documentclass{~a}\n" doclass))])))
-
 (define tex-documentclass-info
-  (lambda [prefix]
-    (define doclass (car (~string-lines prefix)))
-    (define portions (regexp-match #px"^.documentclass(.(.+).)?[{](\\w+)[}]\\s*$" doclass))
+  (lambda [prefix maybe-comments]    
+    (define portions (regexp-match #px"^\\s*\\\\documentclass(\\[(.+)\\])?[{](\\w+)[}]\\s*" prefix))
 
-    (when (not portions)
-      (raise-user-error "syntax error: \\documentclass: " doclass))
+    (cond [(and portions) (values (cadddr portions) (caddr portions))]
+          [else (when (not maybe-comments)
+                  (raise-user-error "syntax error: \\documentclass: " prefix))
 
-    (values (cadddr portions) (caddr portions))))
+                (let skip-comment ([/dev/texin (open-input-bytes prefix)])
+                  (define line (read-bytes-line /dev/texin 'any))
+
+                  (unless (bytes? line)
+                    (raise-user-error "no \\documentclass found: " prefix))
+
+                  (if (regexp-match? #px#"^\\s*\\\\documentclass" line)
+                      (tex-documentclass-info line #false)
+                      (skip-comment /dev/texin)))])))
+
+(define tex-documentclass-option-append
+  (lambda [option /dev/bytout no-pair?]
+    (cond [(symbol? option) (write option /dev/bytout)]
+          [(string? option) (write-string option /dev/bytout)]
+          [(eq? option #true) (write 'true /dev/bytout)]
+          [(eq? option #false) (write 'false /dev/bytout)]
+          [(and no-pair?) (write option /dev/bytout)]
+          [(pair? option)
+           (tex-documentclass-option-append (car option) /dev/bytout #true)
+           (unless (null? (cdr option))
+             (write '= /dev/bytout)
+             (if (list? (cdr option))
+                 (tex-documentclass-option-append (cadr option) /dev/bytout #true)
+                 (tex-documentclass-option-append (cdr option) /dev/bytout #true)))]
+          [else (write option /dev/bytout)])))
+
+(define tex-documentclass-option-join
+  (lambda [options sep [pre #false] [post #false]]
+    (define /dev/bytout (open-output-bytes))
+
+    (when (bytes? pre)
+      (write-bytes pre /dev/bytout))
+    
+    (tex-documentclass-option-append (car options) /dev/bytout #false)
+    (for ([opt (in-list (cdr options))])
+      (write-bytes sep /dev/bytout)
+      (tex-documentclass-option-append opt /dev/bytout #false))
+
+    (when (bytes? post)
+      (write-bytes post /dev/bytout))
+
+    (get-output-bytes /dev/bytout #true)))
+
+(define tex-documentclass-option-replace
+  (lambda [prefix opts]
+    (if (pair? opts)
+        (regexp-replace #px#"documentclass(\\[.+\\])?" prefix
+                        (tex-documentclass-option-join opts #"," #"documentclass[" #"]"))
+        prefix)))
 
 (define tex-unicode-append
-  (lambda [enc prefix]
+  (lambda [enc documentclass]
     (define body
-      (cond [(bytes? prefix) prefix]
-            [else (file->bytes (collects-relative->path prefix))]))
+      (cond [(bytes? documentclass) documentclass]
+            [else (file->bytes (collects-relative->path documentclass))]))
 
     (cond [(not enc) body]
           [else (bytes-append body enc)])))
 
 (define tex-unicode-filter
   (lambda [enc prefix]
-    (define px:encs
-      '([#px#"\\\\usepackage\\[utf8\\][{]inputenc[}][\n\r]*" ""]
-        [#px#"\\\\usepackage\\[T1\\][{]fontenc[}][\n\r]*" ""]))
+    (define px:encs #px#"\\\\usepackage\\[(utf8|T1)\\][{](input|font)enc[}][\n\r]*")
 
     (define body
-      (and prefix
-           (if (bytes? prefix)
-               (regexp-replaces prefix px:encs)
-               (call-with-input-file* (collects-relative->path prefix)
-                 (λ [/dev/texin] (regexp-replaces /dev/texin px:encs))))))
+      (regexp-replace* px:encs
+                       (cond [(bytes? prefix) prefix]
+                             [else (file->bytes (collects-relative->path prefix))])
+                       ""))
 
-    (if (and body enc)
-        (bytes-append body enc)
-        body)))
-
+    (cond [(not enc) body]
+          [else (bytes-append body enc)])))
 
 (define tex-segment
   (lambda [res]
