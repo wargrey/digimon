@@ -9,14 +9,12 @@
 
 (require racket/path)
 (require racket/file)
-(require racket/symbol)
 (require file/convertible)
 
 (require "../minimal/dtrace.rkt")
-(require "../minimal/string.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct tex-config (documentclass options cjk load style extra-files tex.bib)
+(struct tex-config (documentclass options cjk load style extra-files)
   #:constructor-name make-tex-config
   #:transparent
   #:property prop:convertible
@@ -27,7 +25,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-config
-  (lambda [doclass options CJK? load style extra-files pbib]
+  (lambda [doclass options CJK? load style extra-files]
     (define enc (and CJK? #"\\usepackage{xeCJK}\n"))
     (define load.tex (tex-segment load))
     (define style.tex (tex-segment style))
@@ -37,8 +35,7 @@
                           enc load.tex style.tex
                           (if (pair? extra-files)
                               (map tex-segment extra-files)
-                              null)
-                          (tex-segment pbib)))))
+                              null)))))
 
 (define handbook-style-adjust
   (lambda [s pdfinfo.tex engine]
@@ -110,7 +107,6 @@
             (list* (tex-config-documentclass tinfo)
                    (tex-config-load tinfo)
                    (tex-config-style tinfo)
-                   (tex-config-tex.bib tinfo)
                    (tex-config-extra-files tinfo)))))
 
 (define tex-documentclass

@@ -228,11 +228,11 @@
     (typeset-compile-source texinfos)
     texinfos))
 
-(define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Void)
-  (lambda [specs always-files ignored-files targets]
+(define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Boolean Void)
+  (lambda [specs always-files ignored-files targets always-run?]
     (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
                    [make-assumed-newfiles (append ignored-files (make-assumed-newfiles))])
-      (wisemon-make specs targets))))
+      (wisemon-make specs targets always-run?))))
 
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
@@ -242,7 +242,7 @@
       (define-values (always-files ignored-files specs targets)
         (make-typeset-specs+targets typesettings (make-verbose)))
       
-      (make-typeset specs always-files ignored-files targets))))
+      (make-typeset specs always-files ignored-files targets (make-always-run)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))

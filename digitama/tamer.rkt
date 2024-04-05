@@ -31,17 +31,11 @@
 
 (define tamer-cite (make-parameter void))
 (define tamer-cites (make-parameter void))
-(define tamer-reference-section (make-parameter void))
 (define tamer-cite-author (make-parameter void))
 (define tamer-cite-year (make-parameter void))
-
-(define handbook-cite (make-parameter void))
-(define handbook-cites (make-parameter void))
-(define handbook-reference-section (make-parameter void))
-(define handbook-cite-author (make-parameter void))
-(define handbook-cite-year (make-parameter void))
-(define handbook-key-cite (make-parameter void))
-(define handbook-key-cites (make-parameter void))
+(define tamer-key-cite (make-parameter void))
+(define tamer-key-cites (make-parameter void))
+(define tamer-reference-section (make-parameter void))
 
 (define tamer-endnote (make-parameter void))
 (define tamer-endnote-section (make-parameter void))
@@ -214,8 +208,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define section-title
-  (lambda [title]
-    (cond [(symbol? title) (speak title #:dialect 'tamer)]
+  (lambda [title tongue]
+    (cond [(symbol? title) (speak title #:in tongue #:dialect 'tamer)]
           [else (~a title)])))
 
 (define pkg-author-contents

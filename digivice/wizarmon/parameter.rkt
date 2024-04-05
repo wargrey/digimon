@@ -15,6 +15,7 @@
 (define wizarmon-errno : (Parameterof Byte) (make-parameter 1))
 (define wizarmon-verbose : (Parameterof Boolean) (make-parameter #false))
 (define wizarmon-silent : (Parameterof Boolean) (make-parameter #false))
+(define wizarmon-remake : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wizarmon-restore-options! : (-> Void)
@@ -23,4 +24,5 @@
     (wizarmon-errno 1)
     (wizarmon-verbose #false)
     (wizarmon-silent #false)
+    (wizarmon-remake #false)
     (pretty-print-columns the-print-width)))

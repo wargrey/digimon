@@ -94,8 +94,9 @@
        (begin (tamer-taming-start! scribble)
               (module+ main (call-as-normal-termination tamer-prove))))]))
 
-(define ~cite (lambda [bib . bibs] (apply (tamer-cite) bib bibs)))
-(define ~cite* (lambda [bib . bibs] (apply (tamer-cites) bib bibs)))
+;;; WARNING: @~cite cannot work across scrbls
+(define ~cite (lambda [bib . bibs] (apply bibtex-cite tamer-key-cite tamer-cite bib bibs)))
+(define ~cite* (lambda [bib . bibs] (apply bibtex-cite tamer-key-cites tamer-cites bib bibs)))
 (define ~author (lambda [bib] ((tamer-cite-author) bib)))
 (define ~year (lambda [bib . bibs] (apply (tamer-cite-year) bib bibs)))
 
@@ -103,16 +104,6 @@
 (define ~subcite* (lambda [bib . bibs] (subscript (apply ~cite* bib bibs))))
 (define ~subauthor (lambda [bib] (subscript (~author bib))))
 (define ~subyear (lambda [bib . bibs] (subscript (apply ~year bib bibs))))
-
-(define $cite (lambda [bib . bibs] (apply bibtex-cite handbook-key-cite handbook-cite bib bibs)))
-(define $cite* (lambda [bib . bibs] (apply bibtex-cite handbook-key-cites handbook-cites bib bibs)))
-(define $author (lambda [bib] ((handbook-cite-author) bib)))
-(define $year (lambda [bib . bibs] (apply (handbook-cite-year) bib bibs)))
-
-(define $subcite (lambda [bib . bibs] (subscript (apply $cite bib bibs))))
-(define $subcite* (lambda [bib . bibs] (subscript (apply $cite* bib bibs))))
-(define $subauthor (lambda [bib] (subscript ($author bib))))
-(define $subyear (lambda [bib . bibs] (subscript (apply $year bib bibs))))
 
 (define subcite (lambda keys (subscript (apply cite keys))))
 
@@ -144,30 +135,31 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files tex-bib)])
+              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)]
+              [bib-info (and tex-bib (simple-form-path tex-bib))])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (define-cite ~cite ~inline-cites ~gen-references
+         (define-cite ~handbook-cite ~handbook-inline-cites ~handbook-references
            #:style (default-citation-style)
-           #:cite-author ~cite-author
-           #:cite-year ~cite-year)
+           #:cite-author ~handbook-cite-author
+           #:cite-year ~handbook-cite-year)
 
-         (handbook-reference-section ~gen-references)
-         (handbook-cite ~cite)
-         (handbook-cites ~inline-cites)
-         (handbook-cite-author ~cite-author)
-         (handbook-cite-year ~cite-year)
-
+         (tamer-cite (procedure-rename ~handbook-cite '~handbook-cite))
+         (tamer-cites (procedure-rename ~handbook-inline-cites '~handbook-inline-cites))
+         (tamer-cite-author ~handbook-cite-author)
+         (tamer-cite-year ~handbook-cite-year)
+         (tamer-reference-section ~handbook-references)
+         
          (unless (not tex-bib)
-           (define-bibtex-cite* tex-bib ~cite ~inline-cites $cite $inline-cites)
+           (define-bibtex-cite* tex-bib ~handbook-cite ~handbook-inline-cites $handbook-cite $handbook-inline-cites)
 
-           (handbook-key-cite $cite)
-           (handbook-key-cites $inline-cites))
+           (tamer-key-cite (procedure-rename $handbook-cite '$handbook-cite))
+           (tamer-key-cites (procedure-rename $handbook-inline-cites '$handbook-inline-cites)))
 
          (cons (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
-                       #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path) tex-info)
+                       #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path) tex-info bib-info)
                        (let ([contents (list pre-contents ...)])
                          (append (cond [(pair? contents) contents]
                                        [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -211,23 +203,30 @@
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         contents ...)
      (quasisyntax/loc stx
        (begin (tamer-taming-start! scribble)
 
-              (define-cite ~cite ~inline-cites ~gen-references
+              (define-cite ~tamer-cite ~tamer-inline-cites ~tamer-references
                 #:style (default-citation-style)
-                #:cite-author ~cite-author
-                #:cite-year ~cite-year)
+                #:cite-author ~tamer-cite-author
+                #:cite-year ~tamer-cite-year)
               
-              (tamer-reference-section ~gen-references)
-              (tamer-cites ~inline-cites)
-              (tamer-cite ~cite)
-              (tamer-cite-author ~cite-author)
-              (tamer-cite-year ~cite-year)
+              (tamer-cite (procedure-rename ~tamer-cite '~tamer-cite))
+              (tamer-cites (procedure-rename ~tamer-inline-cites '~tamer-inline-cites))
+              (tamer-cite-author ~tamer-cite-author)
+              (tamer-cite-year ~tamer-cite-year)
+              (tamer-reference-section ~tamer-references)
 
+              (unless (not tex-bib)
+                (define-bibtex-cite* tex-bib ~tamer-cite ~tamer-inline-cites $tamer-cite $tamer-inline-cites)
+
+                (tamer-key-cite (procedure-rename $tamer-cite '$tamer-cite))
+                (tamer-key-cites (procedure-rename $tamer-inline-cites '$tamer-inline-cites)))
+              
               (define-footnote ~endnote ~endnote-section)
               (tamer-endnote ~endnote)
               (tamer-endnote-section ~endnote-section)
@@ -238,7 +237,9 @@
                        (tamer-story))))
 
               (title #:tag (or tag (tamer-story->tag (tamer-story)))
-                     #:style style
+                     #:style (cond [(not tex-bib) style]
+                                   [(not style) (make-style #false (list (simple-form-path tex-bib)))]
+                                   [else (style-attach-property style (simple-form-path tex-bib))])
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])
                        (cond [(string=? story-literal "") input-contents]
@@ -247,7 +248,8 @@
 (define-syntax (handbook-part stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
-              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false])))
+              (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         pre-contents ...)
      (syntax/loc stx
@@ -256,6 +258,7 @@
        ; whereas the the `tamer-story` is different from the `tamer-index-story`
        (handbook-story #:counter-step? counter-step?
                        #:style (style-merge-property style grouper-style)
+                       #:bibtex tex-bib
                        pre-contents ...))]))
 
 (define-syntax (handbook-part-section stx)
@@ -270,14 +273,20 @@
 
 (define-syntax (handbook-root-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
-     (syntax/loc stx (handbook-story #:style style #:counter-step? #true contents ...))]))
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
+        ...
+        contents ...)
+     (syntax/loc stx (handbook-story #:style style #:counter-step? #true #:bibtex tex-bib contents ...))]))
 
 (define-syntax (handbook-appendix-story stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))) ... contents ...)
+    [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
+        ...
+        contents ...)
      (syntax/loc stx
-       (begin (handbook-story #:style style #:counter-step? #true contents ...)
+       (begin (handbook-story #:style style #:counter-step? #true #:bibtex tex-bib contents ...)
 
               (unless (tamer-appendix-index)
                 (tamer-appendix-index (car (tamer-index-story))))))]))
@@ -287,7 +296,8 @@
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
-              (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
+              (~optional (~seq #:requires extras) #:defaults ([extras #'()]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         modpath:id contents ...)
      (with-syntax ([(reqs ...) (let ([maybe-extras (syntax-e #'extras)])
@@ -296,7 +306,7 @@
        (syntax/loc stx
          (begin (require (for-label modpath))
                 
-                (handbook-story #:style style #:counter-step? counter-step? contents ...)
+                (handbook-story #:style style #:counter-step? counter-step? #:bibtex tex-bib contents ...)
                 
                 (declare-exporting modpath)
                 (tamer-story-private-modules (list 'reqs ...))
@@ -308,11 +318,12 @@
     [(_ (~alt (~optional (~seq #:lang lang) #:defaults ([lang #'typed/racket/base]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
-              (~optional (~seq #:requires extras) #:defaults ([extras #'()])))
+              (~optional (~seq #:requires extras) #:defaults ([extras #'()]))
+              (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         modpath:id contents ...)
      (syntax/loc stx
-       (handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras
+       (handbook-module-story #:lang lang #:style style #:counter-step? counter-step? #:requires extras #:bibtex tex-bib
                               modpath contents ...))]))
 
 (define-syntax (handbook-chunk stx)
@@ -377,17 +388,18 @@
 
 ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
 (define handbook-reference
-  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:title [title #false]]
+  (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:title [title #false] #:tongue [tongue (current-tongue)]]
     ;;; NOTE
     ; This section only contains references in the resulting `part` object,
     ; It is a good chance to hide other content such as verbose Literate Chunks if they are moved after.
 
     (define references
-      (if (tamer-story)
-          ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
-                                     #:sec-title (section-title (or title 'reference)))
-          ((handbook-reference-section) #:tag "handbook-reference"
-                                        #:sec-title (section-title (or title 'reference)))))
+      (let ([t (section-title (or title 'reference) tongue)])
+        (if (tamer-story)
+            ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
+                                       #:sec-title t)
+            ((tamer-reference-section) #:tag "handbook-reference"
+                                       #:sec-title t))))
 
     (tamer-story #false)
 
@@ -398,7 +410,7 @@
 
 (define handbook-bibliography
   (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
-           #:title [title 'bibliography] . bibentries]
+           #:title [title 'bibliography] #:tongue [tongue (current-tongue)] . bibentries]
     (define all-bibentries
       (cond [(not racket?) (flatten bibentries)]
             [else (append (list #%racket.bib #%scribble.bib) (flatten bibentries))]))
@@ -409,13 +421,13 @@
 
       (cond [(and title)
              (struct-copy part bibliography-self
-                          [title-content (list (section-title title))]
+                          [title-content (list (section-title title tongue))]
                           [style (if numbered? plain (part-style bibliography-self))])]
             [(and numbered?) (struct-copy part bibliography-self [style plain])]
             [else bibliography-self]))))
 
 (define handbook-index
-  (lambda [#:numbered? [numbered? #false] #:title [title 'index]]
+  (lambda [#:numbered? [numbered? #false] #:title [title 'index] #:tongue [tongue (current-tongue)]]
     (define index-origin (index-section #:tag "handbook-index"))
     (define index-self
       (struct-copy part index-origin 
@@ -429,24 +441,25 @@
     
     (if (and title)
         (struct-copy part index-self
-                     [title-content (list (section-title title))])
+                     [title-content (list (section-title title tongue))])
         index-self)))
 
 (define handbook-appendix
   (lambda [#:reference-section? [reference? #true] #:bibliography-section? [bibliography? #true] #:index-section? [index? #true]
            #:numbered? [numbered? #false] #:auto-hide [auto-hide? #true] #:prefab-bibentries? [racket? #true]
            #:reference-title [r:title #false] #:bibliography-title [b:title 'bibliography] #:index-title [i:title 'index]
+           #:tongue [tongue (current-tongue)]
            . bibentries]
     (list (when (and reference?)
-            (handbook-reference #:auto-hide? auto-hide? #:numbered? numbered? #:title r:title))
+            (handbook-reference #:auto-hide? auto-hide? #:numbered? numbered? #:title r:title #:tongue tongue))
 
           (when (and bibliography?)
             (handbook-bibliography #:auto-hide? auto-hide? #:numbered? numbered? #:title b:title
-                                   #:racket-bibentries? racket?
+                                   #:racket-bibentries? racket? #:tongue tongue
                                    bibentries))
           
           (when (and index?)
-            (handbook-index #:numbered? numbered? #:title i:title)))))
+            (handbook-index #:numbered? numbered? #:title i:title #:tongue tongue)))))
 
 (define handbook-smart-table
   (lambda []

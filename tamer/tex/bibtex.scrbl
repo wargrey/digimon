@@ -27,8 +27,8 @@
 @include-section{pdftex.scrbl}
 
 @acks{
- This example is written with Racket@$cite[plt-tr1] and Scribble
- and translated into @texbook-prefab-name{tex}@$cite{knuth:1984} before generating.
+ This example is written with Racket@~cite[plt-tr1] and Scribble
+ and translated into @texbook-prefab-name{tex}@~cite{knuth:1984} before generating.
 }
 
 @handbook-appendix[]

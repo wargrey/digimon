@@ -18,9 +18,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-title-style
-  (lambda [name props ext-properties tamer-resource-files scrbl texdoc]
+  (lambda [name props ext-properties tamer-resource-files scrbl tex-info bib-info]
     (define dirname (path-only scrbl))
     (define basename (path->string (path-replace-extension (file-name-from-path scrbl) #"")))
+    (define additions (filter values (list tex-info bib-info)))
 
     (define initial-props
       (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]
@@ -32,7 +33,7 @@
                (append properties
                        (filter-map (λ [tamer.res] (and (file-exists? tamer.res) ((car resrcs) tamer.res)))
                                    (tamer-resource-files dirname basename (cdr resrcs)))))
-             (if (not texdoc) initial-props (cons texdoc initial-props))
+             (if (null? additions) initial-props (append additions initial-props))
              (list (cons make-css-addition ".css")
                    (cons make-tex-addition ".tex")
                    (cons make-js-addition ".js")

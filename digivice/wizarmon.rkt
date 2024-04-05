@@ -28,6 +28,7 @@
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index    ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                        the-print-width]]
 
+   [(#\B always-remake) #:=> wizarmon-remake                          "unconditionally remake the target"]
    [(#\s slient quiet)  #:=> wizarmon-silent                          "suppress the standard output"]
    [(#\v verbose)       #:=> wizarmon-verbose                         "run with verbose messages"]
 

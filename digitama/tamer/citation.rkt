@@ -9,17 +9,14 @@
 (require scribble/manual)
 (require scriblib/autobib)
 
+(require file/convertible)
+
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-citation-style (make-parameter number-style))
-
-(define bibtex-cite
-  (lambda [key-cite bib-cite bib . bibs]
-    (cond [(bib? bib) (apply (bib-cite) bib bibs)]
-          [else ((key-cite) (string-join (map ~a (cons bib bibs)) " "))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-bib stx)
@@ -260,6 +257,12 @@
                #:date     (bib-entry~date date)
                #:url      url
                #:note     note)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bibtex-cite
+  (lambda [key-cite bib-cite bib . bibs]
+    (cond [(bib? bib) (apply (bib-cite) bib bibs)]
+          [else ((key-cite) (string-join (map ~a (cons bib bibs)) " "))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bib-entry~key

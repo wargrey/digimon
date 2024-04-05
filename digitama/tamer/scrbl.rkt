@@ -106,6 +106,7 @@
                   [(css-style-addition? self) (extract rest (style-path-cons (css-style-addition-path self) shtap 'html render-mode))]
                   [(js-style-addition? self) (extract rest (style-path-cons (js-style-addition-path self) shtap 'html render-mode))]
                   [(convertible? self) (extract rest (append (reverse (convert-to-path self)) shtap))]
+                  [(and (path? self) (path-exists? self)) (extract rest (cons self shtap))]
                   [else (extract rest shtap)]))
           (reverse shtap)))))
 

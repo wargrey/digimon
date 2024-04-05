@@ -40,7 +40,7 @@
       (if (and cc-specs.launchers (pair? (cdr cc-specs.launchers)) (pair? targets))
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
                         [(extra-libraries) (map path->complete-path (map path-normalize/system (c-path-flatten (cc-launcher-info-libpaths launcher))))])
-            (wisemon-make cc-specs targets #:name the-name #:keep-going? #false)
+            (wisemon-make cc-specs targets #:name the-name #:keep-going? #false #:always-run? (wizarmon-remake))
             (define self-env : (Option Environment-Variables)
               (and (pair? extra-libraries)
                    (let ([env (environment-variables-copy (current-environment-variables))]

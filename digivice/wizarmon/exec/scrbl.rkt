@@ -35,5 +35,5 @@
         (define-values (always-files ignored-files specs targets)
           (make-typeset-specs+targets all-typesettings (wizarmon-verbose)))
       
-        (make-typeset specs always-files ignored-files targets)
+        (make-typeset specs always-files ignored-files targets (wizarmon-remake))
         (fg-recon-open-file 'exec (car targets))))))
