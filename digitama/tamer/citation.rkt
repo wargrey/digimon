@@ -243,7 +243,6 @@
          #:title title
          #:author (bib-entry~author author)
          #:location (if (not accessed) (webpage-location url) (webpage-location url #:accessed accessed))
-         #:url url
          #:date date
          #:note note
          #:doi doi))]))
