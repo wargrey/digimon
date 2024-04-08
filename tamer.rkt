@@ -37,6 +37,7 @@
 (require scriblib/autobib)
 (require scriblib/bibtex)
 (require scriblib/footnote)
+(require scriblib/book-index)
 (require scribble/html-properties)
 (require scribble/latex-properties)
 
@@ -97,13 +98,13 @@
 ;;; WARNING: @~cite cannot work across scrbls
 (define ~cite (lambda [bib . bibs] (apply bibtex-cite tamer-key-cite tamer-cite bib bibs)))
 (define ~cite* (lambda [bib . bibs] (apply bibtex-cite tamer-key-cites tamer-cites bib bibs)))
-(define ~author (lambda [bib] ((tamer-cite-author) bib)))
-(define ~year (lambda [bib . bibs] (apply (tamer-cite-year) bib bibs)))
-
 (define ~subcite (lambda [bib . bibs] (subscript (apply ~cite bib bibs))))
 (define ~subcite* (lambda [bib . bibs] (subscript (apply ~cite* bib bibs))))
-(define ~subauthor (lambda [bib] (subscript (~author bib))))
-(define ~subyear (lambda [bib . bibs] (subscript (apply ~year bib bibs))))
+
+(define $cite (lambda [bib . bibs] (apply bibtex-cite handbook-key-cite handbook-cite bib bibs)))
+(define $cite* (lambda [bib . bibs] (apply bibtex-cite handbook-key-cites handbook-inline-cite bib bibs)))
+(define $subcite (lambda [bib . bibs] (subscript (apply $cite bib bibs))))
+(define $subcite* (lambda [bib . bibs] (subscript (apply $cite* bib bibs))))
 
 (define subcite (lambda keys (subscript (apply cite keys))))
 
@@ -130,36 +131,18 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
-              (~optional (~seq #:tex-bib tex-bib) #:defaults ([tex-bib #'#false]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)]
-              [bib-info (and tex-bib (simple-form-path tex-bib))])
+              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (define-cite ~handbook-cite ~handbook-inline-cites ~handbook-references
-           #:style (default-citation-style)
-           #:cite-author ~handbook-cite-author
-           #:cite-year ~handbook-cite-year)
-
-         (tamer-cite (procedure-rename ~handbook-cite '~handbook-cite))
-         (tamer-cites (procedure-rename ~handbook-inline-cites '~handbook-inline-cites))
-         (tamer-cite-author ~handbook-cite-author)
-         (tamer-cite-year ~handbook-cite-year)
-         (tamer-reference-section ~handbook-references)
-         
-         (unless (not tex-bib)
-           (define-bibtex-cite* tex-bib ~handbook-cite ~handbook-inline-cites $handbook-cite $handbook-inline-cites)
-
-           (tamer-key-cite (procedure-rename $handbook-cite '$handbook-cite))
-           (tamer-key-cites (procedure-rename $handbook-inline-cites '$handbook-inline-cites)))
-
          (cons (λtitle #:tag "tamer-book"
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
-                       #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path) tex-info bib-info)
+                       #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path)
+                                                     (list* tex-info (handbook-bibtex-path) book-index-style-properties))
                        (let ([contents (list pre-contents ...)])
                          (append (cond [(pair? contents) contents]
                                        [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -186,14 +169,13 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
-              (~optional (~seq #:tex-bib tex-bib) #:defaults ([tex-bib #'#false]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:author alt-author #:hide-version? noversion?
                                      #:documentclass doclass #:document-options options #:tex-CJK? CJK?
                                      #:tex-style tex-style #:tex-extra-files tex-extra-files
-                                     #:tex-package tex-load #:tex-bib tex-bib
+                                     #:tex-package tex-load
                                      (#%info 'pkg-desc
                                              (const (let ([alt-contents (list pre-contents ...)])
                                                       (cond [(null? alt-contents) (current-digimon)]
@@ -210,22 +192,7 @@
      (quasisyntax/loc stx
        (begin (tamer-taming-start! scribble)
 
-              (define-cite ~tamer-cite ~tamer-inline-cites ~tamer-references
-                #:style (default-citation-style)
-                #:cite-author ~tamer-cite-author
-                #:cite-year ~tamer-cite-year)
-              
-              (tamer-cite (procedure-rename ~tamer-cite '~tamer-cite))
-              (tamer-cites (procedure-rename ~tamer-inline-cites '~tamer-inline-cites))
-              (tamer-cite-author ~tamer-cite-author)
-              (tamer-cite-year ~tamer-cite-year)
-              (tamer-reference-section ~tamer-references)
-
-              (unless (not tex-bib)
-                (define-bibtex-cite* tex-bib ~tamer-cite ~tamer-inline-cites $tamer-cite $tamer-inline-cites)
-
-                (tamer-key-cite (procedure-rename $tamer-cite '$tamer-cite))
-                (tamer-key-cites (procedure-rename $tamer-inline-cites '$tamer-inline-cites)))
+              (tamer-bibtex-load tex-bib)
               
               (define-footnote ~endnote ~endnote-section)
               (tamer-endnote ~endnote)
@@ -398,8 +365,7 @@
         (if (tamer-story)
             ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
                                        #:sec-title t)
-            ((tamer-reference-section) #:tag "handbook-reference"
-                                       #:sec-title t))))
+            (handbook-reference-section #:tag "handbook-reference" #:sec-title t))))
 
     (tamer-story #false)
 

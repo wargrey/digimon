@@ -29,14 +29,6 @@
 (define tamer-index-story (make-parameter (cons 0 #false)))
 (define tamer-appendix-index (make-parameter #false))
 
-(define tamer-cite (make-parameter void))
-(define tamer-cites (make-parameter void))
-(define tamer-cite-author (make-parameter void))
-(define tamer-cite-year (make-parameter void))
-(define tamer-key-cite (make-parameter void))
-(define tamer-key-cites (make-parameter void))
-(define tamer-reference-section (make-parameter void))
-
 (define tamer-endnote (make-parameter void))
 (define tamer-endnote-section (make-parameter void))
   

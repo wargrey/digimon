@@ -18,10 +18,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-title-style
-  (lambda [name props ext-properties tamer-resource-files scrbl tex-info bib-info]
+  (lambda [name props ext-properties tamer-resource-files scrbl others]
     (define dirname (path-only scrbl))
     (define basename (path->string (path-replace-extension (file-name-from-path scrbl) #"")))
-    (define additions (filter values (list tex-info bib-info)))
+    (define additions (filter values others))
 
     (define initial-props
       (cond [(or (null? ext-properties) (void? ext-properties)) (if (list? props) props (list props))]

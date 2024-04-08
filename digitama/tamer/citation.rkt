@@ -5,11 +5,13 @@
 (require racket/format)
 (require racket/symbol)
 (require racket/string)
+(require racket/path)
+
+(require scribble/core)
 
 (require scribble/manual)
 (require scriblib/autobib)
-
-(require file/convertible)
+(require scriblib/bibtex)
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -17,6 +19,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-citation-style (make-parameter number-style))
+
+(define tamer-cite (make-parameter void))
+(define tamer-cites (make-parameter void))
+(define tamer-key-cite (make-parameter void))
+(define tamer-key-cites (make-parameter void))
+(define tamer-reference-section (make-parameter void))
+
+(define handbook-bibtex-path (make-parameter #false))
+(define handbook-key-cite (make-parameter void))
+(define handbook-key-cites (make-parameter void))
+ 
+(define-cite handbook-cite handbook-inline-cite handbook-reference-section
+  #:style (default-citation-style))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-bib stx)
@@ -258,10 +273,40 @@
                #:note     note)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-bibtex-load
+  (lambda [bib]
+    (handbook-bibtex-path (simple-form-path bib))
+    
+    (define-bibtex-cite* (handbook-bibtex-path)
+      handbook-cite handbook-inline-cite
+      $cite $inline-cite)
+
+    (handbook-key-cite  (procedure-rename $cite '$handbook-cite))
+    (handbook-key-cites (procedure-rename $inline-cite '$handbook-inline-cite))))
+
+(define tamer-bibtex-load
+  (lambda [bib]
+    (define-cite ~tamer-cite ~tamer-inline-cites ~tamer-references
+      #:style (default-citation-style))
+    
+    (tamer-cite (procedure-rename ~tamer-cite '~tamer-cite))
+    (tamer-cites (procedure-rename ~tamer-inline-cites '~tamer-inline-cites))
+    (tamer-reference-section ~tamer-references)
+    
+    (unless (not bib)
+      (define-bibtex-cite* bib ~tamer-cite ~tamer-inline-cites $tamer-cite $tamer-inline-cites)
+
+      (tamer-key-cite (procedure-rename $tamer-cite '$tamer-cite))
+      (tamer-key-cites (procedure-rename $tamer-inline-cites '$tamer-inline-cites)))))
+
 (define bibtex-cite
   (lambda [key-cite bib-cite bib . bibs]
-    (cond [(bib? bib) (apply (bib-cite) bib bibs)]
-          [else ((key-cite) (string-join (map ~a (cons bib bibs)) " "))])))
+    (define cite-self
+      (cond [(string? bib) ((key-cite) (string-join (map ~a (cons bib bibs)) " "))]
+            [(parameter? bib-cite) (apply (bib-cite) bib bibs)]
+            [else (apply bib-cite bib bibs)]))
+
+    cite-self))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define bib-entry~key
