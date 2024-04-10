@@ -90,7 +90,7 @@
                                           (make-python-problem-attachment doctests))
                        (try-next-docstring)))]
                 [(regexp-try-match #px"^\\s*#" /dev/stdin)
-                 (read-line /dev/stdin)
+                 (read-line /dev/stdin 'any)
                  (try-next-docstring)]
                 [else #false]))))))
 
@@ -117,18 +117,21 @@
     (define python3 (find-executable-path "python3"))
     (define python (or python3 (find-executable-path "python")))
 
-    python))
+    (or python
+        (string->path "C:\\Users\\wargrey\\AppData\\Local\\Microsoft\\WindowsApps\\python3.exe"))))
 
 (define python-cmd-args : (-> String (Vectorof String) Boolean (Vectorof String))
   (lambda [mod.py cmd-argv doctest?]
-    (cond [(not doctest?) (vector-append (vector mod.py) cmd-argv)]
-          [(wizarmon-verbose) (vector-append (vector "-m" "doctest" "-v" mod.py) cmd-argv)]
-          [else (vector-append (vector "-m" "doctest" mod.py) cmd-argv)])))
+    (define pyargv : (Vectorof String) (vector "-X" "utf-8"))
+    
+    (cond [(not doctest?) (vector-append pyargv (vector mod.py) cmd-argv)]
+          [(wizarmon-verbose) (vector-append pyargv (vector "-m" "doctest" "-v" mod.py) cmd-argv)]
+          [else (vector-append pyargv (vector "-m" "doctest" mod.py) cmd-argv)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-python-problem-title : (-> Input-Port Regexp (Values (Option String) Boolean))
   (lambda [/dev/stdin px:docstring]
-    (define self (read-line /dev/stdin))
+    (define self (read-line /dev/stdin 'any))
     
     (cond [(or (eof-object? self) (regexp-match? px:docstring self)) (values #false #false)]
           [(string-blank? self) (values #false #true)]
@@ -139,7 +142,7 @@
     (let read-desc ([senil : (Listof String) null]
                     [stsetcod : (Listof String) null]
                     [doctest? : Boolean #false])
-      (define self (read-line /dev/stdin))
+      (define self (read-line /dev/stdin 'any))
 
       (if (string? self)
           (cond [(regexp-match? px:docstring self) (values (reverse senil) (reverse stsetcod))]

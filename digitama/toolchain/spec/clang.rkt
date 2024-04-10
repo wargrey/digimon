@@ -31,7 +31,7 @@
                  (regexp-match #px".+?[*][/]" /dev/stdin)
                  (try-next-comment-block)]
                 [(regexp-try-match #px"^[/][/]" /dev/stdin)
-                 (read-line /dev/stdin)
+                 (read-line /dev/stdin 'any)
                  (try-next-comment-block)]
                 [else #false]))))))
 
@@ -57,7 +57,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))
   (lambda [/dev/stdin]
-    (define self (read-line /dev/stdin))
+    (define self (read-line /dev/stdin 'any))
     
     (cond [(or (eof-object? self) (regexp-match #px"[*]+[/].*" self)) (values #false #false)]
           [(string-blank? self) (values #false #true)]
@@ -66,7 +66,7 @@
 (define read-clang-problem-description : (-> Input-Port (Listof String))
   (lambda [/dev/stdin]
     (let read-desc ([senil : (Listof String) null])
-      (define self (read-line /dev/stdin))
+      (define self (read-line /dev/stdin 'any))
 
       (if (string? self)
           (if (regexp-match #px"[*]+[/].*" self)

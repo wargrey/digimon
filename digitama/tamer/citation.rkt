@@ -266,7 +266,7 @@
   (lambda [key title url #:author [author #false] #:date [date #false] #:note [note #false] #:accessed [accessed #false]]
     (bib-entry #:key      (bib-entry~key key)
                #:title    title
-               #:location (if (not accessed) (webpage-location url) (webpage-location url #:accessed accessed))
+               ;#:location (if (not accessed) (webpage-location url) (webpage-location url #:accessed accessed))
                #:author   (bib-entry~author author)
                #:date     (bib-entry~date date)
                #:url      url

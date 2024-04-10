@@ -19,9 +19,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define default-spec-exec-stdin-log-level : (Parameterof (Option Symbol)) (make-parameter #false))
+(define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 (define default-spec-exec-stdout-port : (Parameterof (Option Output-Port)) (make-parameter #false))
 (define default-spec-exec-stderr-port : (Parameterof (Option Output-Port)) (make-parameter #false))
-(define default-spec-exec-operation-name : (Parameterof Symbol) (make-parameter 'exec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected : Spec-Stdout-Expectation])
@@ -35,26 +35,45 @@
                         (default-spec-exec-operation-name) (if (string? program) (string->path program) program) cmd-argv))
 
   ;;; NOTE: Here we only check empty lines after the output in case that whitespaces are important
-  (define eols (regexp-match #px#"[\r\n]+$" raw))
+  (define eols (regexp-match #px#"(\r|\n)+$" raw))
   (when (and (not eols) /dev/stdout (> (bytes-length raw) 0))
     (newline /dev/stdout))
 
   (unless (null? expected)
-    (define given0 : Bytes (if eols (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))) raw))
-    (define unicode? : Boolean (and (or (string? (car expected)) (regexp? (car expected)))))
-    (define given : (U String Bytes) (if (not unicode?) given0 (bytes->string/utf-8 given0)))
-
+    (define given : Bytes (if eols (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))) raw))
+    (define sgiven : String (bytes->string/utf-8 given))
+    (define givens : (Listof Bytes) (if (regexp-match? #px"(\r|\n)" given) (regexp-split #px"(\r|\n)+" given) null))
+    
     ; the issue format should be combined with existing `default-spec-issue-format`
-    ; nevertheless, it is not a big deal here               
-    (parameterize ([default-spec-issue-extra-arguments (list (vector 'given given #false))]
-                   [default-spec-issue-format (if (not unicode?) spec-exec-bytes-format spec-exec-string-format)])
+    ; nevertheless, it is not a big deal here
+    (parameterize ([default-spec-issue-extra-arguments (list (vector 'given sgiven #false))])
       (or (for/or : Boolean ([expected (if (pair? expected) (in-list expected) (in-value expected))])
-            (cond [(bytes? expected) (equal? given expected)]
-                  [(string? expected) (equal? given expected)]
-                  [else (regexp-match? expected given)]))
+            (cond [(bytes? expected)
+                   (parameterize ([default-spec-issue-format spec-exec-bytes-format])
+                     (cond [(null? givens) (bytes=? given expected)]
+                           [else (spec-mbytes=? givens expected)]))]
+                  [(string? expected)
+                   (parameterize ([default-spec-issue-format spec-exec-string-format])
+                     (cond [(null? givens) (string=? sgiven expected)]
+                           [else (spec-mbytes=? givens (string->bytes/utf-8 expected))]))]
+                  [(byte-regexp? expected)
+                   (parameterize ([default-spec-issue-format spec-exec-bytes-format])
+                     (regexp-match? expected given))]
+                  [else
+                   (parameterize ([default-spec-issue-format spec-exec-string-format])
+                     (regexp-match? expected given))]))
           (spec-misbehave)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-mbytes=? : (-> (Listof Bytes) Bytes Boolean)
+  (lambda [givens expected]
+    (define es (regexp-split #px"(\r|\n)+" expected))
+
+    (and (= (length givens) (length es))
+         (for/and : Boolean ([g (in-list givens)]
+                             [e (in-list es)])
+           (bytes=? g e)))))
+
 (define spec-exec-string-format : Spec-Issue-Format
   (lambda [v fallback]
     (cond [(string? v) (spec-expected-string v)]
