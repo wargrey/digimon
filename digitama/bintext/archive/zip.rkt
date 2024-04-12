@@ -127,7 +127,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define zip-select-fragment : (-> Archive-Fragments Natural (Values (Option Archive-Fragment) Archive-Fragments))
   (lambda [fragments request-size]
-    (define ordered-fragments ((inst sort Archive-Fragment) fragments > #:key cdr))
+    (define ordered-fragments ((inst sort Archive-Fragment Real) fragments > #:key cdr))
 
     (values (and (pair? ordered-fragments)
                  (let ([fragment (car ordered-fragments)])
