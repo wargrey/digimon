@@ -24,7 +24,7 @@
 (define default-spec-exec-stderr-port : (Parameterof (Option Output-Port)) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [expected : Spec-Stdout-Expectation])
+(define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [outputs : Spec-Stdout-Expectation])
   (define /dev/stdout : (Option Output-Port) (default-spec-exec-stdout-port))
 
   (define raw : Bytes
@@ -39,32 +39,29 @@
   (when (and (not eols) /dev/stdout (> (bytes-length raw) 0))
     (newline /dev/stdout))
 
-  (unless (null? expected)
+  (unless (null? outputs)
     (define given : Bytes (if eols (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))) raw))
-    (define sgiven : String (bytes->string/utf-8 given))
     (define givens : (Listof Bytes) (if (regexp-match? #px"(\r|\n)" given) (regexp-split #px"(\r|\n)+" given) null))
     
-    ; the issue format should be combined with existing `default-spec-issue-format`
-    ; nevertheless, it is not a big deal here
-    (parameterize ([default-spec-issue-extra-arguments (list (vector 'given sgiven #false))])
-      (or (for/or : Boolean ([expected (if (pair? expected) (in-list expected) (in-value expected))])
-            (cond [(bytes? expected)
-                   (parameterize ([default-spec-issue-format spec-exec-bytes-format])
-                     (cond [(null? givens) (bytes=? given expected)]
-                           [else (spec-mbytes=? givens expected)]))]
-                  [(string? expected)
-                   (parameterize ([default-spec-issue-format spec-exec-string-format])
-                     (cond [(null? givens) (string=? sgiven expected)]
-                           [else (spec-mbytes=? givens (string->bytes/utf-8 expected))]))]
-                  [(byte-regexp? expected)
-                   (parameterize ([default-spec-issue-format spec-exec-bytes-format])
-                     (regexp-match? expected given))]
-                  [else
-                   (parameterize ([default-spec-issue-format spec-exec-string-format])
-                     (regexp-match? expected given))]))
-          (spec-misbehave)))))
+    (or (for/or : Boolean ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
+          (cond [(bytes? expected)  (if (null? givens) (bytes=? given expected) (spec-mbytes=? givens expected))]
+                [(string? expected) (if (null? givens) (string=? (bytes->string/utf-8 given) expected) (spec-mbytes=? givens (string->bytes/utf-8 expected)))]
+                [(byte-regexp? expected) (regexp-match? expected given)]
+                [else (regexp-match? expected given)]))
+        (let ([str? (spec-string-output? outputs)])
+          ; the issue format should be combined with existing `default-spec-issue-format`
+          ; nevertheless, it is not a big deal here
+          (parameterize ([default-spec-issue-extra-arguments (list (vector 'given (if (not str?) given (bytes->string/utf-8 given)) #false))]
+                         [default-spec-issue-format (if (not str?) spec-exec-bytes-format spec-exec-string-format)])
+            (spec-misbehave))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-string-output? : (-> Spec-Stdout-Expectation Boolean)
+  (lambda [outputs]
+    (for/or : Boolean ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
+      (or (string? expected)
+          (regexp? expected)))))
+
 (define spec-mbytes=? : (-> (Listof Bytes) Bytes Boolean)
   (lambda [givens expected]
     (define es (regexp-split #px"(\r|\n)+" expected))

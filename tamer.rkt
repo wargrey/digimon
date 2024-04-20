@@ -397,14 +397,13 @@
     (define index-origin (index-section #:tag "handbook-index"))
     (define index-self
       (struct-copy part index-origin 
-
-                   ; stop `Scribble` from generating another empty `Index` label
+                   ; stop `latex` from generating another empty `Index` label
                    [style (if numbered? plain (handbook-remove-style-name (part-style index-origin)))]
 
-                   [blocks (append (list (texbook-twocolumn))
-                                   (part-blocks index-origin)
-                                   (list (texbook-onecolumn)))]))
-    
+                   [blocks (list (let ([origin (car (part-blocks index-origin))])
+                                   (texbook-command-block #:args "2" #:fallback-block origin
+                                                          "multicols" origin)))]))
+
     (if (and title)
         (struct-copy part index-self
                      [title-content (list (section-title title tongue))])
@@ -429,43 +428,44 @@
 
 (define handbook-smart-table
   (lambda []
-    (make-traverse-block
-     (λ [get set!]
-       (if (false? (handbook-markdown-renderer? get))
-           (if (tamer-story) (local-table-of-contents) (table-of-contents))
-           (make-delayed-block
-            (λ [render% pthis _]
-              (define-values (/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout))
-              (parameterize ([current-input-port /dev/tamer/stdin]
-                             [current-error-port /dev/tamer/stdout]
-                             [current-output-port /dev/tamer/stdout]
-                             [tamer-story #false])
-                (define summary? (make-parameter #false))
-                (thread (thunk (dynamic-wind collect-garbage*
-                                             tamer-prove
-                                             (thunk (close-output-port /dev/tamer/stdout)))))
-                (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
-                                  (for/list ([line (in-lines)])
-                                    (cond [(regexp-match #px"^λ\\s+(.+)" line)
-                                           => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
-                                          [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
-                                           ; markdown listitem requires at least 1 char after "+ " before
-                                           ; breaking line if "[~a](~a)" is longer then 72 chars.
-                                           => (λ [pieces] (match-let ([(list _ indt ctxt) pieces])
-                                                            (list (format ">   ~a+ ~a" indt open-book#)
-                                                                  (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))]
-                                          [(regexp-match #px"^(\\s+)λ\\d+(.\\d)*\\s+(.+?)\\s*$" line)
-                                           => (λ [pieces] (format ">   ~a+ ~a~a" (list-ref pieces 1) bookmark# (list-ref pieces 3)))]
-                                          [(regexp-match #px"^$" line) (summary? #true)]
-                                          [(summary?) (parameterize ([current-output-port /dev/stdout])
-                                                        (echof "~a~n" line
-                                                               #:fgcolor (match line
-                                                                           [(regexp #px" 100.00% Okay") 'lightgreen]
-                                                                           [(regexp #px"( [^0]|\\d\\d) error") 'darkred]
-                                                                           [(regexp #px"( [^0]|\\d\\d) failure") 'lightred]
-                                                                           [(regexp #px"( [^0]|\\d\\d) TODO") 'lightmagenta]
-                                                                           [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
-                                                                           [_ 'lightcyan])))]))))))))))))
+    (define this-story (tamer-story))
+    
+    (make-delayed-block
+     (λ [render% pthis _]
+       (cond [(handbook-markdown-renderer? render%)
+              (let-values ([(/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout)])
+                (parameterize ([current-input-port /dev/tamer/stdin]
+                               [current-error-port /dev/tamer/stdout]
+                               [current-output-port /dev/tamer/stdout]
+                               [tamer-story #false])
+                  (define summary? (make-parameter #false))
+                  (thread (thunk (dynamic-wind collect-garbage*
+                                               tamer-prove
+                                               (thunk (close-output-port /dev/tamer/stdout)))))
+                  (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
+                                    (for/list ([line (in-lines)])
+                                      (cond [(regexp-match #px"^λ\\s+(.+)" line)
+                                             => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
+                                            [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
+                                             ; markdown list-item requires at least 1 char after "+ " before
+                                             ; breaking line if "[~a](~a)" is longer then 72 chars.
+                                             => (λ [pieces] (match-let ([(list _ indt ctxt) pieces])
+                                                              (list (format ">   ~a+ ~a" indt open-book#)
+                                                                    (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))]
+                                            [(regexp-match #px"^(\\s+)λ\\d+(.\\d)*\\s+(.+?)\\s*$" line)
+                                             => (λ [pieces] (format ">   ~a+ ~a~a" (list-ref pieces 1) bookmark# (list-ref pieces 3)))]
+                                            [(regexp-match #px"^$" line) (summary? #true)]
+                                            [(summary?) (parameterize ([current-output-port /dev/stdout])
+                                                          (echof "~a~n" line
+                                                                 #:fgcolor (match line
+                                                                             [(regexp #px" 100.00% Okay") 'lightgreen]
+                                                                             [(regexp #px"( [^0]|\\d\\d) error") 'darkred]
+                                                                             [(regexp #px"( [^0]|\\d\\d) failure") 'lightred]
+                                                                             [(regexp #px"( [^0]|\\d\\d) TODO") 'lightmagenta]
+                                                                             [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
+                                                                             [_ 'lightcyan])))]))))))]
+             [(not this-story) (table-of-contents)]
+             [else (local-table-of-contents)])))))
 
 (define handbook-statistics
   (lambda [#:gitstat-width [git-width #false] #:gitstat-radius [git-radius #false] #:recursive? [recursive? #true]
@@ -477,39 +477,41 @@
            #:ring-name [ring-name "lang-ring"] #:loc-name [loc-name "line-of-code"]
            ring-chart loc-series]
     (make-traverse-block
-     (λ [get set!]      
-       (define all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter))
-       (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
-       (define lang-files (git-files->langfiles all-files null subgroups))
-       (define lang-sizes (git-files->langsizes all-files null subgroups))
-       (define lang-stats (git-numstats->langstats all-numstats null subgroups))
-       
-       (define src-file
-         (for/fold ([count 0])
-                   ([lf (in-hash-values lang-files)])
-           (+ count (length (git-language-content lf)))))
-       
-       (define-values (insertions deletions)
-         (if (not lang-delta-only?)
-             (git-numstats->additions+deletions* all-numstats)
-             (git-langstats->additions+deletions* lang-stats)))
-       
-       (define langstats
-         (for/list ([(id lang) (in-hash lang-stats)]
-                    #:when (hash-has-key? lang-sizes id))
-           lang))
-       
-       (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
-                              ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
-                              ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
-                        (tabular #:sep (hspace 1) #:column-properties '(left right)
-                                 (list (let* ([pie-radius (or git-radius 75)]
-                                              [series-height (* (or git-radius pie-radius) 2)]
-                                              [series-width (or git-width 380)])
-                                         (list (handbook-image #:name ring-name
-                                                               (ring-chart pie-radius lang-sizes altcolors))
-                                               (handbook-image #:name loc-name
-                                                               (loc-series series-width series-height langstats altcolors date-delta))))))))))))
+     (λ [get set!]
+       (if (not (handbook-stat-renderer? get))
+           (let ([all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter)])
+             (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
+             (define lang-files (git-files->langfiles all-files null subgroups))
+             (define lang-sizes (git-files->langsizes all-files null subgroups))
+             (define lang-stats (git-numstats->langstats all-numstats null subgroups))
+             
+             (define src-file
+               (for/fold ([count 0])
+                         ([lf (in-hash-values lang-files)])
+                 (+ count (length (git-language-content lf)))))
+             
+             (define-values (insertions deletions)
+               (if (not lang-delta-only?)
+                   (git-numstats->additions+deletions* all-numstats)
+                   (git-langstats->additions+deletions* lang-stats)))
+             
+             (define langstats
+               (for/list ([(id lang) (in-hash lang-stats)]
+                          #:when (hash-has-key? lang-sizes id))
+                 lang))
+             
+             (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
+                                    ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
+                                    ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
+                              (tabular #:sep (hspace 1) #:column-properties '(left right)
+                                       (list (let* ([pie-radius (or git-radius 75)]
+                                                    [series-height (* (or git-radius pie-radius) 2)]
+                                                    [series-width (or git-width 380)])
+                                               (list (handbook-image #:name ring-name
+                                                                     (ring-chart pie-radius lang-sizes altcolors))
+                                                     (handbook-image #:name loc-name
+                                                                     (loc-series series-width series-height langstats altcolors date-delta)))))))))
+           empty-block)))))
     
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
@@ -568,20 +570,34 @@
         s-exps ...)
      (with-syntax ([(hidden-mods ...) #'hidden-requires])
        (syntax/loc stx
-         (let ([this-story (tamer-story)])
-           (define example-label
-             (cond [(symbol? label) (bold (speak label #:dialect 'tamer))]
-                   [else label]))
-           (tamer-zone-reference this-story (tamer-story-lang+modules))
+         (let ([this-story (tamer-story)]
+               [lang+modules (tamer-story-lang+modules)]
+               [private-modules (tamer-story-private-modules)]
+               [example-label (if (symbol? label) (bold (speak label #:dialect 'tamer)) label)])
+
+           ;;; WARING
+           ; The zone reference is updated by Scribble before generating the DOM,
+           ;   but the resulting DOM might be rendered more than once.
+           ;   as a result, the cached reference only works for first rendering.
+           
+           (tamer-zone-reference this-story lang+modules private-modules)
+           
            (make-traverse-block
             (λ [get set!]
-              (let ([zeval (tamer-zone-ref this-story)])
-                (examples #:label #false #:eval zeval #:hidden (require hidden-mods)) ...
-                (begin0 (if (not style)
-                            (examples #:no-inset #:label example-label #:eval zeval s-exps ...)
-                            (nested #:style style
-                                    (examples #:no-inset #:label example-label #:eval zeval s-exps ...)))
-                        (tamer-zone-destory this-story #true))))))))]))
+              (if (handbook-stat-renderer? get)
+
+                  ; Thus, for the stat renderer, we don't destory the taming zone
+                  (racketblock s-exps ...)
+
+                  ; Thus, for other rendering processes (which are rare), they
+                  ;   creates their own zones in every REPL via `tamer-zone-ref`,
+                  ;   and destory them when job done.
+                  (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
+                    (dynamic-wind
+                     (λ [] (examples #:label #false #:eval zeval #:hidden #:preserve-source-locations (require hidden-mods)) ... (void))
+                     (λ [] (nested #:style style
+                                   (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s-exps ...)))
+                     (λ [] (tamer-zone-destory this-story))))))))))]))
 
 (define-syntax (tamer-answer stx)
   (syntax-parse stx #:literals []
@@ -663,85 +679,86 @@
     (define ~symbol (default-spec-issue-symbol))
     (define ~fgcolor (default-spec-issue-fgcolor))
     (define raco-setup-forget-my-digimon (current-digimon))
-    
-    (make-traverse-block
-     (λ [get set!]
-       (if (handbook-markdown-renderer? get)
-           (para (literal "---"))
-           (make-delayed-block
-            (λ [render% pthis infobase]
-              (define get (handbook-resolved-info-getter infobase))
-              (define scenarios (get tamer-scribble-story-id tamer-empty-issues))
-              (define btimes (get tamer-scribble-story-times tamer-empty-issues))
-              (define issues (get tamer-scribble-story-issues tamer-empty-issues))
 
-              (parameterize ([current-digimon raco-setup-forget-my-digimon])
-                (nested #:style tamer-boxed-style
-                        (filebox (if (module-path? this-story)
-                                     (italic (seclink "tamer-book" (string open-book#)) ~
-                                             (~a "Behaviors in " (tamer-story->tag this-story)))
-                                     (italic (string books#) ~
-                                             (~a "Behaviors of " (current-digimon))))
-                                 (let-values ([(features btimes metrics)
-                                               (if (module-path? this-story)
-                                                   (let ([htag (tamer-story->tag this-story)])
-                                                     (values (tamer-feature-reverse-merge (hash-ref scenarios htag (λ [] null)))
-                                                             (hash-ref btimes htag (λ [] tamer-empty-times))
-                                                             (hash-ref issues htag (λ [] tamer-empty-issues))))
-                                                   (values (for/list ([story (in-list (hash-ref handbook-stories books# null))])
-                                                             (cons story (hash-ref scenarios story (λ [] null))))
-                                                           (apply map + tamer-empty-times (hash-values btimes))
-                                                           (apply hash-union tamer-empty-issues (hash-values issues) #:combine +)))])
-                                   (define bookmarks
-                                     (for/list ([bookmark (in-list (reverse features))])
-                                       ;;; also see (tamer-note)
-                                       (define-values (local# brief)
-                                         (cond [(string? (car bookmark)) (values bookmark# (car bookmark))] ;;; feature
-                                               [else (values page# (unbox (car bookmark)))])) ;;; toplevel behavior
-                                       
-                                       (define issue-type
-                                         (or (for/first ([t (in-list (list 'panic 'misbehaved 'todo 'skip))]
-                                                         #:when (hash-has-key? metrics t)) t)
-                                             'pass))
-                                       
-                                       (define symtype (~a (~symbol issue-type)))
+    (define (make-delayed-summary render% pthis infobase)
+      (define get (handbook-resolved-info-getter infobase))
+      (define scenarios (get tamer-scribble-story-id tamer-empty-issues))
+      (define btimes (get tamer-scribble-story-times tamer-empty-issues))
+      (define issues (get tamer-scribble-story-issues tamer-empty-issues))
+
+      (parameterize ([current-digimon raco-setup-forget-my-digimon])
+        (nested #:style tamer-boxed-style
+                (filebox (if (module-path? this-story)
+                             (italic (seclink "tamer-book" (string open-book#)) ~
+                                     (~a "Behaviors in " (tamer-story->tag this-story)))
+                             (italic (string books#) ~
+                                     (~a "Behaviors of " (current-digimon))))
+                         (let-values ([(features btimes metrics)
                                        (if (module-path? this-story)
-                                           (list (elem (italic (string local#)) ~ (tamer-elemref brief (racketkeywordfont (literal brief))))
-                                                 (tamer-elemref brief symtype #:style "plainlink"))
-                                           (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
-                                                 [stts (make-parameter issue-type)])
-                                             (echof #:fgcolor 'lightyellow head)
-                                             (echof #:fgcolor (~fgcolor issue-type) "~a~n" symtype)
-                                             (list (elem (italic (string book#)) ~ (secref (car bookmark)))
-                                                   (seclink (car bookmark) symtype #:underline? #false))))))
-
-                                   (match-define-values ((list pass misbehaved panic skip todo) (list memory cpu real gc))
-                                     (values (for/list ([meta (in-list (list 'pass 'misbehaved 'panic 'skip 'todo))])
-                                               (hash-ref metrics meta (λ [] 0)))
-                                             btimes))
-
-                                   (define briefs
-                                     (let ([population (+ pass misbehaved panic skip todo)])
-                                       (if (zero? population)
-                                           (list "No particular sample!")
-                                           (list (format "~a% behaviors okay."
-                                                   (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population)))
-                                                 (string-join (list (~w=n (length features) (if this-story "Scenario" "Story"))
-                                                                    (~w=n population "Behavior") (~w=n misbehaved "Misbehavior") (~w=n panic "Panic")
-                                                                    (~w=n skip "Skip") (~w=n todo "TODO"))
-                                                              ", " #:after-last ".")
-                                                 (apply format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
-                                                        (map (λ [ms] (~r (* ms 0.001) #:precision '(= 3)))
-                                                             (list real (- cpu gc) gc cpu)))))))
-
-                                   (unless (module-path? this-story)
-                                     (for ([brief (in-list (cons "" briefs))])
-                                       (echof #:fgcolor 'lightcyan "~a~n" brief)))
-
-                                   (let ([summaries (add-between (map racketoutput briefs) (linebreak))])
-                                     (cond [(null? bookmarks) summaries]
-                                           [else (cons (tabular bookmarks #:style 'boxed #:column-properties '(left right))
-                                                       summaries)])))))))))))))
+                                           (let ([htag (tamer-story->tag this-story)])
+                                             (values (tamer-feature-reverse-merge (hash-ref scenarios htag (λ [] null)))
+                                                     (hash-ref btimes htag (λ [] tamer-empty-times))
+                                                     (hash-ref issues htag (λ [] tamer-empty-issues))))
+                                           (values (for/list ([story (in-list (hash-ref handbook-stories books# null))])
+                                                     (cons story (hash-ref scenarios story (λ [] null))))
+                                                   (apply map + tamer-empty-times (hash-values btimes))
+                                                   (apply hash-union tamer-empty-issues (hash-values issues) #:combine +)))])
+                           (define bookmarks
+                             (for/list ([bookmark (in-list (reverse features))])
+                               ;;; also see (tamer-note)
+                               (define-values (local# brief)
+                                 (cond [(string? (car bookmark)) (values bookmark# (car bookmark))] ;;; feature
+                                       [else (values page# (unbox (car bookmark)))])) ;;; toplevel behavior
+                               
+                               (define issue-type
+                                 (or (for/first ([t (in-list (list 'panic 'misbehaved 'todo 'skip))]
+                                                 #:when (hash-has-key? metrics t)) t)
+                                     'pass))
+                               
+                               (define symtype (~a (~symbol issue-type)))
+                               (if (module-path? this-story)
+                                   (list (elem (italic (string local#)) ~ (tamer-elemref brief (racketkeywordfont (literal brief))))
+                                         (tamer-elemref brief symtype #:style "plainlink"))
+                                   (let ([head (~a brief #:width 64 #:pad-string "." #:limit-marker "......")]
+                                         [stts (make-parameter issue-type)])
+                                     (echof #:fgcolor 'lightyellow head)
+                                     (echof #:fgcolor (~fgcolor issue-type) "~a~n" symtype)
+                                     (list (elem (italic (string book#)) ~ (secref (car bookmark)))
+                                           (seclink (car bookmark) symtype #:underline? #false))))))
+                                          
+                           (match-define-values ((list pass misbehaved panic skip todo) (list memory cpu real gc))
+                             (values (for/list ([meta (in-list (list 'pass 'misbehaved 'panic 'skip 'todo))])
+                                       (hash-ref metrics meta (λ [] 0)))
+                                     btimes))
+                           
+                           (define briefs
+                             (let ([population (+ pass misbehaved panic skip todo)])
+                               (if (zero? population)
+                                   (list "No particular sample!")
+                                   (list (format "~a% behaviors okay."
+                                           (~r #:precision '(= 2) (/ (* (+ pass skip) 100) population)))
+                                         (string-join (list (~w=n (length features) (if this-story "Scenario" "Story"))
+                                                            (~w=n population "Behavior") (~w=n misbehaved "Misbehavior") (~w=n panic "Panic")
+                                                            (~w=n skip "Skip") (~w=n todo "TODO"))
+                                                      ", " #:after-last ".")
+                                         (apply format "~a wallclock seconds (~a task + ~a gc = ~a CPU)."
+                                                (map (λ [ms] (~r (* ms 0.001) #:precision '(= 3)))
+                                                     (list real (- cpu gc) gc cpu)))))))
+                           
+                           (unless (module-path? this-story)
+                             (for ([brief (in-list (cons "" briefs))])
+                               (echof #:fgcolor 'lightcyan "~a~n" brief)))
+                           
+                           (let ([summaries (add-between (map racketoutput briefs) (linebreak))])
+                             (cond [(null? bookmarks) summaries]
+                                   [else (cons (tabular bookmarks #:style 'boxed #:column-properties '(left right))
+                                               summaries)])))))))
+  
+    (make-delayed-block
+     (λ [render% pthis infobase]
+       (cond [(handbook-markdown-renderer? render%) (para (literal "---"))]
+             [(handbook-stat-renderer? render%) empty-block]
+             [else (make-delayed-summary render% pthis infobase)])))))
 
 (define tamer-note
   (lambda [example #:note [note margin-note] . notes]
@@ -820,6 +837,7 @@
   (lambda [path #:line-start-with [line0 1]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
+    
     (make-traverse-block
      (λ [get set!]
        (parameterize ([tamer-story this-story]
@@ -834,6 +852,7 @@
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
+    
     (make-traverse-block
      (λ [get set!]
        (parameterize ([tamer-story this-story]
@@ -872,6 +891,7 @@
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
+    
     (make-traverse-block
      (λ [get set!]
        (parameterize ([tamer-story this-story]
@@ -945,7 +965,7 @@
     (define ext (path-get-extension srcpath))
     (define language (or alt-lang (source->language srcpath)))
     (define-values (pxdefstart pxdefend) (lang->function-range language id ns))
-    (define full-id (merge-ext+id language ext id))
+    (define full-id (merge-ext+id language ext id cls-name))
     (define pxstart (cons pxdefstart subpattern))
     (define pxend (or alt-pxend pxdefend))
 

@@ -3,7 +3,9 @@
 (provide (all-defined-out))
 
 (require scribble/core)
+(require scribble/render)
 (require scribble/latex-properties)
+(require (prefix-in tex: scribble/latex-render))
 
 (require setup/collects)
 
@@ -11,7 +13,31 @@
 (require racket/file)
 (require file/convertible)
 
-(require "../minimal/dtrace.rkt")
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-tex-inspect
+  (lambda [scrbl TEXNAME.tex pdfinfo.tex dtrace]
+    (if (regexp-match? #px"\\.scrbl$" scrbl)
+        (let ([doc (dynamic-require scrbl 'doc)]
+              [dest-dir (path-only TEXNAME.tex)])
+          (dtrace 'debug "Inspecting")
+          
+          (define adjusted-style (handbook-style-adjust (part-style doc) pdfinfo.tex dtrace))
+          (define adjusted-part (struct-copy part doc [style adjusted-style]))
+          
+          (define (tex-render hook.rktl)
+            (dtrace 'info "(handbook-tex-render ~a #:dest ~a #:dest-name ~a)" scrbl dest-dir (file-name-from-path TEXNAME.tex))
+            
+            (when (file-exists? hook.rktl)
+              (define ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false)))
+              (when (procedure? ecc)
+                (dtrace 'info "(load-extra-character-conversions ~a)" hook.rktl)
+                (tex:extra-character-conversions ecc)))
+            
+            (render #:render-mixin tex:render-mixin #:dest-dir dest-dir
+                    (list adjusted-part) (list TEXNAME.tex)))
+          
+          (values adjusted-part tex-render))
+        (values #false void))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct tex-config (documentclass options cjk load style extra-files)
@@ -22,6 +48,11 @@
     (case mime
       [(script-path src-path) (tex-config-paths self)]
       [else fallback])))
+
+(define default-tex-config
+  (make-tex-config #false null #false
+                   #false #false
+                   null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-config
@@ -38,28 +69,31 @@
                               null)))))
 
 (define handbook-style-adjust
-  (lambda [s pdfinfo.tex engine]
+  (lambda [s pdfinfo.tex dtrace]
     (define s:props (style-properties s))
-    (define h:texdoc (memf tex-config? s:props))
+    (define h:tconf (memf tex-config? s:props))
 
-    (if (pair? h:texdoc)
+    (if (pair? h:tconf)
         (let adjust ([rest s:props]
                      [sporp null])
           (cond [(null? rest) (make-style (style-name s) (reverse sporp))]
                 [else (let-values ([(self tail) (values (car rest) (cdr rest))])
                         (cond [(tex-config? self) (adjust tail sporp)]
                               [(not (latex-defaults? self)) (adjust tail (cons self sporp))]
-                              [else (let ([tex-config (handbook-documentclass-adjust (car h:texdoc) self pdfinfo.tex engine)])
+                              [else (let ([tex-config (handbook-documentclass-adjust (car h:tconf) self pdfinfo.tex dtrace)])
                                       (adjust tail (cons tex-config sporp)))]))]))
-        s)))
+        (let ([texdef (memf latex-defaults? s:props)])
+          (when (pair? texdef)
+            (handbook-documentclass-adjust default-tex-config (car texdef) pdfinfo.tex dtrace))
+          s))))
 
 (define handbook-documentclass-adjust
-  (lambda [texdoc self pdfinfo.tex engine]
+  (lambda [texconf self pdfinfo.tex dtrace]
     (define alt-load "scribble-load-replace.tex")
-    (define doclass (tex-config-documentclass texdoc))
+    (define doclass (tex-config-documentclass texconf))
 
     (define replacements
-      (let ([load.tex (tex-config-load texdoc)]
+      (let ([load.tex (tex-config-load texconf)]
             [replaces (and (latex-defaults+replacements? self) (latex-defaults+replacements-replacements self))])
         (cond [(not replaces) (and load.tex (hash alt-load load.tex))]
               [(not (immutable? replaces))
@@ -70,31 +104,31 @@
 
     (define prefix
       (tex-documentclass-option-replace
-       (let ([enc (tex-config-cjk texdoc)])
+       (let ([enc (tex-config-cjk texconf)])
          (if (not doclass)
              (tex-unicode-filter enc (latex-defaults-prefix self))
              (tex-unicode-append enc doclass)))
-       (tex-config-options texdoc)))
+       (tex-config-options texconf)))
 
-    (define style.tex (or (tex-config-style texdoc) (latex-defaults-style self)))
+    (define style.tex (or (tex-config-style texconf) (latex-defaults-style self)))
     (define extra-files
       (cons pdfinfo.tex
             (cond [(not doclass) (latex-defaults-extra-files self)]
-                  [else (tex-config-extra-files texdoc)])))
+                  [else (tex-config-extra-files texconf)])))
 
     (let-values ([(dclass doptions) (tex-documentclass-info prefix #true)])
-      (dtrace-debug "documentclass: ~a" #:topic engine dclass)
+      (dtrace 'note "documentclass: ~a" dclass)
       (when (bytes? doptions)
-        (dtrace-debug "options: ~a" #:topic engine doptions))
+        (dtrace 'note "options: ~a" doptions))
       
-      (dtrace-debug "embeds `~a` for style" #:topic engine (tex-desc style.tex))
+      (dtrace 'debug "embed `~a` for style" (tex-desc style.tex))
 
       (when (hash? replacements)
         (for ([(target tex) (in-hash replacements)])
-          (dtrace-debug "embeds `~a` as `~a`" #:topic engine (tex-desc tex) target)))
+          (dtrace 'debug "embed `~a` as `~a`" (tex-desc tex) target)))
 
       (for ([tex (in-list extra-files)])
-        (dtrace-debug "copied `~a`" #:topic engine (tex-desc tex))))
+        (dtrace 'debug "copy `~a`" (tex-desc tex))))
 
     (if (hash? replacements)
         (make-latex-defaults+replacements prefix style.tex extra-files replacements)

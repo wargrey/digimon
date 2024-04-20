@@ -23,7 +23,8 @@
 (struct wisemon-spec
   ([target : Wisemon-Targets]
    [prerequisites : (Listof Path)]
-   [recipe : (-> Path (Listof Path) Void)])
+   [recipe : (-> Path (Listof Path) Void)]
+   [env : Parameterization])
   #:constructor-name unsafe-wisemon-spec
   #:type-name Wisemon-Spec
   #:transparent)
@@ -101,8 +102,8 @@
                  (let ([size0 (if no-target? 0 (file-size t))]
                        [ms0 (current-inexact-milliseconds)])
                    (cond [(and just-touch?) (wisemon-log-message name 'info t #:prerequisites newers "~atouch `~a`" indent t) (file-touch t)]
-                         [(not dry-run?) (wisemon-run name (wisemon-spec-recipe spec) t newers)]
-                         [else (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)])
+                         [(not dry-run?) (call-with-parameterization (wisemon-spec-env spec) (λ [] (wisemon-run name (wisemon-spec-recipe spec) t newers)))]
+                         [else (call-with-parameterization (wisemon-spec-env spec) (λ [] (wisemon-dry-run name (wisemon-spec-recipe spec) t newers)))])
 
                    (when (or always-run? (member t oldfiles))
                      (hash-set! oldfiles-cache t #true))

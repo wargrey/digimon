@@ -24,8 +24,10 @@
     
     (filter file-exists?
             (for/list : (Listof Path) ([handbook (in-list maybe-handbooks)])
-              (cond [(and (pair? handbook) (path-string? (car handbook))) (build-path (current-directory) (path-normalize/system (car handbook)))]
-                    [else (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook)])))))
+              (if (and (pair? handbook)
+                       (path-string? (car handbook)))
+                  (build-path (current-directory) (path-normalize/system (car handbook)))
+                  (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook))))))
 
 (define make-prove-specs : (-> (Option Info-Ref) Wisemon-Specification)
   (lambda [info-ref]
@@ -56,7 +58,9 @@
                                                                      the-name (current-make-phony-goal) ./handbook))])
                               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
                               (eval `(define (multi-html:render handbook.scrbl #:dest-dir dest-dir)
-                                       (render (list (dynamic-require handbook.scrbl 'doc)) (list ,handbook.scrbl)
+                                       (define scribble.doc (dynamic-require handbook.scrbl 'doc))
+                                       
+                                       (render (list scribble.doc) (list ,handbook.scrbl)
                                                #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %))) #:dest-dir dest-dir
                                                #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
                               (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))

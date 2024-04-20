@@ -9,8 +9,6 @@
 (require "../../continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 (define dtrace-event-echo : Dtrace-Receiver
   (lambda [level message urgent topic]
     (case level

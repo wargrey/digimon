@@ -28,3 +28,57 @@
     (cond [(char<=? #\a hexch) (unsafe-idx- (char->integer hexch) #x57)]
           [(char<=? #\A hexch) (unsafe-idx- (char->integer hexch) #x37)]
           [else (unsafe-idx- (char->integer hexch) #x30)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; http://www.unicode.org/reports/tr44/#General_Category_Values
+(define char-letter? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(lu ll lt lm lo))
+         #true)))
+
+(define char-cased-letter? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(lu ll lt))
+         #true)))
+
+(define char-mark? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(mn mc me))
+         #true)))
+
+(define char-number? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(nd nl no))
+         #true)))
+
+(define char-punctuation? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(pc pd ps pe pi pf po))
+         #true)))
+
+(define char-symbol? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(sm sc sk so))
+         #true)))
+
+(define char-math? : (-> Char Boolean)
+  (lambda [ch] ; symbol other
+    (eq? (char-general-category ch) 'so)))
+
+(define char-separator? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(zs zp zl))
+         #true)))
+
+(define char-control? : (-> Char Boolean)
+  (lambda [ch]
+    (and (memq (char-general-category ch) '(cc cf cs co cn))
+         #true)))
+
+(define char-asian? : (-> Char Boolean)
+  (lambda [ch] ; letter other
+    (eq? (char-general-category ch) 'lo)))
+
+(define char-emoji? : (-> Char Boolean)
+  (lambda [ch] ; symbol other
+    (eq? (char-general-category ch) 'so)))

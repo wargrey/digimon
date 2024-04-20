@@ -16,7 +16,6 @@
 
 (require "style.rkt")
 (require "backend.rkt")
-(require "shadow.rkt")
 
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
@@ -112,8 +111,11 @@
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chapter-index)))
+
        (if (not maybe-index)
-           (racketerror (ref-element (~a label (or sep "") chpt-idx #\. '?)))
+           (racketerror (ref-element (if (not chpt-idx)
+                                         (~a label (or sep "") '?)
+                                         (~a label (or sep "") chpt-idx #\. '?))))
            (make-link-element #false
                               (list (ref-element (if (not chpt-idx)
                                                      (~a label (or sep "") maybe-index)
@@ -127,7 +129,7 @@
     (define index-story (tamer-index-story))
     (define index-appendix (tamer-appendix-index))
     
-    (make-shadow-traverse-block
+    (make-traverse-block
      (λ [get set!]
        (parameterize ([tamer-index-story index-story]
                       [tamer-appendix-index index-appendix])
@@ -151,11 +153,7 @@
          (make-nested-flow block-style
                            (if (list? block)
                                (if (not maybe-anchor) block (cons maybe-anchor block))
-                               (if (not maybe-anchor) (list block) (list maybe-anchor block))))))
-
-     (λ [] ; see `scrbl.rkt`
-       (let-values ([(_ block) (traverse index-type (car index-story) 1)])
-         (make-nested-flow block-style (if (list? block) block (list block))))))))
+                               (if (not maybe-anchor) (list block) (list maybe-anchor block)))))))))
 
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]

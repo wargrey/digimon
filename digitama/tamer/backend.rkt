@@ -5,6 +5,9 @@
 (require racket/class)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-stat-render-name 'handbook-stat)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-renderer?
   (lambda [get render]
     (and (memq render
@@ -19,3 +22,7 @@
 (define handbook-markdown-renderer?
   (lambda [get]
     (handbook-renderer? get 'markdown)))
+
+(define handbook-stat-renderer?
+  (lambda [get]
+    (handbook-renderer? get handbook-stat-render-name)))

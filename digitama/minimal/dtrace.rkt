@@ -39,6 +39,7 @@
     
     (cond [(logger? topic) (log-message topic log-level message udata (and prefix? (not (eq? (logger-name topic) dtrace-topic))))]
           [(symbol? topic) (log-message /dev/dtrace log-level topic message udata (and prefix? (not (eq? topic dtrace-topic))))]
+          [(procedure? topic) (log-message /dev/dtrace log-level (assert (object-name topic) symbol?) message udata prefix?)]
           [else (log-message /dev/dtrace log-level (string->symbol (format "<~a>" topic)) message udata prefix?)])))
 
 (define dtrace-message : (->* (Symbol String) (#:topic Any #:urgent Any #:prefix? Boolean) #:rest Any Void)

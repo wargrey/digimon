@@ -21,12 +21,14 @@
      (syntax/loc stx
        (unsafe-wisemon-spec target prerequisites
                             (λ [[$@ : Path] [$? : (Listof Path)]]
-                              expr ... (void))))]
+                              expr ... (void))
+                            (current-parameterization)))]
     [(_ target #:^ prerequisites #:$ [$@ $?] expr ...)
      (syntax/loc stx
        (unsafe-wisemon-spec target prerequisites
                             (λ [[$@ : Path] [$? : (Listof Path)]]
-                              expr ... (void))))]
+                              expr ... (void))
+                            (current-parameterization)))]
     [(_ target #:- expr ...)
      (syntax/loc stx (wisemon-spec target #:^ null #:- expr ...))]
     [(_ target #:$ [$@ $?] expr ...)

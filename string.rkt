@@ -2,9 +2,12 @@
 
 (provide (all-defined-out))
 (provide (all-from-out racket/string))
+(provide (all-from-out "digitama/unicode.rkt"))
 
 (require racket/string)
 (require racket/list)
+
+(require "digitama/unicode.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-uri? : (-> String Boolean)

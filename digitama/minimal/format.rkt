@@ -1,17 +1,16 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-
-(require "../plural.rkt")
-(require "string.rkt")
-
-(require "../../enumeration.rkt")
+(provide (rename-out [~integer ~thousand]))
 
 (require racket/flonum)
 (require racket/symbol)
 (require racket/math)
 
 (require racket/format)
+
+(require "../plural.rkt")
+(require "../../enumeration.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~n_w : (->* (Integer String) (Boolean) String)

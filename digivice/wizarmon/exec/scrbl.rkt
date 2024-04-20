@@ -6,7 +6,8 @@
 
 (require "../../wisemon/phony/typeset.rkt")
 (require (only-in "../../wisemon/parameter.rkt"
-                  current-make-real-targets))
+                  current-make-real-targets
+                  current-make-phony-goal))
 
 (require "../../../filesystem.rkt")
 
@@ -22,7 +23,8 @@
                               (or (path-only path.scrbl)
                                   (current-directory))))
 
-    (parameterize ([current-make-real-targets (list path.scrbl)]
+    (parameterize ([current-make-phony-goal 'exec]
+                   [current-make-real-targets (list path.scrbl)]
                    [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
       (define all-typesettings : (Listof Tex-Info)
@@ -33,7 +35,7 @@
 
       (when (pair? all-typesettings)
         (define-values (always-files ignored-files specs targets)
-          (make-typeset-specs+targets all-typesettings (wizarmon-verbose)))
+          (make-typeset-specs+targets the-name all-typesettings (wizarmon-verbose)))
       
         (make-typeset specs always-files ignored-files targets (wizarmon-remake))
         (fg-recon-open-file 'exec (car targets))))))

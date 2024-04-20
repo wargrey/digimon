@@ -22,7 +22,7 @@
 
 (define-type Spec-Issue-Extra-Argument
   (U (Vector Symbol Any (Option (Syntaxof Any)))     
-     (Pairof Symbol Any)))
+     (Pairof Symbol (-> Any))))
 
 (struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]))
 
@@ -278,7 +278,7 @@
     
     (match-lambda
       [(vector name val expr) (make-argv name val expr)]
-      [(cons name val) (make-argv name val #false)])))
+      [(cons name val) (make-argv name (val) #false)])))
 
 (define spec-format-stack : (-> (Option Spec-Issue-Format) (Option Spec-Issue-Format) (Option Spec-Issue-Format))
   (lambda [usr-format fallback-format]

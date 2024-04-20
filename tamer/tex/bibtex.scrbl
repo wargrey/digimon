@@ -2,6 +2,8 @@
 
 @(require digimon/tamer)
 
+@handbook-bibtex-load[@build-path{bibtex.bib}]
+
 @;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 @handbook-title[
  #:λtitle title
@@ -9,12 +11,14 @@
  #:author @author[#:orcid "https://orcid.org/0009-0009-0375-2359"
                   #:affiliation (affiliation #:institution "Education" #:country "Earth") ; sigplan requires `country`
                   ]{WarGrey Gyoudmon Ju}
- #:tex-bib (build-path "bibtex.bib")
  ]{BibTex 测试}
 
 @authorsaddresses{}
 
-@abstract{This file is used to test Scribble as a flexible front-end for writing formal @texbook-prefab-name{tex} documents.}
+@abstract{This file is used to test @litchar{Scr}ib@litchar{bl}e as a flexible front-end
+ for writing formal @texbook-prefab-name{tex} documents.
+
+ 顺便也帮忙测试“字数统计”功能，该功能由 digitama/tamer/wc-render.rkt 提供。}
 
 @; https://dl.acm.org/ccs
 @ccsdesc[#:number 500]{Applied computing~Document scripting languages}
@@ -27,8 +31,8 @@
 @include-section{pdftex.scrbl}
 
 @acks{
- This example is written with Racket@~cite[plt-tr1] and Scribble
- and translated into @texbook-prefab-name{tex}@~cite{knuth:1984} before generating.
+ This example is written with Racket@$cite[plt-tr1] and Scribble
+ and translated into @texbook-prefab-name{tex}@$cite{knuth:1984} before generating.
 }
 
 @handbook-appendix[]

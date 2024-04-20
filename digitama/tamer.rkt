@@ -37,14 +37,15 @@
   (syntax-case stx []
     [(_ story-sexp)
      (syntax/loc stx
-       (let ([modpath (path->string (with-handlers ([exn? (λ [e] story-sexp)]) (cadr story-sexp)))]
+       (let ([modpath (path->string (if (pair? story-sexp) (cadr story-sexp) story-sexp))]
              [literacy (path->string (digimon-path 'literacy))]
+             [tamer (path->string (digimon-path 'tamer))]
              [village (path->string (digimon-path 'village))]
-             [tamer (path->string (digimon-path 'tamer))])
+             [zone (digimon-path 'zone)])
          (cond [(string-prefix? modpath literacy) (substring modpath (add1 (string-length literacy)))]
-               [(string-prefix? modpath village) (substring modpath (add1 (string-length village)))]
                [(string-prefix? modpath tamer) (substring modpath (add1 (string-length tamer)))]
-               [else (path->string (find-relative-path literacy modpath))])))]))
+               [(string-prefix? modpath village) (substring modpath (add1 (string-length village)))]
+               [else (path->string (find-relative-path zone modpath))])))]))
 
 (define tamer-story->modpath
   (lambda [story-path]
@@ -58,17 +59,6 @@
           [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
              (and (file-exists? tamer.rkt) tamer.rkt)) => values]
           [else (collection-file-path "tamer.rkt" "digimon")])))
-
-(define make-tamer-zone
-  (lambda [story lang+modules]
-    (define tamer-module (tamer-story->module story (not (pair? lang+modules))))
-    (if (and tamer-module)
-        (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
-          (make-base-eval #:pretty-print? #true))
-        (apply make-base-eval #:pretty-print? #true #:lang (car lang+modules)
-               (map (λ [mod] `(require ,mod))
-                    (append (cdr lang+modules)
-                            (tamer-story-private-modules)))))))
 
 (define tamer-resource-files
   (lambda [dirname basename .res]
@@ -104,26 +94,38 @@
 ;; For Examples
 (define tamer-zones #;(HastTable Any (Pairof Integer Evaluation)) (make-hash))
 
+(define make-tamer-zone
+  (lambda [story lang+modules private-modules]
+    (define tamer-module (tamer-story->module story (not (pair? lang+modules))))
+
+    (parameterize ([exit-handler (λ [retcode]
+                                   (error 'tamer-repl "[fatal] ~a unexpectedly escaped from the Racket Virtual Machine!"
+                                          (tamer-story->tag story)))])
+      (if (and tamer-module)
+          (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
+            (make-base-eval #:pretty-print? #true))
+          (apply make-base-eval #:pretty-print? #true #:lang (car lang+modules)
+                 (map (λ [mod] `(require ,mod))
+                      (append (cdr lang+modules) private-modules)))))))
+
 (define tamer-zone-reference
-  (lambda [story [lang+modules null]]
-    (define z (hash-ref tamer-zones story (λ [] (cons 0 (make-tamer-zone story lang+modules)))))
+  (lambda [story [lang+modules null] [private-modules null]]
+    (define z (hash-ref tamer-zones story (λ [] (cons 0 (make-tamer-zone story lang+modules private-modules)))))
     (hash-set! tamer-zones story (cons (add1 (car z)) (cdr z)))))
 
-(define tamer-zone-ref
-  (lambda [story]
-    (cdr (hash-ref tamer-zones story (λ [] (cons 0 #false))))))
+(define tamer-zone-ref ; see `tamer-repl`
+  (lambda [story [lang+modules null] [private-modules null]]
+    (cdr (hash-ref! tamer-zones story (λ [] (cons 1 (make-tamer-zone story lang+modules private-modules)))))))
 
 (define tamer-zone-destory
-  (lambda [story clear-modules?]
+  (lambda [story]
     (define z (hash-ref tamer-zones story (λ [] #false)))
 
     (when (pair? z)
-      (cond [(> (car z) 1) (hash-set! tamer-zones story (cons (sub1 (car z)) (cdr z)))]
-            [else (close-eval (cdr z))
-                  (hash-remove! tamer-zones story)
-                  (unless (not clear-modules?)
-                    (tamer-story-lang+modules null)
-                    (tamer-story-private-modules null))]))))
+      (cond [(= (car z) 1)
+             (when (cdr z) (close-eval (cdr z)))
+             (hash-remove! tamer-zones story)]
+            [else (hash-set! tamer-zones story (cons (sub1 (car z)) (cdr z)))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; For Summaries, the `compiled specification`, all features and behaviors have been proved.
