@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "digitama/unsafe/ops.rkt")
+(require "digitama/unsafe/release/ops.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define char-integer? : (-> Integer Boolean)

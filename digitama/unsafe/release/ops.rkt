@@ -9,7 +9,7 @@
 
 (require racket/unsafe/ops)
 (require typed/racket/unsafe)
-  
+
 (unsafe-require/typed
  racket/unsafe/ops
  [(unsafe-fx+ unsafe-b+) (-> Index Byte Byte)]

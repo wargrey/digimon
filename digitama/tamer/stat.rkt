@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require "typed.rkt")
+(require "../unicode.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module unsafe racket/base
@@ -61,26 +62,34 @@
 
   (define handbook-display-metrics
     (lambda [dtrace level metrics]
-      (define ordered-keys '(char-ws char+ws word asian para line))
+      (define ordered-keys '(char-ws char+ws word asian emoji))
       (define key-maps
         #hasheq((asian . "Asian Characters")
                 (word . "Letter Words")
-                (char-ws . "Characters(- Spaces)")
-                (char+ws . "Characters(+ Spaces)")
-                (para . "Paragraphs")
-                (line . "Lines")))
-      
+                (char-ws . "Net Characters")
+                (char+ws . "All Characters")
+                (emoji . "Emojis")))
+
+      (define wstats (hash-ref metrics 'default string-word-count-start))
       (define total
-        (+ (hash-ref metrics 'word (λ [] 0))
-           (hash-ref metrics 'asian (λ [] 0))))
+        (+ (word-statistics-asian wstats)
+           (word-statistics-letter-word wstats)
+           (word-statistics-emoji wstats)))
       
       (when (> total 0)
         (dtrace level "Words: ~a" (~thousand total)))
       
       (for ([key (in-list ordered-keys)])
-        (define datum (hash-ref metrics key (λ [] #false)))
+        (define datum
+          (case key
+            [(asian) (word-statistics-asian wstats)]
+            [(word) (word-statistics-letter-word wstats)]
+            [(char+ws) (word-statistics-char wstats)]
+            [(char-ws) (- (word-statistics-char wstats) (word-statistics-whitespace wstats))]
+            [(emoji) (word-statistics-emoji wstats)]
+            [else 0]))
         
-        (when (or datum)
+        (when (> datum 0)
           (dtrace level "~a: ~a"
                   (hash-ref key-maps key (λ [] key))
                   (~thousand datum))))))
@@ -106,7 +115,7 @@
       
       (define/override (render-part self ri)
         (extract-style-path (part-style self))
-        (word-count (content->string (part-title-content self) this self ri))
+        (word-count (content->string (part-title-content self) this self ri) self)
         (super render-part self ri))
       
       (define/override (render-paragraph self parent ri)
@@ -135,7 +144,8 @@
         (render-table self parent ri #false))
     
       (define/override (render-content self parent ri)
-        (cond [(element? self)
+        (cond [(string? self) (word-count self parent)]
+              [(element? self)
                (extract-style-path* (element-style self))
                (when (image-element? self)
                  (push-path* (image-element-path self)
@@ -143,7 +153,9 @@
               [(multiarg-element? self)
                (extract-style-path* (multiarg-element-style self))]
               [(convertible? self)
-               (convertible-script-paths self)])
+               (convertible-script-paths self)
+               (word-count-convertible self parent)]
+              [(symbol? self) (word-count-symbol self parent)])
         (super render-content self parent ri))
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -191,23 +203,31 @@
                  (push-path p))]))
 
       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-      (define (word-count text)
-        (displayln text /dev/stdout)
-        (define-values (asians letters) (string-asian-partition text))
-        (define asian-sum (apply + (map string-length asians)))
-        (define char+ws (string-length text))
-        
-        (metrics++ 'asian asian-sum)
-        (metrics++ 'char+ws char+ws))
+      (define wc-disabled-parts (make-hash))
+      
+      (define (word-count text parent [group 'default])
+        (unless (hash-ref! wc-disabled-parts parent
+                           (λ [] #false))
+          (hash-set! metrics group
+                     (string-word-count-iterate text
+                                                (hash-ref metrics group
+                                                          string-word-count-start)))))
 
-      (define (metrics++ type datum)
-        (hash-set! metrics type
-                   (+ (hash-ref metrics type (λ [] 0))
-                      datum))))))
+      (define (word-count-symbol self part [group 'default])
+        (case self
+          [(rarr) (word-count "->" part group)]
+          [(nbsp) (word-count " " part group)]
+          [else (word-count "." part group)]))
+      
+      (define (word-count-convertible self part [group 'default])
+        (define text (convert self 'text))
+
+        (when (string? text)
+          (word-count text part group))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require/typed/provide
  (submod "." unsafe)
  [handbook-metainfo (-> Part (Values String (Listof String)))]
- [handbook-stats (-> Part Symbol (Values (Listof Path) (HashTable Symbol Natural)))]
- [handbook-display-metrics (-> (-> Symbol String Any * Any) Symbol (HashTable Symbol Natural) Void)])
+ [handbook-stats (-> Part Symbol (Values (Listof Path) (HashTable Symbol Word-Statistics)))]
+ [handbook-display-metrics (-> (-> Symbol String Any * Any) Symbol (HashTable Symbol Word-Statistics) Void)])
