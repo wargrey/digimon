@@ -58,6 +58,7 @@
 (require "digitama/tamer/color.rkt")
 (require "digitama/tamer/image.rkt")
 (require "digitama/tamer/documentclass.rkt")
+(require (submod "digitama/tamer/stat.rkt" unsafe))
 
 (require "digitama/tamer.rkt")
 (require "digitama/plural.rkt")
@@ -352,6 +353,22 @@
              #:style (if (not numbered?) noncontent-style #false)
              (cond [(pair? pre-contents) pre-contents]
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
+
+(define handbook-word-count
+  (lambda [#:make-content [make-content #false] #:make-element [make-element margin-note*] #:include-section? [inc-sec? #false]]
+    (make-delayed-element
+     (λ [render% pthis _]
+       (cond [(handbook-stat-renderer? render%) null]
+             [else (make-element
+                    (call-with-values (λ [] (handbook-part-stat pthis (car (send render% current-render-mode)) inc-sec?))
+                      (or make-content
+                          (λ [asian letters emoji chars]
+                            (let ([total (+ asian letters emoji)])
+                              (tt (~integer total) ~
+                                  (cond [(> (+ asian emoji) letters) "字"]
+                                        [else (plural total "Word")])))))))]))
+     (λ [] 0)
+     (λ [] ""))))
 
 ;;; NOTE that the unnumbered sections might be hard to be located in resulting PDF
 (define handbook-reference

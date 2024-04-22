@@ -18,6 +18,18 @@
   #:type-name Word-Statistics
   #:transparent)
 
+(define word-statistics+ : (-> Word-Statistics Word-Statistics Word-Statistics)
+  (lambda [wstat1 wstat2]
+    (define self (string-word-count-done wstat1))
+    
+    (make-word-statistics (+ (word-statistics-asian self) (word-statistics-asian wstat2))
+                          (+ (word-statistics-letter-word self) (word-statistics-letter-word wstat2))
+                          (+ (word-statistics-whitespace self) (word-statistics-whitespace wstat2))
+                          (+ (word-statistics-newline self) (word-statistics-newline wstat2))
+                          (+ (word-statistics-emoji self) (word-statistics-emoji wstat2))
+                          (+ (word-statistics-char self) (word-statistics-char wstat2))
+                          (word-statistics-states wstat2))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-word-count-start : (-> Word-Statistics)
   (let ([wstat0 (make-word-statistics 0 0 0 0 0 0 (vector-immutable #false #false))])

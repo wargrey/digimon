@@ -6,6 +6,7 @@
 (require racket/string)
 
 (require "../../../digitama/tamer/typed.rkt")
+(require "../../../digitama/tamer/scrbl.rkt")
 (require "../../../digitama/tamer/stat.rkt")
 
 (require "../../../digitama/minimal/dtrace.rkt")
@@ -103,15 +104,12 @@
                      [current-command-line-arguments (tex-info-extra-argv typesetting)]
                      [exit-handler (λ _ (error topic-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
                                                topic-name (current-make-phony-goal) (find-relative-path local-rootdir TEXNAME.scrbl)))])
-        (define-values (scribble.doc self-render) (handbook-tex-inspect TEXNAME.scrbl TEXNAME.tex pdfinfo.tex dtrace-msg))
-        (define-values (foreign-deps wstats)  (if (not scribble.doc) (values null #false) (handbook-stats scribble.doc 'latex)))
+        (define-values (scribble.doc self->tex) (handbook-tex-inspect TEXNAME.scrbl TEXNAME.tex pdfinfo.tex dtrace-msg))
+        (define foreign-deps  (if (not scribble.doc) null (handbook-scripts scribble.doc 'latex)))
         (define scrbl-deps (filter file-exists? #| <- say commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
         (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
         (define options : (Listof Keyword) (tex-info-options typesetting))
-        
-        (when (or wstats)
-          (handbook-display-metrics dtrace-msg 'note wstats))
-        
+
         (define real-target? : Boolean
           (and (or (member TEXNAME.scrbl (current-make-real-targets))
                    (member TEXNAME.ext (current-make-real-targets)))
@@ -142,13 +140,16 @@
                      (list (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
                                          (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
                                                      #:halt-on-error? halt-on-error? #:shell-escape? #false
-                                                     engine TEXNAME.tex (assert (path-only TEXNAME.ext))))
+                                                     engine TEXNAME.tex (assert (path-only TEXNAME.ext)))
+
+                                         (handbook-display-metrics dtrace-msg 'note
+                                                                   (handbook-stats scribble.doc 'latex)))
                            
                            (wisemon-spec TEXNAME.tex #:^ (list* pdfinfo.tex (append scrbl-deps foreign-deps regexp-deps)) #:-
                                          (define hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl"))
                                          
                                          (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
-                                         (self-render hook.rktl))
+                                         (self->tex hook.rktl))
                            
                            (wisemon-spec pdfinfo.tex #:^ (filter file-exists? (list TEXNAME.scrbl local-info.rkt)) #:-
                                          (define-values (title authors) (handbook-metainfo scribble.doc))

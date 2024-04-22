@@ -15,10 +15,10 @@
 
 @authorsaddresses{}
 
-@abstract{This file is used to test @litchar{Scr}ib@litchar{bl}e as a flexible front-end
+@abstract{This document is used to test @litchar{Scr}ib@litchar{bl}e as a flexible front-end
  for writing formal @texbook-prefab-name{tex} documents.
 
- 顺便也帮忙测试“字数统计”功能，该功能由 digitama/tamer/wc-render.rkt 提供。}
+ 顺便也帮忙测试“字数统计”功能，该功能由 digitama/tamer/stat.rkt 提供。}
 
 @; https://dl.acm.org/ccs
 @ccsdesc[#:number 500]{Applied computing~Document scripting languages}

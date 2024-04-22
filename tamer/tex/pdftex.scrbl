@@ -3,28 +3,42 @@
 @(require digimon/tamer)
  
 @title{On the Cookie-Eating Habits of Mice}
+
+@handbook-word-count[]
  
-If you give a mouse a cookie, he's going to ask for a
-glass of milk.
+If you give a mouse a @elemtag["cookie"]{cookie},
+he's going to ask for a glass of @elemtag["milk"]{milk}.
  
 @section{The Consequences of Milk}
 
-That ``squeak'' was the mouse asking for milk. Let's
-suppose that you give him some in a big glass.
- 
-He's a small mouse. The glass is too big---way too
-big. So, he'll probably ask you for a straw. You might as
-well give it to him.
+@handbook-word-count[]
 
-The @deftech{term} is defined here.
+That ``@deftech{squeak}'' was the mouse asking for @elemref["milk"]{milk}.
+Let's suppose that you give him some in a big glass.
 
-@section{Not the Last Straw}
+He's a @smaller{small mouse}.
+The glass is too @larger{big}---@bold{way @larger{too @larger{big}}}.
+So, he'll @italic{probably} ask you for a @elemtag["straw"]{straw}.
+
+@section{@italic{Not} the Last Straw}
+
+@handbook-word-count[]
  
 For now, to handle the milk moustache, it's enough to give
 him a napkin. But it doesn't end there... oh, no.
 
-It should jump to the @tech{term}.
+@section{Notice to Mice}
 
-The @elemtag["tag"]{element} is tagged here.
+@handbook-word-count[]
 
-It should jump to the @elemref["tag"]{element}.
+@itemlist[@item{We have cookies for you.}
+          @item{If you want to eat a cookie,
+                you must bring your own straw.}]
+
+If a mouse eats all your cookies, put up a sign that says
+@centered{
+  @bold{Cookies Wanted}
+ 
+  @italic{Chocolate chip preferred!}
+}
+and see if anyone brings you more.
