@@ -126,15 +126,9 @@
       (define/override (table-of-contents part ri) empty-block)
       (define/override (local-table-of-contents part ri) empty-block)
 
-      (define/override (get-substitutions)
-        '((#rx"---" "\U2014")
-          (#rx"--" "\U2013")
-          (#rx"``" "\U201C")
-          (#rx"''" "\U201D")
-          (#rx"'" "\U2019")))
-
       (define/override (render-part self ri)
-        (parameterize ([default-word-group 'head])
+        (parameterize ([default-word-group 'head]
+                       [current-output-port /dev/stdout])
           (super render-part self ri)))
 
       (define/override (render-paragraph self parent ri)
@@ -173,6 +167,7 @@
                          [else (string-word-count-done wstat++)])))
 
       (define (word-count-symbol self part [group (default-word-group)])
+        ; `decode-string` produces these before we see the `part`
         (case self
           [(mdash) (word-count "\U2014" part group)]
           [(ndash) (word-count "\U2013" part group)]

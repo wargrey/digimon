@@ -31,6 +31,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; http://www.unicode.org/reports/tr44/#General_Category_Values
+;;; https://www.unicodepedia.com/groups/
 (define char-letter? : (-> Char Boolean)
   (lambda [ch]
     (and (memq (char-general-category ch) '(lu ll lt lm lo))
@@ -44,21 +45,6 @@
 (define char-mark? : (-> Char Boolean)
   (lambda [ch]
     (and (memq (char-general-category ch) '(mn mc me))
-         #true)))
-
-(define char-number? : (-> Char Boolean)
-  (lambda [ch]
-    (and (memq (char-general-category ch) '(nd nl no))
-         #true)))
-
-(define char-punctuation? : (-> Char Boolean)
-  (lambda [ch]
-    (and (memq (char-general-category ch) '(pc pd ps pe pi pf po))
-         #true)))
-
-(define char-symbol? : (-> Char Boolean)
-  (lambda [ch]
-    (and (memq (char-general-category ch) '(sm sc sk so))
          #true)))
 
 (define char-math? : (-> Char Boolean)
@@ -78,6 +64,20 @@
 (define char-asian? : (-> Char Boolean)
   (lambda [ch] ; letter other
     (eq? (char-general-category ch) 'lo)))
+
+(define char-asian-punctuation? : (-> Char Boolean)
+  (lambda [ch]
+    (define unicode (char->integer ch))
+    
+    (or
+     ; General Punctuation Block
+     (<= #x2000 unicode #x206F)
+     
+     ; CJK Symbol and Punctuation Block
+     (<= #x3000 unicode #x303F)
+
+     ; Halfwidth and Fullwidth Forms Block
+     (<= #xFF00 unicode #xFFEE))))
 
 (define char-emoji? : (-> Char Boolean)
   (lambda [ch] ; symbol other

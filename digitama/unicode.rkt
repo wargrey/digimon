@@ -62,6 +62,10 @@
                            [(not (eq? c #\linefeed)) (wc as ls++ ws++ nl es #false #false idx++)]
                            [(and prev-cr?) (wc as ls++ ws nl es #false #false idx++)] ; CRLF
                            [else (wc as ls++ ws++ (unsafe-idx+ nl 1) es #false #false idx++)]))]
+                  [(char-punctuation? c)
+                   (if (char-asian-punctuation? c)
+                       (wc (unsafe-idx+ as 1) ls ws nl es #false #false idx++)
+                       (wc as ls ws nl es #true #false idx++))]
                   [else (wc as ls ws nl es #true #false idx++)]))
 
           (make-word-statistics (+ (word-statistics-asian pstats) as)
