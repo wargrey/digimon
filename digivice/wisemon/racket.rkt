@@ -101,6 +101,21 @@
 
     (when again? (compile-directory pwd info-ref (add1 round)))))
 
+(define compile-scribble : (->* ((Listof Path)) (Path) Void)
+  (lambda [targets [rootdir (current-directory)]]
+    (define scrbls : (Listof Path)
+      (for/list ([src (in-list targets)]
+                 #:when (regexp-match? #px"[.]scrbl$" src))
+        src))
+    
+    (define info-ref : Info-Ref
+      (lambda [symid [fallback (λ [] (raise-user-error (current-make-phony-goal) "undefined symbol: `~a`" symid))]]
+        (case symid
+          [(scribblings) (if (pair? scrbls) (list scrbls) (fallback))]
+          [else (fallback)])))
+
+    (compile-directory rootdir info-ref #:for-typesetting? #true)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define racket-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]

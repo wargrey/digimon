@@ -29,13 +29,8 @@
                   (build-path (current-directory) (path-normalize/system (car handbook)))
                   (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook))))))
 
-(define make-prove-specs : (-> (Option Info-Ref) Wisemon-Specification)
-  (lambda [info-ref]
-    (define handbooks : (Listof Path)
-      (let ([info-targets (if (not info-ref) null (find-digimon-handbooks info-ref))]
-            [real-targets (current-make-real-targets)])
-        (append info-targets real-targets)))
-    
+(define make-prove-specs : (-> (Listof Path) Wisemon-Specification)
+  (lambda [handbooks]
     (for/list : Wisemon-Specification ([handbook.scrbl (in-list handbooks)])
       (wisemon-spec handbook.scrbl #:-
                     (define pwd : (Option Path) (path-only handbook.scrbl))
@@ -71,7 +66,13 @@
       (wisemon-make (make-ffi-library-specs info-ref) px.so)
       (wisemon-compile (current-directory) digimon info-ref))
 
-    (wisemon-make (make-prove-specs info-ref) (current-make-real-targets) #true)))
+    (define handbooks : (Listof Path)
+      (let ([info-targets (if (not info-ref) null (find-digimon-handbooks info-ref))]
+            [real-targets (current-make-real-targets)])
+        (append info-targets real-targets)))
+    
+    (compile-scribble handbooks (current-directory))
+    (wisemon-make (make-prove-specs handbooks) (current-make-real-targets) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define prove-phony-goal : Wisemon-Phony

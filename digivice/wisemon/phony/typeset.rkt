@@ -201,7 +201,7 @@
       (wisemon-make (make-ffi-library-specs info-ref natives) px.so)
       (wisemon-compile (current-directory) digimon info-ref))
 
-    (typeset-compile-source texinfos)
+    (compile-scribble (map tex-info-path texinfos) (current-directory))
     texinfos))
 
 (define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Boolean Void)
@@ -284,22 +284,6 @@
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
                               texin))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define typeset-compile-source : (-> (Listof Tex-Info) Void)
-  (lambda [targets]
-    (define scrbls : (Listof Path)
-      (for/list ([src (in-list (map tex-info-path targets))]
-                 #:when (regexp-match? #px"[.]scrbl$" src))
-        src))
-    
-    (define info-ref : Info-Ref
-      (lambda [symid [fallback (λ [] (raise-user-error 'make-typeset "undefined symbol: `~a`" symid))]]
-        (case symid
-          [(scribblings) (if (pair? scrbls) (list scrbls) (fallback))]
-          [else (fallback)])))
-
-    (compile-directory (current-directory) info-ref #:for-typesetting? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony
