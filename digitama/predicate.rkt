@@ -11,6 +11,11 @@
 (define positive-fixnum? : (-> Any Boolean : Positive-Fixnum) (λ [n] (and (fixnum? n) (> n 0))))
 (define positive-flonum? : (-> Any Boolean : #:+ Positive-Flonum) (λ [f] (and (flonum? f) (> f 0.0)))) ; unable to deal with +nan.0
 
+(define fixed-percentage? : (-> Any Boolean : #:+ Flonum) (λ [%] (and (flonum? %) (<= -100.0 % 100.0))))
+(define nonnegative-fixed-percentage? : (-> Any Boolean : #:+ Nonnegative-Flonum) (λ [%] (and (flonum? %) (>= % 0.0) (<= % 100.0))))
+
+(define normalized-flonum? : (-> Any Boolean : #:+ Nonnegative-Flonum) (λ [f] (and (flonum? f) (>= f 0.0) (<= f 1.0))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define real-zero? : (-> Any Boolean)
   (lambda [v]
