@@ -167,6 +167,13 @@
                     [(x)       dppx]]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define 0% : (#%Per Nonnegative-Flonum) (#%per 0.0 '%))
+(define 25% : (#%Per Nonnegative-Flonum) (#%per 25.0 '%))
+(define 50% : (#%Per Nonnegative-Flonum) (#%per 50.0 '%))
+(define 75% : (#%Per Nonnegative-Flonum) (#%per 75.0 '%))
+(define 100% : (#%Per Nonnegative-Flonum) (#%per 100.0 '%))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-string->dimension string->dimension : Flonum #:-> string->flonum #:with 1.0)
 (define-string->dimension string+>dimension : Nonnegative-Flonum #:-> string+>flonum #:with 1.0)
 
