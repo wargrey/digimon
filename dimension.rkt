@@ -32,13 +32,17 @@
 (define-type FlPercentage (#%Per Flonum))
 (define-type Nonnegative-FlPercentage (#%Per Nonnegative-Flonum))
 
-(struct (R) #%dim ([value : (∩ Real R)] [unit : Symbol])
-  #:type-name #%Dim
-  #:transparent)
+(struct (R) #%dim ([value : (∩ Real R)] [unit : Symbol]) #:type-name #%Dim #:transparent)
+(struct (R) #%per #%dim () #:type-name #%Per #:transparent)
 
-(struct (R) #%per #%dim ()
-  #:type-name #%Per
-  #:transparent)
+(define #:forall (R) make-percentage : (->* ((∩ Real R)) (Symbol) (#%Per R))
+  (lambda [value [sign '%]]
+    ((inst #%per R) value sign)))
+
+(define #:forall (D) dimension->string : (-> (#%Dim D) String)
+  (lambda [v]
+    (string-append (number->string (#%dim-value v))
+                   (symbol->immutable-string (#%dim-unit v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-dimension stx)
@@ -184,9 +188,3 @@
 
 (define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1)
 (define-string->dimension string->natural-dimension : Natural #:-> string->natural #:with 1)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define #:forall (D) dimension->string : (-> (#%Dim D) String)
-  (lambda [v]
-    (string-append (number->string (#%dim-value v))
-                   (symbol->immutable-string (#%dim-unit v)))))
