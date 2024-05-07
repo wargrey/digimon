@@ -27,6 +27,11 @@
 ; we treat percentage as a special case of dimension.
 ; and there also are ‰ and ‱.
 
+(define-type FlDimension (#%Dim Flonum))
+(define-type Nonnegative-FlDimension (#%Dim Nonnegative-Flonum))
+(define-type FlPercentage (#%Per Flonum))
+(define-type Nonnegative-FlPercentage (#%Per Nonnegative-Flonum))
+
 (struct (R) #%dim ([value : (∩ Real R)] [unit : Symbol])
   #:type-name #%Dim
   #:transparent)
