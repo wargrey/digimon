@@ -22,6 +22,20 @@
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; NOTE
+; Since percentage is often used at positions that expects a dimension,
+; we treat percentage as a special case of dimension.
+; and there also are ‰ and ‱.
+
+(struct (R) #%dim ([value : (∩ Real R)] [unit : Symbol])
+  #:type-name #%Dim
+  #:transparent)
+
+(struct (R) #%per #%dim ()
+  #:type-name #%Per
+  #:transparent)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-dimension stx)
   (syntax-parse stx #:literals [:]
     [(_ dim #:=> canonical-unit
@@ -59,27 +73,37 @@
 (define-syntax (define-string->dimension stx)
   (syntax-case stx [:]
     [(_ id : Type #:-> string->number #:with one)
-     (syntax/loc stx
-       (define id : (->* ((U String Symbol)) (Symbol #:ci? Boolean) (Values (Option Type) Symbol))
-         (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
-           (define dim : String (if (string? literal) (string-trim literal) (symbol->immutable-string literal)))
-           (define size : Index (string-length dim))
+     (with-syntax ([id* (make-identifier #'id "~a*")])
+       (syntax/loc stx
+         (begin
+           (define id : (->* ((U String Symbol)) (Symbol #:ci? Boolean) (Values (Option Type) Symbol))
+             (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
+               (define dim : String (if (string? literal) (string-trim literal) (symbol->immutable-string literal)))
+               (define size : Index (string-length dim))
+               
+               (cond [(= size 0) (values #false fallback-unit)]
+                     [else (let dim-split ([idx : Index (- size 1)])
+                             (define uch : Char (string-ref dim idx))
+                             
+                             (cond [(char-numeric? uch)
+                                    (let ([idx+1 (+ idx 1)])
+                                      (if (= idx+1 size)
+                                          (values (string->number dim)
+                                                  (cond [(not ci?) fallback-unit]
+                                                        [else (symbol-downcase fallback-unit)]))
+                                          (values (string->number (substring dim 0 idx+1))
+                                                  (let ([u (substring dim idx+1 size)])
+                                                    (string->symbol (if (not ci?) u (string-downcase u)))))))]
+                                   [(= idx 0) (values one (string->symbol (if (not ci?) dim (string-downcase dim))))]
+                                   [else (dim-split (- idx 1))]))])))
            
-           (cond [(= size 0) (values #false fallback-unit)]
-                 [else (let dim-split ([idx : Index (- size 1)])
-                         (define uch : Char (string-ref dim idx))
-                         
-                         (cond [(char-numeric? uch)
-                                (let ([idx+1 (+ idx 1)])
-                                  (if (= idx+1 size)
-                                      (values (string->number dim)
-                                              (cond [(not ci?) fallback-unit]
-                                                    [else (symbol-downcase fallback-unit)]))
-                                      (values (string->number (substring dim 0 idx+1))
-                                              (let ([u (substring dim idx+1 size)])
-                                                (string->symbol (if (not ci?) u (string-downcase u)))))))]
-                               [(= idx 0) (values one (string->symbol (if (not ci?) dim (string-downcase dim))))]
-                               [else (dim-split (- idx 1))]))]))))]))
+           (define id* : (->* ((U String Symbol)) (Symbol #:ci? Boolean) (Option (#%Dim Type)))
+             (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
+               (define-values (number unit) (id literal fallback-unit #:ci? ci?))
+               (and number
+                    (if (memq unit '(% ‰ ‱))
+                        (#%per number unit)
+                        (#%dim number unit))))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-struct dimension-environment : Dimension-Environment
@@ -144,4 +168,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-string->dimension string->dimension : Flonum #:-> string->flonum #:with 1.0)
-(define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1) ; for percentage
+(define-string->dimension string+>dimension : Nonnegative-Flonum #:-> string+>flonum #:with 1.0)
+
+(define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1)
+(define-string->dimension string->natural-dimension : Natural #:-> string->natural #:with 1)
