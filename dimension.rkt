@@ -49,10 +49,20 @@
          [(‱) 0.0001]
          [else 1]))))
 
-(define #:forall (D) dimension->string : (-> (#%Dim D) String)
+(define #:forall (R) dimension->string : (-> (#%Dim R) String)
   (lambda [v]
     (string-append (number->string (#%dim-value v))
                    (symbol->immutable-string (#%dim-unit v)))))
+
+(define #:forall (R) dimension? : (-> Any (-> Any Boolean : #:+ R) Boolean : #:+ (#%Dim R))
+  (lambda [v real?]
+    (and (#%dim? v)
+         (real? (#%dim-value v)))))
+
+(define #:forall (R) percentage? : (-> Any (-> Any Boolean : #:+ R) Boolean : #:+ (#%Per R))
+  (lambda [v real?]
+    (and (#%per? v)
+         (real? (#%dim-value v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-dimension stx)
