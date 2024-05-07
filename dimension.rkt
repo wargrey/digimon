@@ -184,3 +184,9 @@
 
 (define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1)
 (define-string->dimension string->natural-dimension : Natural #:-> string->natural #:with 1)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (D) dimension->string : (-> (#%Dim D) String)
+  (lambda [v]
+    (string-append (number->string (#%dim-value v))
+                   (symbol->immutable-string (#%dim-unit v)))))
