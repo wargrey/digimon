@@ -39,6 +39,16 @@
   (lambda [value [sign '%]]
     ((inst #%per R) value sign)))
 
+(define percentage->flonum : (case-> [(#%Per Nonnegative-Real) -> Nonnegative-Flonum]
+                                     [(#%Per Real) -> Flonum])
+  (lambda [v]
+    (* (real->double-flonum (#%dim-value v))
+       (case (#%dim-unit v)
+         [(%) 0.01]
+         [(‰) 0.001]
+         [(‱) 0.0001]
+         [else 1]))))
+
 (define #:forall (D) dimension->string : (-> (#%Dim D) String)
   (lambda [v]
     (string-append (number->string (#%dim-value v))
