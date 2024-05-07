@@ -54,6 +54,26 @@
     (string-append (number->string (#%dim-value v))
                    (symbol->immutable-string (#%dim-unit v)))))
 
+(define fldimension? : (-> Any Boolean : FlDimension)
+  (lambda [v]
+    (and (#%dim? v)
+         (flonum? (#%dim-value v)))))
+
+(define flpercentage? : (-> Any Boolean : FlPercentage)
+  (lambda [v]
+    (and (#%per? v)
+         (flonum? (#%dim-value v)))))
+
+(define nonnegative-fldimension? : (-> Any Boolean : #:+ Nonnegative-FlDimension)
+  (lambda [v]
+    (and (#%dim? v)
+         (nonnegative-flonum? (#%dim-value v)))))
+
+(define nonnegative-flpercentage? : (-> Any Boolean : #:+ Nonnegative-FlPercentage)
+  (lambda [v]
+    (and (#%per? v)
+         (nonnegative-flonum? (#%dim-value v)))))
+
 (define #:forall (R) dimension? : (-> Any (-> Any Boolean : #:+ R) Boolean : #:+ (#%Dim R))
   (lambda [v real?]
     (and (#%dim? v)
