@@ -49,6 +49,16 @@
          [(‱) 0.0001]
          [else 1]))))
 
+(define #:forall (R) make-dimension : (-> (∩ Real R) Symbol (#%Dim R))
+  (lambda [number unit]
+    (cond [(memq unit '(% ‰ ‱)) ((inst #%per R) number unit)]
+          [(memq unit dim:length-units) ((inst #%dim:length R) number unit)]
+          [(memq unit dim:angle-units) ((inst #%dim:angle R) number unit)]
+          [(memq unit dim:time-units) ((inst #%dim:time R) number unit)]
+          [(memq unit dim:frequency-units) ((inst #%dim:frequency R) number unit)]
+          [(memq unit dim:resolution-units) ((inst #%dim:resolution R) number unit)]
+          [else ((inst #%dim R) number unit)])))
+
 (define #:forall (R) dimension->string : (-> (#%Dim R) String)
   (lambda [v]
     (string-append (number->string (#%dim-value v))
@@ -87,15 +97,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-dimension stx)
   (syntax-parse stx #:literals [:]
-    [(_ dim #:=> canonical-unit
+    [(_ dim #:+> Dim #:=> canonical-unit
         (~optional (~seq #:with [[argv : Argv] ...])
                    #:defaults ([(argv 1) null] [(Argv 1) null]))
         [[units expr ...] ...])
-     (with-syntax ([dim-units (make-identifier #'dim "~a-units")]
+     (with-syntax ([#%dimension (make-identifier #'dim "#%~a")]
+                   [dim-units (make-identifier #'dim "~a-units")]
                    [dim-canonical-unit (make-identifier #'dim "~a-canonical-unit")]
                    [(name ...) (for/fold ([names null]) ([unit (in-syntax #'(units ...))]) (append names (syntax->datum unit)))])
        (syntax/loc stx
-         (begin (define dim-units : (Listof Symbol) (list 'name ...))
+         (begin (struct (R) #%dimension #%dim () #:type-name Dim #:transparent)
+                
+                (define dim-units : (Listof Symbol) (list 'canonical-unit 'name ...))
                 (define dim-canonical-unit : Symbol 'canonical-unit)
                 
                 (define dim : (case-> [Nonnegative-Flonum Symbol Argv ... -> Nonnegative-Flonum]
@@ -150,9 +163,7 @@
              (lambda [literal [fallback-unit '||] #:ci? [ci? #false]]
                (define-values (number unit) (id literal fallback-unit #:ci? ci?))
                (and number
-                    (if (memq unit '(% ‰ ‱))
-                        (#%per number unit)
-                        (#%dim number unit))))))))]))
+                    (make-dimension number unit)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-struct dimension-environment : Dimension-Environment
@@ -170,7 +181,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-dimensions
-  ([dim:length    #:=> px #:with [[denv : Dimension-Environment]]
+  ([dim:length    #:+> Dim:Length #:=> px #:with [[denv : Dimension-Environment]]
                   [[(cm)       (fl* (fl/ 96.0 2.54) px)]
                    [(mm)       (fl* (fl/ 96.0 25.4) px)]                    #;1cm/10
                    [(q)        (fl* (fl/ 96.0 101.6) px)]                   #;1cm/40
@@ -194,23 +205,23 @@
                    [(ls)       (fl* 1.133e12 px)]                           #;1e12pls
                    #;[(pc)       (fl* (fl* (fl/ 96.0 2.54) 3.086e18) px)]   #;1e18apc]]
    ;;; https://drafts.csswg.org/css-values/#angles
-   [dim:angle      #:=> deg
+   [dim:angle      #:+> Dim:Angle #:=> deg
                    [[(grad)    (fl* 0.9 deg)]
                     [(rad)     (fl* (fl/ 180.0 pi) deg)]
                     [(turn)    (fl* 360.0 deg)]]]
    ;;; https://drafts.csswg.org/css-values/#time
-   [dim:time       #:=> s
+   [dim:time       #:+> Dim:Time #:=> s
                    [[(ms)      (fl* 0.001 s)]
                     [(min)     (fl* 60.0 s)]
                     [(h)       (fl* 3600.0 s)]
                     [(ft)      (fl* 1.2096e6 s)]
                     [(mft)     (fl* 1.2096e3 s)]]]
    ;;; https://drafts.csswg.org/css-values/#frequency
-   [dim:frequency  #:=> Hz
+   [dim:frequency  #:+> Dim:Frequency #:=> Hz
                    [[(hz)      Hz]
                     [(kHz khz) (fl* 0.001 Hz)]]]
    ;;; https://drafts.csswg.org/css-values/#resolution
-   [dim:resolution #:=> dppx
+   [dim:resolution #:+> Dim:Resolution #:=> dppx
                    [[(dpcm)    (fl* (fl/ 2.54 96.0) dppx)]
                     [(dpi)     (fl* (fl/ 1.0 96.0) dppx)]
                     [(x)       dppx]]]))
@@ -228,3 +239,5 @@
 
 (define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1)
 (define-string->dimension string->natural-dimension : Natural #:-> string->natural #:with 1)
+
+(string->dimension* "1000s")

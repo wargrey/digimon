@@ -12,6 +12,7 @@
 
 (require "style.rkt")
 (require "block.rkt")
+(require "texbook.rkt")
 
 (require "../system.rkt")
 
@@ -49,41 +50,25 @@
   (lambda [legend content-style language rootdir0 srcpath ocness maybe-range]
     (define rootdir (path-normalize rootdir0 (digimon-path 'zone)))
     (define source (path-normalize srcpath rootdir))
-    (define code (value->block source))
     (define range (code-range source maybe-range ocness))
     (define rel-srcpath (string-replace source rootdir ""))
 
     (define lang
-      (value->block
-       ;;; TODO, filter the language
-       (cond [(string? language) language]
-             [else (or (source->language source rootdir)
-                       (if (symbol? language)
-                           (symbol->immutable-string language)
-                           (format "~a" (path-get-extension source))))])))
+      ;;; TODO, filter the language
+      (cond [(string? language) (string->symbol language)]
+            [else (or (source->language source rootdir)
+                      (cond [(symbol? language) language]
+                            [else (string->symbol (format "~a" (path-get-extension source)))]))]))
 
     (define-values (body range-start)
-      (cond [(pair? range)
-             (let ([range0 (number->string (car range))])
-               (values (make-nested-flow code-chunk-style
-                                         (list lang
-                                               (value->block range0)
-                                               (value->block (number->string (cdr range)))
-                                               code))
-                       range0))]
-            [(exact-integer? range)
-             (let ([range0 (number->string range)])
-               (values (make-nested-flow code-tail-style
-                                         (list lang
-                                               (value->block range0)
-                                               code))
-                       range0))]
-            [else (values (make-nested-flow code-file-style (list lang code)) "1")]))
+      (code-lstinputlisting lang source range))
+    
     (make-nested-flow content-style
                       (list (make-nested-flow code-title-style
                                               (list (make-paragraph placeholder-style legend)
                                                     (value->block rel-srcpath)
-                                                    (make-paragraph input-color range-start)))
+                                                    (make-paragraph input-color range-start)
+                                                    (value->block (symbol->immutable-string lang))))
                             body))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -112,6 +97,29 @@
                                 (and (<= s e)
                                      (cons s e)))))])))))
 
+(define code-lstinputlisting
+  (lambda [lang src range]
+    (define common-args
+      (list (cons 'language lang)
+            'mathescape))
+    
+    (define-values (range-args range-start)
+      (cond [(pair? range)
+             (let ([range0 (number->string (car range))])
+               (values (list (cons 'firstline range0)
+                             (cons 'lastline (cdr range)))
+                       range0))]
+            [(exact-integer? range)
+             (let ([range0 (number->string range)])
+               (values (list (cons 'firstline range0))
+                       range0))]
+            [else (values null "1")]))
+
+    (values (paragraph code-block-style
+                       (texbook-command #:opt-args (list (append common-args range-args)) #:tex-only? #true
+                                        "lstinputlisting" src))
+            range-start)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-style-extras
   (list 'multicommand
@@ -119,9 +127,7 @@
         (make-tex-addition (tamer-block-source "lstlisting.tex"))))
 
 (define code-title-style (make-style "lstCodeTitle" code-style-extras))
-(define code-file-style (make-style "lstFile" code-style-extras))
-(define code-tail-style (make-style "lstTail" code-style-extras))
-(define code-chunk-style  (make-style "lstChunk" code-style-extras))
+(define code-block-style (make-style "lstCodeBox" code-style-extras))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (path-normalize srcpath curdir)
@@ -135,7 +141,7 @@
   (define gl (git-files->langfiles (list gf) null #false))
   
   (and (= (hash-count gl) 1)
-       (git-language-name (cdar (hash->list gl)))))
+       (string->symbol (git-language-name (cdar (hash->list gl))))))
 
 (define (value->block v)
   (make-paragraph placeholder-style v))

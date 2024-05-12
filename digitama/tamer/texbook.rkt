@@ -8,6 +8,7 @@
 (require scribble/latex-properties)
 
 (require racket/format)
+(require racket/string)
 (require racket/list)
 
 (require "../../tongue.rkt")
@@ -67,7 +68,7 @@
 
       (define other-args
         (append (if ext-args (list (command-extras (map ~a ext-args))) null)
-                (if opt-args (list (command-optional (map ~a opt-args))) null)))
+                (if opt-args (list (command-optional (map texbook-datum->option-argument opt-args))) null)))
 
       (define tex-style
         (cond [(null? other-args) cmdname]
@@ -175,6 +176,13 @@
     (texbook-command "setcounter" #:args (list counter value))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define texbook-datum->option-argument
+  (lambda [arg]
+    (cond [(list? arg) (string-join (map texbook-datum->option-argument arg) ",")]
+          [(pair? arg) (format "~a=~a" (car arg) (cdr arg))]
+          [else (~a arg)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module+ main
   (require racket/class)
   (require racket/port)
@@ -218,6 +226,7 @@
   
   (scribble->tex-string
    @texbook-command['multicols #:opt-args '|| #:args "2" #:extra-args 'extra]{@emph{emph} @texbook-prefab-name{TeX}}
+   @texbook-command['lstlistings #:opt-args (list (list 'mathescape (cons 'language 'C++)))]{int main();}
    @para{@texbook-command['multicols #:opt-args '|| #:args "2" #:extra-args 'extra]{@emph{emph} @tt{body}}}
    @texbook-command-block['multicols #:args "%" #:extra-args "extra"]{@emph{emph} @tt{body}}
    ($tex:phantomsection)
