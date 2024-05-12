@@ -106,7 +106,7 @@
                                                topic-name (current-make-phony-goal) (find-relative-path local-rootdir TEXNAME.scrbl)))])
         (define-values (scribble.doc self->tex) (handbook-tex-inspect TEXNAME.scrbl TEXNAME.tex pdfinfo.tex dtrace-msg))
         (define foreign-deps  (if (not scribble.doc) null (handbook-scripts scribble.doc 'latex)))
-        (define scrbl-deps (filter file-exists? #| <- say commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
+        (define scrbl-deps (filter file-exists? #| <- say, commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
         (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
         (define options : (Listof Keyword) (tex-info-options typesetting))
 

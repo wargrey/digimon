@@ -66,7 +66,7 @@
     (make-nested-flow content-style
                       (list (make-nested-flow code-title-style
                                               (list (make-paragraph placeholder-style legend)
-                                                    (value->block rel-srcpath)
+                                                    (value->block/path rel-srcpath source)
                                                     (make-paragraph input-color range-start)
                                                     (value->block (symbol->immutable-string lang))))
                             body))))
@@ -145,6 +145,9 @@
 
 (define (value->block v)
   (make-paragraph placeholder-style v))
+
+(define (value->block/path v source)
+  (make-paragraph (make-style #false (list (string->path source))) v))
 
 (define (search-linenumber srclines pattern line0 [secondary-pattern #false])
   (let search ([nl line0]

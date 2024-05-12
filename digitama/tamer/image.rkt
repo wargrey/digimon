@@ -26,27 +26,28 @@
 (define tamer-image
   (lambda [#:scale [scale 1.0] #:style [style #false] #:requests [requests null]
            #:tempdir [base-dir #false] #:name [base-name #false]
-           path . pre-contents]
-    (cond [(convertible? path)
+           img-obj . pre-contents]
+    (cond [(convertible? img-obj)
            (make-traverse-element
             (λ [get set!]
               (define mimes
-                (cond [(pair? requests) requests]
+                (cond [(handbook-stat-renderer? get) null]
+                      [(pair? requests) requests]
                       [(handbook-latex-renderer? get) default-tex-requests]
                       [else default-web-requests]))
               (let request ([mimes mimes])
                 (if (pair? mimes)
-                    (let ([path.img (make-image path (car mimes) base-dir base-name)])
+                    (let ([path.img (make-image img-obj (car mimes) base-dir base-name)])
                       (cond [(not path.img) (request (cdr mimes))]
                             [else (apply image
                                          #:scale scale #:style style
                                          path.img pre-contents)]))
                     pre-contents))))]
-          [(not (element? path))
+          [(not (element? img-obj))
            (apply image
                   #:scale scale #:style style
-                  path pre-contents)]
-          [else path])))
+                  img-obj pre-contents)]
+          [else img-obj])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-image

@@ -227,7 +227,7 @@
   (scribble->tex-string
    @texbook-command['multicols #:opt-args '|| #:args "2" #:extra-args 'extra]{@emph{emph} @texbook-prefab-name{TeX}}
    @texbook-command['lstlistings #:opt-args (list (list 'mathescape (cons 'language 'C++)))]{int main();}
-   @para{@texbook-command['multicols #:opt-args '|| #:args "2" #:extra-args 'extra]{@emph{emph} @tt{body}}}
+   @para{@texbook-command['multicols #:opt-args '(opt1 opt2) #:args "2" #:extra-args 'extra]{@emph{emph} @tt{body}}}
    @texbook-command-block['multicols #:args "%" #:extra-args "extra"]{@emph{emph} @tt{body}}
    ($tex:phantomsection)
    ($tex:refstepcounter 'page)
