@@ -71,10 +71,10 @@
       (if (string? self)
           (if (regexp-match #px"[*]+[/].*" self)
               
-              (let ([last (string-trim self #px"(^\\s*[*]?\\s*)|(\\s*[*]+[/].*$)")])
+              (let ([last (string-trim self #px"(^\\s*[*]?\\s?)|([*]+[/].*$)")])
                 (if (string-blank? last)
                     (reverse senil)
                     (reverse (cons last senil))))
 
-              (read-desc (cons (string-trim self #px"(^\\s*[*]\\s?)|(\\s*$)") senil)))
+              (read-desc (cons (string-trim self #px"^\\s*[*]\\s?" #:right? #false) senil)))
           (reverse senil)))))

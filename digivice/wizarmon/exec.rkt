@@ -5,6 +5,7 @@
 (require "parameter.rkt")
 
 (require "exec/c.rkt")
+(require "exec/lean.rkt")
 (require "exec/python.rkt")
 (require "exec/scrbl.rkt")
 (require "exec/dot.rkt")
@@ -33,6 +34,7 @@
       [("c++") (shell-cpp path 'cpp)]
       [("cpp") (shell-cpp path 'cpp)]
       [("c") (shell-c path 'c)]
+      [("lean") (shell-lean path 'lean)]
       [("python") (shell-python path 'python)]
       [("scribble") (shell-typeset path 'scribble)]
       [("tex") (shell-typeset path 'tex)]
