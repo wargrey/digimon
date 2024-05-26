@@ -22,7 +22,7 @@
 
     (parameterize ([current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only src.d2)))])
-      (define d2.ext (assert (d2-script-destination src.d2 extension #true)))
+      (define d2.ext (assert (d2-script-destination src.d2 extension #false)))
       (define d2-spec
         (wisemon-spec d2.ext #:^ (filter file-exists? (d2-smart-dependencies src.d2)) #:-
                       (d2-render src.d2 d2.ext #:debug? (wizarmon-verbose))))

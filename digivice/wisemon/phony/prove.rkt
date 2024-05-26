@@ -57,7 +57,8 @@
                                        
                                        (render (list scribble.doc) (list ,handbook.scrbl)
                                                #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %))) #:dest-dir dest-dir
-                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref)))))
+                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
+                                               #:image-preferences '(svg png gif pdf))))
                               (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
 
 (define make~prove : Make-Free-Phony

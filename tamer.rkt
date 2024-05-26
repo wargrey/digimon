@@ -5,7 +5,7 @@
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
-(provide graphviz graph.gv digraph.gv $ $$ $$* handbook-image tamer-image)
+(provide d2 $ $$ $$* handbook-image tamer-image graphviz graph.gv digraph.gv)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
@@ -55,6 +55,7 @@
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
 (require "digitama/tamer/graphviz.rkt")
+(require "digitama/tamer/d2.rkt")
 (require "digitama/tamer/color.rkt")
 (require "digitama/tamer/image.rkt")
 (require "digitama/tamer/documentclass.rkt")

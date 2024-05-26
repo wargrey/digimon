@@ -13,6 +13,7 @@
 (define-type D2-Theme (U D2-Theme-Datum (Pairof D2-Theme-Datum D2-Theme-Datum)))
 
 (define d2-default-interval : (Parameterof Integer) (make-parameter 1200))
+(define d2-default-padding-pixels : (Parameterof Integer) (make-parameter 8))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define d2-render : (->* ((U Bytes Path-String) (Option Path-String))
@@ -35,7 +36,7 @@
                     (list (d2-options
                            (list (cons 'layout layout)
                                  (cons 'scale scale)
-                                 (cons 'pad inset)
+                                 (cons 'pad (or inset (d2-default-padding-pixels)))
                                  (cons 'animate-interval (d2-interval interval (and d2.out (path-get-extension d2.out)))) ; SVG and GIF only, and stops others
                                  (cons 'timeout timeout)))
                           (d2-flags
@@ -105,9 +106,9 @@
                [else usr-arg]))))
 
 (define d2-script-destination : (->* (Path-String Bytes) (Boolean #:dest-dirname String) (Option Path))
-  (lambda [gv ext [contained-in-package? #true] #:dest-dirname [rootdir "diagram"]]
-    (define dirname : (Option Path) (path-only gv))
-    (define basename : (Option Path) (file-name-from-path gv))
+  (lambda [src ext [contained-in-package? #true] #:dest-dirname [rootdir "diagram"]]
+    (define dirname : (Option Path) (path-only src))
+    (define basename : (Option Path) (file-name-from-path src))
 
     (and (path? dirname) (path? basename)
          (build-path dirname (car (use-compiled-file-paths))

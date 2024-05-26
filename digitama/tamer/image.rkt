@@ -13,12 +13,13 @@
 (require "backend.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define default-tex-requests '(pdf png))
-(define default-web-requests '(svg png gif))
+(define default-tex-requests '(pdf png2x png))
+(define default-web-requests '(svg png2x png gif))
 
 (define mime-maps
   (hasheq 'svg 'svg-bytes
           'pdf 'pdf-bytes
+          'png2x 'png@2x-bytes
           'png 'png-bytes
           'gif 'gif-bytes))
 

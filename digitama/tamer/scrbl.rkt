@@ -124,7 +124,7 @@
                 [(css-style-addition? prop) (push-style-path (css-style-addition-path prop) 'html render-type)]
                 [(js-style-addition? prop) (push-style-path (js-style-addition-path prop) 'html render-type)]
                 [(convertible? prop) (convertible-script-paths prop)]
-                [(path-literal? prop) (push-path prop)])))
+                [(path-literal? prop) (displayln prop) (push-path prop)])))
 
       (define (push-style-path maybe-path target-render-mode user-required-render-mode)
         (when (and (eq? target-render-mode user-required-render-mode)

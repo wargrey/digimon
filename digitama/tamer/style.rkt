@@ -45,6 +45,21 @@
     (make-style name master-properties)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-style
+  (lambda [s]
+    (cond [(style? s) s]
+          [(or (string? s) (symbol? s)) (make-style style null)]
+          [(list? s) (and (pair? s) (make-style #false s))]
+          [(not s) (make-style #false (list s))]
+          [else #false])))
+
+(define handbook-element
+  (lambda [s self]
+    (define maybe-style (handbook-style s))
+    (cond [(style? style) (make-element maybe-style self)]
+          [else self])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-remove-style-name
   (lambda [s]
     (make-style #false (style-properties s))))
