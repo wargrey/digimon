@@ -8,6 +8,7 @@
 (require "exec/lean.rkt")
 (require "exec/python.rkt")
 (require "exec/scrbl.rkt")
+(require "exec/d2.rkt")
 (require "exec/dot.rkt")
 
 (require "../../digitama/minimal/dtrace.rkt")
@@ -37,6 +38,7 @@
       [("lean") (shell-lean path 'lean)]
       [("python") (shell-python path 'python)]
       [("scribble") (shell-typeset path 'scribble)]
+      [("d2") (shell-d2 path 'elk #".gif")]
       [("tex") (shell-typeset path 'tex)]
       [("graphviz (dot)") (shell-dot path 'png #".png")]
       [else (wizarmon-errno 126)

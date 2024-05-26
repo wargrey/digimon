@@ -4,7 +4,7 @@
 
 (require file/convertible)
 
-(require "../graphviz.rkt")
+(require "../diagram/graphviz.rkt")
 (require "../../filesystem.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

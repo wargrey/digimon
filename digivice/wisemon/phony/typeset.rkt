@@ -273,13 +273,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-fallback-engine : Symbol 'xelatex)
 
-(define tex-smart-dependencies : (->* (Path-String) ((Listof Path)) (Listof Path))
+(define tex-smart-dependencies : (->* (Path) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
              (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
              (cond [(member subsrc memory) memory]
                    [else (tex-smart-dependencies subsrc memory)]))
-           (append memory (list (path-identity entry)))
+           (append memory (list entry))
            (call-with-input-file* entry
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"

@@ -5,7 +5,7 @@
 (require racket/symbol)
 (require racket/path)
 
-(require "exec.rkt")
+(require "../exec.rkt")
 
 (define-type GVSize (U Complex (Pairof Real Real) (List Real Real)))
 
@@ -35,17 +35,19 @@
                     (when (and dir (not (directory-exists? dir)))
                       (fg-recon-mkdir operation dir)))
 
-                  (let ([dst-bytes (fg-recon-exec/pipe #:stdin-log-level log-level
-                                                       #:/dev/stdin (and (bytes? src.gv)
-                                                                         (open-input-bytes src.gv))
-                                                       operation dot options)])
-                    (unless (not outfile)
-                      (if (output-port? outfile)
-                          (write-bytes dst-bytes outfile)
-                          (call-with-output-file* outfile #:exists 'truncate/replace
-                            (λ [[/dev/dotout : Output-Port]] : Index
-                              (write-bytes dst-bytes /dev/dotout)))))
-                    dst-bytes))])))
+                  (let ([/dev/stdin (and (bytes? src.gv) (open-input-bytes src.gv))])
+                    (if (or (path? outfile) (string? outfile))
+                        (call-with-output-file* outfile #:exists 'truncate/replace
+                          (λ [[/dev/dotout : Output-Port]] : Bytes
+                            (fg-recon-exec/pipe #:stdin-log-level log-level
+                                                #:/dev/stdin /dev/stdin
+                                                #:/dev/stdout /dev/dotout
+                                                operation dot options)))
+
+                        (fg-recon-exec/pipe #:stdin-log-level log-level
+                                            #:/dev/stdin /dev/stdin
+                                            #:/dev/stdout outfile
+                                            operation dot options))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define gv-script-destination : (->* (Path-String Bytes) (Boolean #:dest-dirname String) (Option Path))

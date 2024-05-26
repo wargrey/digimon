@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "../../../digitama/graphviz.rkt")
+(require "../../../digitama/diagram/graphviz.rkt")
 (require "../../../digitama/system.rkt")
 
 (require "../parameter.rkt")
@@ -14,7 +14,6 @@
 (define make-dot-specs : (-> Info-Ref Wisemon-Specification)
   (lambda [info-ref]
     (define local-rootdir : Path (digimon-path 'zone))
-    (define local-stone : Path (digimon-path 'stone))
     
     (for/fold ([specs : Wisemon-Specification null])
               ([dot.gv (in-list (find-digimon-files dot-src-filter local-rootdir))])
