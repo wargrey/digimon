@@ -5,7 +5,8 @@
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
-(provide d2 $ $$ $$* handbook-image tamer-image graphviz graph.gv digraph.gv)
+(provide d2 d2-default-interval d2-default-inset-pixels d2-default-theme d2-default-layout d2-default-sketch? d2-default-appendix?)
+(provide $ $$ $$* handbook-image tamer-image graphviz graph.gv digraph.gv)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))

@@ -24,7 +24,8 @@
             [else (info-ref id mkdefval)]))))
 
 (define digimon-path : (-> (U Symbol Path-String) Path-String * Path)
-  (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)])
+  (let ([cache : (HashTable (Listof (U Path-String Symbol)) Path) (make-hash)]
+        [ns : (Option Namespace) #false])
     (lambda [path . paths]
       (define (map-path [digimon-zone : Path-String] [path : Symbol]) : Path
         (case path
@@ -33,7 +34,7 @@
           [else (build-path digimon-zone "stone" (symbol->immutable-string path))]))
       (define (prefab-path [digimon-zone : Path-String] [path : Symbol]) : Path-String
         (define fullpath : Symbol (string->symbol (string-append "digimon-" (symbol->immutable-string path))))
-        (define info-ref : (Option Info-Ref) (get-info/full digimon-zone #:bootstrap? #true))
+        (define info-ref : (Option Info-Ref) (get-info/full digimon-zone #:namespace ns #:bootstrap? #true))
         (cond [(eq? path 'zone) digimon-zone]
               [(not info-ref) (map-path digimon-zone path)]
               [else (let ([tail (info-ref fullpath (λ [] #false))])

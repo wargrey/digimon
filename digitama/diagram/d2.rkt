@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/symbol)
 (require racket/string)
 (require racket/path)
 
@@ -12,8 +11,14 @@
 (define-type D2-Theme-Datum (U Symbol Natural))
 (define-type D2-Theme (U D2-Theme-Datum (Pairof D2-Theme-Datum D2-Theme-Datum)))
 
-(define d2-default-interval : (Parameterof Integer) (make-parameter 1200))
-(define d2-default-padding-pixels : (Parameterof Integer) (make-parameter 8))
+(define d2-default-interval : (Parameterof Index) (make-parameter 1200))
+(define d2-default-inset-pixels : (Parameterof Index) (make-parameter 8))
+
+(define d2-default-layout : (Parameterof Symbol) (make-parameter 'elk))
+(define d2-default-theme : (Parameterof D2-Theme) (make-parameter 0))
+
+(define d2-default-sketch? : (Parameterof Boolean) (make-parameter #false))
+(define d2-default-appendix? : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define d2-render : (->* ((U Bytes Path-String) (Option Path-String))
@@ -24,9 +29,9 @@
                          Bytes)
   (lambda [#:outfile [outfile #false] #:target [target #false] #:scale [scale #false] #:theme [theme #false] #:inset [inset #false]
            #:interval [interval #false] #:timeout [timeout #false]
-           #:stdin-log-level [log-level #false] #:debug? [debug? #false]
-           #:sketch? [sketch? #true] #:center? [center? #true] #:bundle? [bundle? #true] #:appendix? [appendix? #false]
-           src.d2 d2.out [layout 'elk]]
+           #:sketch? [sketch? (d2-default-sketch?)] #:appendix? [appendix? (d2-default-appendix?)]
+           #:center? [center? #true] #:bundle? [bundle? #true] #:stdin-log-level [log-level #false] #:debug? [debug? #false]
+           src.d2 d2.out [layout (d2-default-layout)]]
     (define d2 (find-executable-path "d2"))
    
     (cond [(not d2) (error layout "D2 not found")]
@@ -36,7 +41,7 @@
                     (list (d2-options
                            (list (cons 'layout layout)
                                  (cons 'scale scale)
-                                 (cons 'pad (or inset (d2-default-padding-pixels)))
+                                 (cons 'pad (or inset (d2-default-inset-pixels)))
                                  (cons 'animate-interval (d2-interval interval (and d2.out (path-get-extension d2.out)))) ; SVG and GIF only, and stops others
                                  (cons 'timeout timeout)))
                           (d2-flags
@@ -45,7 +50,7 @@
                                  (cons 'center center?)
                                  (cons 'force-appendix appendix?) ; for forcing SVG adding appendix
                                  (cons 'debug debug?)))
-                          (if (not theme) null (d2-themes theme))
+                          (d2-themes (or theme (d2-default-theme)))
                           (if (not target) null (list "--target" (format "'~a'" target)))
                           (d2-iofile src.d2)
                           (d2-iofile d2.out)))
@@ -133,9 +138,10 @@
           [(hash-has-key? names theme) (list (format "--~a=~a" option (hash-ref names theme)))]
           [else null])))
 
-(define d2-themes : (-> D2-Theme (Listof String))
+(define d2-themes : (-> (Option D2-Theme) (Listof String))
   (lambda [themes]
-    (cond [(pair? themes) (append (d2-theme 'theme (car themes) d2-light-themes)
+    (cond [(not themes) null]
+          [(pair? themes) (append (d2-theme 'theme (car themes) d2-light-themes)
                                   (d2-theme 'dark-theme (cdr themes) d2-dark-themes))]
           [else (d2-theme 'theme themes d2-light-themes)])))
 
