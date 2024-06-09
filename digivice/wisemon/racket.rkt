@@ -2,8 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/path)
-(require racket/match)
 (require racket/symbol)
 
 (require typed/racket/unsafe)
@@ -11,6 +9,7 @@
 
 (require "parameter.rkt")
 
+(require "../../filesystem.rkt")
 (require "../../dtrace.rkt")
 (require "../../echo.rkt")
 
@@ -85,14 +84,13 @@
     (set! again? #false)
 
     (define (filter-verbose [info : String])
-      (match info
-        [(pregexp #px"checking:") (when (and verbose? (regexp-match? px.in info)) (traceln info))]
-        [(pregexp #px"compiling ") (set! again? #true)]
-        [(pregexp #px"done:") (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
-        [(pregexp #px"maybe-compile-zo starting") (traceln info)]
-        [(pregexp #px"(wrote|compiled|processing:|maybe-compile-zo finished)") '|Skip Task Endline|]
-        [(pregexp #px"(newer|skipping:)") (when (and verbose?) (traceln info))]
-        [_ (traceln info)]))
+      (cond [(regexp-match? #px"checking:" info) (when (and verbose? (regexp-match? px.in info)) (traceln info))]
+            [(regexp-match? #px"compiling " info) (set! again? #true)]
+            [(regexp-match? #px"done:" info) (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
+            [(regexp-match? #px"maybe-compile-zo starting" info) (traceln info)]
+            [(regexp-match? #px"(wrote|compiled|processing:|maybe-compile-zo finished)" info) '|Skip Task Endline|]
+            [(regexp-match? #px"(newer|skipping:)" info) (when (and verbose?) (traceln info))]
+            [else (traceln info)]))
 
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
@@ -117,30 +115,50 @@
     (compile-directory rootdir info-ref #:for-typesetting? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define at:require-kws : String "@(include-(section|extracted|previously-extracted|abstract)|require)")
+(define required-filename : String "[^\\s]+?[.](scrbl|rktl?)")
+(define nested-require-spec-behind : String "([(](\\w|-){1,16}\\s{0,4}){0,4}\"")
+(define nested-require-spec-ahead : String "[^]}]*")
+
+(define px.rkt-deps : PRegexp
+  (pregexp (string-append "(?<=[(]require\\s{0,4}"
+                          (string-append "(\"|" nested-require-spec-behind "))")
+                          "[^\\s]+?[.]rktl?"
+                          "(?=\"[^)]*[)]+)")))
+
+(define px.scrbl-deps : PRegexp
+  (pregexp (string-append #; lookbehind
+                          (string-append "(?<="
+                                         at:require-kws
+                                         (string-append "([{]|"
+                                                        "([[]" nested-require-spec-behind "))")
+                                         ")")
+                          
+                          required-filename
+
+                          #; lookahead
+                          (string-append "(?=" "\"?"
+                                         nested-require-spec-ahead
+                                         "[]}]"
+                                         ")"))))
+
 (define racket-smart-dependencies : (->* (Path) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
-             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
+             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (path-identity subpath))))
              (cond [(member subsrc memory) memory]
                    [else (scribble-smart-dependencies subsrc memory)]))
            (append memory (list (if (string? entry) (string->path entry) entry)))
-           (call-with-input-file* entry
-             (λ [[rktin : Input-Port]]
-               (regexp-match* #px"(?<=[(]require ([(]submod )?\").+?.rktl?(?=\"([)]| ))"
-                              rktin))))))
+           (call-with-input-file* entry (λ [[rktin : Input-Port]] (regexp-match* px.rkt-deps rktin))))))
 
 (define scribble-smart-dependencies : (->* (Path) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
-             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
+             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (path-identity subpath))))
              (cond [(member subsrc memory) memory]
-                   [(regexp-match? #px"[.]rkt$" subsrc) (racket-smart-dependencies subsrc memory)]
                    [else (scribble-smart-dependencies subsrc memory)]))
            (append memory (list entry))
-           (call-with-input-file* entry
-             (λ [[rktin : Input-Port]]
-               (regexp-match* #px"(?<=@(include-(section|extracted|previously-extracted|abstract)|require)[{[](([(]submod \")|\")?).+?.(scrbl|rktl?)(?=\"?[]}])"
-                              rktin))))))
+           (call-with-input-file* entry (λ [[rktin : Input-Port]] (regexp-match* px.scrbl-deps rktin))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; WARNING: parameters are thread specific in which these variables case cannot be shared by `racket-trace-log`

@@ -70,7 +70,7 @@
       (define/override (get-suffix) '#:who-cares #".wc")
       (define/override (install-file fn [content #f] #:private-name? [private-name? #t]) (void))
       (define/override (table-of-contents part ri) empty-block)
-      (define/override (local-table-of-contents part ri) empty-block)
+      (define/override (local-table-of-contents part ri style) empty-block)
 
       (define/override (render-part self ri)
         (extract-style-path (part-style self))

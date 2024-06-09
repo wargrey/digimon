@@ -121,7 +121,7 @@
                   (build-path (or drive (current-drive)) npath)]
                  [else (string->path npath)])]
 
-          ; `path-convention-type` may not be reliable if both `/` and `\` are mixed in the path value
+          ; `path-convention-type` might not be reliable if both `/` and `\` are mixed in the path value
           [else (path-normalize/system (some-system-path->string path) systype #:drive drive)])))
 
 (define find-root-relative-path : (-> (U Path-String Path-For-Some-System) Path-For-Some-System)
@@ -169,9 +169,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define path-identity : (-> (U Bytes Path-String Path-For-Some-System) Path)
   (lambda [path]
-    (cond [(string? path) (string->path path)]
-          [(path? path) path]
-          [(bytes? path) (bytes->path path)]
+    (cond [(string? path) (path-normalize/system path)]
+          [(path? path) (path-normalize/system path)]
+          [(bytes? path) (path-normalize/system (bytes->path path))]
           [else (path-normalize/system path)])))
 
 (define path-exists? : (-> Path-String Boolean)
