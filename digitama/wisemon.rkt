@@ -44,7 +44,7 @@
             (and (exn:fail? cause)
                  (exn-continuation-marks cause)))))
 
-(define wisemon-log-message : (->* (Symbol Log-Level Path String) (#:prerequisites (Listof Path)) #:rest Any Void)
+(define wisemon-log-message : (->* (Symbol Symbol Path String) (#:prerequisites (Listof Path)) #:rest Any Void)
   (lambda [name level target #:prerequisites [prerequisites null] msgfmt . argl]
     (dtrace-send name level (~string msgfmt argl) (cons target prerequisites) #true)))
 
