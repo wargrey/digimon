@@ -96,7 +96,8 @@
     [(_)
      (syntax/loc stx
        (begin (tamer-taming-start! scribble)
-              (module+ main (call-as-normal-termination tamer-prove))))]))
+              (module+ main
+                (call-as-normal-termination tamer-prove))))]))
 
 ;;; WARNING: @~cite cannot work across scrbls
 (define ~cite (lambda [bib . bibs] (apply bibtex-cite tamer-key-cite tamer-cite bib bibs)))
@@ -586,7 +587,7 @@
     [(_ (~alt (~optional (~seq #:label label) #:defaults ([label #'#false]))
               (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))
               (~optional (~seq #:style style) #:defaults ([style #''inset]))) ...
-        s-exps ...)
+        s:expr ...)
      (with-syntax ([(hidden-mods ...) #'hidden-requires])
        (syntax/loc stx
          (let ([this-story (tamer-story)]
@@ -606,7 +607,7 @@
               (if (handbook-stat-renderer? get)
 
                   ; Thus, for the stat renderer, we don't destory the taming zone
-                  (racketblock s-exps ...)
+                  (racketblock s ...)
 
                   ; Thus, for other rendering processes (which are rare), they
                   ;   creates their own zones in every REPL via `tamer-zone-ref`,
@@ -615,7 +616,7 @@
                     (dynamic-wind
                      (λ [] (examples #:label #false #:eval zeval #:hidden #:preserve-source-locations (require hidden-mods)) ... (void))
                      (λ [] (nested #:style style
-                                   (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s-exps ...)))
+                                   (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s ...)))
                      (λ [] (tamer-zone-destory this-story))))))))))]))
 
 (define-syntax (tamer-answer stx)
@@ -692,6 +693,7 @@
   (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
     (make-link-element style body `(,type ,tag))))
 
+; display summary for specs defined via LP and `tamer-note`ed in scribble
 (define tamer-smart-summary
   (lambda []
     (define this-story (tamer-story))
@@ -780,11 +782,10 @@
              [else (make-delayed-summary render% pthis infobase)])))))
 
 (define tamer-note
-  (lambda [example #:note [note margin-note] . notes]
+  (lambda [example #:note [note margin-note] #:no-summary? [no-summary? #false] #:issue-symbol [~symbol (default-spec-issue-symbol)] . notes]
     (define this-story (tamer-story))
-    (define ~symbol (default-spec-issue-symbol))
     (define raco-setup-forget-my-digimon (current-digimon))
-    
+
     (make-traverse-block
      (λ [get set!]
        (parameterize ([current-digimon raco-setup-forget-my-digimon])
@@ -824,8 +825,9 @@
               (define idx (add1 (length (car issues))))
               (define type (spec-issue-type issue))
               (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
-                                         (~a (~symbol type)) (racketkeywordfont ~ (italic (number->string idx)))
-                                         (racketcommentfont ~ (literal brief)))))
+                                         (~a (~symbol type))
+                                         ~ (racketkeywordfont (italic (number->string idx)))
+                                         ~ (racketcommentfont (literal brief)))))
               
               (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
                       (cons flow (vector-ref seed:info 1))))
@@ -845,12 +847,15 @@
             (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
                   [panic (hash-ref summary 'panic (λ [] 0))])
               (append (reverse (add-between flows (linebreak)))
-                      (list (linebreak) (linebreak)
-                            (nonbreaking (elem (string pin#)
-                                               ~ (if (= (+ misbehavior panic) 0)
-                                                     (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
-                                                     (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
-                                               ~ (seclink (tamer-story->tag (tamer-story)) ~ (string house-garden#))))))))))))))
+                      (if (not no-summary?)
+                          (list (linebreak) (linebreak)
+                                (nonbreaking
+                                 (elem (string pin#)
+                                       ~ (if (= (+ misbehavior panic) 0)
+                                             (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
+                                             (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
+                                       ~ (seclink htag ~ (string house-garden#)))))
+                          null))))))))))
 
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1]]

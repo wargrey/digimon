@@ -103,13 +103,13 @@
       [(todo) 'lightmagenta]
       [(panic) 'darkred])))
 
-(define spec-issue-moji : (-> Spec-Issue-Type (U Char String))
+(define spec-issue-emoji : (-> Spec-Issue-Type (U Char String))
   (lambda [type]
     (case type
       [(pass) green-heart#]
       [(misbehaved) broken-heart#]
       [(skip) arrow-heart#]
-      [(todo) bookmark#]
+      [(todo) sandglass#]
       [(panic) bomb#])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

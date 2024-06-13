@@ -42,5 +42,7 @@
   [blue-heart# #\U1F499]
   [green-heart# #\U1F49A]
   [yellow-heart# #\U1F49B]
-  [purple-heart# #\U1F49C])
+  [purple-heart# #\U1F49C]
+
+  [sandglass# #\U123F3])
 

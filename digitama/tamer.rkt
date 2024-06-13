@@ -37,28 +37,35 @@
   (syntax-case stx []
     [(_ story-sexp)
      (syntax/loc stx
-       (let ([modpath (path->string (if (pair? story-sexp) (cadr story-sexp) story-sexp))]
-             [literacy (path->string (digimon-path 'literacy))]
-             [tamer (path->string (digimon-path 'tamer))]
-             [village (path->string (digimon-path 'village))]
-             [zone (digimon-path 'zone)])
-         (cond [(string-prefix? modpath literacy) (substring modpath (add1 (string-length literacy)))]
-               [(string-prefix? modpath tamer) (substring modpath (add1 (string-length tamer)))]
-               [(string-prefix? modpath village) (substring modpath (add1 (string-length village)))]
-               [else (path->string (find-relative-path zone modpath))])))]))
+       (path->string
+        (find-relative-path (digimon-path 'zone)
+                            (tamer-story->file-path story-sexp))))]))
 
 (define tamer-story->modpath
   (lambda [story-path]
     (cond [(tamer-story-disable-submodule) story-path]
           [else `(submod ,story-path ,(tamer-story-submodule-name))])))
 
+(define tamer-story->file-path
+  (lambda [story-modpath]
+    (if (pair? story-modpath) (cadr story-modpath) story-modpath)))
+
+(define tamer-story->tamer-modpath
+  (lambda [story-modpath]
+    (define htag (tamer-story->tag story-modpath))
+    (define modpath
+      (cond [(string-prefix? htag "literacy") (digimon-path 'literacy "literacy.rkt")]
+            [(string-prefix? htag "tamer") (digimon-path 'tamer "tamer.rkt")]
+            [else #false]))
+
+    (or (and modpath (file-exists? modpath) modpath)
+        (collection-file-path "tamer.rkt" "digimon"))))
+
 (define tamer-story->module
-  (lambda [story [use-tamer? #true]]
+  (lambda [story [use-tamer-modpath? #true]]
     (cond [(module-declared? story #true) story]
-          [(not use-tamer?) #false]
-          [(let ([tamer.rkt (build-path (digimon-path 'tamer) "tamer.rkt")])
-             (and (file-exists? tamer.rkt) tamer.rkt)) => values]
-          [else (collection-file-path "tamer.rkt" "digimon")])))
+          [(or use-tamer-modpath?) (tamer-story->tamer-modpath story)]
+          [else #false])))
 
 (define tamer-resource-files
   (lambda [dirname basename .res]
@@ -79,7 +86,7 @@
 (define tamer-record-story
   (lambda [name unit]
     (define htag (tamer-story->tag (tamer-story)))
-
+    
     (hash-set! handbook-stories htag
                (append (hash-ref handbook-stories htag null)
                        (list (λ [] unit))))
@@ -98,7 +105,8 @@
   (lambda [story lang+modules private-modules]
     (define tamer-module (tamer-story->module story (not (pair? lang+modules))))
 
-    (parameterize ([exit-handler (λ [retcode]
+    (parameterize ([sandbox-propagate-exceptions #true]
+                   [exit-handler (λ [retcode]
                                    (error 'tamer-repl "[fatal] ~a unexpectedly escaped from the Racket Virtual Machine!"
                                           (tamer-story->tag story)))])
       (if (and tamer-module)

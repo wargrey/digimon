@@ -72,7 +72,7 @@
 (define default-spec-handler : (Parameterof (-> Symbol Spec-Feature Any)) (make-parameter (λ [[id : Symbol] [spec : Spec-Feature]] (spec-prove spec))))
 (define default-spec-behavior-prove : (Parameterof Spec-Behavior-Prove) (make-parameter spec-behavior-prove))
 (define default-spec-issue-fgcolor : (Parameterof Spec-Issue-Fgcolor) (make-parameter spec-issue-fgcolor))
-(define default-spec-issue-symbol : (Parameterof Spec-Issue-Symbol) (make-parameter spec-issue-moji))
+(define default-spec-issue-symbol : (Parameterof Spec-Issue-Symbol) (make-parameter spec-issue-emoji))
 
 (define default-spec-no-timing-info : (Parameterof Boolean) (make-parameter #false))
 (define default-spec-no-location-info : (Parameterof Boolean) (make-parameter #false))
