@@ -24,6 +24,7 @@
 (define tamer-story-disable-submodule (make-parameter #false))
 (define tamer-story-submodule-name (make-parameter 'tamer))
 
+(define tamer-story-propagate-exceptions (make-parameter #true))
 (define tamer-story-lang+modules (make-parameter null))
 (define tamer-story-private-modules (make-parameter null))
 (define tamer-index-story (make-parameter (cons 0 #false)))
@@ -105,7 +106,7 @@
   (lambda [story lang+modules private-modules]
     (define tamer-module (tamer-story->module story (not (pair? lang+modules))))
 
-    (parameterize ([sandbox-propagate-exceptions #true]
+    (parameterize ([sandbox-propagate-exceptions (tamer-story-propagate-exceptions)]
                    [exit-handler (λ [retcode]
                                    (error 'tamer-repl "[fatal] ~a unexpectedly escaped from the Racket Virtual Machine!"
                                           (tamer-story->tag story)))])

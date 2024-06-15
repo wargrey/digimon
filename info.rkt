@@ -5,7 +5,8 @@
 
 (define build-deps '("scribble-lib" "racket-doc"))
 (define deps '("base" "gui-lib" "typed-racket-lib" "typed-racket-more"
-                      "racket-index" "sandbox-lib" "scribble-lib" "math-lib"))
+                      "racket-index" "sandbox-lib" "scribble-lib" "math-lib"
+                      "at-exp-lib"))
 
 (define version "1.0")
 (define pkg-authors '(wargrey))

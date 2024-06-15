@@ -1,6 +1,6 @@
 #lang racket
 
-(provide (all-defined-out) tamer-story-disable-submodule tamer-story-submodule-name)
+(provide (all-defined-out) tamer-story-disable-submodule tamer-story-submodule-name tamer-story-propagate-exceptions)
 (provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
@@ -11,7 +11,7 @@
 
 (provide (except-out (all-from-out racket) abstract))
 (provide (except-out (all-from-out scribble/manual) title author))
-(provide (all-from-out scribble/core scriblib/autobib scribble/example))
+(provide (all-from-out scribble/core scribble/decode scriblib/autobib scribble/example))
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
 (provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
@@ -33,6 +33,7 @@
 
 (require scribble/lp2)
 (require scribble/core)
+(require scribble/decode)
 (require scribble/example)
 (require scribble/manual)
 (require scriblib/autobib)
