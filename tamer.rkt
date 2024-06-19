@@ -1,10 +1,11 @@
 #lang racket
 
 (provide (all-defined-out) tamer-story-disable-submodule tamer-story-submodule-name tamer-story-propagate-exceptions)
-(provide tamer-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
+(provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
+(provide tamer-filebox-line-number-space)
 (provide d2 d2-default-interval d2-default-inset-pixels d2-default-theme d2-default-layout d2-default-sketch? d2-default-appendix?)
 (provide $ $$ $$* handbook-image tamer-image graphviz graph.gv digraph.gv)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
@@ -539,7 +540,7 @@
     (define col-size (length table-head))
     (define col-properties (make-list col-size 'left))
     (define cel-properties (make-list col-size '()))
-     
+    
     (tabular #:sep (hspace gap)
              #:style 'centered
              #:row-properties '(bottom-border ())
@@ -709,7 +710,7 @@
       (define issues (get tamer-scribble-story-issues tamer-empty-issues))
 
       (parameterize ([current-digimon raco-setup-forget-my-digimon])
-        (nested #:style tamer-boxed-style
+        (nested #:style (handbook-boxed-style)
                 (filebox (if (module-path? this-story)
                              (italic (seclink "tamer-book" (string open-book#)) ~
                                      (~a "Behaviors in " (tamer-story->tag this-story)))
@@ -859,7 +860,7 @@
                           null))))))))))
 
 (define tamer-racketbox
-  (lambda [path #:line-start-with [line0 1]]
+  (lambda [path #:line-start-with [line0 1] #:line-number-space [gap (tamer-filebox-line-number-space)]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -871,10 +872,11 @@
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
                                   (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
+                                             #:line-number-sep gap
                                              (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
 
 (define tamer-racketbox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -908,12 +910,12 @@
                         (read-next lang (add1 line0) contents end)])))))
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
-                                  (codeblock #:line-numbers line0 #:keep-lang-line? #false
+                                  (codeblock #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
                                              (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                           (string-join contents (string #\newline))))))))))
 
 (define tamer-filebox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -945,7 +947,7 @@
                         (read-next (add1 line0) contents end)])))))
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
-                                  (codeblock #:line-numbers line0 #:keep-lang-line? #true
+                                  (codeblock #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
                                              (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                           (string-join contents (string #\newline))))))))))
 

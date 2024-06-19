@@ -32,6 +32,8 @@
 
 (define tamer-endnote (make-parameter void))
 (define tamer-endnote-section (make-parameter void))
+
+(define tamer-filebox-line-number-space (make-parameter 2))
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-story->tag stx)
@@ -199,14 +201,18 @@
      (hash-set! indices index-type local-tags)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tamer-boxed-style (make-style "boxed" (list 'command)))
-
+(define handbook-boxed-style
+  (let ([s (make-style "boxed" (list 'command))])
+    (case-lambda
+      [() s]
+      [(path) (make-style "boxed" (list 'command path))])))
+  
 (define handbook-nested-filebox
   (lambda [latex? /path/file block]
-    (nested #:style tamer-boxed-style
+    (nested #:style (handbook-boxed-style /path/file)
             (filebox (if (not latex?)
                          (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                         (italic (path->string (tr-if-path /path/file))))
+                         (smaller (italic (path->string (tr-if-path /path/file)))))
                      block))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
