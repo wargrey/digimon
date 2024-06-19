@@ -1,6 +1,7 @@
 #lang racket
 
-(provide (all-defined-out) tamer-story-disable-submodule tamer-story-submodule-name tamer-story-propagate-exceptions)
+(provide (all-defined-out))
+(provide tamer-story-disable-submodule tamer-story-submodule-name tamer-story-propagate-exceptions)
 (provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
@@ -23,6 +24,9 @@
 (provide (rename-out [tamer-deftech tamer-defterm]))
 (provide (rename-out [tamer-deftech handbook-deftech]))
 (provide (rename-out [tamer-deftech handbook-defterm]))
+(provide (rename-out [tamer-filebox/region tamer-filebox]))
+(provide (rename-out [tamer-filebox/region handbook-filebox]))
+(provide (rename-out [tamer-filebox/region handbook-filebox/region]))
 (provide (rename-out [handbook-acknowledgement handbook-acknowledgment]))
 
 (provide (rename-out [dot? graphviz?]))
