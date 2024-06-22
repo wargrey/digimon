@@ -342,9 +342,9 @@
                 #:style style
                 pre-contents)))
 
-(define handbook-event
+(define handbook-scene
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsubsection #:tag (or tag (generate-immutable-string 'event))
+    (subsubsection #:tag (or tag (generate-immutable-string 'scene))
                    #:style style
                    pre-contents)))
 
