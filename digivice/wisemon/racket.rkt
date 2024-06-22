@@ -115,6 +115,7 @@
     (compile-directory rootdir info-ref #:for-typesetting? #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; TODO: deal with sources of Literate Programming suffixed with `.rkt`
 (define at:require-kws : String "@(include-(section|extracted|previously-extracted|abstract)|require)")
 (define required-filename : String "[^\\s]+?[.](scrbl|rktl?)")
 (define nested-require-spec-behind : String "([(](\\w|-){1,16}\\s{0,4}){0,4}\"")
@@ -147,8 +148,9 @@
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
              (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (path-identity subpath))))
              (cond [(member subsrc memory) memory]
-                   [else (scribble-smart-dependencies subsrc memory)]))
-           (append memory (list (if (string? entry) (string->path entry) entry)))
+                   [(regexp-match? #px"[.]scrbl$" subpath) (scribble-smart-dependencies subsrc memory)]
+                   [else (racket-smart-dependencies subsrc memory)]))
+           (append memory (list entry))
            (call-with-input-file* entry (λ [[rktin : Input-Port]] (regexp-match* px.rkt-deps rktin))))))
 
 (define scribble-smart-dependencies : (->* (Path) ((Listof Path)) (Listof Path))
@@ -156,6 +158,7 @@
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
              (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (path-identity subpath))))
              (cond [(member subsrc memory) memory]
+                   [(regexp-match? #px"[.]rkt.?$" subpath) (racket-smart-dependencies subsrc memory)]
                    [else (scribble-smart-dependencies subsrc memory)]))
            (append memory (list entry))
            (call-with-input-file* entry (λ [[rktin : Input-Port]] (regexp-match* px.scrbl-deps rktin))))))
