@@ -8,7 +8,6 @@
 ;;; https://drafts.csswg.org/css-egg/#traditional-time
 
 (require racket/math)
-
 (require racket/flonum)
 (require racket/string)
 
@@ -239,5 +238,3 @@
 
 (define-string->dimension string->integer-dimension : Integer #:-> string->integer #:with 1)
 (define-string->dimension string->natural-dimension : Natural #:-> string->natural #:with 1)
-
-(string->dimension* "1000s")

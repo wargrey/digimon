@@ -4,6 +4,7 @@
 
 (require "../problem.rkt")
 
+(require "../../collection.rkt")
 (require "../../spec/dsl.rkt")
 (require "../../spec/behavior.rkt")
 (require "../../spec/expect/exec.rkt")

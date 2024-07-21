@@ -44,5 +44,5 @@
   [yellow-heart# #\U1F49B]
   [purple-heart# #\U1F49C]
 
-  [sandglass# #\U123F3])
+  [sandglass# #\U23F3])
 

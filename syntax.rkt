@@ -42,7 +42,7 @@
 
   ;;; NOTE:
   ; Speaking of `ReArgument`, empolying `Void` as the indication just works fine.
-  ;   if working with field accessors, typed racket will union the field type with the `unsafe-undefiend`,
+  ;   if working with field accessors, typed racket will union the field type with the `unsafe-undefined`,
   ;   thus, it won't make it more efficient than as with `Void`.
   ; So, giving up the `ReArgument*` for reducing the time of type checking.
   (define make-keyword-optional-arguments

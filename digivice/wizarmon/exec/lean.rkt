@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/vector)
+(require racket/path)
 
 (require "../parameter.rkt")
 
@@ -15,6 +16,7 @@
 (require "../../../digitama/spec/behavior.rkt")
 (require "../../../digitama/spec/expect/exec.rkt")
 
+(require "../../../digitama/collection.rkt")
 (require "../../../digitama/toolchain/problem.rkt")
 
 (require "../../../digitama/minimal/dtrace.rkt")
@@ -25,8 +27,13 @@
   (lambda [main.lean lang-name]
     (define lean : (Option Path) (lean-interpreter main.lean))
 
+    (define maybe-info : (Option Pkg-Info)
+      (single-collection-info #:bootstrap? #true
+                              (or (path-only main.lean)
+                                  (current-directory))))
+
     (if (and lean)
-        (let ([problem-info (read-lean-problem-info main.lean)]
+        (let ([problem-info (problem-info-merge (read-lean-problem-info main.lean) (and maybe-info (read-problem-info main.lean maybe-info)))]
               [cmd-argv (current-command-line-arguments)])    
           (if (not problem-info)
               (shell-env-lean null lean (path->string main.lean) cmd-argv #false)

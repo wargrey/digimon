@@ -1,7 +1,7 @@
 /**
  * shrink the font-size of chunks:
- *    a. means <a/>
- *   span. means plaintext or broken <a/>
+ *      `a` for <a/>
+ *   `span` for plaintext or broken <a/>
  */
 a.RktValDef, a.RktValLink, a.RktStxDef, a.RktStxLink, a.RktSymDef,
 span.RktValDef, span.RktValLink, span.RktStxDef, span.RktStxLink,
@@ -42,4 +42,15 @@ blockquote.refcontent {
 ul.HBdigimon, li.HBdigimonItem {
     list-style-type: none;
     margin-left: 0;
+}
+
+/** for my own extension, restore the fontsize if used to style the body of articles */
+a.bodyValLink, a.bodyStxLink, a.bodyValDef, a.bodyStxDef,
+span.bodyValLink, span.bodyStxLink, span.bodySym, span.bodyVal, span.bodyPn {
+    font-size: medium;
+}
+
+a.bodyCmt, a.bodyOut, a.bodyErr, a.bodyRes,
+span.bodyCmt, span.bodyOut, span.bodyErr, span.bodyRes {
+    font-size: medium;
 }

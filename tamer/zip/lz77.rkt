@@ -192,7 +192,7 @@
                                          (lz77-run-on-text src options strategies run))]))))]
                     [else (lz77-run-on-text src.txt options strategies run)])
               
-              (dtrace-datum-notice eof)
+              (dtrace-sentry-notice #:end? #true eof "")
               (thread-wait tracer))))))
 
 (define make-zip-log-trace : (-> (-> Void))

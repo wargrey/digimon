@@ -202,18 +202,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-boxed-style
-  (let ([s (make-style "boxed" (list 'command))])
+  (let* ([props (list 'multicommand 'never-indents)]
+         [boxed (make-style "boxed" props)])
     (case-lambda
-      [() s]
-      [(path) (make-style "boxed" (list 'command path))])))
+      [() boxed]
+      [(path) (make-style "boxed" (cons path props))])))
   
 (define handbook-nested-filebox
   (lambda [latex? /path/file block]
-    (nested #:style (handbook-boxed-style /path/file)
-            (filebox (if (not latex?)
-                         (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                         (smaller (italic (path->string (tr-if-path /path/file)))))
-                     block))))
+    (centered
+     (if (not latex?)
+         (nested #:style (handbook-boxed-style /path/file)
+                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
+                          block))
+         (nested #:style (handbook-boxed-style /path/file)
+                 (filebox (smaller (italic (path->string (tr-if-path /path/file))))
+                          block))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define section-title

@@ -9,7 +9,6 @@
 
 (require racket/format)
 (require racket/string)
-(require racket/list)
 
 (require "../../tongue.rkt")
 (require "backend.rkt")

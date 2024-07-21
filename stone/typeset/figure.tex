@@ -5,12 +5,7 @@
 \@ifundefined{belowcaptionskip}{\newlength{\belowcaptionskip}}{}
 \makeatother
 
-\newcommand{\JFPLegend}[1]{~
-
-                            \hrule width \hsize height .33pt
-                            \vspace{4pt}
-                            \legend{#1}}
-
+\newcommand{\JFPLegend}[1]{\hrule width \hsize height .33pt \vspace{4pt} \legend{#1}}
 \newcommand{\LegendContinued}[1]{\Legend{#1}}
 
 \newcommand{\FigureTarget}[2]{#1}
@@ -38,4 +33,3 @@
 % for acmart sigchi-a format
 \newenvironment{Marginfigure}{\begin{Mfigure}\item}{\end{Mfigure}}
 \newenvironment{Mfigure}{\noindent\begin{list}{}{}}{\end{list}}
-

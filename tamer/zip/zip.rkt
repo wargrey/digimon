@@ -178,7 +178,7 @@
                   (when (file-exists? target_zip)
                     (zip-display-tail-info target_zip 252))))
 
-              (dtrace-datum-notice eof)
+              (dtrace-sentry-notice #:end? #true eof "")
               (thread-wait tracer))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

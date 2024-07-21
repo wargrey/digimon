@@ -168,7 +168,7 @@
                      
                      (if (bytes=? txt #"") (fixed-run) (tree-run txt))
                      
-                     (dtrace-datum-notice eof)
+                     (dtrace-sentry-notice #:end? #true eof "")
                      (thread-wait tracer)))))))
 
 (define make-zip-log-trace : (-> (-> Void))

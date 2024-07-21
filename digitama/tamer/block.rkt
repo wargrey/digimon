@@ -225,8 +225,8 @@
                (make-attributes '((x-target-lift . "Figure")))
                (make-js-addition (tamer-block-source "figure.js")))))
 
-(define marginfigure-style  (make-style "marginfigure" figure-style-extras))
-(define herefigure-style  (make-style "Herefigure" figure-style-extras))
+(define marginfigure-style (make-style "marginfigure" figure-style-extras))
+(define herefigure-style (make-style "Herefigure" figure-style-extras))
 (define figure-style (make-style "Figure" figure-style-extras))
 (define figuremultiwide-style (make-style "FigureMultiWide" figure-style-extras))
 

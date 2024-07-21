@@ -1,13 +1,13 @@
 \usepackage{multicol}
 
 \hypersetup{
-     pdffitwindow=true,                  % window fit to page when opened
-     colorlinks=true,                    % false: boxed links; true: colored links
-     linkcolor=cyan,                     % color of internal links (change box color with linkbordercolor)
-     citecolor=green,                    % color of links to bibliography
-     filecolor=magenta,                  % color of file links
-     urlcolor=blue,                      % color of external links
-     pdfauthor={WarGrey},                % derive pdfinfo from \title and \author
+     pdffitwindow=true,   % window fit to page when opened
+     colorlinks=true,     % false: boxed links; true: colored links
+     linkcolor=cyan,      % color of internal links (change box color with linkbordercolor)
+     citecolor=green,     % color of links to bibliography
+     filecolor=magenta,   % color of file links
+     urlcolor=blue,       % color of external links
+     pdfauthor={WarGrey}, % derive pdfinfo from \title and \author
 }
 
 \setcounter{secnumdepth}{3}
@@ -165,7 +165,7 @@
 % NOTE: minipage does not break page
 \newcommand{\ColorBox}[2]{
   \colorbox{#2}{
-    \begin{minipage}[c][][c]{0.965\linewidth}
+    \begin{minipage}[c][][c]{\linewidth}
       \PlainBox{#1}
     \end{minipage}
   }
@@ -179,3 +179,30 @@
 \def\texMathInline#1{\ensuremath{#1}}
 \def\texMathDisplay#1{\begin{align*}#1\end{align*}}
 \def\texMathArray#1{\begin{align}#1\end{align}}
+
+% for my own extension, restore the fontsize if used to style the body of articles
+\newcommand{\bodyKw}[1]{{\SColorize{black}{\Scribtexttt{#1}}}}
+\newcommand{\bodyStxLink}[1]{\bodyKw{#1}}
+\newcommand{\bodyStxDef}[1]{\bodyStxLink{#1}}
+\newcommand{\bodyCmt}[1]{\inColor{CommentColor}{#1}}
+\newcommand{\bodyPn}[1]{\inColor{ParenColor}{#1}}
+\newcommand{\bodyInBG}[1]{\inColor{ParenColor}{#1}}
+\newcommand{\bodySym}[1]{\inColor{IdentifierColor}{#1}}
+\newcommand{\bodySymDef}[1]{\bodySym{#1}}
+\newcommand{\bodyVal}[1]{\inColor{ValueColor}{#1}}
+\newcommand{\bodyValLink}[1]{\inColor{blue}{#1}}
+\newcommand{\bodyValDef}[1]{\bodyValLink{#1}}
+\newcommand{\bodyModLink}[1]{\inColor{blue}{#1}}
+\newcommand{\bodyRes}[1]{\inColor{ResultColor}{#1}}
+\newcommand{\bodyOut}[1]{\inColor{OutputColor}{#1}}
+\newcommand{\bodyMeta}[1]{\inColor{IdentifierColor}{#1}}
+\newcommand{\bodyMod}[1]{\inColor{black}{#1}}
+\newcommand{\bodyRdr}[1]{\inColor{black}{#1}}
+\newcommand{\bodyVarCol}[1]{\inColor{IdentifierColor}{#1}}
+\newcommand{\bodyVar}[1]{{\bodyVarCol{\textsl{#1}}}}
+\newcommand{\bodyErrCol}[1]{\inColor{red}{#1}}
+\newcommand{\bodyErr}[1]{{\bodyErrCol{\textrm{\textit{#1}}}}}
+\newcommand{\bodyOpt}[1]{#1}
+\newcommand{\bodyIn}[1]{\incolorbox{LightGray}{\bodyInBG{#1}}}
+% \newcommand{\highlighted}[1]{\colorbox{PaleBlue}{\hspace{-0.5ex}\bodyInBG{#1}\hspace{-0.5ex}}}
+\newenvironment{bodyBlk}{}{}

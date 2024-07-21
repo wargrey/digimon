@@ -53,7 +53,9 @@
                      env)))
 
             (parameterize ([current-environment-variables (or self-env (current-environment-variables))])
-              (define problem-info : (Option Problem-Info) (read-clang-problem-info path.c))
+              (define problem-info : (Option Problem-Info)
+                (problem-info-merge (read-clang-problem-info path.c)
+                                    (and maybe-info (read-problem-info path.c maybe-info))))
               (define cmd-argv : (Vectorof String) (current-command-line-arguments))
               (if (not problem-info)
                   (shell-exec-a.out (car targets) cmd-argv #false)

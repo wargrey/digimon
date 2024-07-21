@@ -69,7 +69,7 @@
                                               [else (let-values ([(_ rest-entries unknowns) (zip-extract* file.zip entries hexdump)])
                                                       (length unknowns))]))]))
                              
-                             (dtrace-datum-notice eof)
+                             (dtrace-sentry-notice #:end? #true eof "")
                              (thread-wait tracer))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -85,7 +85,7 @@
 
                   (zip-display-tail-info target.zip fgc)))
 
-              (dtrace-datum-notice eof)
+              (dtrace-sentry-notice #:end? #true eof "")
               (thread-wait tracer))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

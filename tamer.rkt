@@ -16,8 +16,8 @@
 (provide (all-from-out scribble/core scribble/decode scriblib/autobib scribble/example))
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
-(provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/texbook.rkt" "digitama/tamer/manual.rkt"))
-(provide (all-from-out "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/theme.rkt"))
+(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (provide (rename-out [note handbook-footnote]))
@@ -57,6 +57,7 @@
 (require "digitama/tamer/backend.rkt")
 (require "digitama/tamer/citation.rkt")
 (require "digitama/tamer/manual.rkt")
+(require "digitama/tamer/theme.rkt")
 (require "digitama/tamer/block.rkt")
 (require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
@@ -135,6 +136,7 @@
               (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
+              (~optional (~seq #:figure image) #:defaults ([image #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
               (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
               (~optional (~seq #:document-options options) #:defaults ([options #'#false]))
@@ -160,7 +162,9 @@
                                  (cond [(not subtitle) null]
                                        [else (list (linebreak)
                                                    (elem #:style subtitle-style
-                                                         subtitle))]))))
+                                                         subtitle))])
+                                 (cond [(not image) null]
+                                       [else (list (linebreak) (linebreak) image)]))))
                (cond [(not alt-author) (map author (pkg-author-contents))]
                      [(procedure? alt-author) (map alt-author (pkg-author-contents))]
                      [else (for/list ([a (if (list? alt-author) (in-list alt-author) (in-value alt-author))])
@@ -875,12 +879,13 @@
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
-                                  (codeblock #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
-                                             #:line-number-sep gap
-                                             (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
+                                  (codeblock0 #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
+                                              #:line-number-sep gap
+                                              (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
 
 (define tamer-racketbox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false]
+                #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -914,12 +919,13 @@
                         (read-next lang (add1 line0) contents end)])))))
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
-                                  (codeblock #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
-                                             (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                          (string-join contents (string #\newline))))))))))
+                                  (codeblock0 #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
+                                              (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                           (string-join contents (string #\newline))))))))))
 
 (define tamer-filebox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
+                #:line-number-space [gap (tamer-filebox-line-number-space)]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -951,9 +957,9 @@
                         (read-next (add1 line0) contents end)])))))
          (handbook-nested-filebox (handbook-latex-renderer? get)
                                   /path/file
-                                  (codeblock #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
-                                             (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                          (string-join contents (string #\newline))))))))))
+                                  (codeblock0 #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
+                                              (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                           (string-join contents (string #\newline))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false

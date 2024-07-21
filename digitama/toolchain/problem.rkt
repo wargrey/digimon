@@ -6,7 +6,9 @@
 
 (require "../../filesystem.rkt")
 (require "../../string.rkt")
+(require "../../token.rkt")
 
+(require "../collection.rkt")
 (require "../minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -30,6 +32,20 @@
   #:type-name Problem-Info
   #:transparent)
 
+(define problem-info-merge : (-> (Option Problem-Info) (Option Problem-Info) (Option Problem-Info))
+  (lambda [master additional]
+    (cond [(not additional) master]
+          [(not master) additional]
+          [else (let ([desc (problem-info-description master)]
+                      [args (problem-info-arguments master)]
+                      [results (problem-info-results master)])
+                  (make-problem-info (or (problem-info-title master) (problem-info-title additional))
+                                     (if (null? desc) (problem-info-description additional) desc)
+                                     (if (null? args) (problem-info-arguments additional) args)
+                                     (if (null? results) (problem-info-results additional) results)
+                                     (append (problem-info-specs master) (problem-info-specs additional))
+                                     (problem-info-attachment master)))])))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define problem-topic-name : Symbol 'spec)
 
@@ -47,6 +63,31 @@
       (dtrace-debug "@~a:" 'output)
       (for ([r (in-list (problem-info-results pinfo))])
         (dtrace-note "~a" r)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define read-problem-info : (-> Path Pkg-Info (Option Problem-Info))
+  (lambda [src pi]
+    (define info-ref (pkg-info-ref pi))
+    (define maybe-rootdir (info-ref 'tamer-spec-iofile-rootdir (λ [] #false)))
+    (define maybe-suffix (info-ref 'tamer-spec-iofile-suffix (λ [] #false)))
+    (define maybe-sep (info-ref 'tamer-spec-iofile-stem-separator (λ [] #false)))
+
+    (and (string? maybe-rootdir)
+         (let* ([rootdir (path-normalize/system maybe-rootdir)]
+                [suffix (if (bytes? maybe-suffix) maybe-suffix #".spec")]
+                [sep (and (non-empty-string? maybe-sep) maybe-sep)]
+                [basename (path->string (assert (file-name-from-path src)))]
+                [spec (build-path (pkg-info-zone pi) rootdir (path-replace-extension (if (and sep) (car (string-split basename sep)) basename) suffix))])
+           (and (file-exists? spec)
+                (let*-values ([(body) (file->lines spec)]
+                              [(args results rest) (problem-description-split-input-output body)]
+                              [(specs description) (problem-description-split-spec spec rest)])
+                  (and (pair? specs)
+                       (cond [(null? description) (make-problem-info #false null args results specs #false)]
+                             [(null? (cdr description)) (make-problem-info (car description) null args results specs #false)]
+                             [(string-blank? (cadr description)) (make-problem-info (car description) (cddr description) args results specs #false)]
+                             [else (for-each displayln description)
+                                   (make-problem-info #false description args results specs #false)]))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define problem-description-split-input-output : (-> (Listof String) (Values (Listof String) (Listof String) (Listof String)))

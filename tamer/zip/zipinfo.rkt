@@ -53,7 +53,7 @@
       (exit (time** (let ([tracer (thread (make-zip-log-trace))])
                       (with-handlers ([exn:fail? (λ [[e : exn:fail]] (dtrace-exception e #:brief? #false))])
                         (zipinfo options file.zip))
-                      (dtrace-datum-notice eof)
+                      (dtrace-sentry-notice #:end? #true eof "")
                       (thread-wait tracer)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

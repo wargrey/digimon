@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/vector)
+(require racket/path)
 
 (require "../parameter.rkt")
 
@@ -15,6 +16,7 @@
 (require "../../../digitama/spec/behavior.rkt")
 (require "../../../digitama/spec/expect/exec.rkt")
 
+(require "../../../digitama/collection.rkt")
 (require "../../../digitama/toolchain/problem.rkt")
 
 (require "../../../digitama/minimal/dtrace.rkt")
@@ -31,9 +33,14 @@
 (define shell-python : (-> Path Symbol Natural)
   (lambda [mod.py lang-name]
     (define python : (Option Path) (python-interpreter mod.py))
+    
+    (define maybe-info : (Option Pkg-Info)
+      (single-collection-info #:bootstrap? #true
+                              (or (path-only mod.py)
+                                  (current-directory))))
 
     (if (and python)
-        (let ([problem-info (read-python-problem-info mod.py)]
+        (let ([problem-info (problem-info-merge (read-python-problem-info mod.py) (and maybe-info (read-problem-info mod.py maybe-info)))]
               [cmd-argv (current-command-line-arguments)])    
           (if (not problem-info)
               (shell-env-python null python (path->string mod.py) cmd-argv #false)

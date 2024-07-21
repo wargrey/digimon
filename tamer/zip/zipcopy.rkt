@@ -34,7 +34,7 @@
                 (time** #:title 'zipcopy
                         (zip-copy src.zip entries dest.zip)))
 
-              (dtrace-datum-notice eof)
+              (dtrace-sentry-notice #:end? #true eof "")
               (thread-wait tracer))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
