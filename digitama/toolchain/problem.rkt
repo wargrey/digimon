@@ -75,7 +75,7 @@
     (and (string? maybe-rootdir)
          (let* ([rootdir (path-normalize/system maybe-rootdir)]
                 [suffix (if (bytes? maybe-suffix) maybe-suffix #".spec")]
-                [sep (and (non-empty-string? maybe-sep) maybe-sep)]
+                [sep (and (or (non-empty-string? maybe-sep) (regexp? maybe-sep)) maybe-sep)]
                 [basename (path->string (assert (file-name-from-path src)))]
                 [spec (build-path (pkg-info-zone pi) rootdir (path-replace-extension (if (and sep) (car (string-split basename sep)) basename) suffix))])
            (and (file-exists? spec)
