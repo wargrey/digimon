@@ -25,3 +25,12 @@
   (case-lambda
     [(w) (~length w)]
     [(w h) (let ([width (~length w)]) (values width (~length h width)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (N) list->4:values : (-> (Listof N) N (Values N N N N))
+  (lambda [ls defval]
+    (cond [(null? ls) (values defval defval defval defval)]
+          [(null? (cdr ls)) (let ([top (car ls)]) (values top top top top))]
+          [(null? (cddr ls)) (let ([top (car ls)] [right (cadr ls)]) (values top right top right))]
+          [(null? (cdddr ls)) (let ([top (car ls)] [right (cadr ls)] [bottom (caddr ls)]) (values top right bottom right))]
+          [else (values (car ls) (cadr ls) (caddr ls) (cadddr ls))])))
