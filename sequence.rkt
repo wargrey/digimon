@@ -13,8 +13,8 @@
           [(null? (cdddr ls)) (let ([top (car ls)] [right (cadr ls)] [bottom (caddr ls)]) (values top right bottom right))]
           [else (values (car ls) (cadr ls) (caddr ls) (cadddr ls))])))
 
-(define #:forall (T) list->n:vector : (case-> [(Pairof T (Listof T)) Index -> (Vectorof T)]
-                                              [(Listof T) Index T -> (Vectorof T)])
+(define #:forall (T) list->n:vector : (case-> [(Pairof T (Listof T)) Natural -> (Vectorof T)]
+                                              [(Listof T) Natural T -> (Vectorof T)])
   (case-lambda
     [(src total)
      (for/vector : (Vectorof T) #:length total #:fill (last src)
@@ -23,8 +23,8 @@
      (for/vector : (Vectorof T) #:length total #:fill supplement
        ([datum (in-list src)]) datum)]))
 
-(define #:forall (T D) list->n:vector* : (case-> [(Pairof T (Listof T)) Index (-> T D) -> (Vectorof D)]
-                                                 [(Listof T) Index D (-> T D) -> (Vectorof D)])
+(define #:forall (T D) list->n:vector* : (case-> [(Pairof T (Listof T)) Natural (-> T D) -> (Vectorof D)]
+                                                 [(Listof T) Natural D (-> T D) -> (Vectorof D)])
   (case-lambda
     [(src total ->v)
      (for/vector : (Vectorof D) #:length total #:fill (->v (last src))
