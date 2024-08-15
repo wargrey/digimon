@@ -5,6 +5,12 @@
 (require racket/list)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (T D) list-option-map : (-> (Listof (Option T)) (-> T D) D (Listof D))
+  (lambda [src ->v supplement]
+    (map (λ [[datum : (Option T)]] : D (if (not datum) supplement (->v datum)))
+         src)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #:forall (N) list->4:values : (-> (Listof N) N (Values N N N N))
   (lambda [ls defval]
     (cond [(null? ls) (values defval defval defval defval)]
