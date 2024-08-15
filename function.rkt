@@ -18,3 +18,9 @@
 (define λnan : (-> Any * Nonnegative-Flonum)
   (lambda who-cares
     +nan.0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (T D) λoption : (-> (-> T D) T (-> (Option T) D))
+  (lambda [->v supplement]
+    (λ [[datum : (Option T)]] : D
+      (->v (or datum supplement)))))
