@@ -24,7 +24,7 @@
        (syntax/loc stx
          (begin (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
 
-                (struct id parent () #:type-name ID)
+                (struct id parent () #:type-name ID #:transparent)
                 
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
