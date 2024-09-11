@@ -28,6 +28,25 @@
                 
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
+    [(_ id : ID #:-> parent #:format frmt:str ([field : FieldType defval] ...))
+     (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                   [([kw-args ...] [default-parameter ...])
+                    (let-values ([(args sarap)
+                                  (for/fold ([args null] [sarap null])
+                                            ([<field> (in-syntax #'(field ...))]
+                                             [<FiledType> (in-syntax #'(FieldType ...))])
+                                    (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
+                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
+                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
+                                            (cons <param> sarap)))])
+                      (list args (reverse sarap)))])
+       (syntax/loc stx
+         (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
+
+                (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
+                
+                (define (make-id kw-args ...) : ID
+                  (id field ...)))))]
     [(_ id : ID #:format frmt:str ([field : FieldType defval] ...))
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
