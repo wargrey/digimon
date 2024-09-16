@@ -5,13 +5,17 @@
 (require racket/list)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define #:forall (N) ?list : (-> (Option N) (U Null (List N)))
-  (lambda [v]
-    (if (not v) null (list v))))
+(define #:forall (N) ?list : (case-> [(Option N) -> (U Null (List N))]
+                                     [(Option N) (-> N Boolean) -> (U Null (List N))])
+  (case-lambda
+    [(v) (if (not v) null (list v))]
+    [(v ?) (if (and v (? v)) (list v) null)]))
 
-(define #:forall (N) ?cons : (-> (Option N) (Listof N) (Listof N))
-  (lambda [v ls]
-    (if (not v) ls (cons v ls))))
+(define #:forall (N) ?cons : (case-> [(Option N) (Listof N) -> (Listof N)]
+                                     [(Option N) (Listof N) (-> N Boolean) -> (Listof N)])
+  (case-lambda
+    [(v ls) (if (not v) ls (cons v ls))]
+    [(v ls ?) (if (and v (? v)) (cons v ls) ls)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #:forall (N) list->4:values : (-> (Listof N) N (Values N N N N))
