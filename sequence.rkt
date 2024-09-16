@@ -5,6 +5,15 @@
 (require racket/list)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (N) ?list : (-> (Option N) (U Null (List N)))
+  (lambda [v]
+    (if (not v) null (list v))))
+
+(define #:forall (N) ?cons : (-> (Option N) (Listof N) (Listof N))
+  (lambda [v ls]
+    (if (not v) ls (cons v ls))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #:forall (N) list->4:values : (-> (Listof N) N (Values N N N N))
   (lambda [ls defval]
     (cond [(null? ls) (values defval defval defval defval)]
