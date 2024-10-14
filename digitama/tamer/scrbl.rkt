@@ -9,6 +9,7 @@
   (provide (all-defined-out))
 
   (require racket/class)
+  (require racket/string)
   (require file/convertible)
 
   (require scribble/core)
@@ -36,7 +37,7 @@
                            [else #false]))
                    (search-authors (cdr blocks))))))
       
-      (values (content->string (or (part-title-content pthis) null))
+      (values (string-trim (content->string (or (part-title-content pthis) null)))
               (if (list? maybe-authors) (map content->string maybe-authors) null))))
   
   (define handbook-scripts

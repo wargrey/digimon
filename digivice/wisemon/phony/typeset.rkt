@@ -164,7 +164,8 @@
                                              (dtrace-msg 'debug "title: ~a" (car title-lines))
                                              
                                              (for ([subtitle (in-list (cdr title-lines))])
-                                               (dtrace-msg 'debug "subtitle: ~a" subtitle))
+                                               (unless (regexp-match? #px"^\\s*$" subtitle)
+                                                 (dtrace-msg 'debug "subtitle: ~a" subtitle)))
                                              
                                              (fprintf /dev/stdout "  pdftitle={~a},~n" title))
                                            

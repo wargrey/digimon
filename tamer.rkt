@@ -160,11 +160,15 @@
                                        [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
                                                    (current-digimon))])
                                  (cond [(not subtitle) null]
+                                       [(list? subtitle)
+                                        (list (linebreak)
+                                              (elem #:style subtitle-style
+                                                    (add-between subtitle (linebreak))))]
                                        [else (list (linebreak)
                                                    (elem #:style subtitle-style
                                                          subtitle))])
                                  (cond [(not image) null]
-                                       [else (list (linebreak) (linebreak) image)]))))
+                                       [else (list (linebreak) (linebreak) (linebreak) image)]))))
                (cond [(not alt-author) (map author (pkg-author-contents))]
                      [(procedure? alt-author) (map alt-author (pkg-author-contents))]
                      [else (for/list ([a (if (list? alt-author) (in-list alt-author) (in-value alt-author))])
