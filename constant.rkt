@@ -12,4 +12,5 @@
 
 (define phi : Nonnegative-Flonum (* (+ 1.0 (sqrt 5.0)) 0.5))
 (define 1/phi : Nonnegative-Flonum (/ 2.0 (+ 1.0 (sqrt 5.0))))
-(define -phi : Flonum (- 0.0 phi))
+(define -phi : Flonum (- phi))
+(define -1/phi : Flonum (- 1/phi))
