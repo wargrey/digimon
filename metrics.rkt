@@ -34,6 +34,16 @@
     [(x range) (real->double-flonum (if (>= x range) range (max x (- range))))]
     [(x m M) (real->double-flonum (if (>= x M) M (max x m)))]))
 
+(define ~lerp : (case-> [Nonnegative-Real Nonnegative-Real Nonnegative-Real -> Nonnegative-Flonum]
+                        [Real Real Nonnegative-Real -> Flonum])
+  (lambda [m M t]
+    (define-values (flmin flmax) (values (real->double-flonum m) (real->double-flonum M)))
+    (define range (- flmax flmin))
+
+    (if (>= range 0.0)
+        (+ (* range (real->double-flonum t)) flmin)
+        (~lerp M m t))))
+
 (define ~wrap : (->* (Real Real) (Real) Flonum)
   (lambda [datum range [start 0.0]]
     (define flrange (real->double-flonum range))
