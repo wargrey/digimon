@@ -32,7 +32,7 @@
     (real->double-flonum
      (if (>= x range) (min x range) (max x (- range))))))
 
-(define ~cycle : (->* (Real Real) (Real) Flonum)
+(define ~wrap : (->* (Real Real) (Real) Flonum)
   (lambda [datum range [start 0.0]]
     (define flrange (real->double-flonum range))
     (define flstart (real->double-flonum start))
