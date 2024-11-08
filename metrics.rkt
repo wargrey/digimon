@@ -26,11 +26,13 @@
     [(w) (~length w)]
     [(w h) (let ([width (~length w)]) (values width (~length h width)))]))
 
-(define ~clamp : (case-> [Nonnegative-Real Nonnegative-Real -> Nonnegative-Flonum]
+(define ~clamp : (case-> [Real Nonnegative-Real Nonnegative-Real -> Nonnegative-Flonum]
+                         [Real Real Real -> Flonum]
+                         [Nonnegative-Real Nonnegative-Real -> Nonnegative-Flonum]
                          [Real Nonnegative-Real -> Flonum])
-  (lambda [x range]
-    (real->double-flonum
-     (if (>= x range) (min x range) (max x (- range))))))
+  (case-lambda
+    [(x range) (real->double-flonum (if (>= x range) range (max x (- range))))]
+    [(x m M) (real->double-flonum (if (>= x M) M (max x m)))]))
 
 (define ~wrap : (->* (Real Real) (Real) Flonum)
   (lambda [datum range [start 0.0]]
