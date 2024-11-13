@@ -20,8 +20,8 @@
            [(>= fl% 0.0) (real->double-flonum fl%)]
            [else #| nan |# 0.0])]))
 
-(define ~size : (case-> [Real -> Nonnegative-Flonum]
-                        [Real Real -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
+(define ~extent : (case-> [Real -> Nonnegative-Flonum]
+                          [Real Real -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
   (case-lambda
     [(w) (~length w)]
     [(w h) (let ([width (~length w)]) (values width (~length h width)))]))
