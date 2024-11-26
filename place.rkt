@@ -2,17 +2,19 @@
 
 (provide (all-defined-out))
 
-(require racket/match)
 (require racket/port)
 (require racket/place)
 
-(require "digitama/system.rkt")
 (require "digitama/evt.rkt")
-
 (require "continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct place-message ([stream : Any]) #:prefab)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-synced-place-channel : (Parameterof (Option Place-Channel)) (make-parameter #false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define place-channel-evt : (-> Place-Channel [#:hint (Parameterof (Option Place-Channel))] (Evtof Any))
   (lambda [source-evt #:hint [hint the-synced-place-channel]]
     (hint #false)
@@ -24,17 +26,15 @@
                       (with-handlers ([exn:fail:read? (λ [[e : exn]] (exn->message e #:level 'fatal #:detail stream))])
                         (if (bytes? stream)
                             (with-input-from-bytes stream read)
-                            (box stream))))
+                            #;#:deadcode stream)))
 
                     datum)))))
 
 (define place-channel-send : (-> Place-Channel Any Void)
   (lambda [dest datum]
-    (match datum
-      [(? place-message-allowed?) (place-channel-put dest datum)]
-      [(? exn?) (place-channel-put dest (exn->message datum))]
-      [(box (and (not (? bytes? v)) (? place-message-allowed? v))) (place-channel-put dest (place-message v))]
-      [_ (place-channel-put dest (place-message (with-output-to-bytes (λ [] (write datum)))))])))
+    (cond [(place-message-allowed? datum) (place-channel-put dest datum)]
+          [(exn? datum) (place-channel-put dest (exn->message datum))]
+          [else (place-channel-put dest (place-message (with-output-to-bytes (λ [] (write datum)))))])))
 
 (define place-channel-recv : (-> Place-Channel [#:timeout Nonnegative-Real] [#:hint (Parameterof (Option Place-Channel))] Any)
   (lambda [channel #:timeout [s +inf.0] #:hint [hint the-synced-place-channel]]

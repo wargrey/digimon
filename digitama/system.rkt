@@ -12,8 +12,6 @@
 (require "minimal/system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(struct place-message ([stream : Any]) #:prefab)
-
 (define #%info : (->* (Symbol) ((-> Any)) Any)
   (let ([cache : (HashTable String (Option Info-Ref)) (make-hash)])
     (lambda [id [mkdefval (λ [] #false)]]

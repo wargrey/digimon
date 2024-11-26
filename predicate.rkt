@@ -5,6 +5,18 @@
 (require "digitama/predicate.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define maybe? : (All (a) (-> Any (-> Any Boolean : #:+ a) Boolean : #:+ (Option a)))
+  (lambda [val ?]
+    (or (not val)
+        (? val))))
+
+(define disjoin? : (All (a b c) (case-> [Any (-> Any Boolean : a) (-> Any Boolean : b) -> Boolean : #:+ (U a b) #:- (! (U a b))]
+                                        [Any (-> Any Boolean : a) (-> Any Boolean : b) (-> Any Boolean : c) -> Boolean : #:+ (U a b c) #:- (! (U a b c))]))
+  (case-lambda
+    [(v p1? p2?) (or (p1? v) (p2? v))]
+    [(v p1? p2? p3?) (or (p1? v) (p2? v) (p3? v))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define listof? : (All (T) (case-> [Any (-> Any Boolean : T) -> Boolean : #:+ (Listof T) #:- (! (Listof T))]
                                    [Any (-> Any Boolean) -> Boolean]))
   (lambda [v ?]
@@ -28,12 +40,6 @@
   (lambda [?]
     (λ [v] (listof+? v ?))))
 
-(define disjoin? : (All (a b c) (case-> [Any (-> Any Boolean : a) (-> Any Boolean : b) -> Boolean : #:+ (U a b) #:- (! (U a b))]
-                                        [Any (-> Any Boolean : a) (-> Any Boolean : b) (-> Any Boolean : c) -> Boolean : #:+ (U a b c) #:- (! (U a b c))]))
-  (case-lambda
-    [(v p1? p2?) (or (p1? v) (p2? v))]
-    [(v p1? p2? p3?) (or (p1? v) (p2? v) (p3? v))]))
-
 (define listof-zero? : (-> Any Boolean) (make-listof? real-zero?))
 (define listof+zero? : (-> Any Boolean) (make-listof+? real-zero?))
 
@@ -52,11 +58,6 @@
   (lambda [str]
     (and (string? str)
          (string=? str ""))))
-
-(define maybe? : (All (a) (-> (Option a) (-> a Boolean) Boolean))
-  (lambda [val ?]
-    (or (not val)
-        (and val (? val)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read:+? : (All (a) (-> Any (-> Any Boolean : #:+ a) [#:from-string Boolean] a))
