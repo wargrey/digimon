@@ -2,7 +2,9 @@
 
 (provide (all-defined-out))
 
-(require "../../symbol.rkt")
+(require racket/symbol)
+
+(require "../minimal/symbol.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type (Spec-Feature-Upfold s) (-> String (-> Any) (-> Any) s s s))

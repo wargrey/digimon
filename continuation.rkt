@@ -4,6 +4,8 @@
 
 (require racket/format)
 
+(require "digitama/minimal/symbol.rkt")
+
 (require (for-syntax racket/base))
 (require (for-syntax racket/syntax))
 (require (for-syntax syntax/parse))
@@ -98,3 +100,9 @@
                     (display (vector-ref maybe-location 2) /dev/errout)
 
                     (display-stack (cdr stacks) 1)])))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define exn->message : (-> exn [#:level Log-Level] [#:detail Any] (Vector Log-Level String Any Symbol (Listof Continuation-Stack)))
+  (lambda [e #:level [level 'error] #:detail [detail #false]]
+    (vector level (exn-message e) detail (datum-name e)
+            (continuation-mark->stacks (exn-continuation-marks e)))))

@@ -3,6 +3,22 @@
 (provide (all-defined-out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define thread-mailbox-evt : (-> (Evtof Any))
+  (lambda []
+    (wrap-evt (thread-receive-evt)
+              (λ _ (thread-receive)))))
+
+(define thread-statistics : (->* () (Thread) (Values Boolean Boolean Boolean Natural))
+  (let ([stat : (Vectorof (U Boolean Integer)) (vector #false #false #false 0)])
+    (lambda [[thd (current-thread)]]
+      (vector-set-performance-stats! stat thd)
+      (values (and (vector-ref stat 0) #true)
+              (and (vector-ref stat 1) #true)
+              (and (vector-ref stat 2) #true)
+              (let ([bs : (U Boolean Integer) (vector-ref stat 3)])
+                (if (exact-nonnegative-integer? bs) bs 0))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define thread-safe-kill : (->* ((U Thread (Listof Thread))) (Nonnegative-Real) Void)
   (lambda [thds [timeout-s 2.0]]
     (define threads : (Listof Thread)

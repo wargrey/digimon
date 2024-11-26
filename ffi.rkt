@@ -32,7 +32,8 @@
     [(_ libname
         (~alt (~optional (~seq #:global? global?:expr) #:defaults ([global? #'#true]))
               (~optional (~seq #:on-fail on-fail:expr) #:defaults ([on-fail #'#false]))
-              (~optional (~seq #:subdir subdir:expr) #:defaults ([subdir #'#false])))
+              (~optional (~seq #:subdir subdir:expr) #:defaults ([subdir #'#false]))
+              (~optional (~seq #:custodian cust:expr) #:defaults ([cust #'#false])))
         ...)
      (syntax/loc stx
        (let ([modpath (variable-reference->module-source (#%variable-reference))]
@@ -40,11 +41,13 @@
          (if (not (path? modpath)) ; when distributed as a standalone executable
              (ffi-lib (build-path (ffi-distributed-library-path) libpath libname)
                       #:global? global?
-                      #:fail (λ [] (ffi-lib #:global? global? #:fail on-fail
+                      #:custodian cust
+                      #:fail (λ [] (ffi-lib #:global? global? #:fail on-fail #:custodian cust
                                             (build-path libpath libname))))
              (ffi-lib libname
                       #:fail on-fail
                       #:global? global?
+                      #:custodian cust
                       #:get-lib-dirs
                       (λ [] (list (native-rootdir/compiled modpath subdir)
                                   (native-rootdir modpath subdir)))))))]))
@@ -62,6 +65,79 @@
     [(_ sym:id (~optional #:in) lib (~optional #:as) type)
      (syntax/loc stx
        (define sym (digimon-ffi-obj 'sym lib type)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define &
+  (lambda [ptr]
+    (cast ptr _pointer _uintptr)))
+
+(define %p
+  (case-lambda
+    [(ptr) (let ([addr (cond [(cpointer? ptr) (& ptr)]
+                             [(exact-integer? ptr) ptr]
+                             [else (& (ffi-obj-ref ptr #false))])])
+             (string-append "0x" (number->string addr 16)))]
+    [(sym dylib) (%p (ffi-obj-ref sym dylib))]))
+
+(define memory-step
+  (lambda [ptr type [maybe-memory #false]]
+    (define memory
+      (cond [(bytes? maybe-memory) memory]
+            [(byte? maybe-memory) (make-bytes maybe-memory)]
+            [else (make-bytes (ctype-sizeof type))]))
+
+    (memmove memory 0 ptr 0 1 type)
+    (values memory
+            (ptr-ref ptr type)
+            (ptr-add ptr 1 type))))
+
+(define memory-step!
+  (lambda [ptr type [maybe-memory #false]]
+    (define memory
+      (cond [(bytes? maybe-memory) memory]
+            [(byte? maybe-memory) (make-bytes maybe-memory)]
+            [else (make-bytes (ctype-sizeof type))]))
+
+    (memmove memory 0 ptr 0 1 type)
+    (values memory
+            (ptr-ref ptr type)
+            (ptr-add! ptr 1 type))))
+
+(define memory-step*
+  (lambda [ptr type memory &datum]
+    (memmove memory 0 ptr 0 1 type)
+    (unsafe-set-box! &datum (ptr-ref ptr type))
+    (ptr-add ptr 1 type)))
+
+(define memory-step*!
+  (lambda [ptr type memory &datum]
+    (memmove memory 0 ptr 0 1 type)
+    (unsafe-set-box! &datum (ptr-ref ptr type))
+    (ptr-add! ptr 1 type)))
+
+(define memory-step-for-bytes
+  (lambda [ptr type [count 1]]
+    (define size (ctype-sizeof type))
+    (define memory (make-bytes size))
+    (memmove memory 0 ptr 0 count type)
+    (values memory (ptr-add ptr count type))))
+
+(define memory-step-for-bytes!
+  (lambda [ptr type [count 1]]
+    (define size (ctype-sizeof type))
+    (define memory (make-bytes size))
+    (memmove memory 0 ptr 0 count type)
+    (values memory (ptr-add! ptr count type))))
+
+(define memory-step-for-datum
+  (lambda [ptr type]
+    (values (ptr-ref ptr type)
+            (ptr-add ptr 1 type))))
+
+(define memory-step-for-datum!
+  (lambda [ptr type]
+    (values (ptr-ref ptr type)
+            (ptr-add! ptr 1 type))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define cpointer*?

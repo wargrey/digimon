@@ -16,14 +16,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define c-extern
-  (lambda [variable ctype]
-    (get-ffi-obj variable #false ctype)))
+  (lambda [variable ctype [dylib #false]]
+    (get-ffi-obj variable dylib ctype)))
 
 (define c-extern/enum
   ;;; racket->c can map multi names to one value, while c->racket uses the last name
-  (lambda [symbols #:map-symbol [symmap string-downcase]]
-    (_enum (foldl (lambda [c Es] (list* (string->symbol (symmap (~a c))) '= (get-ffi-obj c #false _ufixint) Es)) null symbols))))
+  (lambda [symbols [dylib #false] #:map-symbol [symmap string-downcase]]
+    (_enum (foldl (lambda [c Es] (list* (string->symbol (symmap (~a c))) '= (get-ffi-obj c dylib _ufixint) Es)) null symbols))))
 
 (define c-extern/bitmask
-  (lambda [symbols #:map-symbol [symmap string-downcase]]
-    (_bitmask (foldl (lambda [c Bs] (list* (string->symbol (symmap (~a c))) '= (get-ffi-obj c #false _uint) Bs)) null symbols))))
+  (lambda [symbols [dylib #false] #:map-symbol [symmap string-downcase]]
+    (_bitmask (foldl (lambda [c Bs] (list* (string->symbol (symmap (~a c))) '= (get-ffi-obj c dylib _uint) Bs)) null symbols))))

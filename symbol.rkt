@@ -3,20 +3,15 @@
 (provide (all-defined-out))
 (provide (all-from-out racket/symbol))
 (provide (all-from-out racket/keyword))
+(provide (all-from-out "digitama/minimal/symbol.rkt"))
 
 (require racket/symbol)
 (require racket/keyword)
 (require racket/string)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define datum-name : (-> Any [#:no-prefix-for-symbol-datum? Boolean] Symbol)
-  (lambda [v #:no-prefix-for-symbol-datum? [no-prefix? #false]]
-    (define name (object-name v))
-    (cond [(symbol? name) name]
-          [(and name) (string->symbol (format "<object-name:~a>" name))]
-          [(symbol? v) (if (not no-prefix?) (string->symbol (format "<symbol:~a>" v)) v)]
-          [else (string->symbol (format "<object-value:~a>" v))])))
+(require "digitama/minimal/symbol.rkt")
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define list->symbol : (-> (Listof Char) Symbol)
   (lambda [lst]
     (string->symbol (list->string lst))))

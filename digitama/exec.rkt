@@ -8,10 +8,10 @@
 (require "../dtrace.rkt")
 (require "../filesystem.rkt")
 (require "../port.rkt")
-(require "../symbol.rkt")
 
 (require "minimal/system.rkt")
 (require "minimal/string.rkt")
+(require "minimal/symbol.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct exn:recon exn () #:constructor-name make-exn:recon)
