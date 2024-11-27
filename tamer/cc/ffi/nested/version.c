@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-__lambda__ long stdc_version() {
+__ffi__ long stdc_version() {
 #if defined(__STDC_VERSION__)
     return __STDC_VERSION__;
 #elif defined(__cplusplus)

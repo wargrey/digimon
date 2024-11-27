@@ -118,14 +118,14 @@
 (define memory-step-for-bytes
   (lambda [ptr type [count 1]]
     (define size (ctype-sizeof type))
-    (define memory (make-bytes size))
+    (define memory (make-bytes (* size count)))
     (memmove memory 0 ptr 0 count type)
     (values memory (ptr-add ptr count type))))
 
 (define memory-step-for-bytes!
   (lambda [ptr type [count 1]]
     (define size (ctype-sizeof type))
-    (define memory (make-bytes size))
+    (define memory (make-bytes (* size count)))
     (memmove memory 0 ptr 0 count type)
     (values memory (ptr-add! ptr count type))))
 
