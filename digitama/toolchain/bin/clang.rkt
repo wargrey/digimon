@@ -21,9 +21,9 @@
                  extra-macros))))
 
 (define clang-compile-flags : CC-Flags
-  (lambda [system cpp? std verbose? debug?]
+  (lambda [system cpp? std verbose? debug? optimize?]
     (append (list "-c" "-fPIC" "-Wall")
-            (if (not debug?) (list "-O2") (list "-Og" "-g"))
+            (if (not debug?) (if (not optimize?) null (list "-O2")) (list "-Og" "-g"))
             (cond [(not cpp?) (list "-x" "c" (clang-stdc->string std))]
                   [else (list "-x" "c++" (clang-stdcpp->string std))])
             (case system

@@ -35,12 +35,13 @@
            (c-compiler-candidates compilers))))
 
 (define c-compile : (->* (Path-String Path-String)
-                         (#:standard (Option CC-Standard-Version) #:cpp? Boolean #:verbose? Boolean #:debug? Boolean
-                          #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro)
-                          #:compilers (Option (Listof Symbol)))
+                         (#:standard (Option CC-Standard-Version) #:compilers (Option (Listof Symbol))
+                          #:cpp? Boolean #:verbose? Boolean #:debug? Boolean #:optimize? Boolean
+                          #:includes (Listof C-Toolchain-Path-String) #:macros (Listof C-Compiler-Macro))
                          Void)
-  (lambda [#:standard [std #false] #:cpp? [cpp? #false] #:verbose? [verbose? #false] #:debug? [debug? #false]
-           #:includes [includes null] #:macros [macros null] #:compilers [compilers #false]
+  (lambda [#:standard [std #false] #:compilers [compilers #false] #:cpp? [cpp? #false]
+           #:verbose? [verbose? #false] #:debug? [debug? #false] #:optimize? [optimize? #true]
+           #:includes [includes null] #:macros [macros null]
            infile outfile]
     (define compiler : (Option CC) (c-pick-compiler compilers))
 
@@ -64,7 +65,7 @@
                      [else (or (force cc++) cc)])))
      (for/list : (Listof (Listof String)) ([layout (in-list (toolchain-option-layout compiler))])
        (case layout
-         [(flags) ((cc-flags compiler) digimon-system cpp? std verbose? debug?)]
+         [(flags) ((cc-flags compiler) digimon-system cpp? std verbose? debug? optimize?)]
          [(macros) ((cc-macros compiler) (cc-default-macros digimon-system cpp? debug?) digimon-system cpp? all-Ds)]
          [(includes) (remove-duplicates ((cc-includes compiler) (c-path-flatten includes) digimon-system cpp?))]
          [(infile) ((cc-infile compiler) infile digimon-system cpp?)]

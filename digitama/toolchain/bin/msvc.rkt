@@ -26,12 +26,12 @@
                  extra-macros))))
 
 (define msvc-compile-flags : CC-Flags
-  (lambda [system cpp? std verbose? debug?]
+  (lambda [system cpp? std verbose? debug? optimize?]
     (append (list "/nologo" "/FC" "/c" ; compiling only, no link
                   #;"/constexpr"
                   "/EHsc" "/W3" "/sdl" ; security features and warnings
                   "/utf-8")
-            (if (not debug?) (list "/O2") (list "/Od" "/ZI" "/JMC"))
+            (if (not debug?) (if (not optimize?) null (list "/O2")) (list "/Od" "/ZI" "/JMC"))
             (if (not cpp?) (list "/TC" (msvc-stdc->string std)) (list "/TP" (msvc-stdcpp->string std)))
             (if (not verbose?) null (list "/showIncludes")))))
 
