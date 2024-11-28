@@ -52,19 +52,15 @@
                       (λ [] (list (native-rootdir/compiled modpath subdir)
                                   (native-rootdir modpath subdir)))))))]))
 
-(define-syntax (digimon-ffi-obj stx)
-  (syntax-parse stx #:literals []
-    [(_ sym lib type)
-     (syntax/loc stx
-       (let* ([t type]
-              [lazy (λ _ (get-ffi-obj sym lib t))])
-         (get-ffi-obj sym lib t (λ [] lazy))))]))
-
-(define-syntax (define-ffi-obj stx)
+(define-syntax (define-ffi-parameter stx)
   (syntax-parse stx #:literals []
     [(_ sym:id (~optional #:in) lib (~optional #:as) type)
      (syntax/loc stx
-       (define sym (digimon-ffi-obj 'sym lib type)))]))
+       (define sym (make-c-parameter 'sym lib type)))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define _watch_variable_t (_fun _string _symbol _uintptr -> _void))
+(define _take_memory_snapshot_t  (_fun _string -> _void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define &
