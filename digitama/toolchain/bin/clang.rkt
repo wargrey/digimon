@@ -29,7 +29,9 @@
             (case system
               [(macosx) (list "-fno-common")]
               [else null])
-            (list "-fcolor-diagnostics" "-fansi-escape-codes")
+            (if (terminal-port? (current-output-port))
+                (list "-fcolor-diagnostics" "-fansi-escape-codes")
+                null)
             (if (not verbose?) null (list "-v")))))
 
 (define clang-include-paths : CC-Includes

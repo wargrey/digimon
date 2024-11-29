@@ -22,7 +22,7 @@
                         (case system
                           [(illumos) (list "-m64")]
                           [else null])
-                        (list "-fdiagnostics-color=always")
+                        (list "-fdiagnostics-color=auto")
                         (if (not verbose?) null (list "-v")))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -59,7 +59,7 @@
        (define sym (make-c-parameter 'sym lib type)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define _watch_variable_t (_fun _string _symbol _uintptr -> _void))
+(define _watch_variable_t (_fun _string _symbol _uintptr _symbol -> _void))
 (define _take_memory_snapshot_t  (_fun _string -> _void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

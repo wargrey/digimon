@@ -20,7 +20,7 @@
     +nan.0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define #:forall (T D) λoption : (-> (-> T D) T (-> (Option T) D))
+(define #:forall (T D) λoption : (-> (-> T D) D (-> (Option T) D))
   (lambda [->v supplement]
     (λ [[datum : (Option T)]] : D
-      (->v (or datum supplement)))))
+      (if (not datum) supplement (->v datum)))))
