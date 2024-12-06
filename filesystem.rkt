@@ -174,6 +174,24 @@
           [(bytes? path) (path-normalize/system (bytes->path path))]
           [else (path-normalize/system path)])))
 
+(define path->smart-absolute-path : (-> (U Bytes Path-String Path-For-Some-System) Path)
+  (lambda [path0]
+    (define path (path-identity path0))
+    
+    (or (and (relative-path? path)
+             (for/or : (Option Path) ([dir (in-list (list current-directory
+                                                          (λ [] : Path (find-system-path 'orig-dir))
+                                                          (λ [] : (Option Path)
+                                                            (let ([run-file (find-system-path 'run-file)])
+                                                              (and (relative-path? run-file) ; say, run by `raco`
+                                                                   (path-only (build-path (find-system-path 'orig-dir)
+                                                                                          run-file)))))))])
+               (define rootdir : (Option Path) (dir))
+               (and rootdir
+                    (let ([p (build-path rootdir path)])
+                      (and (file-exists? p) p)))))
+        (simple-form-path path))))
+
 (define path-exists? : (-> Path-String Boolean)
   (lambda [path]
     (or (link-exists? path)
