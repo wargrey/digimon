@@ -7,8 +7,7 @@
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide tamer-filebox-line-number-space)
-(provide d2 d2-default-interval d2-default-inset-pixels d2-default-theme d2-default-layout d2-default-sketch? d2-default-appendix?)
-(provide $ $$ $$* handbook-image tamer-image graphviz graph.gv digraph.gv)
+(provide $ $$ $$* handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
@@ -28,10 +27,6 @@
 (provide (rename-out [tamer-filebox/region handbook-filebox]))
 (provide (rename-out [tamer-filebox/region handbook-filebox/region]))
 (provide (rename-out [handbook-acknowledgement handbook-acknowledgment]))
-
-(provide (rename-out [dot? graphviz?]))
-(provide (rename-out [graph.gv graph.dot]))
-(provide (rename-out [digraph.gv digraph.dot]))
 
 (require racket/hash)
 (require racket/symbol)
@@ -62,8 +57,6 @@
 (require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")
-(require "digitama/tamer/graphviz.rkt")
-(require "digitama/tamer/d2.rkt")
 (require "digitama/tamer/color.rkt")
 (require "digitama/tamer/image.rkt")
 (require "digitama/tamer/documentclass.rkt")
