@@ -59,6 +59,11 @@
        (define sym (make-c-parameter 'sym lib type)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define _char  (make-ctype _byte  char->integer integer->char))
+(define _uchar (make-ctype _ubyte char->integer integer->char))
+(define _any_string (make-ctype _string (λ [v] (if (string? v) v (format "~a" v))) values))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define _take_memory_snapshot_t  (_fun _string -> _void))
 (define _register_variable_t (_fun _string _symbol _uintptr _symbol -> _void))
 (define _register_array_t    (_fun _string _symbol _uintptr _symbol _size -> _void))
