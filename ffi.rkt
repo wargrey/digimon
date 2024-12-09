@@ -59,8 +59,9 @@
        (define sym (make-c-parameter 'sym lib type)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define _watch_variable_t (_fun _string _symbol _uintptr _symbol -> _void))
 (define _take_memory_snapshot_t  (_fun _string -> _void))
+(define _register_variable_t (_fun _string _symbol _uintptr _symbol -> _void))
+(define _register_array_t    (_fun _string _symbol _uintptr _symbol _size -> _void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define &
@@ -101,15 +102,29 @@
 
 (define memory-step*
   (lambda [ptr type memory &datum]
-    (memmove memory 0 ptr 0 1 type)
-    (unsafe-set-box! &datum (ptr-ref ptr type))
-    (ptr-add ptr 1 type)))
+    (define count
+      (if (vector? &datum)
+          (let ([size (unsafe-vector-length &datum)])
+            (for ([idx (in-range size)])
+              (unsafe-vector-set! &datum idx (ptr-ref ptr type idx)))
+            size)
+          (begin (unsafe-set-box! &datum (ptr-ref ptr type)) 1)))
+    
+    (memmove memory 0 ptr 0 count type)
+    (ptr-add ptr count type)))
 
 (define memory-step*!
   (lambda [ptr type memory &datum]
-    (memmove memory 0 ptr 0 1 type)
-    (unsafe-set-box! &datum (ptr-ref ptr type))
-    (ptr-add! ptr 1 type)))
+    (define count
+      (if (vector? &datum)
+          (let ([size (unsafe-vector-length &datum)])
+            (for ([idx (in-range size)])
+              (unsafe-vector-set! &datum idx (ptr-ref ptr type idx)))
+            size)
+          (begin (unsafe-set-box! &datum (ptr-ref ptr type)) 1)))
+    
+    (memmove memory 0 ptr 0 count type)
+    (ptr-add! ptr count type)))
 
 (define memory-step-for-bytes
   (lambda [ptr type [count 1]]
