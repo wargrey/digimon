@@ -55,17 +55,17 @@
 
 (define wisemon-list-phony-goals : (->* () (Path (Immutable-HashTable Symbol Wisemon-Phony)) (Immutable-HashTable Symbol Wisemon-Phony))
   (lambda [[rootdir (wisemon-phony-goal-rootdir)] [phonies0 ((inst make-immutable-hasheq Symbol Wisemon-Phony))]]
-    (for/fold ([Phonies : (Immutable-HashTable Symbol Wisemon-Phony) phonies0])
+    (for/fold ([phonies : (Immutable-HashTable Symbol Wisemon-Phony) phonies0])
               ([phony.rkt (in-directory rootdir)] #:when (regexp-match? #px".rkt$" phony.rkt))
-      (wisemon-list-phony-goals-from-file phony.rkt Phonies))))
+      (wisemon-list-phony-goals-from-file phony.rkt phonies))))
 
 (define wisemon-list-foreign-phony-goals : (-> (Immutable-HashTable Symbol Wisemon-Phony))
   (lambda []
-    (for/fold ([Phonies : (Immutable-HashTable Symbol Wisemon-Phony) (make-immutable-hasheq)])
+    (for/fold ([phonies : (Immutable-HashTable Symbol Wisemon-Phony) (make-immutable-hasheq)])
               ([path (in-list (apply append (map wisemon-foreign-phony-path-filter (find-relevant-directories (list wisemon-foreign-phony-id)))))])
-      (cond [(file-exists? path) (wisemon-list-phony-goals-from-file path Phonies)]
-            [(directory-exists? path) (wisemon-list-phony-goals path Phonies)]
-            [else Phonies]))))
+      (cond [(file-exists? path) (wisemon-list-phony-goals-from-file path phonies)]
+            [(directory-exists? path) (wisemon-list-phony-goals path phonies)]
+            [else phonies]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-foreign-phony-id : Symbol 'wisemon-phony)

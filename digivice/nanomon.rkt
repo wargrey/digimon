@@ -16,12 +16,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags
   #:program the-name
-  #:args [shell file . args]
+  #:args [shell . args]
 
   #:usage-help "A utility to assist the building system"
   #:once-each
-  [[(#\l lang)                                       lang          "replace the #lang line with ~1 for lexer"]
-   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
+  [[(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                     the-print-width]]
    [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]
    [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]])
@@ -32,13 +31,19 @@
     (define shell-helps : (Listof String)
       (for/list ([(n s) (in-hash shells)])
         (format "    ~a : ~a" n (nanomon-shell-description s))))
+
+    (define foreign-helps : (Listof String)
+      (for/list : (Listof String) ([sh (in-hash-values (nanomon-list-foreign-shells))])
+        (format "    ~a : ~a" (nanomon-shell-name sh) (nanomon-shell-description sh))))
     
-    (display-nanomon-flags #:more-ps (cons "  where <shell> is one of" shell-helps)
+    (display-nanomon-flags #:more-ps (cons "  where <shell> is one of"
+                                           (cond [(null? foreign-helps) shell-helps]
+                                                 [else (append shell-helps (list " ") foreign-helps)]))
                            #:exit retcode)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define exec-shell : (-> Nanomon-Shell Path Byte)
-  (lambda [shell target]
+(define exec-shell : (-> Nanomon-Shell (Listof String) Byte)
+  (lambda [shell argv]
     (call-in-nested-custodian
      (λ [] (let ([root-thread : Thread (current-thread)])
              (parameterize ([current-nanomon-shell (nanomon-shell-name shell)]
@@ -48,7 +53,7 @@
                  (define ghostcat : Thread
                    (thread (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] (thread-send root-thread e))]
                                                  [exn:break? void])
-                                   ((nanomon-shell-exec shell) target root-thread)))))
+                                   ((nanomon-shell-exec shell) argv root-thread)))))
                  
                  (yield (thread-receive-evt))
                  (let ([retcode (thread-receive)])
@@ -65,22 +70,20 @@
     (when (nanomon-flags-help? options)
       (wisemon-display-help))
 
-    (define-values (name target argv) (λargv))
+    (define-values (name argv) (λargv))
     
     (let ([tracer (thread (make-wizarmon-log-trace (nanomon-verbose)))])
       (dtrace-info #:topic the-name "shell: ~a" name)
       
       (parameterize ([current-logger /dev/dtrace]
-                     [nanomon-lang (nanomon-flags-lang options)]
-                     [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)]
-                     [current-command-line-arguments (list->vector argv)])  
+                     [pretty-print-columns (or (nanomon-flags-print-columns options) the-print-width)])  
         (define shell : (Option Nanomon-Shell) (nanomon-shell-ref (string->symbol name)))
         
         (if (not shell)
             (let ([retcode (nanomon-errno)])
               (call-with-dtrace (λ [] (dtrace-fatal "fatal: unrecognized command")))
               (exit retcode))
-            (exit (time* (begin0 (exec-shell shell (cmdopt-string->path the-name target))
+            (exit (time* (begin0 (exec-shell shell argv)
                                  (dtrace-sentry-notice #:end? #true eof)
                                  (thread-wait tracer)))))))))
 

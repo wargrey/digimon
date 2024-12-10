@@ -10,12 +10,23 @@
 (require "../unsafe/colorize.rkt")
 
 (require "../../../token.rkt")
+(require "../../../cmdopt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell~~colorize : (-> Path Thread Any)
-  (lambda [path env-thread]
-    (define alt-lang : (Option String) (nanomon-lang))
+(define the-shell : Symbol 'colorize)
+(define the-desc : String "Run with the DrRacket color lexer")
 
+(define-cmdlet-option colorize-flags #: Colorize-Flags
+  #:program the-shell
+  #:args [modpath.rkt]
+
+  #:usage-help the-desc
+  #:once-each
+  [[(#\l lang)                                       lang          "replace the #lang line with ~1 for lexer"]])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define shell-colorize : (-> Path (Option String) Thread Any)
+  (lambda [path alt-lang env-thread]
     (define content : String
       (call-with-input-file* path
         (λ [[/dev/langin : Input-Port]]
@@ -28,6 +39,17 @@
     (drracket-colorize path content env-thread)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define shell~~colorize : (-> (Listof String) Thread Any)
+  (lambda [argv env-thread]
+    (define-values (options λargv) (parse-colorize-flags argv))
+
+    (if (not (colorize-flags-help? options))
+        (let ([path (cmdopt-string->path the-shell (λargv))])
+          (shell-colorize path (colorize-flags-lang options) env-thread))
+        (thread-send env-thread (display-colorize-flags #:exit #false)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define colorize-shell : Nanomon-Shell
-  (nanomon-make-shell #:name 'colorize #:shell shell~~colorize
-                      #:desc "Run with the DrRacket color lexer"))
+  (nanomon-make-shell #:name the-shell
+                      #:shell shell~~colorize
+                      #:desc the-desc))
