@@ -25,8 +25,7 @@
                     [(e) (cond [(eq? e enum) enum] ... [else #false])])))))]
 
     [(_ [id ids] : BaseType [enum ...])
-     (with-syntax ([id? (format-id #'id "~a?" (syntax-e #'id))]
-                   [_ (let ([enums (syntax->list #'[enum ...])])
+     (with-syntax ([_ (let ([enums (syntax->list #'[enum ...])])
                         (for/list ([<enum> (in-value (check-duplicates enums eq? #:key syntax-e))])
                           (when (syntax? <enum>)
                             (raise-syntax-error 'define-unnamed-enumeration "duplicate value" <enum> #false
