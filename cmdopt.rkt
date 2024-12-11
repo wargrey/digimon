@@ -117,12 +117,13 @@
                       (exit retcode)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-cmdopt-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((U (Pairof Integer Integer) Integer False) Any) (-> Symbol String a)))
+(define make-cmdopt-string->integer : (All (a) (->* ((-> Any Boolean : a)) ((U (Pairof Integer Integer) Integer (Listof Integer) False) Any) (-> Symbol String a)))
   (lambda [predicative? [range #false] [type 'integer]]
     (λ [[option : Symbol] [s : String]] : a
       (define n : (Option Number) (string->number s))
       (cond [(not (and (exact-integer? n) (predicative? n))) (error option "expected `~a`, but given '~a'" (object-name predicative?) s)]
             [(exact-integer? range) (if (>= n range) n (error option "expected ~a in range [~a, +∞), but given ~a" type range s))]
+            [(list? range) (if (member n range) n (error option "expected ~a in ~a, but given ~a" type range s))]
             [(pair? range) (if (<= (car range) n (cdr range)) n (error option "expected ~a in range [~a, ~a], but given ~a" type (car range) (cdr range) s))]
             [else n]))))
 
@@ -146,6 +147,7 @@
 
 (define cmdopt-string->port (make-cmdopt-string->integer index? (cons 0 65535) "port number"))
 (define cmdopt-string+>port (make-cmdopt-string->integer positive-index? (cons 1 65535) "port number"))
+(define cmdopt-string+>radix (make-cmdopt-string->integer positive-byte? (list 2 8 10 16) "radix"))
 
 (define cmdopt-string-identity : (-> Symbol String String)
   (lambda [option argument]
