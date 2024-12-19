@@ -1,5 +1,8 @@
 \usepackage{ccaption}
 
+% `acmart` already provides `marginfigure`, use
+% \usepackage{sidenotes} for other documenclass
+
 % \legend relies on \belowcaptionskip, which is not defined by the JFP class file:
 \makeatletter
 \@ifundefined{belowcaptionskip}{\newlength{\belowcaptionskip}}{}

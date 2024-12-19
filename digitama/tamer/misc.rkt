@@ -3,15 +3,21 @@
 (provide (all-defined-out))
 
 (require scribble/core)
-(require racket/format)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-content-filter
   (lambda [c]
     (cond [(content? c) c]
-          [else (~a c)])))
+          [else (format "~a" c)])))
 
 (define handbook-block-filter
   (lambda [c]
     (cond [(block? c) c]
           [else (make-paragraph plain c)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define handbook-newline-element?
+  (lambda [v]
+    (and (element? v)
+         (eq? (element-style v)
+              'newline))))

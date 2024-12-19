@@ -9,4 +9,5 @@
  (acknowledgement . "致谢")
  (index . "索引")
  (solution . "解")
- (answer . "答"))
+ (answer . "答")
+ (algorithm . "算法"))

@@ -189,12 +189,12 @@
   (lambda [type tag label sep tail chpt-idx0 self-idx label-style target-style]
     (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chpt-idx0)))
     (define lbl-sep (or sep (tamer-block-label-separator) " "))
-    (define lbl-tail (or sep (tamer-block-label-tail) ""))
+    (define lbl-tail (or tail (tamer-block-label-tail) ""))
     (make-target-element target-style
                          (make-element (or label-style (tamer-block-label-style))
                                        (if (or chpt-idx)
                                            (format "~a~a~a.~a~a" label lbl-sep chpt-idx self-idx lbl-tail)
-                                           (format "~a~a~a~a" label lbl-sep self-idx lbl-tail)))
+                                           (format "~a~a~a~a"    label lbl-sep self-idx lbl-tail)))
                          (tamer-block-sym:tag->tag type tag))))
 
 (define make-block-legend
@@ -225,15 +225,15 @@
                (make-attributes '((x-target-lift . "Figure")))
                (make-js-addition (tamer-block-source "figure.js")))))
 
+(define figure-style (make-style "Figure" figure-style-extras))
 (define marginfigure-style (make-style "marginfigure" figure-style-extras))
 (define herefigure-style (make-style "Herefigure" figure-style-extras))
-(define figure-style (make-style "Figure" figure-style-extras))
 (define figuremultiwide-style (make-style "FigureMultiWide" figure-style-extras))
 
+(define margin-figure-style (make-style "Marginfigure" figure-style-extras))
 (define figureinside-style (make-style "FigureInside" figure-style-extras))
 (define centertext-style (make-style "Centertext" figure-style-extras))
 (define chia-legend-style (make-style "legend" figure-style-extras))
-(define margin-figure-style (make-style "Marginfigure" figure-style-extras))
 
 (define phantomsection (make-paragraph (make-style "phantomsection" null) null))
 (define refstepcounter-style (make-style "refstepcounter" null))

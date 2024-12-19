@@ -10,4 +10,5 @@
  (digimon . "Partner Digimon")
  (index . "Index")
  (solution . "Solution")
- (answer . "Answer"))
+ (answer . "Answer")
+ (algorithm . "Algorithm"))

@@ -7,6 +7,7 @@
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide tamer-filebox-line-number-space)
+(provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algoref AlgoRef)
 (provide $ $$ $$* handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
@@ -16,13 +17,10 @@
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
 (provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/theme.rkt"))
-(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/tag.rkt" "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (provide (rename-out [note handbook-footnote]))
-(provide (rename-out [tamer-deftech tamer-defterm]))
-(provide (rename-out [tamer-deftech handbook-deftech]))
-(provide (rename-out [tamer-deftech handbook-defterm]))
 (provide (rename-out [tamer-filebox/region tamer-filebox]))
 (provide (rename-out [tamer-filebox/region handbook-filebox]))
 (provide (rename-out [tamer-filebox/region handbook-filebox/region]))
@@ -48,6 +46,8 @@
 
 (require (for-label racket))
 
+(require "digitama/tamer/tag.rkt")
+(require "digitama/tamer/pseudocode.rkt")
 (require "digitama/tamer/style.rkt")
 (require "digitama/tamer/backend.rkt")
 (require "digitama/tamer/citation.rkt")
@@ -345,9 +345,10 @@
 
 (define handbook-scene
   (lambda [#:tag [tag #false] #:style [style #false] . pre-contents]
-    (subsubsection #:tag (or tag (generate-immutable-string 'scene))
-                   #:style style
-                   pre-contents)))
+    (list ($tex:phantomsection)
+          (subsubsection #:tag (or tag (generate-immutable-string 'scene))
+                         #:style style
+                         pre-contents))))
 
 (define handbook-endnote
   (lambda body
@@ -682,24 +683,6 @@
                                 ; no story ==> no :books:
                                 null))))))
 
-(define tamer-deftech
-  (lambda [#:key [key #false] #:normalize? [normalize? #true] #:origin [origin #false] #:abbr [abbr #false] . body]
-    (define term
-      (list ($tex:phantomsection)
-            (apply deftech #:key key #:normalize? normalize? #:style? #true body)))
-
-    (cond [(and origin abbr) (list term "(" (tamer-deftech abbr) "," ~ (tamer-deftech origin) ")")]
-          [(or origin abbr) (list term "(" (tamer-deftech (or origin abbr)) ")")]
-          [else term])))
-
-(define tamer-elemtag
-  (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
-    (make-target-element style body `(,type ,tag))))
-
-(define tamer-elemref
-  (lambda [tag #:style [style #false] #:type [type 'tamer] . body]
-    (make-link-element style body `(,type ,tag))))
-
 ; display summary for specs defined via LP and `tamer-note`ed in scribble
 (define tamer-smart-summary
   (lambda []
@@ -968,7 +951,7 @@
     (tamer-indexed-block id tamer-figure-type
                          (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
-                         (λ [] (make-figure-block align-style pre-flows)) #true)))
+                         (λ [legend] (make-figure-block legend align-style pre-flows)) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
