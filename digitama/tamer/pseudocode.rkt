@@ -38,13 +38,21 @@
 (define current-algorithm (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define algo-ref
+  (lambda [#:line [line #false] algotag]
+    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? #false algotag)))
+
+(define Algo-Ref
+  (lambda [#:line [line #false] algotag]
+    (algo-pseudocode-ref #:elem values #:line line #:hide-label? #false algotag)))
+
 (define algoref
-  (lambda [#:line [line #false] #:hide-label? [hide-label? #false] algotag]
-    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? hide-label? algotag)))
+  (lambda [#:line [line #false] algotag]
+    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? #true algotag)))
 
 (define AlgoRef
-  (lambda [#:line [line #false] #:hide-label? [hide-label? #false] algotag]
-    (algo-pseudocode-ref #:elem values #:line line #:hide-label? hide-label? algotag)))
+  (lambda [#:line [line #false] algotag]
+    (algo-pseudocode-ref #:elem values #:line line #:hide-label? #true algotag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:newcounter:algorithm
@@ -73,8 +81,8 @@
                   [(pair? senil) (tabular (reverse (cons (list (decode-content (reverse enil))) senil)))]
                   [else body])))
         
-        (list (λ [type] (tamer-elemtag #:type type (format "~a:~a" algo-tag line-No.) (envvar line-No.)))
-              (λ [type] (tamer-elemtag #:type type (format "~a:~a" algo-tag line-name) (exec "[" line-name "]")))
+        (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
+              (λ [type] (tamer-elemtag #:type type (format "~a#[~a]" algo-tag line-name) (exec "[" line-name "]")))
               sublines)))
   
     (make-tamer-indexed-traverse-block
@@ -110,18 +118,20 @@
                  (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chapter-index line0 linen)))
                  (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
                                                     (if (and hide-label? line0)
-                                                        (:mod:link (format "~a" line0))
-                                                        (:mod:link (algo-format line0 "~a~a.~a" (tamer-default-algorithm-label)
+                                                        (:mod:link (algo-label line0))
+                                                        (:mod:link (algo-format line0
+                                                                                "~a~a.~a" (tamer-default-algorithm-label)
                                                                                 chapter-index maybe-index))))
                                      (:pn "-")
                                      (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
-                                                    (:mod:link (format "~a" linen)))))))
+                                                    (:mod:link (algo-label linen)))))))
            (if (not maybe-index)
                (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chapter-index)))
                (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
                                             (if (and hide-label? line)
-                                                (:mod:link (format "~a" line))
-                                                (:mod:link (algo-format line "~a~a.~a" (tamer-default-algorithm-label)
+                                                (:mod:link (algo-label line))
+                                                (:mod:link (algo-format line
+                                                                        "~a~a.~a" (tamer-default-algorithm-label)
                                                                         chapter-index maybe-index))))))))
      algo-pseudocode-index-type algo-tag)))
 
@@ -135,13 +145,17 @@
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                    (:mod:link (format (if (exact-integer? line) "~a" "[~a]") line)))))
+                                    (:mod:link (algo-label line)))))
      algo-pseudocode-index-type algo-tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define algo-label
+  (lambda [line]
+    (format (if (exact-integer? line) "L~a" "[~a]") line)))
+
 (define algo-format
   (lambda [line fmt . argv]
     (if (or (not line) (eq? line '||))
         (apply format fmt argv)
         (string-append (apply format fmt argv)
-                       (format ":~a" line)))))
+                       "#" (algo-label line)))))
