@@ -39,12 +39,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algoref
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem subscript #:line line algotag)))
+  (lambda [#:line [line #false] #:hide-label? [hide-label? #false] algotag]
+    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? hide-label? algotag)))
 
 (define AlgoRef
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem values #:line line algotag)))
+  (lambda [#:line [line #false] #:hide-label? [hide-label? #false] algotag]
+    (algo-pseudocode-ref #:elem values #:line line #:hide-label? hide-label? algotag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:newcounter:algorithm
@@ -101,7 +101,7 @@
      algo-pseudocode-style)))
 
 (define algo-pseudocode-ref
-  (lambda [#:elem [algo-element subscript] #:line [line #false] algo-tag]
+  (lambda [#:elem [algo-element subscript] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (if (pair? line)
@@ -109,21 +109,25 @@
              (if (not maybe-index)
                  (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chapter-index line0 linen)))
                  (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
-                                                    (:mod:link (algo-format line0 "~a~a.~a" (tamer-default-algorithm-label)
-                                                                            chapter-index maybe-index)))
-                                     "-"
+                                                    (if (and hide-label? line0)
+                                                        (:mod:link (format "~a" line0))
+                                                        (:mod:link (algo-format line0 "~a~a.~a" (tamer-default-algorithm-label)
+                                                                                chapter-index maybe-index))))
+                                     (:pn "-")
                                      (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
                                                     (:mod:link (format "~a" linen)))))))
            (if (not maybe-index)
                (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chapter-index)))
                (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                            (:mod:link (algo-format line "~a~a.~a" (tamer-default-algorithm-label)
-                                                                    chapter-index maybe-index)))))))
+                                            (if (and hide-label? line)
+                                                (:mod:link (format "~a" line))
+                                                (:mod:link (algo-format line "~a~a.~a" (tamer-default-algorithm-label)
+                                                                        chapter-index maybe-index))))))))
      algo-pseudocode-index-type algo-tag)))
 
 (define algo-goto
-  (lambda [#:elem [algo-element values] line]
-    (define algo-tag (current-algorithm))
+  (lambda [#:elem [algo-element values] #:tag [tag #false] line]
+    (define algo-tag (or tag (current-algorithm)))
     
     (when (not algo-tag)
       (raise-user-error (object-name algo-goto) "should be used inside `algo-pseudocode`"))
