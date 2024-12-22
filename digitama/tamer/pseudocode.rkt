@@ -67,8 +67,8 @@
       (for/list ([line (in-list lines)]
                  [lNo. (in-naturals 1)])
         (define line-No. (number->string lNo.))
-        (define line-name (handbook-content-filter (car line)))
-        (define body (decode-content (cdr line)))
+        (define line-name (and (pair? line) (car line) (handbook-content-filter (car line))))
+        (define body (if (pair? line) (decode-content (cdr line)) null))
         (define sublines
           (let partition ([senil null]
                           [enil null]
@@ -82,7 +82,8 @@
                   [else body])))
         
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
-              (λ [type] (tamer-elemtag #:type type (format "~a#[~a]" algo-tag line-name) (exec "[" line-name "]")))
+              (λ [type] (cond [(not line-name) algo-column-hspace]
+                              [else (tamer-elemtag #:type type (format "~a#[~a]" algo-tag line-name) (exec "[" line-name "]"))]))
               sublines)))
   
     (make-tamer-indexed-traverse-block
