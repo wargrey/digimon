@@ -27,6 +27,9 @@
          (parameterize ([current-algorithm tag])
            (algorithm-pseudocode #:tag tag title lines ...))))]))
 
+(define ~< "«")
+(define >~ "»")
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-pseudocode-index-type 'algorithm)
 (define algo-pseudocode-style (make-style "PlainBox" (list 'command)))
@@ -75,7 +78,8 @@
         
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
               (λ [type] (cond [(not line-name) algo-column-hspace]
-                              [else (tamer-elemtag #:type type (format "~a#[~a]" algo-tag line-name) (exec "[" line-name "]"))]))
+                              [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (content->string line-name) >~)
+                                                   (exec ~< line-name >~))]))
               sublines)))
   
     (make-tamer-indexed-traverse-block
@@ -144,7 +148,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-label
   (lambda [line]
-    (format (if (exact-integer? line) "L~a" "[~a]") line)))
+    (format (if (exact-integer? line) "L~a" (string-append ~< "~a" >~)) line)))
 
 (define algo-format
   (lambda [line fmt . argv]
