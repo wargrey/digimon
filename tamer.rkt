@@ -7,7 +7,7 @@
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide tamer-filebox-line-number-space)
-(provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref Algo-Ref algoref AlgoRef)
+(provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref algoref)
 (provide $ $$ $$* handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 

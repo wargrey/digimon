@@ -39,20 +39,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-ref
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? #false algotag)))
-
-(define Algo-Ref
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem values #:line line #:hide-label? #false algotag)))
+  (lambda [#:line [line #false] #:elem [algo-elem values] algotag]
+    (algo-pseudocode-ref #:elem algo-elem #:line line #:hide-label? #false algotag)))
 
 (define algoref
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem subscript #:line line #:hide-label? #true algotag)))
-
-(define AlgoRef
-  (lambda [#:line [line #false] algotag]
-    (algo-pseudocode-ref #:elem values #:line line #:hide-label? #true algotag)))
+  (lambda [#:line [line #false] #:elem [algo-elem values] algotag]
+    (algo-pseudocode-ref #:elem algo-elem #:line line #:hide-label? #true algotag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:newcounter:algorithm
@@ -110,7 +102,7 @@
      algo-pseudocode-style)))
 
 (define algo-pseudocode-ref
-  (lambda [#:elem [algo-element subscript] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
+  (lambda [#:elem [algo-element values] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (if (pair? line)
