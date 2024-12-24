@@ -18,14 +18,16 @@
                                              [<FiledType> (in-syntax #'(FieldType ...))])
                                     (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                                     (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
+                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
        (syntax/loc stx
-         (begin (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
+         (begin (struct id parent () #:type-name ID #:transparent)
 
-                (struct id parent () #:type-name ID #:transparent)
-                
+                (define default-parameter : (Parameterof FieldType (-> FieldType))
+                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                ...
+
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
     [(_ id : ID #:-> parent #:format frmt:str ([field : FieldType defval] ...))
@@ -37,13 +39,15 @@
                                              [<FiledType> (in-syntax #'(FieldType ...))])
                                     (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                                     (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
+                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
        (syntax/loc stx
          (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
 
-                (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
+                (define default-parameter : (Parameterof FieldType (-> FieldType))
+                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                ...
                 
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
@@ -56,13 +60,15 @@
                                              [<FiledType> (in-syntax #'(FieldType ...))])
                                     (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                                     (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
+                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
                                             (cons <param> sarap)))])
                       (list args (reverse sarap)))])
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
-                (define default-parameter : (Parameterof FieldType) (make-parameter defval)) ...
+                (define default-parameter : (Parameterof FieldType (-> FieldType))
+                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                ...
                 
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]))
