@@ -180,7 +180,25 @@
 \def\texMathDisplay#1{\begin{align*}#1\end{align*}}
 \def\texMathArray#1{\begin{align}#1\end{align}}
 
-% for my own extension, restore the fontsize if used to style the body of articles
+% for compact itemlist
+\newenvironment{HandbookCompactItemize}
+{ \begin{itemize}
+    \setlength{\parskip}{0pt}
+    \setlength{\parsep}{0pt}
+    \setlength{\itemsep}{0pt}  }
+{ \end{itemize}                }
+
+\newenvironment{HandbookCompactOrdered}
+{ \begin{enumerate}
+    \setlength{\parskip}{0pt}
+    \setlength{\parsep}{0pt}
+    \setlength{\itemsep}{0pt}  }
+{ \end{enumerate}              }
+
+\newcommand{\HandbookCompactItemizeItem}[1]{\item #1}
+\newcommand{\HandbookCompactOrderedItem}[1]{\item #1}
+
+% for my own extension, restore the fontsize if styled in the body of articles
 \newcommand{\bodyKw}[1]{{\SColorize{black}{\Scribtexttt{#1}}}}
 \newcommand{\bodyStxLink}[1]{\bodyKw{#1}}
 \newcommand{\bodyStxDef}[1]{\bodyStxLink{#1}}

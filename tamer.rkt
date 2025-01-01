@@ -17,7 +17,8 @@
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
 (provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/theme.rkt"))
-(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/tag.rkt" "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/itemlist.rkt" "digitama/tamer/tag.rkt"))
+(provide (all-from-out "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (provide (rename-out [note handbook-footnote]))
@@ -47,6 +48,8 @@
 (require (for-label racket))
 
 (require "digitama/tamer/tag.rkt")
+(require "digitama/tamer/itemlist.rkt")
+(require "digitama/tamer/literate.rkt")
 (require "digitama/tamer/pseudocode.rkt")
 (require "digitama/tamer/style.rkt")
 (require "digitama/tamer/backend.rkt")
@@ -308,7 +311,7 @@
   (syntax-parse stx #:literals []
     [(_ id contents ...)
      (syntax/loc stx (begin ($tex:phantomsection)
-                            (chunk id contents ...)))]))
+                            (tamer-chunk id contents ...)))]))
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
