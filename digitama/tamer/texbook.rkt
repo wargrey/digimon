@@ -18,10 +18,6 @@
 (define phantomsection-style (make-style "phantomsection" null))
 (define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
 
-(define math-inline-style (make-style "texMathInline" (list 'exact-chars)))
-(define math-display-style (make-style "texMathDisplay" (list 'exact-chars)))
-(define math-eqnarray-style (make-style "texMathArray" (list 'exact-chars)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-prefab-name
   (lambda [TeX]
@@ -30,31 +26,6 @@
       [(latex) (texbook-command "LaTeX")]
       [(latexe) (texbook-command "LaTeXe")]
       [else (texbook-command TeX)])))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define $
-  (lambda strs
-    (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (make-element math-inline-style strs)
-           (apply math strs))))))
-
-(define $$
-  (lambda strs
-    (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (make-element math-display-style strs)
-           (apply math strs))))))
-
-(define $$*
-  (lambda strs
-    (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (make-element math-eqnarray-style strs)
-           (apply math strs))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-command ;; \cmd[opt-args]{args}{body}{extra-args}

@@ -8,7 +8,7 @@
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
 (provide tamer-filebox-line-number-space)
 (provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref algoref)
-(provide $ $$ $$* handbook-image tamer-image)
+(provide handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 (provide (except-out (all-from-out racket) abstract))
@@ -17,8 +17,8 @@
 (provide (all-from-out scribble/html-properties scribble/latex-properties))
 (provide (all-from-out "digitama/tamer/backend.rkt" "digitama/tamer/citation.rkt" "digitama/tamer/privacy.rkt"))
 (provide (all-from-out "digitama/tamer/style.rkt" "digitama/tamer/manual.rkt" "digitama/tamer/theme.rkt"))
-(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/itemlist.rkt" "digitama/tamer/tag.rkt"))
-(provide (all-from-out "digitama/plural.rkt"))
+(provide (all-from-out "digitama/tamer/texbook.rkt" "digitama/tamer/ams.rkt" "digitama/tamer/itemlist.rkt"))
+(provide (all-from-out "digitama/tamer/tag.rkt" "digitama/plural.rkt"))
 (provide (all-from-out "spec.rkt" "tongue.rkt" "system.rkt" "format.rkt" "echo.rkt"))
 
 (provide (rename-out [note handbook-footnote]))
@@ -26,6 +26,9 @@
 (provide (rename-out [tamer-filebox/region handbook-filebox]))
 (provide (rename-out [tamer-filebox/region handbook-filebox/region]))
 (provide (rename-out [handbook-acknowledgement handbook-acknowledgment]))
+
+(provide (rename-out [tamer-figure-ref fig-ref])
+         (rename-out [tamer-code-ref code-ref]))
 
 (require racket/hash)
 (require racket/symbol)
@@ -57,6 +60,7 @@
 (require "digitama/tamer/manual.rkt")
 (require "digitama/tamer/theme.rkt")
 (require "digitama/tamer/block.rkt")
+(require "digitama/tamer/ams.rkt")
 (require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
 (require "digitama/tamer/privacy.rkt")

@@ -8,6 +8,7 @@
 
 (require scribble/core)
 (require scribble/manual)
+(require scribble/tag)
 
 (require "texbook.rkt")
 

@@ -207,7 +207,7 @@
 (define make-figure-block
   (lambda [legend content-style content]
     (list (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))
-          (make-paragraph centertext-style (list legend)))))
+          (make-paragraph centeringtext-style (list legend)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-block-source
@@ -233,6 +233,7 @@
 (define margin-figure-style (make-style "Marginfigure" figure-style-extras))
 (define figureinside-style (make-style "FigureInside" figure-style-extras))
 (define centertext-style (make-style "Centertext" figure-style-extras))
+(define centeringtext-style (make-style "Centeringtext" figure-style-extras))
 (define chia-legend-style (make-style "legend" figure-style-extras))
 
 (define phantomsection (make-paragraph (make-style "phantomsection" null) null))
