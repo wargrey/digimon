@@ -3,6 +3,9 @@
 % `acmart` already provides `marginfigure`, use
 % \usepackage{sidenotes} for other documenclass
 
+% alternatively, \usepackage{snotez} brings `sidefigure` and `sidetable`,
+%   despite conflicted with `sidenotes`
+
 % \legend relies on \belowcaptionskip, which is not defined by the JFP class file:
 \makeatletter
 \@ifundefined{belowcaptionskip}{\newlength{\belowcaptionskip}}{}
