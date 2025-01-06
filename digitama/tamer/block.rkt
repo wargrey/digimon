@@ -150,7 +150,7 @@
          (hash-set! global-tags this-story (add1 current-index))
          (traverse-indexed-tagbase set! index-type global-tags get)
 
-         (make-nested-flow block-style
+         (make-nested-flow (or block-style quote-style)
                            (if (list? block)
                                (if (not maybe-anchor) block (cons maybe-anchor block))
                                (if (not maybe-anchor) (list block) (list maybe-anchor block)))))))))
@@ -210,20 +210,16 @@
           (make-paragraph centeringtext-style (list legend)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tamer-block-source
-  (lambda [.res]
-    (collection-file-path .res "digimon" "stone" "typeset")))
-
 (define figure-style-extras
   (list 'never-indents
-        (make-css-addition (tamer-block-source "figure.css"))
-        (make-tex-addition (tamer-block-source "figure.tex"))))
+        (make-css-addition (tamer-stone-source "figure.css"))
+        (make-tex-addition (tamer-stone-source "figure.tex"))))
 
 (define figure-target-style
   (make-style #f
               (list
                (make-attributes '((x-target-lift . "Figure")))
-               (make-js-addition (tamer-block-source "figure.js")))))
+               (make-js-addition (tamer-stone-source "figure.js")))))
 
 (define figure-style (make-style "Figure" figure-style-extras))
 (define marginfigure-style (make-style "marginfigure" figure-style-extras))

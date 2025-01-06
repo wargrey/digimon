@@ -123,8 +123,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define code-style-extras
   (list 'multicommand
-        (make-tex-addition (tamer-block-source "figure.tex"))
-        (make-tex-addition (tamer-block-source "lstlisting.tex"))))
+        (make-tex-addition (tamer-stone-source "lstlisting.tex"))))
 
 (define code-title-style (make-style "lstCodeTitle" code-style-extras))
 (define code-block-style (make-style "lstCodeBox" code-style-extras))

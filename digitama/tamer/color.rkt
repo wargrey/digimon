@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/symbol)
 (require racket/match)
 
 (require file/convertible)

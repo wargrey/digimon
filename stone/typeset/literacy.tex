@@ -1,4 +1,8 @@
 \usepackage{multicol}
+\usepackage{tcolorbox}
+
+\tcbuselibrary{skins}
+\tcbuselibrary{breakable}
 
 \hypersetup{
      pdffitwindow=true,   % window fit to page when opened
@@ -10,10 +14,18 @@
      pdfauthor={WarGrey}, % derive pdfinfo from \title and \author
 }
 
-\setcounter{secnumdepth}{3}
-\setcounter{tocdepth}{3}
+\setcounter{secnumdepth}{4}
+\setcounter{tocdepth}{4}
 \pagestyle{headings}
 
+% Math Notations
+\def\math#1{\ensuremath{#1}}
+\def\texMathInline#1{\ensuremath{#1}}
+\def\texMathDisplay#1{\begin{align*}#1\end{align*}}
+\def\texMathArray#1{\begin{align}#1\end{align}}
+\def\texMathGroup#1#2#3#4{\begin{#3}#4#1\begin{cases}#2\end{cases}\end{#3}}
+
+% Named Colors
 \definecolor{OrangeRed}{RGB}{255, 69, 0}
 \definecolor{Tomato}{RGB}{255, 99, 71}
 \definecolor{DarkRed}{RGB}{139, 0, 0}
@@ -157,29 +169,6 @@
 \definecolor{DarkGray}{RGB}{169, 169, 169}
 \definecolor{DimGray}{RGB}{105, 105, 105}
 \definecolor{Black}{RGB}{0, 0, 0}
-
-\newcommand{\PlainBox}[1] {
-  \begin{quote}#1\end{quote}
-}
-
-% NOTE: minipage does not break page
-\newcommand{\ColorBox}[2]{
-  \colorbox{#2}{
-    \begin{minipage}[c][][c]{\linewidth}
-      \PlainBox{#1}
-    \end{minipage}
-  }
-}
-
-\renewcommand{\boxed}[1]{
-  \ColorBox{#1}{AliceBlue}
-}
-
-\def\math#1{\ensuremath{#1}}
-\def\texMathInline#1{\ensuremath{#1}}
-\def\texMathDisplay#1{\begin{align*}#1\end{align*}}
-\def\texMathArray#1{\begin{align}#1\end{align}}
-\def\texMathGroup#1#2#3#4{\begin{#3}#4#1\begin{cases}#2\end{cases}\end{#3}}
 
 % for compact itemlist
 \newenvironment{HandbookCompactItemize}

@@ -83,7 +83,8 @@
             [else (make-traverse-block
                    (λ [get set!]
                      (if (handbook-latex-renderer? get)
-                         tex-block fallback-block)))]))))
+                         tex-block
+                         fallback-block)))]))))
 
 (define texbook-environment ;; \begin{cmd}body\end{cmd}
   (let ([cmd0base (make-hash)])
@@ -144,6 +145,10 @@
 (define $tex:setcounter
   (lambda [counter value]
     (texbook-command "setcounter" #:args (list counter value))))
+
+(define $tex:vspace
+  (lambda [pt]
+    (texbook-command "vspace" (format "~apt" pt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-datum->option-argument

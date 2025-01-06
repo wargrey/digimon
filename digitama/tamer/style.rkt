@@ -15,8 +15,13 @@
 (define grouper-style (make-style #false '(grouper)))
 (define subsub*toc-style (make-style #false '(toc)))
 (define subtitle-style (make-style "large" null))
+(define quote-style (make-style "quote" null))
 
 (define empty-block (make-paragraph plain null))
+
+(define tamer-stone-source
+  (lambda [.res]
+    (collection-file-path .res "digimon" "stone" "typeset")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-title-style

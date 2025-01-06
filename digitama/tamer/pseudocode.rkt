@@ -32,7 +32,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-pseudocode-index-type 'algorithm)
-(define algo-pseudocode-style (make-style "PlainBox" (list 'command)))
 
 (define algo-column-hspace (hspace 1))
 (define algo-title-hspace (hspace 4))
@@ -55,7 +54,7 @@
     ($tex:newcounter algo-pseudocode-index-type)))
 
 (define algorithm-pseudocode
-  (lambda [#:tag [maybe-tag #false] title . lines]
+  (lambda [#:tag [maybe-tag #false] #:vspace [vspace 8] title . lines]
     (define algo-tag (or maybe-tag (gensym 'algo:)))
 
     (define pcode-frows
@@ -91,7 +90,7 @@
                                                                        (tamer-default-algorithm-label)
                                                                        chapter-index current-index)
                                           algo-title-hspace title))
-                              
+                              (list ($tex:vspace vspace))
                               ;;; NOTICE: row borders might also prevent page breaks
                               (list (tabular #:style 'boxed
                                              #:sep algo-column-hspace
@@ -103,7 +102,7 @@
                                                      ((cadr λrows) type)
                                                      (caddr λrows)))))))))
      algo-pseudocode-index-type
-     algo-pseudocode-style)))
+     #false)))
 
 (define algo-pseudocode-ref
   (lambda [#:elem [algo-element values] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]

@@ -201,25 +201,6 @@
      (hash-set! indices index-type local-tags)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-boxed-style
-  (let* ([props (list 'multicommand 'never-indents)]
-         [boxed (make-style "boxed" props)])
-    (case-lambda
-      [() boxed]
-      [(path) (make-style "boxed" (cons path props))])))
-  
-(define handbook-nested-filebox
-  (lambda [latex? /path/file block]
-    (centered
-     (if (not latex?)
-         (nested #:style (handbook-boxed-style /path/file)
-                 (filebox (italic (string memo#) ~ (path->string (tr-if-path /path/file)))
-                          block))
-         (nested #:style (handbook-boxed-style /path/file)
-                 (filebox (smaller (italic (path->string (tr-if-path /path/file))))
-                          block))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define section-title
   (lambda [title tongue]
     (cond [(symbol? title) (speak title #:in tongue #:dialect 'tamer)]
