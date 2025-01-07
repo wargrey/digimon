@@ -16,6 +16,7 @@
 (define subsub*toc-style (make-style #false '(toc)))
 (define subtitle-style (make-style "large" null))
 (define quote-style (make-style "quote" null))
+(define indent-paragraph-style (make-style "indentPara" '(command never-indents)))
 
 (define empty-block (make-paragraph plain null))
 
@@ -63,6 +64,13 @@
     (define maybe-style (handbook-style s))
     (cond [(style? style) (make-element maybe-style self)]
           [else self])))
+
+(define handbook-indent-para
+  (lambda [p]
+    (if (paragraph? p)
+        (make-paragraph (style-merge-property indent-paragraph-style (paragraph-style p))
+                        (paragraph-content p))
+         p)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-remove-style-name

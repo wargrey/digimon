@@ -956,6 +956,15 @@
                                                 (string-trim #:left? #false #:right? #true ; remove tail blank lines 
                                                              (string-join contents (string #\newline))))))))))
 
+(define tamer-indent-paragraphs
+  (lambda contents
+    (define blocks (decode-flow contents))
+
+    (if (and (pair? blocks) (null? (cdr blocks)))
+        (handbook-indent-para (car blocks))        
+        (make-compound-paragraph plain
+                                 (map handbook-indent-para blocks)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]

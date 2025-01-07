@@ -3,7 +3,7 @@
 
 \newcommand{\SharpBox}[4]{
    \begin{tcolorbox}
-   [enhanced, breakable,
+   [enhanced, breakable, nobeforeafter,
       sharp corners=#1, colframe=#2, colback=#3,
       boxsep=1mm, left=0mm, right=0mm, top=0mm, bottom=0mm]
    #4
@@ -11,7 +11,7 @@
 
 \newcommand{\RoundedBox}[3]{
    \begin{tcolorbox}
-   [enhanced, breakable,
+   [enhanced, breakable, nobeforeafter,
       colframe=#1, colback=#2,
       boxsep=1mm, left=0mm, right=0mm, top=0mm, bottom=0mm]
    #3
@@ -39,4 +39,4 @@
    \end{tcolorbox}}
 
 \renewcommand{\boxed}[1]{\NorthBox{AliceBlue}{#1}}
-\newcommand{\boxedFile}[2]{\NorthBoxWithTitleAtRight{AliceBlue}{CornflowerBlue}{#1}{#2}}
+\newcommand{\boxedFile}[2]{\NorthBoxWithTitleAtRight{AliceBlue}{DodgerBlue}{#1}{#2}}
