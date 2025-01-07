@@ -147,8 +147,11 @@
     (texbook-command "setcounter" #:args (list counter value))))
 
 (define $tex:vspace
-  (lambda [pt]
-    (texbook-command "vspace" (format "~apt" pt))))
+  (lambda [skip]
+    (texbook-command "vspace"
+                     (if (real? skip)
+                         (format "~apt" skip)
+                         (format "~a" skip)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-datum->option-argument
