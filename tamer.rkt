@@ -957,13 +957,15 @@
                                                              (string-join contents (string #\newline))))))))))
 
 (define tamer-indent-paragraphs
-  (lambda contents
+  (lambda [#:space [space 4] . contents]
     (define blocks (decode-flow contents))
+    (define spaces (hspace space))
 
     (if (and (pair? blocks) (null? (cdr blocks)))
-        (handbook-indent-para (car blocks))        
+        (handbook-indent-para (car blocks) spaces)        
         (make-compound-paragraph plain
-                                 (map handbook-indent-para blocks)))))
+                                 (for/list ([p (in-list blocks)])
+                                   (handbook-indent-para p spaces))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false

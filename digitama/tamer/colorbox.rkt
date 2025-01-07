@@ -4,12 +4,10 @@
 
 (require scribble/core)
 (require scribble/manual)
-(require scribble/latex-properties)
 
 (require racket/symbol)
 
 (require "tag.rkt")
-(require "style.rkt")
 (require "backend.rkt")
 
 (require "../tamer.rkt")
@@ -45,25 +43,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; this is different from 'boxed
-(define named-boxed-style
-  (make-style "boxed"
-              (list 'multicommand 'never-indents
-                    (make-tex-addition (tamer-stone-source "colorbox.tex")))))
-
-(define filebox-style
-  (make-style "boxedFile"
-              (list 'multicommand 'never-indents
-                    (make-tex-addition (tamer-stone-source "colorbox.tex")))))
-
-(define sharp-style
-  (make-style "SharpBox"
-              (list 'multicommand 'never-indents
-                    (make-tex-addition (tamer-stone-source "colorbox.tex")))))
-
-(define rounded-style
-  (make-style "RoundedBox"
-              (list 'multicommand 'never-indents
-                    (make-tex-addition (tamer-stone-source "colorbox.tex")))))
+(define named-boxed-style (make-style "boxed" (list 'multicommand 'never-indents)))
+(define filebox-style (make-style "boxedFile" (list 'multicommand 'never-indents)))
+(define sharp-style (make-style "SharpBox" (list 'multicommand 'never-indents)))
+(define rounded-style (make-style "RoundedBox" (list 'multicommand 'never-indents)))
 
 (define handbook-boxed-style
   (case-lambda
