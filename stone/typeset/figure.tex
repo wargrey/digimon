@@ -1,14 +1,15 @@
 \usepackage{ccaption}
 
-% `acmart` already provides `marginfigure`, use
-% \usepackage{sidenotes} for other documenclass
-
-% alternatively, \usepackage{snotez} brings `sidefigure` and `sidetable`,
-%   despite conflicted with `sidenotes`
-
-% \legend relies on \belowcaptionskip, which is not defined by the JFP class file:
 \makeatletter
+% \legend relies on \belowcaptionskip, which is not defined by the JFP class file:
 \@ifundefined{belowcaptionskip}{\newlength{\belowcaptionskip}}{}
+
+% `acmart` already provides `marginfigure`
+\@ifundefined{marginfigure}{
+  % \usepackage{snotez} brings `sidefigure` and `sidetable`, despite the conflicting with `sidenotes`
+  \@ifundefined{sidefigure}
+               {\usepackage{sidenotes}}
+               {\newenvironment{marginfigure}{\begin{sidefigure}}{\end{sidefigure}}}}
 \makeatother
 
 % since worked with \centering for the legend,
@@ -40,6 +41,7 @@
 \newcommand{\Centertext}[1]{\begin{center}#1\end{center}}
 \newcommand{\Centeringtext}[1]{\centering#1}
 
-% for acmart sigchi-a format
+% for margin figures
+\newcommand{\MarginLegend}[1]{\hrule width \hsize height .33pt \legend{\footnotesize#1}}
 \newenvironment{Marginfigure}{\begin{Mfigure}\item}{\end{Mfigure}}
 \newenvironment{Mfigure}{\noindent\begin{list}{}{}}{\end{list}}

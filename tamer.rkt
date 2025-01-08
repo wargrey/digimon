@@ -973,11 +973,11 @@
   #:λ (make-figure-block legend align-style pre-flows))
 
 (define tamer-figure-margin
-  (lambda [id caption #:style [align-style margin-figure-style] #:legend-style [legend-style chia-legend-style] . pre-flows]
+  (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style margin-legend-style] . pre-flows]
     (tamer-indexed-block id tamer-figure-type
                          (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
-                         (λ [legend] (make-figure-block legend align-style pre-flows)) #true)))
+                         (λ [legend] (make-figure-block legend align-style pre-flows centertext-style)) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
