@@ -34,6 +34,7 @@
 (define tamer-endnote-section (make-parameter void))
 
 (define tamer-filebox-line-number-space (make-parameter 2))
+(define tamer-marginnote-left? (make-parameter #false))
   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-story->tag stx)

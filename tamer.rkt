@@ -6,7 +6,7 @@
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
 (provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
-(provide tamer-filebox-line-number-space)
+(provide tamer-filebox-line-number-space tamer-marginnote-left?)
 (provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref algoref)
 (provide handbook-image tamer-image)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
@@ -375,7 +375,7 @@
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
 (define handbook-word-count
-  (lambda [#:make-content [make-content #false] #:make-element [make-element margin-note*] #:include-section? [inc-sec? #false]]
+  (lambda [#:make-content [make-content #false] #:make-element [make-element handbook-sidenote*] #:include-section? [inc-sec? #false]]
     (make-delayed-element
      (λ [render% pthis _]
        (cond [(handbook-stat-renderer? render%) null]
@@ -579,6 +579,14 @@
           [(not captalized?) (secref #:doc modpath #:tag-prefixes tps #:underline? underline? #:link-render-style style tag)]
           [else (Secref #:doc modpath #:tag-prefixes tps #:underline? underline? #:link-render-style style tag)])))
 
+(define handbook-sidenote
+  (lambda argv
+    (apply margin-note #:left? (tamer-marginnote-left?) argv)))
+
+(define handbook-sidenote*
+  (lambda argv
+    (apply margin-note* #:left? (tamer-marginnote-left?) argv)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (tamer-module stx)
   (syntax-parse stx #:literals []
@@ -781,7 +789,7 @@
              [else (make-delayed-summary render% pthis infobase)])))))
 
 (define tamer-note
-  (lambda [example #:note [note margin-note] #:no-summary? [no-summary? #false] #:issue-symbol [~symbol (default-spec-issue-symbol)] . notes]
+  (lambda [example #:note [note handbook-sidenote] #:no-summary? [no-summary? #false] #:issue-symbol [~symbol (default-spec-issue-symbol)] . notes]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
 

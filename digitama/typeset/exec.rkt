@@ -6,9 +6,9 @@
 (require "engine.rkt")
 
 (require "../exec.rkt")
-
 (require "../minimal/dtrace.rkt")
 (require "../../filesystem.rkt")
+(require "../../debug.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-exec : (-> Symbol Tex-Engine Path-String Path-String Byte Boolean Boolean Path)
@@ -34,19 +34,19 @@
     ;;; NOTE: Scribble may generate resources in `(current-directory)`
     (parameterize ([current-directory dest-dir])
       (let rerun ([times : Natural 1])
-        (fg-recon-exec #:env (unbox &tex-env)
-                       (string->symbol (format "~a[~a]" renderer times))
-                       (tex-engine-program latex)
-                       (list (list "-interaction=batchmode")
-                             (if (not halt-on-error?) null (list "-halt-on-error"))
-                             (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
-                             (list -output-directory)
-                             (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
-                                         [else (path->string TEXNAME.tex)])))
-                       (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer] [errmsg : Bytes]]
-                         (define log-now (file-mtime TEXNAME.log))
-                         (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
-                               [(> log-now 0) (tex-log-cat renderer TEXNAME.log)])))
+        (time* (fg-recon-exec #:env (unbox &tex-env)
+                              (string->symbol (format "~a[~a]" renderer times))
+                              (tex-engine-program latex)
+                              (list (list "-interaction=batchmode")
+                                    (if (not halt-on-error?) null (list "-halt-on-error"))
+                                    (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
+                                    (list -output-directory)
+                                    (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
+                                                [else (path->string TEXNAME.tex)])))
+                              (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer] [errmsg : Bytes]]
+                                (define log-now (file-mtime TEXNAME.log))
+                                (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
+                                      [(> log-now 0) (tex-log-cat renderer TEXNAME.log)]))))
         
         (when (and (file-exists? TEXNAME.log) (> (file-mtime TEXNAME.log) log-timestamp))
           ;;; NOTE
