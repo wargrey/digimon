@@ -987,6 +987,12 @@
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
                          (λ [legend] (make-figure-block legend align-style pre-flows centertext-style)) #true)))
 
+(define tamer-delayed-figure-apply
+  (lambda [f #:values [g values] #:pre-argv [pre-argv null] #:post-argv [post-argv null] . ids]
+    (tamer-indexed-block/delayed-apply tamer-figure-type ids f g pre-argv post-argv
+                                       (tamer-default-figure-label)
+                                       (tamer-default-figure-label-separator))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
   [srcpath #:language [language #false] #:rootdir [rootdir #false] #:style [align-style tamer-left-block-style] #:oc-ness [ocness 'close]]

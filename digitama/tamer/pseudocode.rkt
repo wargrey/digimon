@@ -107,28 +107,28 @@
 (define algo-pseudocode-ref
   (lambda [#:elem [algo-element values] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
     (make-tamer-indexed-block-ref
-     (λ [type chapter-index maybe-index]
+     (λ [type chpt-idx maybe-index]
        (if (pair? line)
            (let-values ([(line0 linen) (values (car line) (cdr line))])
              (if (not maybe-index)
-                 (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chapter-index line0 linen)))
+                 (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chpt-idx line0 linen)))
                  (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
                                                     (if (and hide-label? line0)
                                                         (:mod:link (algo-label line0))
                                                         (:mod:link (algo-format line0
                                                                                 "~a~a.~a" (tamer-default-algorithm-label)
-                                                                                chapter-index maybe-index))))
+                                                                                chpt-idx maybe-index))))
                                      (:pn "-")
                                      (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
                                                     (:mod:link (algo-label linen)))))))
            (if (not maybe-index)
-               (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chapter-index)))
+               (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chpt-idx)))
                (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
                                             (if (and hide-label? line)
                                                 (:mod:link (algo-label line))
                                                 (:mod:link (algo-format line
                                                                         "~a~a.~a" (tamer-default-algorithm-label)
-                                                                        chapter-index maybe-index))))))))
+                                                                        chpt-idx maybe-index))))))))
      algo-pseudocode-index-type algo-tag)))
 
 (define algo-goto

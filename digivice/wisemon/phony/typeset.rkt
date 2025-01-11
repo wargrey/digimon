@@ -134,12 +134,12 @@
                                          
                                          (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
                                          (tex-render #:fallback tex-fallback-engine #:enable-filter #false
-                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #true
+                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #false
                                                      engine TEXNAME.scrbl dest-dir)))
                      
                      (list (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
                                          (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
-                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #true
+                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #false
                                                      engine TEXNAME.tex (assert (path-only TEXNAME.ext)))
 
                                          (handbook-display-metrics dtrace-msg 'note

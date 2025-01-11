@@ -3,7 +3,6 @@
 (provide (all-defined-out))
 
 (require racket/symbol)
-(require racket/format)
 (require racket/function)
 
 (require scribble/manual)
@@ -110,16 +109,12 @@
     
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
-       (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chapter-index)))
+       (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false chapter-index))
 
        (if (not maybe-index)
-           (racketerror (ref-element (if (not chpt-idx)
-                                         (~a label (or sep "") '?)
-                                         (~a label (or sep "") chpt-idx #\. '?))))
+           (racketerror (ref-element (tamer-block-legend-label chpt-idx label sep)))
            (make-link-element #false
-                              (list (ref-element (if (not chpt-idx)
-                                                     (~a label (or sep "") maybe-index)
-                                                     (~a label (or sep "") chpt-idx #\. maybe-index))))
+                              (list (ref-element (tamer-block-legend-label chpt-idx maybe-index label sep)))
                               (tamer-block-sym:tag->tag index-type sym:tag))))
      index-type sym:tag)))
 
@@ -144,7 +139,7 @@
                 (handbook-latex-renderer? get)
                 (cond [(eq? anchor? #true) phantomsection]
                       [else (make-paragraph refstepcounter-style
-                                            (list (~a anchor?)))])))
+                                            (list (format "~a" anchor?)))])))
          
          (hash-set! global-tags current-tag (cons order current-index))
          (hash-set! global-tags this-story (add1 current-index))
@@ -157,10 +152,7 @@
 
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]
-    (define sym:tag
-      (cond [(symbol? tag) tag]
-            [(string? tag) (string->symbol tag)]
-            [else (string->symbol (~a tag))]))
+    (define sym:tag (tamer-indexed-block-id->symbol tag))
 
     (define index-story (tamer-index-story))
     (define index-appendix (tamer-appendix-index))
@@ -172,17 +164,44 @@
          (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
          (define global-tags (traverse-indexed-tagbase get index-type))
          (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car index-story) #false))))
-         (resolve index-type (car target-info) (cdr target-info))))
+         
+         (resolve index-type (tamer-block-chapter-label (car target-info)) (cdr target-info))))
      (λ [] (content-width (resolve index-type (car index-story) #false)))
      (λ [] (content->string (resolve index-type (car index-story) #false))))))
 
 (define tamer-indexed-block-elemtag
   (lambda [id label chapter-index self-index #:separator [sep " "] #:tail [tail ": "] #:type [type #false] #:style [style 'tt]]
-    (make-block-label (tamer-indexed-block-id->symbol (or type (string-downcase (~a label))))
+    (make-block-label (tamer-indexed-block-id->symbol (or type (string-downcase (format "~a" label))))
                       (tamer-indexed-block-id->symbol id)
                       label sep tail
                       chapter-index self-index
                       style #false)))
+
+(define tamer-indexed-block/delayed-apply
+  (lambda [index-type ids f g pre-argv post-argv label sep]
+    (if (not (null? ids))
+        (let ([index-story (tamer-index-story)]
+              [index-appendix (tamer-appendix-index)])
+          (make-delayed-block
+           (λ [render% pthis infobase]
+             (parameterize ([tamer-index-story index-story]
+                            [tamer-appendix-index index-appendix])
+               (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
+               (define global-tags (traverse-indexed-tagbase get index-type))
+
+               (make-paragraph plain
+                               (tamer-block-compose
+                                (apply f (for/list ([id (if (list? ids) (in-list ids) (in-value ids))])
+                                           (define sym:id (tamer-indexed-block-id->symbol id))
+                                           (define target (hash-ref global-tags sym:id (λ [] (cons (car index-story) #false))))
+                                           (define-values (chpt-idx sub-idx) (values (tamer-block-chapter-label (car target)) (cdr target)))
+                                           
+                                           (cons id
+                                                 (if (not sub-idx)
+                                                     (tamer-block-legend-label chpt-idx label sep)
+                                                     (tamer-block-legend-label chpt-idx sub-idx label sep)))))
+                                g pre-argv post-argv))))))
+        (tamer-block-compose (f) g pre-argv post-argv))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-block-label
@@ -190,6 +209,7 @@
     (define chpt-idx (if (tamer-indexed-block-hide-chapter-index) #false (tamer-block-chapter-label chpt-idx0)))
     (define lbl-sep (or sep (tamer-block-label-separator) " "))
     (define lbl-tail (or tail (tamer-block-label-tail) ""))
+
     (make-target-element target-style
                          (make-element (or label-style (tamer-block-label-style))
                                        (if (or chpt-idx)
@@ -238,7 +258,7 @@
   (lambda [id]
     (cond [(symbol? id) id]
           [(string? id) (string->symbol id)]
-          [else (string->symbol (~a id))])))
+          [else (string->symbol (format "~a" id))])))
 
 (define tamer-block-sym:tag->tag
   (lambda [type tag]
@@ -251,6 +271,24 @@
     (cond [(not apdx-idx) chpt-idx]
           [(< chpt-idx apdx-idx) 0 #| We are in the Preface |#]
           [else (integer->char (+ (- chpt-idx apdx-idx) 65))])))
+
+(define tamer-block-legend-label
+  (case-lambda
+    [(chpt-idx label sep)
+     (if (not chpt-idx)
+         (format "~a~a?" label (or sep ""))
+         (format "~a~a~a.?" label (or sep "") chpt-idx))]
+    [(chpt-idx sub-idx label sep)
+     (if (not chpt-idx)
+         (format "~a~a~a" label (or sep "") sub-idx)
+         (format "~a~a~a.~a" label (or sep "") chpt-idx sub-idx))]))
+
+(define tamer-block-compose
+  (lambda [blk g pre-argv post-argv]
+    (cond [(and (null? pre-argv) (null? post-argv)) (g blk)]
+          [(and (list? pre-argv) (list? post-argv))
+           (apply g (append pre-argv (cons blk post-argv)))]
+          [else (g blk)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API layer
