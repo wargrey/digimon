@@ -18,7 +18,7 @@
     [(fl% 100%)
      (cond [(< fl% 0.0) (* (abs (real->double-flonum fl%)) 100%)]
            [(>= fl% 0.0) (real->double-flonum fl%)]
-           [else #| nan |# 0.0])]))
+           [else #| nan |# 100%])]))
 
 (define ~extent : (case-> [Real -> Nonnegative-Flonum]
                           [Real Real -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
