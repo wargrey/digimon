@@ -39,8 +39,13 @@
          (make-nested-flow (if (not ct?)
                                (handbook-filebox-style /path/file)
                                (handbook-filebox/ct-style /path/file))
-                           (list (make-paragraph plain (tamer-elemtag* #:type 'file (if (not tag) filename (format "~a" tag))
-                                                                       (tt (smaller (emph filename)))))
+                           (list (make-paragraph plain
+                                                 (let ([fn (tt (smaller (emph filename)))])
+                                                   (if (or tag)
+                                                       (tamer-elemtag* #:type 'file
+                                                                       (if (eq? tag #true) filename (format "~a" tag))
+                                                                       fn)
+                                                       tag)))
                                  block))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
