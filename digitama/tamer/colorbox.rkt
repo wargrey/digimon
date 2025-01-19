@@ -28,7 +28,7 @@
                                            content))])))))
 
 (define handbook-colorful-filebox
-  (lambda [#:tag [tag #false] latex? /path/file block]
+  (lambda [#:tag [tag #false] #:path-centerized? [ct? #false] latex? /path/file block]
     (define filename (path->string (tr-if-path /path/file)))
     
     (centered
@@ -36,7 +36,9 @@
          (make-nested-flow (handbook-boxed-style /path/file)
                            (list (filebox (italic (string memo#) ~ filename)
                                           block)))
-         (make-nested-flow (handbook-filebox-style /path/file)
+         (make-nested-flow (if (not ct?)
+                               (handbook-filebox-style /path/file)
+                               (handbook-filebox/ct-style /path/file))
                            (list (make-paragraph plain (tamer-elemtag* #:type 'file (if (not tag) filename (format "~a" tag))
                                                                        (tt (smaller (emph filename)))))
                                  block))))))
@@ -45,6 +47,7 @@
 ; this is different from 'boxed
 (define named-boxed-style (make-style "boxed" (list 'multicommand 'never-indents)))
 (define filebox-style (make-style "boxedFile" (list 'multicommand 'never-indents)))
+(define filebox/ct-style (make-style "boxedFileCT" (list 'multicommand 'never-indents)))
 (define sharp-style (make-style "SharpBox" (list 'multicommand 'never-indents)))
 (define rounded-style (make-style "RoundedBox" (list 'multicommand 'never-indents)))
 
@@ -59,6 +62,12 @@
     [() filebox-style]
     [(path) (make-style (style-name filebox-style)
                         (cons path (style-properties filebox-style)))]))
+
+(define handbook-filebox/ct-style
+  (case-lambda
+    [() filebox/ct-style]
+    [(path) (make-style (style-name filebox/ct-style)
+                        (cons path (style-properties filebox/ct-style)))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define colorize

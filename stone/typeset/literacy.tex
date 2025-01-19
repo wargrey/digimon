@@ -203,13 +203,26 @@
       colback=#1, colframe=#1, boxrule=0pt,
       colbacktitle=#2,
       borderline north={.33pt}{-.5pt}{MidnightBlue!50},
-      attach boxed title to top right={ xshift=-1.618em, yshift=-2mm },
+      attach boxed title to top text right={ yshift*=-2mm },
+      title={#3}]
+   #4
+   \end{tcolorbox}}
+
+\newcommand{\NorthBoxWithTitleAtCenter}[4]{
+   \begin{tcolorbox}
+   [enhanced, breakable,
+      sharp corners=north,
+      colback=#1, colframe=#1, boxrule=0pt,
+      colbacktitle=#2,
+      borderline north={.33pt}{-.5pt}{MidnightBlue!50},
+      attach boxed title to top center={ yshift*=-2mm },
       title={#3}]
    #4
    \end{tcolorbox}}
 
 \renewcommand{\boxed}[1]{\NorthBox{AliceBlue}{#1}}
 \newcommand{\boxedFile}[2]{\NorthBoxWithTitleAtRight{AliceBlue}{LightSkyBlue}{#1}{#2}}
+\newcommand{\boxedFileCT}[2]{\NorthBoxWithTitleAtCenter{AliceBlue}{LightSkyBlue}{#1}{#2}}
 
 % for compact itemlist
 \newenvironment{HandbookCompactItemize}

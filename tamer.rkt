@@ -866,7 +866,7 @@
 
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1] #:line-number-space [gap (tamer-filebox-line-number-space)]
-                #:tag [tag #false]]
+                #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -875,7 +875,7 @@
        (parameterize ([tamer-story this-story]
                       [current-digimon raco-setup-forget-my-digimon])
          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (handbook-colorful-filebox #:tag tag
+         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
                                     (handbook-latex-renderer? get)
                                     /path/file
                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
@@ -885,7 +885,7 @@
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false]
                 #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]
-                #:tag [tag #false]]
+                #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -917,7 +917,7 @@
                         (read-next lang line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next lang (add1 line0) contents end)])))))
-         (handbook-colorful-filebox #:tag tag
+         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
                                     (handbook-latex-renderer? get)
                                     /path/file
                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
@@ -927,7 +927,7 @@
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
                 #:line-number-space [gap (tamer-filebox-line-number-space)]
-                #:tag [tag #false]]
+                #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
     
@@ -957,7 +957,7 @@
                         (read-next line0 (cons line contents) end)]
                        [else ; still search the start line
                         (read-next (add1 line0) contents end)])))))
-         (handbook-colorful-filebox #:tag tag
+         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
                                     (handbook-latex-renderer? get)
                                     /path/file
                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
