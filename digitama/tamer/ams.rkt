@@ -30,19 +30,16 @@
            (apply math strs))))))
 
 (define $$
-  (lambda strs
+  (lambda [#:tag [tag #false] . strs]
     (make-traverse-element
      (λ [get set!]
        (if (handbook-latex-renderer? get)
-           (make-element math-display-style strs)
-           (apply math strs))))))
-
-(define $$*
-  (lambda strs
-    (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (make-element math-eqnarray-style strs)
+           (if (not tag)
+               (make-element math-display-style strs)
+               (make-multiarg-element math-eqnarray-style
+                                  (list strs
+                                        (texbook-command "label"
+                                                         (make-equation-tag (or tag (gensym)))))))
            (apply math strs))))))
 
 (define $$=
