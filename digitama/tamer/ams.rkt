@@ -57,11 +57,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define eqref
-  (lambda [tag]
+  (lambda [tag #:label [label (tamer-default-equation-label)]]
     (make-traverse-element
      (λ [get set!]
        (if (handbook-latex-renderer? get)
-           (:stx:link (list (format "~a" (tamer-default-equation-label))
+           (:stx:link (list (format "~a" label)
                             (texbook-command "eqref" (make-equation-tag tag))))
            null)))))
 
