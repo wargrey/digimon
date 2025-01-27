@@ -98,7 +98,7 @@
          (define-tamer-indexed-block id
            #:anchor anchor #:target-style target-style #:legend-style tamer-table-legend-style
            #:with [legend pre-flows args ...] #:do make-block ...
-           #:for [[tamer-id table-style]
+           #:for [[tamer-id gydm-table-style]
                   [tamer-id* tablemultiwide-style]
                   [tamer-id! heretable-style]])))]))
 
