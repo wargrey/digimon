@@ -15,10 +15,6 @@
 (require "misc.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define phantomsection-style (make-style "phantomsection" null))
-(define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-prefab-name
   (lambda [TeX]
     (case (string->symbol (string-downcase TeX))

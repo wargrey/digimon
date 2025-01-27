@@ -77,11 +77,30 @@
                     [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
        (syntax/loc stx
          (define-tamer-indexed-block id
-           #:anchor anchor #:target-style target-style #:legend-style tamer-jfp-legend-style
+           #:anchor anchor #:target-style target-style #:legend-style tamer-figure-legend-style
            #:with [legend pre-flows args ...] #:do make-block ...
            #:for [[tamer-id figure-style]
                   [tamer-id* figuremultiwide-style]
                   [tamer-id! herefigure-style]])))]))
+
+(define-syntax (define-tamer-indexed-table stx)
+  (syntax-parse stx #:datum-literals []
+    [(_ id
+        (~alt (~optional (~seq #:anchor anchor) #:defaults ([anchor #'#true]))
+              (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
+        ...
+        [args ...] #:with [legend pre-flows] #:λ make-block ...)
+     (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
+                    [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
+                    [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
+                    [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
+       (syntax/loc stx
+         (define-tamer-indexed-block id
+           #:anchor anchor #:target-style target-style #:legend-style tamer-table-legend-style
+           #:with [legend pre-flows args ...] #:do make-block ...
+           #:for [[tamer-id table-style]
+                  [tamer-id* tablemultiwide-style]
+                  [tamer-id! heretable-style]])))]))
 
 (define tamer-indexed-block-hide-chapter-index (make-parameter #false))
 (define tamer-block-label-separator (make-parameter " "))
@@ -224,36 +243,50 @@
                                           chpt-idx self-idx label-style target-style)
                         (make-element (or caption-style (tamer-block-caption-style)) caption)))))
 
-(define make-figure-block
-  (lambda [legend content-style content [legend-style centeringtext-style]]
-    (list (make-nested-flow content-style (list (make-nested-flow figureinside-style (decode-flow content))))
-          (make-paragraph legend-style (list legend)))))
+(define make-block-self
+  (lambda [legend content-style inside-style content legend-style [order values]]
+    (order (list (make-nested-flow content-style (list (make-nested-flow inside-style (decode-flow content))))
+                 (make-paragraph legend-style (list legend))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define figure-style-extras
+(define phantomsection-style (make-style "phantomsection" null))
+(define refstepcounter-style (make-style "refstepcounter" null))
+(define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
+
+(define centertext-style (make-style "Centertext" '(never-indents)))
+(define centeringtext-style (make-style "Centeringtext" '('never-indents)))
+
+(define phantomsection (make-paragraph phantomsection-style null))
+
+(define block-style-extras
   (list 'never-indents
         (make-css-addition (tamer-stone-source "figure.css"))
-        (make-tex-addition (tamer-stone-source "figure.tex"))))
+        (make-tex-addition (tamer-stone-source "block.tex"))))
 
 (define figure-target-style
   (make-style #f
               (list
-               (make-attributes '((x-target-lift . "Figure")))
+               (make-attributes '([x-target-lift . "Figure"]))
                (make-js-addition (tamer-stone-source "figure.js")))))
 
-(define figure-style (make-style "Figure" figure-style-extras))
-(define marginfigure-style (make-style "marginfigure" figure-style-extras))
-(define herefigure-style (make-style "Herefigure" figure-style-extras))
-(define figuremultiwide-style (make-style "FigureMultiWide" figure-style-extras))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define figure-style (make-style "Figure" block-style-extras))
+(define marginfigure-style (make-style "marginfigure" block-style-extras))
+(define herefigure-style (make-style "Herefigure" block-style-extras))
+(define figuremultiwide-style (make-style "FigureMultiWide" block-style-extras))
 
-(define figureinside-style (make-style "FigureInside" figure-style-extras))
-(define centertext-style (make-style "Centertext" figure-style-extras))
-(define centeringtext-style (make-style "Centeringtext" figure-style-extras))
-(define margin-legend-style (make-style "MarginLegend" figure-style-extras))
+(define gydm-table-style (make-style "GydmTable" block-style-extras))
+(define margintable-style (make-style "margintable" block-style-extras))
+(define heretable-style (make-style "Heretable" block-style-extras))
+(define tablemultiwide-style (make-style "TableMultiWide" block-style-extras))
 
-(define phantomsection (make-paragraph (make-style "phantomsection" null) null))
-(define refstepcounter-style (make-style "refstepcounter" null))
+(define figureinside-style (make-style "FigureInside" block-style-extras))
+(define marginfigure-legend-style (make-style "MarginFigLegend" block-style-extras))
 
+(define tableinside-style (make-style "TableInside" block-style-extras))
+(define margintable-legend-style (make-style "MarginTabLegend" block-style-extras))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-indexed-block-id->symbol
   (lambda [id]
     (cond [(symbol? id) id]
@@ -292,8 +325,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; API layer
-(define tamer-center-block-style (make-style "Centerfigure" figure-style-extras))
-(define tamer-left-block-style (make-style "Leftfigure" figure-style-extras))
-(define tamer-right-block-style (make-style "Rightfigure" figure-style-extras))
+(define tamer-center-block-style (make-style "Centerblock" block-style-extras))
+(define tamer-left-block-style (make-style "Leftblock" block-style-extras))
+(define tamer-right-block-style (make-style "Rightblock" block-style-extras))
 
-(define tamer-jfp-legend-style (make-style "JFPLegend" figure-style-extras))
+(define tamer-figure-legend-style (make-style "JFPFigLegend" block-style-extras))
+(define tamer-table-legend-style (make-style "GydmTabLegend" block-style-extras))
+

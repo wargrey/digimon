@@ -1,4 +1,5 @@
 \usepackage{multicol}
+\usepackage{ccaption}
 \usepackage{tcolorbox}
 
 \tcbuselibrary{skins}
@@ -25,6 +26,10 @@
 \def\texMathDisplay#1{\begin{align*}#1\end{align*}}
 \def\texMathArray#1#2{\begin{align}#1#2\end{align}}
 \def\texMathGroup#1#2#3#4{\begin{#3}#4#1\begin{cases}#2\end{cases}\end{#3}}
+
+% `center` add too much vspace, whereas `centering` doesn't
+\newcommand{\Centertext}[1]{\begin{center}#1\end{center}}
+\newcommand{\Centeringtext}[1]{\centering#1}
 
 % Named Colors
 \definecolor{OrangeRed}{RGB}{255, 69, 0}

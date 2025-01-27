@@ -1,0 +1,55 @@
+\makeatletter
+% \legend relies on \belowcaptionskip, which is not defined by the JFP class file:
+\@ifundefined{belowcaptionskip}{\newlength{\belowcaptionskip}}{}
+
+% `acmart` already provides `marginfigure`
+\@ifundefined{marginfigure}{
+  % \usepackage{snotez} brings `sidefigure` and `sidetable`, despite the conflicting with `sidenotes`
+  \@ifundefined{sidefigure}
+               {\usepackage{sidenotes}}
+               {\newenvironment{marginfigure}{\begin{sidefigure}}{\end{sidefigure}}
+                \newenvironment{margintable}{\begin{sidetable}}{\end{sidetable}}}}
+\makeatother
+
+\newlength{\BlkOrigskip}
+\BlkOrigskip=\parskip
+
+\newenvironment{Centerblock}{\begin{Xblock}\centering\item}{\end{Xblock}}
+\newenvironment{Leftblock}{\begin{Xblock}\item}{\end{Xblock}}
+\newenvironment{Rightblock}{\begin{Xblock}\raggedleft\item}{\end{Xblock}}
+
+\newenvironment{Xblock}{\begin{list}{}{\leftmargin=0pt\topsep=0pt\parsep=\BlkOrigskip\partopsep=0pt}}{\end{list}}
+\newenvironment{Mblock}{\noindent\begin{list}{}{}}{\end{list}}
+\newenvironment{Marginblock}{\begin{Mblock}\item}{\end{Mblock}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% since worked with \centering for the legend,
+% an extra vspace before the `hrule` is required
+\newcommand{\JFPFigLegend}[1]{\vspace{8pt} \hrule width \hsize height .33pt \vspace{4pt} \legend{#1}}
+
+% Put this before the figure content, so that a hyperref goes to the start of the content:
+\newcommand{\FigureSetRef}{\refstepcounter{figure}}
+
+\newenvironment{Figure}{\begin{figure}\FigureSetRef}{\end{figure}}
+\newenvironment{FigureMultiWide}{\begin{figure*}[t!p]\FigureSetRef}{\end{figure*}}
+\newenvironment{Herefigure}{\begin{figure}[ht!]\FigureSetRef\centering}{\end{figure}}
+
+\newenvironment{FigureInside}{}{}
+
+% for margin figures
+\newcommand{\MarginFigLegend}[1]{\hrule width \hsize height .33pt \legend{\footnotesize#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% since worked with \centering for the legend
+\newcommand{\GydmTabLegend}[1]{\legend{#1}\vspace{8pt}}
+
+% Put this before the figure content, so that a hyperref goes to the start of the content:
+\newcommand{\TableSetRef}{\refstepcounter{table}}
+
+\newenvironment{GydmTable}{\begin{table}\TableSetRef}{\end{table}}
+\newenvironment{TableMultiWide}{\begin{table*}[t!p]\TableSetRef}{\end{table*}}
+\newenvironment{Heretable}{\begin{table}[ht!]\TableSetRef\centering}{\end{table}}
+\newenvironment{TableInside}{}{}
+
+% for margin tables
+\newcommand{\MarginTabLegend}[1]{\legend{\footnotesize#1}}

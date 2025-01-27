@@ -5,7 +5,7 @@
 (provide handbook-boxed-style make-tamer-indexed-traverse-block make-tamer-indexed-block-ref)
 (provide tamer-indexed-block-id->symbol tamer-indexed-block-elemtag tamer-block-chapter-label tamer-indexed-block-hide-chapter-index)
 (provide tamer-block-label-separator tamer-block-label-tail tamer-block-label-style tamer-block-caption-style)
-(provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-jfp-legend-style)
+(provide tamer-center-block-style tamer-left-block-style tamer-right-block-style tamer-figure-legend-style tamer-table-legend-style)
 (provide tamer-filebox-line-number-space tamer-marginnote-left?)
 (provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref algoref)
 (provide handbook-image tamer-image)
@@ -28,6 +28,7 @@
 (provide (rename-out [handbook-acknowledgement handbook-acknowledgment]))
 
 (provide (rename-out [tamer-figure-ref fig-ref])
+         (rename-out [tamer-table-ref tab-ref])
          (rename-out [tamer-code-ref code-ref])
          (rename-out [handbook-colorful-sharp-box handbook-sharp-box]))
 
@@ -978,20 +979,32 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]
-  #:λ (make-figure-block legend align-style pre-flows))
+  #:λ (make-block-self legend align-style figureinside-style pre-flows centeringtext-style))
 
 (define tamer-figure-margin
-  (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style margin-legend-style] . pre-flows]
+  (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style marginfigure-legend-style] . pre-flows]
     (tamer-indexed-block id tamer-figure-type
                          (tamer-default-figure-label) (tamer-default-figure-label-separator) (tamer-default-figure-label-tail) caption
                          marginfigure-style legend-style (tamer-default-figure-label-style) (tamer-default-figure-caption-style) #false
-                         (λ [legend] (make-figure-block legend align-style pre-flows centertext-style)) #true)))
+                         (λ [legend] (make-block-self legend align-style figureinside-style pre-flows centertext-style)) #true)))
 
 (define tamer-delayed-figure-apply
   (lambda [f #:values [g values] #:pre-argv [pre-argv null] #:post-argv [post-argv null] . ids]
     (tamer-indexed-block/delayed-apply tamer-figure-type ids f g pre-argv post-argv
                                        (tamer-default-figure-label)
                                        (tamer-default-figure-label-separator))))
+
+(define-tamer-indexed-table table #:anchor #false
+  [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]
+  #:λ (make-block-self legend align-style tableinside-style pre-flows centeringtext-style reverse))
+
+(define tamer-table-margin
+  (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style margintable-legend-style] . pre-flows]
+    (tamer-indexed-block id tamer-table-type
+                         (tamer-default-table-label) (tamer-default-table-label-separator) (tamer-default-table-label-tail) caption
+                         margintable-style legend-style (tamer-default-table-label-style) (tamer-default-table-caption-style) #false
+                         (λ [legend] (make-block-self legend align-style tableinside-style pre-flows centeringtext-style reverse)) #true)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false

@@ -5,12 +5,9 @@
 (require scribble/core)
 (require scribble/manual)
 
-(require racket/symbol)
-
 (require "backend.rkt")
 (require "theme.rkt")
 (require "texbook.rkt")
-(require "tag.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define math-inline-style (make-style "texMathInline" (list 'exact-chars)))
