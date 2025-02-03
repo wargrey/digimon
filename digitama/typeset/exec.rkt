@@ -18,8 +18,14 @@
     (define TEXNAME.ext : Path (build-path dest-dir (path-replace-extension TEXNAME (tex-engine-extension latex))))
     (define TEXNAME.log : Path (build-path dest-dir (path-replace-extension TEXNAME #".log")))
     (define log-timestamp : Natural (file-mtime TEXNAME.log))
-    (define -output-directory : String (format "-output-directory=~a" dest-dir))
-
+    (define options : (Listof (Listof String))
+      (list (list "-interaction=batchmode")
+            (if (not halt-on-error?) null (list "-halt-on-error"))
+            (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
+            (list (format "-output-directory=~a" dest-dir))
+            (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
+                        [else (path->string TEXNAME.tex)]))))
+    
     (unless (directory-exists? dest-dir)
       (fg-recon-mkdir renderer dest-dir))
 
@@ -37,12 +43,7 @@
         (time* (fg-recon-exec #:env (unbox &tex-env)
                               (string->symbol (format "~a[~a]" renderer times))
                               (tex-engine-program latex)
-                              (list (list "-interaction=batchmode")
-                                    (if (not halt-on-error?) null (list "-halt-on-error"))
-                                    (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
-                                    (list -output-directory)
-                                    (list (cond [(string? TEXNAME.tex) TEXNAME.tex]
-                                                [else (path->string TEXNAME.tex)])))
+                              (if (= times 1) (tex-draftmode latex options) options)
                               (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer] [errmsg : Bytes]]
                                 (define log-now (file-mtime TEXNAME.log))
                                 (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
@@ -78,3 +79,11 @@
                   [(not error?) (dtrace-debug log #:topic renderer) (cat error?)]
                   [(regexp-match? #px"^l[.]\\d+" log) (dtrace-note log #:topic renderer) (cat #false)]
                   [else (dtrace-debug log #:topic renderer) (cat error?)])))))))
+
+(define tex-draftmode : (-> Tex-Engine (Listof (Listof String)) (Listof (Listof String)))
+  (lambda [engine options]
+    (define maybe-draft (tex-engine-draftmode-option engine))
+
+    (cond [(not maybe-draft) options]
+          [else (cons (list maybe-draft)
+                      options)])))

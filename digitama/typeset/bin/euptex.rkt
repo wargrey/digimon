@@ -24,4 +24,4 @@
 (module+ register
   (require "../tex.rkt")
 
-  (tex-register-engine 'uplatex #:post-exec euptex-post-exec))
+  (tex-register-engine 'uplatex #:draftmode #false #:post-exec euptex-post-exec))

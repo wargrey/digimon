@@ -4,4 +4,4 @@
 (module+ register
   (require "../tex.rkt")
 
-  (tex-register-engine 'lualatex #:filter #false))
+  (tex-register-engine 'lualatex #:draftmode "-draftmode" #:filter #false))

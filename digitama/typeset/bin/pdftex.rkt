@@ -27,5 +27,5 @@
 (module+ register
   (require "../tex.rkt")
   
-  (tex-register-engine 'latex #:post-exec latex-post-exec)
-  (tex-register-engine 'pdflatex))
+  (tex-register-engine 'latex #:draftmode "-draftmode" #:post-exec latex-post-exec)
+  (tex-register-engine 'pdflatex #:draftmode "-draftmode"))

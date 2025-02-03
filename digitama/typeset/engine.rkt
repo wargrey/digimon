@@ -12,7 +12,8 @@
   ([program : Path]
    [extension : Bytes]
    [preamble-filter : (Option Tex-Preamble-Filter)]
-   [post-exec : (Option Tex-Post-Exec)])
+   [post-exec : (Option Tex-Post-Exec)]
+   [draftmode-option : (Option String)])
   #:constructor-name make-tex-engine
   #:type-name Tex-Engine
   #:transparent)

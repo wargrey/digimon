@@ -134,12 +134,14 @@
                                          
                                          (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
                                          (tex-render #:fallback tex-fallback-engine #:enable-filter #false
-                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #false
+                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false
+                                                     #:dest-copy? #false
                                                      engine TEXNAME.scrbl dest-dir)))
                      
                      (list (wisemon-spec TEXNAME.ext #:^ (list TEXNAME.tex) #:-
                                          (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #true
-                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false #:dest-copy? #false
+                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false
+                                                     #:dest-copy? #false
                                                      engine TEXNAME.tex (assert (path-only TEXNAME.ext)))
 
                                          (handbook-display-metrics dtrace-msg 'note
@@ -184,7 +186,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-typeset-specs+targets : (-> Symbol (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
   (lambda [topic-name typesettings halt-on-error?]
-    (define-values (always-files ignored-files specs) (make-typesetting-specs topic-name typesettings halt-on-error?))
+    (define-values (always-files ignored-files specs)
+      (make-typesetting-specs topic-name typesettings halt-on-error?))
 
     (values always-files ignored-files specs (wisemon-targets-flatten specs))))
 
