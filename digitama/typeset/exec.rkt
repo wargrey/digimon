@@ -43,7 +43,13 @@
         (time* (fg-recon-exec #:env (unbox &tex-env)
                               (string->symbol (format "~a[~a]" renderer times))
                               (tex-engine-program latex)
-                              (if (= times 1) (tex-draftmode latex options) options)
+
+                              ;;; TODO:
+                              ;; Dealing with long documents is a challenge, draft mode won't help too much.
+                              ;; One key reason is that,
+                              ;; the compilation might have just one round if only modified plain content.
+                              options
+                              
                               (λ [[op : Symbol] [program : Path] [status : Nonnegative-Integer] [errmsg : Bytes]]
                                 (define log-now (file-mtime TEXNAME.log))
                                 (cond [(<= log-now log-timestamp) (dtrace-warning #:topic op #:prefix? #true "log has not updated")]
