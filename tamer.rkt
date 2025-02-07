@@ -884,8 +884,8 @@
                                                 (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
 
 (define tamer-racketbox/region
-  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false]
-                #:greedy? [greedy? #false] #:line-number-space [gap (tamer-filebox-line-number-space)]
+  (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
+                #:line-number-space [gap (tamer-filebox-line-number-space)] #:line-map [line-map #false]
                 #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
@@ -923,11 +923,12 @@
                                     /path/file
                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
                                                 (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                             (string-join contents (string #\newline))))))))))
+                                                             (string-join (if (not line-map) contents (map line-map contents))
+                                                                          (string #\newline))))))))))
 
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
-                #:line-number-space [gap (tamer-filebox-line-number-space)]
+                #:line-number-space [gap (tamer-filebox-line-number-space)] #:line-map [line-map #false]
                 #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
@@ -963,7 +964,8 @@
                                     /path/file
                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
                                                 (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                             (string-join contents (string #\newline))))))))))
+                                                             (string-join (if (not line-map) contents (map line-map contents))
+                                                                          (string #\newline))))))))))
 
 (define tamer-indent-paragraphs
   (lambda [#:space [space 4] . contents]
