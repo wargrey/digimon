@@ -227,6 +227,9 @@
               (title #:tag (or tag (tamer-story->tag (tamer-story)))
                      #:style (cond [(not tex-bib) style]
                                    [(not style) (make-style #false (list (simple-form-path tex-bib)))]
+                                   [(string? style) (make-style style (list (simple-form-path tex-bib)))]
+                                   [(symbol? style) (make-style #false (list style (simple-form-path tex-bib)))]
+                                   [(list? style) (make-style #false (cons (simple-form-path tex-bib) style))]
                                    [else (style-attach-property style (simple-form-path tex-bib))])
                      (let ([story-literal (speak 'story #:dialect 'tamer)]
                            [input-contents (list contents ...)])

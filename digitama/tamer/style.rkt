@@ -47,7 +47,7 @@
                    (cons make-css-style-addition "-style.css")
                    (cons make-js-style-addition "-style.js"))))
 
-    (make-style name master-properties)))
+    (make-style name (cons 'no-index master-properties))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-style
