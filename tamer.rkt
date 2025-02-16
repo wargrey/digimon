@@ -648,6 +648,27 @@
                                    (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s ...)))
                      (λ [] (tamer-zone-destory this-story))))))))))]))
 
+(define-syntax (tamer-hidden-repl stx)
+  (syntax-parse stx #:literals []
+    [(_ s:expr ...)
+     (syntax/loc stx
+       (let ([this-story (tamer-story)]
+             [lang+modules (tamer-story-lang+modules)]
+             [private-modules (tamer-story-private-modules)])
+         (tamer-zone-reference this-story lang+modules private-modules)
+         (make-traverse-element
+          (λ [get set!]
+            (if (handbook-stat-renderer? get)
+
+                (list)
+                
+                (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
+                  (dynamic-wind
+                   (λ [] (void))
+                   (λ [] (let ([who-cares (examples #:no-inset #:hidden #:eval zeval #:preserve-source-locations s ...)])
+                           null))
+                   (λ [] (tamer-zone-destory this-story)))))))))]))
+
 (define-syntax (tamer-answer stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:requires hidden-requires) #:defaults ([hidden-requires #'()]))) ...
