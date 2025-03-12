@@ -151,12 +151,13 @@
 (define (search-linenumber srclines pattern line0 [secondary-pattern #false])
   (let search ([nl line0]
                [ls srclines])
-    (and (pair? ls)
-         (let-values ([(line rest) (values (car ls) (cdr ls))])
-           (cond [(not (regexp-match? pattern line)) (search (+ nl 1) rest)]
-                 [(not secondary-pattern) (values nl rest)]
-                 [(regexp-match? secondary-pattern (car)) (values nl rest)]
-                 [else (search (+ nl 1) rest)])))))
+    (if (pair? ls)
+        (let-values ([(line rest) (values (car ls) (cdr ls))])
+          (cond [(not (regexp-match? pattern line)) (search (+ nl 1) rest)]
+                [(not secondary-pattern) (values nl rest)]
+                [(regexp-match? secondary-pattern line) (values nl rest)]
+                [else (search (+ nl 1) rest)]))
+        (values nl null))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define (merge-ext+id lang ext id [cls-name #false])

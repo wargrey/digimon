@@ -133,7 +133,7 @@
                                          (define dest-dir : Path (assert (path-only TEXNAME.ext)))
                                          
                                          (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
-                                         (tex-render #:fallback tex-fallback-engine #:enable-filter #false
+                                         (tex-render #:dest-subdir typeset-subdir #:fallback tex-fallback-engine #:enable-filter #false
                                                      #:halt-on-error? halt-on-error? #:shell-escape? #false
                                                      #:dest-copy? #false
                                                      engine TEXNAME.scrbl dest-dir)))
