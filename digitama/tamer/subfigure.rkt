@@ -15,26 +15,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define subfigure-flows
-  (lambda [pre-flows substyle [fmt (tamer-subfigure-index-format)] [sep #false] [order values]]
+  (lambda [pre-flows substyle [fmt (tamer-subfigure-index-format)] [sep #false] [sub-align 'bottom] [sub-label-align 'top] [order values]]
     (define subfigures (apply append (map subfigure-flatten (decode-flow pre-flows))))
     (define n (length subfigures))
 
     (if (> n 1)
-        (list (tabular #:column-properties '(center)
-                       #:sep sep
-                       (let make-subfigures ([subs subfigures]
-                                             [idx 97]
-                                             [serugif null]
-                                             [slebal null])
-                         (cond [(pair? subs)
-                                (let-values ([(self rest) (values (car subs) (cdr subs))])
-                                  (if (paragraph? self)
-                                      (let-values ([(sub caption) (subfigure-extract self idx substyle fmt)])
-                                        (make-subfigures rest (add1 idx) (cons sub serugif) (cons caption slebal)))
-                                      (make-subfigures rest (add1 idx) (cons self serugif) (cons null slebal))))]
-                               [(andmap null? slebal) (list (reverse serugif))]
-                               [else (order (list (reverse serugif) (reverse slebal)))]))))
+        (let ([rows (subfigure-rows subfigures substyle fmt order)])
+          (list (tabular #:column-properties '(center)
+                         #:row-properties (if (null? (cdr rows)) (list sub-align) (list sub-align sub-label-align))
+                         #:sep sep
+                         rows)))
         subfigures)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define subfigure-rows
+  (lambda [subfigures substyle fmt order]
+    (let make-subfigures ([subs subfigures]
+                          [idx 97]
+                          [serugif null]
+                          [slebal null])
+      (cond [(pair? subs)
+             (let-values ([(self rest) (values (car subs) (cdr subs))])
+               (if (paragraph? self)
+                   (let-values ([(sub caption) (subfigure-extract self idx substyle fmt)])
+                     (make-subfigures rest (add1 idx) (cons sub serugif) (cons caption slebal)))
+                   (make-subfigures rest (add1 idx) (cons self serugif) (cons null slebal))))]
+            [(andmap null? slebal) (list (reverse serugif))]
+            [else (order (list (reverse serugif) (reverse slebal)))]))))
 
 (define subfigure-extract
   (lambda [p idx substyle fmt]

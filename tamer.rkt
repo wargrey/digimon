@@ -1008,11 +1008,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style]
-   #:subsep [subgap (hspace 1)] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
-   #:sub-style [substyle tamer-figure-sublegend-style]]
+   #:sub-sep [subgap (hspace 1)] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
+   #:sub-style [substyle tamer-figure-sublegend-style] #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top]]
   #:with [legend pre-flows]
   #:λ (make-block-self legend align-style figureinside-style
-                       (subfigure-flows pre-flows substyle fmt subgap suborder)
+                       (subfigure-flows pre-flows substyle fmt subgap sub-align sub-label-align suborder)
                        centeringtext-style))
 
 (define tamer-figure-ref*
