@@ -107,6 +107,7 @@
 (define tamer-block-label-tail (make-parameter ": "))
 (define tamer-block-label-style (make-parameter 'tt))
 (define tamer-block-caption-style (make-parameter #false))
+(define current-block-id (make-parameter #false))
 
 (define tamer-indexed-block
   (lambda [id type label sep tail caption style legend-style label-style caption-style target-style make-block anchor]
@@ -115,11 +116,12 @@
     (make-tamer-indexed-traverse-block
      #:latex-anchor anchor
      (λ [type chapter-index current-index]
-       (define legend
-         (make-block-legend type sym:tag label sep tail caption
-                            chapter-index current-index
-                            legend-style label-style caption-style target-style))
-       (values sym:tag (make-block legend)))
+       (parameterize ([current-block-id sym:tag])
+         (define legend
+           (make-block-legend type sym:tag label sep tail caption
+                              chapter-index current-index
+                              legend-style label-style caption-style target-style))
+         (values sym:tag (make-block legend))))
      type style)))
 
 (define tamer-indexed-block-ref
@@ -244,9 +246,13 @@
                         (make-element (or caption-style (tamer-block-caption-style)) caption)))))
 
 (define make-block-self
-  (lambda [legend content-style inside-style content legend-style [order values]]
-    (order (list (make-nested-flow content-style (list (make-nested-flow inside-style (decode-flow content))))
+  (lambda [legend content-style inside-style blocks legend-style [order values]]
+    (order (list (make-nested-flow content-style (list (make-nested-flow inside-style blocks)))
                  (make-paragraph legend-style (list legend))))))
+
+(define make-block-self*
+  (lambda [legend content-style inside-style flows legend-style [order values]]
+    (make-block-self legend content-style inside-style (decode-flow flows) legend-style order)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define phantomsection-style (make-style "phantomsection" null))
@@ -330,5 +336,6 @@
 (define tamer-right-block-style (make-style "Rightblock" block-style-extras))
 
 (define tamer-figure-legend-style (make-style "JFPFigLegend" block-style-extras))
+(define tamer-figure-sublegend-style (make-style "SubFigLegend" block-style-extras))
 (define tamer-table-legend-style (make-style "GydmTabLegend" block-style-extras))
 

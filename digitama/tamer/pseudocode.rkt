@@ -80,7 +80,7 @@
                               [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (content->string line-name) >~)
                                                    (exec ~< line-name >~))]))
               sublines)))
-  
+
     (make-tamer-indexed-traverse-block
      #:latex-anchor algo-pseudocode-index-type
      (λ [type chapter-index current-index]
