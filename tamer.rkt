@@ -9,6 +9,7 @@
 (provide tamer-filebox-line-number-space tamer-marginnote-left?)
 (provide $tex:newcounter:algorithm tamer-default-algorithm-label algo-pseudocode algo-goto algo-ref algoref)
 (provide handbook-image tamer-image tamer-subfigure-index-format tamer-subfigure-ref-format)
+(provide tamer-tabular/3-lines)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
 
@@ -65,6 +66,7 @@
 (require "digitama/tamer/theme.rkt")
 (require "digitama/tamer/block.rkt")
 (require "digitama/tamer/subfigure.rkt")
+(require "digitama/tamer/table.rkt")
 (require "digitama/tamer/ams.rkt")
 (require "digitama/tamer/lstlisting.rkt")
 (require "digitama/tamer/texbook.rkt")
@@ -1008,7 +1010,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style]
-   #:sub-sep [subgap (hspace 1)] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
+   #:sub-sep [subgap #false] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
    #:sub-style [substyle tamer-figure-sublegend-style] #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top]]
   #:with [legend pre-flows]
   #:λ (make-block-self legend align-style figureinside-style
@@ -1038,14 +1040,19 @@
 
 (define-tamer-indexed-table table #:anchor #false
   [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]
-  #:λ (make-block-self* legend align-style tableinside-style pre-flows centeringtext-style reverse))
+  #:λ (make-block-self legend align-style tableinside-style
+                       (table-flows pre-flows)
+                       centeringtext-style reverse))
 
 (define tamer-table-margin
   (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style margintable-legend-style] . pre-flows]
     (tamer-indexed-block id tamer-table-type
                          (tamer-default-table-label) (tamer-default-table-label-separator) (tamer-default-table-label-tail) caption
                          margintable-style legend-style (tamer-default-table-label-style) (tamer-default-table-caption-style) #false
-                         (λ [legend] (make-block-self* legend align-style tableinside-style pre-flows centeringtext-style reverse)) #true)))
+                         (λ [legend] (make-block-self legend align-style tableinside-style
+                                                      (table-flows pre-flows)
+                                                      centeringtext-style reverse))
+                         #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-list code #:anchor #false
