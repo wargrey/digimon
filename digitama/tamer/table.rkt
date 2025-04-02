@@ -6,7 +6,6 @@
 
 (require scribble/base)
 (require scribble/core)
-(require scribble/decode)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define table-flows
@@ -33,4 +32,5 @@
     (tabular #:row-properties borders
              (for/list ([row (in-list rows)])
                (for/list ([col (in-list row)])
-                 (if (block? col) col (centered col)))))))
+                 (cond [(block? col) col]
+                       [else (centered col)]))))))

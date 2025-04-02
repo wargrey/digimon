@@ -53,8 +53,8 @@
     (values (car self)
             (if (pair? subcap)
                 (centered (para #:style substyle
-                                (tamer-elemtag subtag (format fmt subidx))
-                                ~ subcap))
+                                (list* (tamer-elemtag subtag (format fmt subidx)) ~
+                                       subcap)))
                 null))))
 
 ; Yes, only flatten the top-level block
