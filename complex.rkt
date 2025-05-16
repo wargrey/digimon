@@ -5,6 +5,10 @@
 (require racket/math)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define flc-ri : (-> Flonum Float-Complex)
+  (lambda [r]
+    (make-rectangular 0.0 r)))
+
 (define flc-dot* : (-> Float-Complex Float-Complex Flonum)
   (lambda [z1 z2]
     (real-part (* (conjugate z1) z2))))
