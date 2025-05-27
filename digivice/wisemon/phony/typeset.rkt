@@ -76,7 +76,6 @@
   (lambda [topic-name typesettings halt-on-error?]
     (define local-rootdir : Path (digimon-path 'zone))
     (define local-info.rkt : Path (digimon-path 'info))
-    (define typeset-subdir : String "tex")
 
     (for/fold ([always-files : (Listof Path) null]
                [ignored-files : (Listof Path) null]
@@ -88,7 +87,9 @@
 
       (define RENAMED.scrbl (or (and maybe-name (path-replace-filename TEXNAME.scrbl maybe-name)) TEXNAME.scrbl))
       (define TEXNAME.ext (assert (tex-document-destination RENAMED.scrbl #true #:extension (tex-document-extension engine #:fallback tex-fallback-engine))))
-      (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir (assert (file-name-from-path TEXNAME.ext))))
+      (define basename (assert (file-name-from-path TEXNAME.ext)))
+      (define typeset-subdir (path-replace-extension basename #""))
+      (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) typeset-subdir basename))
       (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
       (define this-name (assert (file-name-from-path TEXNAME.scrbl)))
       (define pdfinfo.tex (path-replace-extension TEXNAME.sub #".pdfinfo.tex"))
