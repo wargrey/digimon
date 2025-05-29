@@ -70,6 +70,13 @@
     (and r (real->double-flonum r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cbrt : (-> Real Real)
+  (lambda [r]
+    (if (negative? r)
+        (- (expt (abs r) 1/3))
+        (expt r 1/3))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
   (lambda [pool0 size offset0 [b #x00] [fill? #false]]
     (cond [(not pool0) (values (make-bytes size b) 0)]
