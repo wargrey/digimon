@@ -1,10 +1,13 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (rename-out [string+>integer string->natural]))
 (provide (all-from-out "digitama/predicate.rkt"))
+
+(provide (rename-out [string+>integer string->natural]))
 (provide msb-bytes->float lsb-bytes->float
          msb-bytes->double lsb-bytes->double)
+
+(require racket/flonum)
 
 (require "digitama/unsafe/number.rkt")
 (require "digitama/predicate.rkt")
@@ -75,6 +78,13 @@
     (if (negative? r)
         (- (expt (abs r) 1/3))
         (expt r 1/3))))
+
+(define flcbrt : (-> Flonum Flonum)
+  (let ([cbrt (/ 1.0 3.0)])
+    (lambda [r]
+      (if (negative? r)
+          (- (flexpt (flabs r) cbrt))
+          (flexpt r cbrt)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
