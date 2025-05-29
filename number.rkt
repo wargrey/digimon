@@ -73,18 +73,24 @@
     (and r (real->double-flonum r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cbrt : (-> Real Real)
+(define cbrt : (case-> [Positive-Real -> Nonnegative-Real]
+                       [Negative-Real -> Nonpositive-Real]
+                       [Zero -> Zero]
+                       [Real -> Real])
   (lambda [r]
-    (if (negative? r)
-        (- (expt (abs r) 1/3))
-        (expt r 1/3))))
+    (cond [(positive? r) (expt r 1/3)]
+          [(negative? r) (- (expt (abs r) 1/3))]
+          [else r])))
 
-(define flcbrt : (-> Flonum Flonum)
+(define flcbrt : (case-> [Positive-Flonum -> Nonnegative-Flonum]
+                         [Negative-Flonum -> Nonpositive-Flonum]
+                         [Flonum-Zero -> Flonum-Zero]
+                         [Flonum -> Flonum])
   (let ([cbrt (/ 1.0 3.0)])
     (lambda [r]
-      (if (negative? r)
-          (- (flexpt (flabs r) cbrt))
-          (flexpt r cbrt)))))
+      (cond [(positive? r) (flexpt r cbrt)]
+            [(negative? r) (- (flexpt (flabs r) cbrt))]
+            [else r]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define use-bytes+offset : (->* ((Option Bytes) Natural Natural) (Byte Boolean) (values Bytes Index))
