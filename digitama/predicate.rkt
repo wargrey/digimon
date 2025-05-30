@@ -16,6 +16,9 @@
 
 (define normalized-flonum? : (-> Any Boolean : #:+ Nonnegative-Flonum) (λ [f] (and (flonum? f) (>= f 0.0) (<= f 1.0))))
 
+(define exact-rational? : (-> Any Boolean : Exact-Rational) (λ [f] (and (rational? f) (exact? f))))
+(define exact-fraction? : (-> Any Boolean : #:+ Exact-Rational) (λ [f] (and (rational? f) (exact? f) (not (exact-integer? f)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define real-zero? : (-> Any Boolean)
   (lambda [v]
