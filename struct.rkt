@@ -25,7 +25,7 @@
          (begin (struct id parent () #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                  ((inst make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
                 ...
 
                 (define (make-id kw-args ...) : ID
@@ -46,7 +46,7 @@
          (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                  ((make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
                 ...
                 
                 (define (make-id kw-args ...) : ID
@@ -67,7 +67,7 @@
          (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  (make-parameter (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                  ((inst make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
                 ...
                 
                 (define (make-id kw-args ...) : ID
