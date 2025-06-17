@@ -185,6 +185,26 @@
                           [sid field : FieldType defval ...] ...]
                   subrest ...) ...)))]))
 
+(define-syntax (define-struct/parameter stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [default-id (format-id #'id "default-~a" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct id ([field : FieldType] ...) options ...)
+
+                (define (make-id kw-args ...) : ID
+                  (id field ...))
+                
+                (define (remake-id [self : ID (default-id)] kw-reargs ...) : ID
+                  (id (if (void? field) (field-ref self) field) ...))
+
+                (define default-id : (Parameterof ID) (make-parameter (make-id))))))]))
+
 (define-syntax (define-struct* stx)
   (syntax-parse stx #:literals [:]
     [(_ id : ID ([field : FieldType defval ...] ...) options ...)
