@@ -82,3 +82,9 @@
           (let ([i (imag-part (car pts))])
             (interval (min imin i) (max imax i) (cdr pts)))
           (values imin imax)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define flc-rational? : (-> Complex Boolean)
+  (lambda [c]
+    (and (rational? (real-part c))
+         (rational? (imag-part c)))))
