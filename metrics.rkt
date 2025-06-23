@@ -7,6 +7,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Real+% (U Real (List Real '%) (Pairof Real '%)))
 
+(define ~zero? : (-> Real+% Boolean)
+  (lambda [v]
+    (if (pair? v)
+        (zero? (car v))
+        (zero? v))))
+
+(define ~rational? : (-> Real+% Boolean)
+  (lambda [v]
+    (if (pair? v)
+        (rational? (car v))
+        (rational? v))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~radian : (case-> [Real -> Flonum]
                           [Real Boolean -> Flonum])
