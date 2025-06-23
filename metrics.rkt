@@ -5,6 +5,9 @@
 (require racket/math)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Real+Ratio (U Real (Boxof Positive-Real)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~radian : (case-> [Real -> Flonum]
                           [Real Boolean -> Flonum])
   (case-lambda
@@ -12,16 +15,16 @@
     [(angle radian?) (if (and radian?) (real->double-flonum angle) (~radian angle))]))
 
 (define ~length : (case-> [Real -> Nonnegative-Flonum]
-                          [Real Nonnegative-Flonum -> Nonnegative-Flonum])
+                          [Real+Ratio Nonnegative-Flonum -> Nonnegative-Flonum])
   (case-lambda
     [(fl) (if (> fl 0.0) (real->double-flonum fl) 0.0)]
     [(fl% 100%)
-     (cond [(< fl% 0.0) (* (abs (real->double-flonum fl%)) 100%)]
+     (cond [(box? fl%) (* (real->double-flonum (unbox fl%)) 100%)]
            [(>= fl% 0.0) (real->double-flonum fl%)]
-           [else #| nan |# 100%])]))
+           [else #| nan or invalid value |# 100%])]))
 
 (define ~extent : (case-> [Real -> Nonnegative-Flonum]
-                          [Real Real -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
+                          [Real Real+Ratio -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
   (case-lambda
     [(w) (~length w)]
     [(w h) (let ([width (~length w)]) (values width (~length h width)))]))
