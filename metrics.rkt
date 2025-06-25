@@ -5,34 +5,17 @@
 (require racket/math)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Real+% (U Real (List Real '%) (Pairof Real '%)))
-
-(define ~zero? : (-> Real+% Boolean)
-  (lambda [v]
-    (if (pair? v)
-        (zero? (car v))
-        (zero? v))))
-
-(define ~rational? : (-> Real+% Boolean)
-  (lambda [v]
-    (if (pair? v)
-        (rational? (car v))
-        (rational? v))))
+(define-type Real+% (U Real (List Real '%) (List Real ':)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~radian : (case-> [Real -> Flonum]
-                          [Real Boolean -> Flonum])
-  (case-lambda
-    [(degree) (* (real->double-flonum degree) (/ pi 180.0))]
-    [(angle radian?) (if (and radian?) (real->double-flonum angle) (~radian angle))]))
-
 (define ~length : (case-> [Real -> Nonnegative-Flonum]
                           [Real+% Nonnegative-Flonum -> Nonnegative-Flonum])
   (case-lambda
     [(fl) (if (> fl 0.0) (real->double-flonum fl) 0.0)]
     [(fl% 100%)
      (cond [(pair? fl%)
-            (let ([ratio (* (real->double-flonum (car fl%)) 0.01)])
+            (let ([ratio (* (real->double-flonum (car fl%))
+                            (if (eq? (cadr fl%) '%) 0.01 1.0))])
               (if (> ratio 0.0) (* ratio 100%) 100%))]
            [(>= fl% 0.0) (real->double-flonum fl%)]
            [else #| nan or invalid value |# 100%])]))
@@ -71,3 +54,9 @@
     (cond [(and (<= flstart fldatum) (< fldatum flend)) fldatum]
           [(< fldatum flstart) (let transform ([v (+ fldatum flrange)]) (if (>= v flstart) v (transform (+ v flrange))))]
           [else (let transform ([v (- fldatum flrange)]) (if (< v flend) v (transform (- v flrange))))])))
+
+(define ~radian : (case-> [Real -> Flonum]
+                          [Real Boolean -> Flonum])
+  (case-lambda
+    [(degree) (* (real->double-flonum degree) (/ pi 180.0))]
+    [(angle radian?) (if (and radian?) (real->double-flonum angle) (~radian angle))]))
