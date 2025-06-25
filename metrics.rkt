@@ -21,10 +21,13 @@
            [else #| nan or invalid value |# 100%])]))
 
 (define ~extent : (case-> [Real -> Nonnegative-Flonum]
-                          [Real Real+% -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
+                          [Real (Option Real+%) -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
   (case-lambda
     [(w) (~length w)]
-    [(w h) (let ([width (~length w)]) (values width (~length h width)))]))
+    [(w h) (let ([width (~length w)])
+             (if (not h)
+                 (values width width)
+                 (values width (~length h width))))]))
 
 (define ~clamp : (case-> [Real Nonnegative-Real Nonnegative-Real -> Nonnegative-Flonum]
                          [Real Real Real -> Flonum]
