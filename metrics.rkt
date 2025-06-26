@@ -5,8 +5,8 @@
 (require racket/math)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Real+% (U Real (List Real '%) (List Real ':)))
-(define-type Complex+% (U Complex (List Complex '%) (List Complex ':)))
+(define-type Real+% (U Real (List Real (U '% ':))))
+(define-type Complex+% (U Complex (List Complex (U '% ':))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~length : (case-> [Real -> Nonnegative-Flonum]
