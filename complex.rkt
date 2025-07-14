@@ -48,12 +48,14 @@
                       (ceiling (imag-part pt)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define flc-interval : (-> (Listof Float-Complex) (Values Flonum Flonum Flonum Flonum))
-  (lambda [pts]
-    (let interval ([rmin : Flonum +inf.0]
-                   [rmax : Flonum -inf.0]
-                   [imin : Flonum +inf.0]
-                   [imax : Flonum -inf.0]
+(define flc-interval : (->* ((Listof Float-Complex))
+                            (Flonum Flonum Flonum Flonum)
+                            (Values Flonum Flonum Flonum Flonum))
+  (lambda [pts [rmin0 +inf.0] [imin0 +inf.0] [rmax0 -inf.0] [imax0 -inf.0]]
+    (let interval ([rmin : Flonum rmin0]
+                   [rmax : Flonum rmax0]
+                   [imin : Flonum imin0]
+                   [imax : Flonum imax0]
                    [pts : (Listof Float-Complex) pts])
       (if (pair? pts)
           (let ([r (real-part (car pts))]
@@ -63,20 +65,20 @@
                       (cdr pts)))
           (values rmin imin rmax imax)))))
 
-(define flc-real-interval : (-> (Listof Float-Complex) (Values Flonum Flonum))
-  (lambda [pts]
-    (let interval ([rmin : Flonum +inf.0]
-                   [rmax : Flonum -inf.0]
+(define flc-real-interval : (->* ((Listof Float-Complex)) (Flonum Flonum) (Values Flonum Flonum))
+  (lambda [pts [min0 +inf.0] [max0 -inf.0]]
+    (let interval ([rmin : Flonum min0]
+                   [rmax : Flonum max0]
                    [pts : (Listof Float-Complex) pts])
       (if (pair? pts)
           (let ([r (real-part (car pts))])
             (interval (min rmin r) (max rmax r) (cdr pts)))
           (values rmin rmax)))))
 
-(define flc-imag-interval : (-> (Listof Float-Complex) (Values Flonum Flonum))
-  (lambda [pts]
-    (let interval ([imin : Flonum +inf.0]
-                   [imax : Flonum -inf.0]
+(define flc-imag-interval : (->* ((Listof Float-Complex)) (Flonum Flonum) (Values Flonum Flonum))
+  (lambda [pts [min0 +inf.0] [max0 -inf.0]]
+    (let interval ([imin : Flonum min0]
+                   [imax : Flonum max0]
                    [pts : (Listof Float-Complex) pts])
       (if (pair? pts)
           (let ([i (imag-part (car pts))])
