@@ -20,7 +20,7 @@
      (cond [(pair? fl%)
             (let ([ratio (* (real->double-flonum (car fl%))
                             (if (eq? (cadr fl%) '%) 0.01 1.0))])
-              (if (> ratio 0.0) (* ratio 100%) 100%))]
+              (if (>= ratio 0.0) (* ratio 100%) 100%))]
            [(>= fl% 0.0) (real->double-flonum fl%)]
            [else #| nan or invalid value |# 100%])]))
 
