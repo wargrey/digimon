@@ -12,6 +12,18 @@
 (define-type FlComplex+% (Number+% Float-Complex))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define ~distance : (case-> [Real -> Flonum]
+                            [Real+% Nonnegative-Flonum -> Flonum])
+  (case-lambda
+    [(fl) (real->double-flonum fl)]
+    [(fl% 100%)
+     (cond [(pair? fl%)
+            (* (real->double-flonum (car fl%))
+               (if (eq? (cadr fl%) '%) 0.01 1.0)
+               100%)]
+           [(rational? fl%) (real->double-flonum fl%)]
+           [else #| nan or invalid value |# 100%])]))
+
 (define ~length : (case-> [Real -> Nonnegative-Flonum]
                           [Real+% Nonnegative-Flonum -> Nonnegative-Flonum])
   (case-lambda
