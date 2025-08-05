@@ -11,7 +11,11 @@
 
 (define flc-dot* : (-> Float-Complex Float-Complex Flonum)
   (lambda [z1 z2]
-    (real-part (* (conjugate z1) z2))))
+    (real-part (* z1 (conjugate z2)))))
+
+(define flc-cross* : (-> Float-Complex Float-Complex Flonum)
+  (lambda [z1 z2]
+    (imag-part (* z1 (conjugate z2)))))
 
 (define flc-rotate : (case-> [Float-Complex Flonum -> Float-Complex]
                              [Float-Complex Flonum Float-Complex -> Float-Complex])
