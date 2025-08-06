@@ -25,7 +25,8 @@
            [else #| nan or invalid value |# 100%])]))
 
 (define ~length : (case-> [Real -> Nonnegative-Flonum]
-                          [Real+% Nonnegative-Flonum -> Nonnegative-Flonum])
+                          [Real+% Nonnegative-Flonum -> Nonnegative-Flonum]
+                          [Real+% Nonnegative-Flonum (-> Nonnegative-Flonum) -> Nonnegative-Flonum])
   (case-lambda
     [(fl) (if (> fl 0.0) (real->double-flonum fl) 0.0)]
     [(fl% 100%)
@@ -34,7 +35,15 @@
                             (if (eq? (cadr fl%) '%) 0.01 1.0))])
               (if (>= ratio 0.0) (* ratio 100%) 100%))]
            [(>= fl% 0.0) (real->double-flonum fl%)]
-           [else #| nan or invalid value |# 100%])]))
+           [else #| nan or invalid value |# 100%])]
+    [(fl% 100% fallback)
+     (cond [(pair? fl%)
+            (let ([ratio (* (real->double-flonum (car fl%))
+                            (if (eq? (cadr fl%) '%) 0.01 1.0))])
+              (cond [(> ratio 0.0) (* ratio 100%)]
+                    [else (fallback)]))]
+           [(> fl% 0.0) (real->double-flonum fl%)]
+           [else #| nan or invalid value |# (fallback)])]))
 
 (define ~extent : (case-> [Real -> Nonnegative-Flonum]
                           [Real Real+% -> (Values Nonnegative-Flonum Nonnegative-Flonum)])
