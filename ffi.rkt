@@ -64,7 +64,7 @@
 (define _any_string (make-ctype _string (λ [v] (if (string? v) v (format "~a" v))) values))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define _take_memory_snapshot_t  (_fun _string -> _void))
+(define _take_ram_snapshot_t  (_fun _string -> _void))
 (define _register_variable_t (_fun _string _symbol _uintptr _symbol -> _void))
 (define _register_array_t    (_fun _string _symbol _uintptr _symbol _size -> _void))
 
@@ -81,32 +81,32 @@
              (string-append "0x" (number->string addr 16)))]
     [(sym dylib) (%p (ffi-obj-ref sym dylib))]))
 
-(define memory-step
-  (lambda [ptr type [maybe-memory #false]]
-    (define memory
-      (cond [(bytes? maybe-memory) memory]
-            [(byte? maybe-memory) (make-bytes maybe-memory)]
+(define ram-step
+  (lambda [ptr type [maybe-ram #false]]
+    (define ram
+      (cond [(bytes? maybe-ram) ram]
+            [(byte? maybe-ram) (make-bytes maybe-ram)]
             [else (make-bytes (ctype-sizeof type))]))
 
-    (memmove memory 0 ptr 0 1 type)
-    (values memory
+    (memmove ram 0 ptr 0 1 type)
+    (values ram
             (ptr-ref ptr type)
             (ptr-add ptr 1 type))))
 
-(define memory-step!
-  (lambda [ptr type [maybe-memory #false]]
-    (define memory
-      (cond [(bytes? maybe-memory) memory]
-            [(byte? maybe-memory) (make-bytes maybe-memory)]
+(define ram-step!
+  (lambda [ptr type [maybe-ram #false]]
+    (define ram
+      (cond [(bytes? maybe-ram) ram]
+            [(byte? maybe-ram) (make-bytes maybe-ram)]
             [else (make-bytes (ctype-sizeof type))]))
 
-    (memmove memory 0 ptr 0 1 type)
-    (values memory
+    (memmove ram 0 ptr 0 1 type)
+    (values ram
             (ptr-ref ptr type)
             (ptr-add! ptr 1 type))))
 
-(define memory-step*
-  (lambda [ptr type memory &datum]
+(define ram-step*
+  (lambda [ptr type ram &datum]
     (define count
       (if (vector? &datum)
           (let ([size (unsafe-vector-length &datum)])
@@ -115,11 +115,11 @@
             size)
           (begin (unsafe-set-box! &datum (ptr-ref ptr type)) 1)))
     
-    (memmove memory 0 ptr 0 count type)
+    (memmove ram 0 ptr 0 count type)
     (ptr-add ptr count type)))
 
-(define memory-step*!
-  (lambda [ptr type memory &datum]
+(define ram-step*!
+  (lambda [ptr type ram &datum]
     (define count
       (if (vector? &datum)
           (let ([size (unsafe-vector-length &datum)])
@@ -128,29 +128,29 @@
             size)
           (begin (unsafe-set-box! &datum (ptr-ref ptr type)) 1)))
     
-    (memmove memory 0 ptr 0 count type)
+    (memmove ram 0 ptr 0 count type)
     (ptr-add! ptr count type)))
 
-(define memory-step-for-bytes
+(define ram-step-for-bytes
   (lambda [ptr type [count 1]]
     (define size (ctype-sizeof type))
-    (define memory (make-bytes (* size count)))
-    (memmove memory 0 ptr 0 count type)
-    (values memory (ptr-add ptr count type))))
+    (define ram (make-bytes (* size count)))
+    (memmove ram 0 ptr 0 count type)
+    (values ram (ptr-add ptr count type))))
 
-(define memory-step-for-bytes!
+(define ram-step-for-bytes!
   (lambda [ptr type [count 1]]
     (define size (ctype-sizeof type))
-    (define memory (make-bytes (* size count)))
-    (memmove memory 0 ptr 0 count type)
-    (values memory (ptr-add! ptr count type))))
+    (define ram (make-bytes (* size count)))
+    (memmove ram 0 ptr 0 count type)
+    (values ram (ptr-add! ptr count type))))
 
-(define memory-step-for-datum
+(define ram-step-for-datum
   (lambda [ptr type]
     (values (ptr-ref ptr type)
             (ptr-add ptr 1 type))))
 
-(define memory-step-for-datum!
+(define ram-step-for-datum!
   (lambda [ptr type]
     (values (ptr-ref ptr type)
             (ptr-add! ptr 1 type))))
