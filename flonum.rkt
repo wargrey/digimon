@@ -16,7 +16,7 @@
 (define flbetween-inclusive? : (->* (Flonum Flonum Flonum) (Flonum) Boolean)
   (lambda [x min max [tolerance 1e-12]]
     (or (<= min x max)
-        (<= (- min tolerance min)
+        (<= (- min tolerance)
             x
             (+ max tolerance)))))
 
