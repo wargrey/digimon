@@ -60,17 +60,14 @@
 
 (define wisemon-goal-partition : (-> (Listof String) (Values (Pairof Wisemon-Phony (Listof Wisemon-Phony)) (Listof Path)))
   (lambda [goals]
-    (define-values (seinohp slaer)
-      (for/fold ([seinohp : (Listof Wisemon-Phony) null]
-                 [slaer : (Listof Path) null])
-                ([g (in-list goals)])
-        (cond [(path-get-extension g)
-               (values seinohp (cons (simple-form-path g) slaer))]
-              [(wisemon-phony-goal-ref (string->symbol g)) => (λ [[p : Wisemon-Phony]] (values (cons p seinohp) slaer))]
-              [else (values seinohp (cons (simple-form-path g) slaer))])))
-    (let ([phonies (reverse seinohp)])
-      (values (if (pair? phonies) phonies (list (assert (wisemon-phony-goal-ref 'all))))
-              (reverse slaer)))))
+    (for/fold ([phonies : (Listof Wisemon-Phony) null]
+               [reals : (Listof Path) null]
+               #:result (values (if (pair? phonies) phonies (list (assert (wisemon-phony-goal-ref 'all)))) reals))
+              ([g (in-list (reverse goals))])
+      (cond [(path-get-extension g)
+             (values phonies (cons (simple-form-path g) reals))]
+            [(wisemon-phony-goal-ref (string->symbol g)) => (λ [[p : Wisemon-Phony]] (values (cons p phonies) reals))]
+            [else (values phonies (cons (simple-form-path g) reals))]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-digimon : (-> (U False Pkg-Info (Pairof Info-Ref (Listof Pkg-Info))) (Listof Path) (Pairof Wisemon-Phony (Listof Wisemon-Phony)) Byte)

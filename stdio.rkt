@@ -249,38 +249,38 @@
                                (and (memq field autofields) #true))))]
                     [([kw-args ...] [kw-reargs ...] [(man-field man-ref) ...] [auto-fixed-offset ...])
                      (let*-values ([(sig-fields) (syntax->datum #'(sig-field ...))]
-                                   [(auto-fields) (syntax->datum #'(auto-field ...))]
-                                   [(args reargs sdleif stesffo)
-                                    (for/fold ([args null] [reargs null] [sdleif null] [stesffo null])
-                                              ([<field> (in-syntax #'(field ...))]
-                                               [<ref> (in-syntax #'(field-ref ...))]
-                                               [<fixed-offset> (in-syntax #'(fixed-offset ...))]
-                                               [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
-                                               [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
-                                      (define field (syntax-e <field>))
-                                      (cond [(memq field sig-fields)
-                                             (stdio-check-fixed-offset <fixed-offset>)
-                                             (values args reargs sdleif stesffo)]
-                                            [(memq field auto-fields)
-                                             (values args reargs sdleif (cons <fixed-offset> stesffo))]
-                                            [else
-                                             (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
-                                               (stdio-check-fixed-offset <fixed-offset>)
-                                               (values (cons <kw-name> (cons <Argument> args))
-                                                       (cons <kw-name> (cons <ReArgument> reargs))
-                                                       (cons (list <field> <ref>) sdleif)
-                                                       stesffo))]))])
-                       (list args reargs (reverse sdleif) (reverse stesffo)))]
+                                   [(auto-fields) (syntax->datum #'(auto-field ...))])
+                       (for/fold ([args null]
+                                  [reargs null]
+                                  [sdleif null]
+                                  [stesffo null]
+                                  #:result (list args reargs (reverse sdleif) (reverse stesffo)))
+                                 ([<field> (in-syntax #'(field ...))]
+                                  [<ref> (in-syntax #'(field-ref ...))]
+                                  [<fixed-offset> (in-syntax #'(fixed-offset ...))]
+                                  [<Argument> (in-syntax #'([field : FieldType defval ...] ...))]
+                                  [<ReArgument> (in-syntax #'([field : (Option FieldType) #false] ...))])
+                         (define field (syntax-e <field>))
+                         (cond [(memq field sig-fields)
+                                (stdio-check-fixed-offset <fixed-offset>)
+                                (values args reargs sdleif stesffo)]
+                               [(memq field auto-fields)
+                                (values args reargs sdleif (cons <fixed-offset> stesffo))]
+                               [else
+                                (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string field)))])
+                                  (stdio-check-fixed-offset <fixed-offset>)
+                                  (values (cons <kw-name> (cons <Argument> args))
+                                          (cons <kw-name> (cons <ReArgument> reargs))
+                                          (cons (list <field> <ref>) sdleif)
+                                          stesffo))])))]
                     [(size0 [offset field-n] ...)
-                     (let-values ([(size0 stesffo)
-                                   (for/fold ([size0 0] [stesffo null])
-                                             ([size (in-list (map syntax-e (syntax->list #'(fixed-size ...))))]
-                                              [n (in-naturals 0)])
-                                     (values (cond [(not (exact-integer? size)) size0]
-                                                   [(>= size 0) (+ size0 size)]
-                                                   [else (- size0 size)])
-                                             (cons (list size0 n) stesffo)))])
-                       (cons size0 (reverse stesffo)))])
+                     (for/fold ([size0 0] [offsets null] #:result (cons size0 offsets))
+                               ([size (in-list (reverse (map syntax-e (syntax->list #'(fixed-size ...)))))]
+                                [n (in-naturals 0)])
+                       (values (cond [(not (exact-integer? size)) size0]
+                                     [(>= size 0) (+ size0 size)]
+                                     [else (- size0 size)])
+                               (cons (list size0 n) offsets)))])
        (syntax/loc stx
          (begin (struct layout super ... ([field : FieldType] ...)
                   #:constructor-name constructor

@@ -12,15 +12,13 @@
     [(_ id : ID #:as parent #:format frmt:str ([field : FieldType defval] ...))
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
-                    (let-values ([(args sarap)
-                                  (for/fold ([args null] [sarap null])
-                                            ([<field> (in-syntax #'(field ...))]
-                                             [<FiledType> (in-syntax #'(FieldType ...))])
-                                    (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
-                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
-                                            (cons <param> sarap)))])
-                      (list args (reverse sarap)))])
+                    (for/fold ([args null] [params null] #:result (list args params))
+                              ([<field> (in-list (reverse (syntax->list #'(field ...))))]
+                               [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
+                      (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
+                      (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                              (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id parent () #:type-name ID #:transparent)
 
@@ -33,15 +31,13 @@
     [(_ id : ID #:-> parent #:format frmt:str ([field : FieldType defval] ...))
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
-                    (let-values ([(args sarap)
-                                  (for/fold ([args null] [sarap null])
-                                            ([<field> (in-syntax #'(field ...))]
-                                             [<FiledType> (in-syntax #'(FieldType ...))])
-                                    (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
-                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
-                                            (cons <param> sarap)))])
-                      (list args (reverse sarap)))])
+                    (for/fold ([args null] [params null] #:result (list args params))
+                              ([<field> (in-list (reverse (syntax->list #'(field ...))))]
+                               [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
+                      (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
+                      (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                              (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
 
@@ -54,15 +50,13 @@
     [(_ id : ID #:format frmt:str ([field : FieldType defval] ...))
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
-                    (let-values ([(args sarap)
-                                  (for/fold ([args null] [sarap null])
-                                            ([<field> (in-syntax #'(field ...))]
-                                             [<FiledType> (in-syntax #'(FieldType ...))])
-                                    (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
-                                    (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                                    (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
-                                            (cons <param> sarap)))])
-                      (list args (reverse sarap)))])
+                    (for/fold ([args null] [params null] #:result (list args params))
+                              ([<field> (in-list (reverse (syntax->list #'(field ...))))]
+                               [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
+                      (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
+                      (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                              (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
@@ -92,22 +86,18 @@
                        (cons (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))
                              (cons <Argument> args)))]
                     [([id-field ...] [abs-field ...])
-                     (let-values ([(sdleif sdleif-abs)
-                                   (for/fold ([sdleif null] [sdleif-abs null])
-                                             ([<field> (in-syntax #'(field ...))])
-                                     (define <id-field> (datum->syntax <field> (string->symbol (format "~a-~a" (syntax-e #'id) (syntax-e <field>)))))
-                                     (define <abs-field> (datum->syntax <field> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <field>)))))
-                                     (values (cons <id-field> sdleif) (cons <abs-field> sdleif-abs)))])
-                       (list (reverse sdleif) (reverse sdleif-abs)))]
+                     (for/fold ([id-fields null] [abs-fields null] #:result (list id-fields abs-fields))
+                               ([<field> (in-list (reverse (syntax->list #'(field ...))))])
+                       (define <id-field> (datum->syntax <field> (string->symbol (format "~a-~a" (syntax-e #'id) (syntax-e <field>)))))
+                       (define <abs-field> (datum->syntax <field> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <field>)))))
+                       (values (cons <id-field> id-fields) (cons <abs-field> abs-fields)))]
                     [([id.method ...] [id-method ...] [abs-method ...])
-                     (let-values ([(sylppa sdleif sdleif-abs)
-                                   (for/fold ([sylppa null] [sdleif null] [sdleif-abs null])
-                                             ([<method> (in-syntax #'(method ...))])
-                                     (define <id-apply> (datum->syntax <method> (string->symbol (format "~a.~a" (syntax-e #'id) (syntax-e <method>)))))
-                                     (define <id-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'id) (syntax-e <method>)))))
-                                     (define <abs-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <method>)))))
-                                     (values (cons <id-apply> sylppa) (cons <id-field> sdleif) (cons <abs-field> sdleif-abs)))])
-                       (list (reverse sylppa) (reverse sdleif) (reverse sdleif-abs)))])
+                     (for/fold ([applies null] [methods null] [abs-methods null] #:result (list applies methods abs-methods))
+                               ([<method> (in-list (reverse (syntax->list #'(method ...))))])
+                       (define <id-apply> (datum->syntax <method> (string->symbol (format "~a.~a" (syntax-e #'id) (syntax-e <method>)))))
+                       (define <id-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'id) (syntax-e <method>)))))
+                       (define <abs-field> (datum->syntax <method> (string->symbol (format "~a-~a" (syntax-e #'abs-id) (syntax-e <method>)))))
+                       (values (cons <id-apply> applies) (cons <id-field> methods) (cons <abs-field> abs-methods)))])
        (syntax/loc stx
          (begin (struct abs-id ([field : FieldType] ... [method : MethodType] ...) #:transparent #:type-name ABS-ID)
                 (struct id ([interface : ABS-ID]) #:type-name ID)

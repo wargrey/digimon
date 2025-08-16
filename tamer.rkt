@@ -933,7 +933,7 @@
                  (cond [(eof-object? line)
                         (if (zero? end)
                             (values line0 (cons lang (reverse contents)))
-                            (values line0 (cons lang (take (reverse contents) end))))]
+                            (values line0 (cons lang (reverse (take-right contents end)))))]
                        [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
                         ; the stop line itself is excluded
                         (if (false? greedy?)
@@ -976,7 +976,7 @@
                  (cond [(eof-object? line)
                         (if (zero? end)
                             (values line0 (reverse contents))
-                            (values line0 (take (reverse contents) end)))]
+                            (values line0 (reverse (take-right contents end))))]
                        [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
                         ; the stop line itself is excluded
                         (if (false? greedy?)

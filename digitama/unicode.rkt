@@ -111,12 +111,9 @@
 
 (define string-asian-partition : (-> String (Values (Listof String) (Listof String)))
   (lambda [s]
-    (define-values (as ls)
-      (for/fold ([asian : (Listof String) null]
-                 [other : (Listof String) null])
-                ([token (in-list (string-asian-split s))])
-        (if (regexp-match? #px"^\\p{Lo}" token)
-            (values (cons token asian) other)
-            (values asian (cons token other)))))
-
-    (values (reverse as) (reverse ls))))
+    (for/fold ([asian : (Listof String) null]
+               [other : (Listof String) null])
+              ([token (in-list (reverse (string-asian-split s)))])
+      (if (regexp-match? #px"^\\p{Lo}" token)
+          (values (cons token asian) other)
+          (values asian (cons token other))))))
