@@ -26,3 +26,11 @@
         (< (+ min tolerance)
            x
            (- max tolerance)))))
+
+(define sfl<= : (->* (Flonum Flonum Flonum) (Flonum) Boolean)
+  (lambda [min x max [tolerance 1e-12]]
+    (flbetween-inclusive? x min max tolerance)))
+
+(define sfl< : (->* (Flonum Flonum Flonum) (Flonum) Boolean)
+  (lambda [min x max [tolerance 1e-12]]
+    (flbetween-exclusive? x min max tolerance)))
