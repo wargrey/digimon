@@ -4,8 +4,13 @@
 (provide (all-from-out typed/racket/date))
 
 (require typed/racket/date)
-
 (require racket/fixnum)
+
+(require "digitama/strftime.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Date-Format (U 'american 'chinese 'german 'indian 'irish 'iso-8601 'rfc2822 'julian))
+(define-type Date-Origin (U 'utc 'locale 'zone))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define s/min : Byte 60)
@@ -58,8 +63,22 @@
     (date-time-zone-offset (seconds->date (current-seconds) #true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define strftime : (->* () ((Option Natural) #:time? Boolean #:locale? Boolean) String)
-  (lambda [[timepoint #false] #:time? [time? #true] #:locale? [locale? #true]]
-    (parameterize ([date-display-format 'iso-8601])
-      (date->string (seconds->date (or timepoint (* 0.001 (current-inexact-milliseconds))) locale?)
-                    time?))))
+(define strftime : (->* ()
+                        ((U date False (Pairof Natural Date-Origin))
+                         #:format (U Date-Format String) #:in (Option Symbol)
+                         #:time? Boolean #:silent? Boolean)
+                        String)
+  (lambda [#:format [tfmt 'iso-8601] #:in [nation #false] #:time? [time? #true] #:silent? [silent? #true]
+           [timepoint #false]]
+    (define dt : date
+      (cond [(not timepoint) (current-date)]
+            [(date? timepoint) timepoint]
+            [else (seconds->date (car timepoint)
+                                 (not (eq? (cdr timepoint) 'utc)))]))
+    
+    (if (string? tfmt)
+        (let ([/dev/tmout : Output-Port (open-output-bytes)])
+          (~strftime dt tfmt nation /dev/tmout silent?)
+          (get-output-string /dev/tmout))
+        (parameterize ([date-display-format tfmt])
+          (date->string dt time?)))))

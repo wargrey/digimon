@@ -67,12 +67,22 @@
     (when (or reload? (not (hash-has-key? dictionary-base tongue)))
       (hash-set! dictionary-base tongue (load-tongues tongue)))
     (define text : (Option String)
-      (cond [(symbol? dialect) (hash-ref (hash-ref (hash-ref dictionary-base tongue) dialect make-empty-dictionary) word sorry-for-not-found)]
-            [else (for/or : (Option String) ([dialects (in-hash-values (hash-ref dictionary-base tongue))])
-                    (hash-ref dialects word sorry-for-not-found))]))
+      (if (symbol? dialect)
+          (hash-ref (hash-ref (hash-ref dictionary-base tongue)
+                              dialect make-empty-dictionary)
+                    word sorry-for-not-found)
+          (for/or : (Option String) ([dialects (in-hash-values (hash-ref dictionary-base tongue))])
+            (hash-ref dialects word sorry-for-not-found))))
     (cond [(string? text) text]
           [(eq? tongue (default-fallback-tongue)) (string-replace (symbol->immutable-string word) "-" " ")]
-          [else (speak word #:in (default-fallback-tongue) #:dialect dialect #:reload? reload?)])))
+          [else (let ([tname (symbol->immutable-string tongue)])
+                  (if (regexp-match? #rx"[_-]" tname)
+                      (speak #:in (string->symbol (car (string-split tname #rx"[_-]")))
+                             #:dialect dialect #:reload? reload?
+                             word)
+                      (speak #:in (default-fallback-tongue)
+                             #:dialect dialect #:reload? reload?
+                             word)))])))
 
 (define ~speak : (-> Symbol [#:in Symbol] [#:dialect (Option Symbol)] [#:reload? Boolean] Any * String)
   (lambda [word #:in [tongue (current-tongue)] #:dialect [dialect #false] #:reload? [reload? #false] . argl]
