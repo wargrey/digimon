@@ -25,10 +25,9 @@
 
  (am . "am")
  (pm . "pm")
- (%X . "%Y-%m-%d") ; %F
- (%x . "%H:%M:%S") ; %T
- (%c . "%Y-%m-%d %H:%M:%S")
- (%+ . "%a %b %d %H:%M:%S %Z %Y")
+ (%X . "%H:%M:%S") ; %T
+ (%x . "%m/%d/%y") ; %F
+ (%c . "%a %b %e %X %Y")
 
  (Sunday . "Sunday")
  (Monday . "Monday")

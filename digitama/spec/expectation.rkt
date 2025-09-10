@@ -48,7 +48,7 @@
                      (parameterize ([default-spec-issue-expectation expectation-name]
                                     [default-spec-issue-arguments (list arg ...)]
                                     [default-spec-issue-parameters expectation-para]
-                                    [default-spec-issue-expressions (Spec-Syntax-expressions stx)]
+                                    [default-spec-issue-expressions (Spec-Syntax-expressions stx)] ; WARNING: this also contains the issue message
                                     [default-spec-issue-locations (cons (Spec-Syntax-location stx) (default-spec-issue-locations))]
                                     [default-spec-issue-message (λ [] (if (string? usrf) (spec-message usrf argl) (spec-message argl)))]
                                     [default-spec-issue-format (let ([stdf (spec-format-stack format (default-spec-issue-format))])

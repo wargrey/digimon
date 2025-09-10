@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) iso-week-date)
 (provide (all-from-out typed/racket/date))
 
 (require typed/racket/date)
@@ -12,10 +12,14 @@
 (define-type Date-Format (U 'american 'chinese 'german 'indian 'irish 'iso-8601 'rfc2822 'julian))
 (define-type Date-Origin (U 'utc 'locale 'zone))
 
+(define-type Date-Datum (U date (Pairof Integer Date-Origin)
+                           (List Integer Integer Integer)
+                           (Vector Integer Integer Integer)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define s/min : Byte 60)
 (define s/hour : Index 3600)
-(define s/day : Nonnegative-Fixnum 86400)
+(define s/day : Index 86400)
 
 (define floor-seconds : (-> Natural Natural Natural)
   (lambda [s span]
@@ -64,7 +68,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define strftime : (->* ()
-                        ((U date False (Pairof Natural Date-Origin))
+                        ((Option Date-Datum)
                          #:format (U Date-Format String) #:in (Option Symbol)
                          #:time? Boolean #:silent? Boolean)
                         String)
@@ -73,8 +77,9 @@
     (define dt : date
       (cond [(not timepoint) (current-date)]
             [(date? timepoint) timepoint]
-            [else (seconds->date (car timepoint)
-                                 (not (eq? (cdr timepoint) 'utc)))]))
+            [(list? timepoint) (seconds->date (find-seconds 0 0 0 (caddr timepoint) (cadr timepoint) (car timepoint) #false))]
+            [(pair? timepoint) (seconds->date (car timepoint) (not (eq? (cdr timepoint) 'utc)))]
+            [else (seconds->date (find-seconds 0 0 0 (vector-ref timepoint 2) (vector-ref timepoint 1) (vector-ref timepoint 0) #false))]))
     
     (if (string? tfmt)
         (let ([/dev/tmout : Output-Port (open-output-bytes)])

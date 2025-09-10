@@ -24,7 +24,7 @@
   (U (Vector Symbol Any (Option (Syntaxof Any)))     
      (Pairof Symbol (-> Any))))
 
-(struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]))
+(struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]) #:transparent)
 
 (define default-spec-issue-brief : (Parameterof (Option String)) (make-parameter #false))
 
@@ -56,7 +56,7 @@
    
    [format : (Option Spec-Issue-Format)])
   #:type-name Spec-Issue
-  #;transparent)
+  #:transparent)
 
 (define make-spec-issue : (-> Spec-Issue-Type Spec-Issue)
   (lambda [type]
@@ -131,12 +131,17 @@
 
     (when (spec-issue-expectation issue)
       (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
-
+    
     (define self-argv : (Listof Spec-Issue-Argument-Datum)
-      (map (spec-make-argument (spec-issue-format issue))
-           (spec-issue-parameters issue)
-           (spec-issue-arguments issue)
-           (syntax-e (spec-issue-expressions issue))))
+      (let ([f (spec-make-argument (spec-issue-format issue))])
+        (for/list ([p (in-list (spec-issue-parameters issue))]
+                   [a (in-list (spec-issue-arguments issue))]
+
+                   ; WARNING: the issue expressions might also contain arguments
+                   ;   that user-provided to create the issue message,
+                   ;   despite the fact that `for/list` would ignore them.
+                   [e (in-list (syntax-e (spec-issue-expressions issue)))])
+          (f p a e))))
 
     (define all-argv : (Listof Spec-Issue-Argument-Datum)
       (let ([es (spec-issue-extras issue)])

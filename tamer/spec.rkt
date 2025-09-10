@@ -21,12 +21,12 @@
                                    (expect-satisfy symbol? (read /dev/stdin)))
                                
                                (context "when provided with an invalid value" #:do
-                                        (it "should produce a parse error" #:do
-                                            (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))))
+                                 (it "should produce a parse error" #:do
+                                   (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))))
 
-                                        (it "should procude an end-of-file error" #:do
-                                            (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))
-                                                          "EOF is neither a typical datum nor an error"))))))
+                                 (it "should procude an end-of-file error" #:do
+                                   (expect-throw exn:fail:read:eof? (λ [] (read /dev/stdin))
+                                                 "EOF is neither a typical datum nor an error"))))))
   
   (describe "special issues" #:do
             (describe "issues are allowed to be described later" #:do
@@ -45,18 +45,18 @@
             
             (describe "features and behaviors are tagged with SKIP whenever a `exn:fail:unsupported` is caught" #:do
                       (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
-                          (expect-throw exn:fail:unsupported? (λ [] (ignore "`extflonum` is not available")))
-                          (collapse "`(expect-throw exn:fail:unsupported? thunk)` suppresses the default SKIP mechanism"))
+                        (expect-throw exn:fail:unsupported? (λ [] (ignore "`extflonum` is not available")))
+                        (collapse "`(expect-throw exn:fail:unsupported? thunk)` suppresses the default SKIP mechanism"))
                       
                       (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
-                          (ignore "a buggy specification, but it's okay for representation purpose"))
+                        (ignore "a buggy specification, but it's okay for representation purpose"))
                       
                       (describe "skipping user scenarios since no network interface card is found" #:do
-                                #:before (λ [] (ignore "NIC is not present")) #:do
+                        #:before (λ [] (ignore "NIC is not present")) #:do
                                 
-                                (describe "should searche the network neighbors" #:do
-                                          (it "should be skipped since its grandparent is skipped" #:do
-                                              (make-it)))))))
+                        (describe "should searche the network neighbors" #:do
+                          (it "should be skipped since its grandparent is skipped" #:do
+                            (make-it)))))))
 
 (module+ main
   (void (spec-prove prelude #:selector (list '* "normal issues")))
