@@ -6,7 +6,7 @@
 (require racket/path)
 (require racket/match)
 
-(require "prove.rkt")
+(require "weave.rkt")
 (require "typeset.rkt")
 
 (require "../spec.rkt")

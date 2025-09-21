@@ -38,6 +38,7 @@
    [name : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
    [options : (Listof Keyword)]
+   [offprint : (Listof (U Symbol Byte))]
    [extra-argv : (Vectorof String)])
   #:type-name Tex-Info
   #:transparent)
@@ -226,10 +227,15 @@
       (make-typeset specs always-files ignored-files targets (make-always-run)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define typeset-offprint? : (-> Any Boolean : #:+ (Pairof (U 'offprint '#:offprint) (Listof (U Symbol Byte))))
+  (lambda [option]
+    #false))
+
 (define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))
   (lambda [setting.scrbl argv list-engines]
     (define candidates : (Listof Symbol) (list-engines))
-    (let*-values ([(maybe-engines rest) (partition symbol? (if (list? argv) argv (list argv)))]
+    (let*-values ([(maybe-offprints rest) (partition typeset-offprint? (if (list? argv) argv (list argv)))]
+                  [(maybe-engines rest) (partition symbol? rest)]
                   [(tags rest) (partition keyword? rest)]
                   [(maybe-names rest) (partition string? rest)]
                   [(dependencies rest) (partition bs-regexp? rest)])
@@ -241,6 +247,7 @@
                 (and (pair? maybe-names) (car maybe-names))
                 dependencies
                 tags
+                null
                 (list->vector
                  (for/fold ([argv : (Listof String) null])
                            ([arg (in-list rest)])

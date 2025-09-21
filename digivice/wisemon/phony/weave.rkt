@@ -29,7 +29,7 @@
                   (build-path (current-directory) (path-normalize/system (car handbook)))
                   (raise-user-error 'info.rkt "malformed `scribbling`: ~a" handbook))))))
 
-(define make-prove-specs : (-> (Listof Path) Wisemon-Specification)
+(define make-weave-specs : (-> (Listof Path) Wisemon-Specification)
   (lambda [handbooks]
     (for/list : Wisemon-Specification ([handbook.scrbl (in-list handbooks)])
       (wisemon-spec handbook.scrbl #:-
@@ -59,9 +59,9 @@
                                                #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %))) #:dest-dir dest-dir
                                                #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
                                                #:image-preferences '(svg png gif pdf))))
-                              (fg-recon-eval 'prove `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
+                              (fg-recon-eval 'weave `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
 
-(define make~prove : Make-Free-Phony
+(define make~weave : Make-Free-Phony
   (lambda [digimon info-ref]
     (unless (not info-ref)
       (wisemon-make (make-ffi-library-specs info-ref) px.so)
@@ -73,8 +73,8 @@
         (append info-targets real-targets)))
     
     (compile-scribble handbooks (current-directory))
-    (wisemon-make (make-prove-specs handbooks) (current-make-real-targets) #true)))
+    (wisemon-make (make-weave-specs handbooks) (current-make-real-targets) #true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define prove-phony-goal : Wisemon-Phony
-  (wisemon-make-free-phony #:name 'prove #:phony make~prove #:desc "Verify and generate test report along with documentation"))
+(define weave-phony-goal : Wisemon-Phony
+  (wisemon-make-free-phony #:name 'weave #:phony make~weave #:desc "Craft living documentation from narratives and executable specs."))
