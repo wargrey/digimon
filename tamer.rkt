@@ -75,6 +75,7 @@
 (require "digitama/tamer/image.rkt")
 (require "digitama/tamer/documentclass.rkt")
 (require "digitama/tamer/colorbox.rkt")
+(require "digitama/tamer/meta-name.rkt")
 (require (submod "digitama/tamer/stat.rkt" unsafe))
 
 (require "digitama/tamer.rkt")
@@ -92,7 +93,6 @@
 (require "git.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define #%handbook (seclink "tamer-book" (italic "Handbook")))
 (define #%handbook-properties (make-parameter null))
 
 (define-syntax (tamer-taming-start! stx)
@@ -145,9 +145,14 @@
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:figure image) #:defaults ([image #'#false]))
+              (~optional (~seq #:figure-vspace distance) #:defaults ([distance #'32]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
               (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
               (~optional (~seq #:document-options options) #:defaults ([options #'#false]))
+              (~optional (~seq #:tex-citecolor cite-color) #:defaults ([cite-color #''green]))
+              (~optional (~seq #:tex-filecolor file-color) #:defaults ([file-color #''magenta]))
+              (~optional (~seq #:tex-linkcolor link-color) #:defaults ([link-color #''cyan])) ; internal links
+              (~optional (~seq #:tex-urlcolor url-color) #:defaults ([url-color #''blue]))    ; external links
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
@@ -159,10 +164,16 @@
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (cons (λtitle #:tag "tamer-book"
+         (cons (λtitle #:tag handbook-title-tag
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                        #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path)
-                                                     (list* tex-info (handbook-bibtex-path) book-index-style-properties))
+                                                     (list* tex-info (handbook-bibtex-path)
+                                                            (make-immutable-hasheq (list (cons 'hypersetup #true)
+                                                                                         (cons 'urlcolor url-color)
+                                                                                         (cons 'linkcolor link-color)
+                                                                                         (cons 'citecolor cite-color)
+                                                                                         (cons 'filecolor file-color)))
+                                                            book-index-style-properties))
                        (let ([contents (list pre-contents ...)])
                          (append (cond [(pair? contents) contents]
                                        [else (list (literal (speak 'handbook #:dialect 'tamer) ":") ~
@@ -176,7 +187,7 @@
                                                    (elem #:style subtitle-style
                                                          subtitle))])
                                  (cond [(not image) null]
-                                       [else (list (linebreak) (linebreak) (linebreak) image)]))))
+                                       [else (list (linebreak) ($tex:vspace distance) image)]))))
                (cond [(not alt-author) (map author (pkg-author-contents))]
                      [(procedure? alt-author) (map alt-author (pkg-author-contents))]
                      [else (for/list ([a (if (list? alt-author) (in-list alt-author) (in-value alt-author))])
@@ -190,16 +201,25 @@
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
+              (~optional (~seq #:figure image) #:defaults ([image #'#false]))
+              (~optional (~seq #:figure-vspace distance) #:defaults ([distance #'32]))
               (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
               (~optional (~seq #:document-options options) #:defaults ([options #'#false]))
+              (~optional (~seq #:tex-citecolor cite-color) #:defaults ([cite-color #''green]))
+              (~optional (~seq #:tex-filecolor file-color) #:defaults ([file-color #''magenta]))
+              (~optional (~seq #:tex-linkcolor link-color) #:defaults ([link-color #''cyan])) ; internal links
+              (~optional (~seq #:tex-urlcolor url-color) #:defaults ([url-color #''blue]))    ; external links
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
               (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
+                                     #:figure image #:figure-vspace distance
                                      #:author alt-author #:hide-version? noversion?
                                      #:documentclass doclass #:document-options options #:tex-CJK? CJK?
+                                     #:tex-urlcolor url-color #:tex-linkcolor link-color
+                                     #:tex-citeclor cite-color #:tex-filecolor file-color
                                      #:tex-style tex-style #:tex-extra-files tex-extra-files
                                      #:tex-package tex-load
                                      (#%info 'pkg-desc
@@ -330,13 +350,13 @@
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
-    (title #:tag tag #:style noncontent-style
+    (title #:tag (or tag (symbol->immutable-string (gensym "#%prefix:"))) #:style noncontent-style
            (cond [(pair? pre-contents) pre-contents]
                  [else (literal (speak 'preface #:dialect 'tamer))]))))
 
 (define handbook-preface-section
   (lambda [#:tag [tag #false] . pre-contents]
-    (section #:tag tag #:style noncontent-style
+    (section #:tag (or tag (symbol->immutable-string (gensym "#%prefix:"))) #:style noncontent-style
              (cond [(pair? pre-contents) pre-contents]
                    [else (literal (speak 'preface #:dialect 'tamer))]))))
 
@@ -378,7 +398,7 @@
 
 (define handbook-acknowledgement
   (lambda [#:numbered? [numbered? #false] . pre-contents]
-    (section #:tag "handbook-acknowledgment"
+    (section #:tag handbook-ack-tag
              #:style (if (not numbered?) noncontent-style #false)
              (cond [(pair? pre-contents) pre-contents]
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
@@ -411,7 +431,7 @@
         (if (tamer-story)
             ((tamer-reference-section) #:tag (format "~a-reference" (path-replace-extension (tamer-story->tag (tamer-story)) ""))
                                        #:sec-title t)
-            (handbook-reference-section #:tag "handbook-reference" #:sec-title t))))
+            (handbook-reference-section #:tag handbook-reference-tag #:sec-title t))))
 
     (tamer-story #false)
 
@@ -429,7 +449,7 @@
     
     (when (or (not auto-hide?)
               (pair? all-bibentries))
-      (define bibliography-self (apply bibliography #:tag "handbook-bibliography" all-bibentries))
+      (define bibliography-self (apply bibliography #:tag handbook-bibliography-tag all-bibentries))
 
       (cond [(and title)
              (struct-copy part bibliography-self
@@ -440,7 +460,7 @@
 
 (define handbook-index
   (lambda [#:numbered? [numbered? #false] #:title [title 'index] #:tongue [tongue (current-tongue)]]
-    (define index-origin (index-section #:tag "handbook-index"))
+    (define index-origin (index-section #:tag handbook-index-tag))
     (define index-self
       (struct-copy part index-origin 
                    ; stop `latex` from generating another empty `Index` label
@@ -523,42 +543,44 @@
            #:ring-name [ring-name "lang-ring"] #:loc-name [loc-name "line-of-code"]
            ring-chart loc-series]
     (make-traverse-block
-     (λ [get set!]
-       (if (not (handbook-stat-renderer? get))
-           (let ([all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter)])
-             (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
-             (define lang-files (git-files->langfiles all-files null subgroups))
-             (define lang-sizes (git-files->langsizes all-files null subgroups))
-             (define lang-stats (git-numstats->langstats all-numstats null subgroups))
-             
-             (define src-file
-               (for/fold ([count 0])
-                         ([lf (in-hash-values lang-files)])
-                 (+ count (length (git-language-content lf)))))
-             
-             (define-values (insertions deletions)
-               (if (not lang-delta-only?)
-                   (git-numstats->additions+deletions* all-numstats)
-                   (git-langstats->additions+deletions* lang-stats)))
-             
-             (define langstats
-               (for/list ([(id lang) (in-hash lang-stats)]
-                          #:when (hash-has-key? lang-sizes id))
-                 lang))
-             
-             (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
-                                    ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
-                                    ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
-                              (tabular #:sep (hspace 1) #:column-properties '(left right)
-                                       (list (let* ([pie-radius (or git-radius 75)]
-                                                    [series-height (* (or git-radius pie-radius) 2)]
-                                                    [series-width (or git-width 380)])
-                                               (list (handbook-image #:name ring-name
-                                                                     (ring-chart pie-radius lang-sizes altcolors))
-                                                     (handbook-image #:name loc-name
-                                                                     (loc-series series-width series-height langstats altcolors date-delta)))))))))
-           empty-block)))))
-    
+     (procedure-rename
+      (λ [get set!]
+        (if (not (handbook-stat-renderer? get))
+            (let ([all-files (git-list-tree #:recursive? recursive? #:ignore-submodule exclude-submodules #:filter filter)])
+              (define all-numstats (git-numstat #:recursive? recursive? #:ignore-submodule exclude-submodules #:since since #:filter filter))
+              (define lang-files (git-files->langfiles all-files null subgroups))
+              (define lang-sizes (git-files->langsizes all-files null subgroups))
+              (define lang-stats (git-numstats->langstats all-numstats null subgroups))
+              
+              (define src-file
+                (for/fold ([count 0])
+                          ([lf (in-hash-values lang-files)])
+                  (+ count (length (git-language-content lf)))))
+              
+              (define-values (insertions deletions)
+                (if (not lang-delta-only?)
+                    (git-numstats->additions+deletions* all-numstats)
+                    (git-langstats->additions+deletions* lang-stats)))
+              
+              (define langstats
+                (for/list ([(id lang) (in-hash lang-stats)]
+                           #:when (hash-has-key? lang-sizes id))
+                  lang))
+              
+              (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
+                                     ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
+                                     ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
+                               (tabular #:sep (hspace 1) #:column-properties '(left right)
+                                        (list (let* ([pie-radius (or git-radius 75)]
+                                                     [series-height (* (or git-radius pie-radius) 2)]
+                                                     [series-width (or git-width 380)])
+                                                (list (handbook-image #:name ring-name
+                                                                      (ring-chart pie-radius lang-sizes altcolors))
+                                                      (handbook-image #:name loc-name
+                                                                      (loc-series series-width series-height langstats altcolors date-delta)))))))))
+            empty-block))
+      'handbook-statistics))))
+  
 (define handbook-appendix-tabular/2
   (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
     (define col-size (length table-head))
@@ -637,21 +659,23 @@
            (tamer-zone-reference this-story lang+modules private-modules)
            
            (make-traverse-block
-            (λ [get set!]
-              (if (handbook-stat-renderer? get)
+            (procedure-rename
+             (λ [get set!]
+               (if (handbook-stat-renderer? get)
 
-                  ; Thus, for the stat renderer, we don't destory the taming zone
-                  (racketblock s ...)
-
-                  ; Thus, for other rendering processes (which are rare), they
-                  ;   creates their own zones in every REPL via `tamer-zone-ref`,
-                  ;   and destory them when job done.
-                  (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
-                    (dynamic-wind
-                     (λ [] (examples #:label #false #:eval zeval #:hidden #:preserve-source-locations (require hidden-mods)) ... (void))
-                     (λ [] (nested #:style style
-                                   (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s ...)))
-                     (λ [] (tamer-zone-destory this-story))))))))))]))
+                   ; Thus, for the stat renderer, we don't destory the taming zone
+                   (racketblock s ...)
+                   
+                   ; Thus, for other rendering processes (which are rare), they
+                   ;   creates their own zones in every REPL via `tamer-zone-ref`,
+                   ;   and destory them when job done.
+                   (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
+                     (dynamic-wind
+                      (λ [] (examples #:label #false #:eval zeval #:hidden #:preserve-source-locations (require hidden-mods)) ... (void))
+                      (λ [] (nested #:style style
+                                    (examples #:no-inset #:label example-label #:eval zeval #:preserve-source-locations s ...)))
+                      (λ [] (tamer-zone-destory this-story))))))
+             'tamer-repl)))))]))
 
 (define-syntax (tamer-hidden-repl stx)
   (syntax-parse stx #:literals []
@@ -662,17 +686,19 @@
              [private-modules (tamer-story-private-modules)])
          (tamer-zone-reference this-story lang+modules private-modules)
          (make-traverse-element
-          (λ [get set!]
-            (if (handbook-stat-renderer? get)
-
-                (list)
+          (procedure-rename
+           (λ [get set!]
+             (if (handbook-stat-renderer? get)
+                 
+                 (list)
                 
-                (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
-                  (dynamic-wind
-                   (λ [] (void))
-                   (λ [] (let ([who-cares (examples #:no-inset #:hidden #:eval zeval #:preserve-source-locations s ...)])
-                           null))
-                   (λ [] (tamer-zone-destory this-story)))))))))]))
+                 (let ([zeval (tamer-zone-ref this-story lang+modules private-modules)])
+                   (dynamic-wind
+                    (λ [] (void))
+                    (λ [] (let ([who-cares (examples #:no-inset #:hidden #:eval zeval #:preserve-source-locations s ...)])
+                            null))
+                    (λ [] (tamer-zone-destory this-story))))))
+           'tamer-hidden-repl))))]))
 
 (define-syntax (tamer-answer stx)
   (syntax-parse stx #:literals []
@@ -824,93 +850,97 @@
     (define raco-setup-forget-my-digimon (current-digimon))
 
     (make-traverse-block
-     (λ [get set!]
-       (parameterize ([current-digimon raco-setup-forget-my-digimon])
-         (define htag (tamer-story->tag this-story))
-         (define toplevel-indent 2)
-
-         (define scenarios (traverse-ref! get set! tamer-scribble-story-id make-hash))
-         (define btimes (traverse-ref! get set! tamer-scribble-story-times make-hash))
-         (define issues (traverse-ref! get set! tamer-scribble-story-issues make-hash))
-         
-         ((if (procedure? note) note (λ body (nested #:style note body)))
-          (unless (null? notes) (append notes (list (linebreak) (linebreak))))
-          (parameterize ([tamer-story this-story]
-                         [default-spec-issue-handler void])
-            ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
-            (define (downfold-feature brief indent seed:info)
-              (define flows (vector-ref seed:info 1))
-              
-              (vector (cons null (vector-ref seed:info 0))
-                      (cond [(= indent toplevel-indent)
-                             (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (tamer-elemtag brief (literal brief)))) flows)]
-                            [(> indent toplevel-indent)
-                             (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
-                            [else flows])))
-            
-            (define (upfold-feature brief indent whocares children:info)
-              (define issues (vector-ref children:info 0))
-              (define this-issues (reverse (car issues)))
-              
-              (vector (case indent ; never be 0
-                        [(1) (apply append (map tamer-feature-issues this-issues)) #| still (Listof tamer-feature) |#]
-                        [else (cons (cons (tamer-feature brief this-issues) (cadr issues)) (cddr issues))])
-                      (vector-ref children:info 1)))
-            
-            (define (fold-behavior brief issue indent memory cpu real gc seed:info)
-              (define issues (vector-ref seed:info 0))
-              (define idx (add1 (length (car issues))))
-              (define type (spec-issue-type issue))
-              (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
-                                         (~a (~symbol type))
-                                         ~ (racketkeywordfont (italic (number->string idx)))
-                                         ~ (racketcommentfont (literal brief)))))
-              
-              (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
-                      (cons flow (vector-ref seed:info 1))))
-            
-            (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
-              (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (hash-ref handbook-stories htag null))
-                                                    (vector null null)
-                                                    #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
-                                                    #:selector (list '* '* example)))))
-            
-            (define population (apply + (hash-values summary)))
-            
-            (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
-            (hash-set! btimes htag (map + (list memory cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
-            (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
-            
-            (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
-                  [panic (hash-ref summary 'panic (λ [] 0))])
-              (append (reverse (add-between flows (linebreak)))
-                      (if (not no-summary?)
-                          (list (linebreak) (linebreak)
-                                (nonbreaking
-                                 (elem (string pin#)
-                                       ~ (if (= (+ misbehavior panic) 0)
-                                             (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
-                                             (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
-                                       ~ (seclink htag ~ (string house-garden#)))))
-                          null))))))))))
-
+     (procedure-rename
+      (λ [get set!]
+        (parameterize ([current-digimon raco-setup-forget-my-digimon])
+          (define htag (tamer-story->tag this-story))
+          (define toplevel-indent 2)
+          
+          (define scenarios (traverse-ref! get set! tamer-scribble-story-id make-hash))
+          (define btimes (traverse-ref! get set! tamer-scribble-story-times make-hash))
+          (define issues (traverse-ref! get set! tamer-scribble-story-issues make-hash))
+          
+          ((if (procedure? note) note (λ body (nested #:style note body)))
+           (unless (null? notes) (append notes (list (linebreak) (linebreak))))
+           (parameterize ([tamer-story this-story]
+                          [default-spec-issue-handler void])
+             ; seed : (Vector (Pairof (Listof (U Spec-Issue String tamer-feature)) (Listof tamer-feature)) (Listof scrible-flow))
+             (define (downfold-feature brief indent seed:info)
+               (define flows (vector-ref seed:info 1))
+               
+               (vector (cons null (vector-ref seed:info 0))
+                       (cond [(= indent toplevel-indent)
+                              (cons (nonbreaking (racketmetafont (italic (string open-book#)) ~ (tamer-elemtag brief (literal brief)))) flows)]
+                             [(> indent toplevel-indent)
+                              (cons (nonbreaking (racketoutput (italic (string bookmark#)) ~ (larger (literal brief)))) flows)]
+                             [else flows])))
+             
+             (define (upfold-feature brief indent whocares children:info)
+               (define issues (vector-ref children:info 0))
+               (define this-issues (reverse (car issues)))
+               
+               (vector (case indent ; never be 0
+                         [(1) (apply append (map tamer-feature-issues this-issues)) #| still (Listof tamer-feature) |#]
+                         [else (cons (cons (tamer-feature brief this-issues) (cadr issues)) (cddr issues))])
+                       (vector-ref children:info 1)))
+             
+             (define (fold-behavior brief issue indent memory cpu real gc seed:info)
+               (define issues (vector-ref seed:info 0))
+               (define idx (add1 (length (car issues))))
+               (define type (spec-issue-type issue))
+               (define flow (nonbreaking ((if (= indent toplevel-indent) (curry tamer-elemtag brief) elem)
+                                          (~a (~symbol type))
+                                          ~ (racketkeywordfont (italic (number->string idx)))
+                                          ~ (racketcommentfont (literal brief)))))
+               
+               (vector (cons (cons (if (eq? type 'pass) brief issue) (car issues)) (cdr issues))
+                       (cons flow (vector-ref seed:info 1))))
+             
+             (match-define-values ((cons summary (vector features flows)) memory cpu real gc)
+               (time-apply* (λ [] (spec-summary-fold (make-spec-feature htag (hash-ref handbook-stories htag null))
+                                                     (vector null null)
+                                                     #:downfold downfold-feature #:upfold upfold-feature #:herefold fold-behavior
+                                                     #:selector (list '* '* example)))))
+             
+             (define population (apply + (hash-values summary)))
+             
+             (hash-set! scenarios htag (append (hash-ref scenarios htag (λ [] null)) features))
+             (hash-set! btimes htag (map + (list memory cpu real gc) (hash-ref btimes htag (λ [] tamer-empty-times))))
+             (hash-set! issues htag (hash-union summary (hash-ref issues htag (λ [] (make-immutable-hasheq))) #:combine +))
+             
+             (let ([misbehavior (hash-ref summary 'misbehaved (λ [] 0))]
+                   [panic (hash-ref summary 'panic (λ [] 0))])
+               (append (reverse (add-between flows (linebreak)))
+                       (if (not no-summary?)
+                           (list (linebreak) (linebreak)
+                                 (nonbreaking
+                                  (elem (string pin#)
+                                        ~ (if (= (+ misbehavior panic) 0)
+                                              (racketresultfont (~a (~r (* real 0.001) #:precision '(= 3)) #\space "wallclock seconds"))
+                                              (racketerror (~a (~n_w misbehavior "misbehavior") #\space (~n_w panic "panic"))))
+                                        ~ (seclink htag ~ (string house-garden#)))))
+                           null)))))))
+      'tamer-note))))
+  
 (define tamer-racketbox
   (lambda [path #:line-start-with [line0 1] #:line-number-space [gap (tamer-filebox-line-number-space)]
                 #:tag [tag #false] #:path-centerized? [ct? #false]]
     (define this-story (tamer-story))
     (define raco-setup-forget-my-digimon (current-digimon))
-    
+      
     (make-traverse-block
-     (λ [get set!]
-       (parameterize ([tamer-story this-story]
-                      [current-digimon raco-setup-forget-my-digimon])
-         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
-                                    (handbook-latex-renderer? get)
-                                    /path/file
-                                    (codeblock0 #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
-                                                #:line-number-sep gap
-                                                (string-trim (file->string /path/file) #:left? #false #:right? #true))))))))
+     (procedure-rename
+      (λ [get set!]
+        (parameterize ([tamer-story this-story]
+                       [current-digimon raco-setup-forget-my-digimon])
+          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+          (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
+                                     (handbook-latex-renderer? get)
+                                     /path/file
+                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? (> line0 0) ; make sure line number start from 1
+                                                 #:line-number-sep gap
+                                                 (string-trim (file->string /path/file) #:left? #false #:right? #true)))))
+      'tamer-racketbox))))
 
 (define tamer-racketbox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
@@ -920,41 +950,43 @@
     (define raco-setup-forget-my-digimon (current-digimon))
     
     (make-traverse-block
-     (λ [get set!]
-       (parameterize ([tamer-story this-story]
-                      [current-digimon raco-setup-forget-my-digimon])
-         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (define-values (line0 contents)
-           (call-with-input-file* /path/file
-             (lambda [in.rkt]
-               (let read-next ([lang #false] [line0 0] [contents null] [end 0])
-                 (define line (read-line in.rkt 'any))
-                 ; if it does not work, please check whether your pxstart and pxend are pregexps first.
-                 (cond [(eof-object? line)
-                        (if (zero? end)
-                            (values line0 (cons lang (reverse contents)))
-                            (values line0 (cons lang (reverse (take-right contents end)))))]
-                       [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
-                        ; the stop line itself is excluded
-                        (if (false? greedy?)
-                            (values line0 (cons lang (reverse contents)))
-                            (read-next lang line0 (cons line contents) (length contents)))]
-                       [(regexp-match? #px"^#lang .+$" line)
-                        (read-next line (add1 line0) contents end)]
-                       [(and lang (null? contents) (regexp-match pxstart line))
-                        (read-next lang line0 (list line) end)]
-                       [(pair? contents) ; still search the end line greedily
-                        (read-next lang line0 (cons line contents) end)]
-                       [else ; still search the start line
-                        (read-next lang (add1 line0) contents end)])))))
-         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
-                                    (handbook-latex-renderer? get)
-                                    /path/file
-                                    (codeblock0 #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
-                                                (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                             (string-join (if (not line-map) contents (map line-map contents))
-                                                                          (string #\newline))))))))))
-
+     (procedure-rename
+      (λ [get set!]
+        (parameterize ([tamer-story this-story]
+                       [current-digimon raco-setup-forget-my-digimon])
+          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+          (define-values (line0 contents)
+            (call-with-input-file* /path/file
+              (lambda [in.rkt]
+                (let read-next ([lang #false] [line0 0] [contents null] [end 0])
+                  (define line (read-line in.rkt 'any))
+                  ; if it does not work, please check whether your pxstart and pxend are pregexps first.
+                  (cond [(eof-object? line)
+                         (if (zero? end)
+                             (values line0 (cons lang (reverse contents)))
+                             (values line0 (cons lang (reverse (take-right contents end)))))]
+                        [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                         ; the stop line itself is excluded
+                         (if (false? greedy?)
+                             (values line0 (cons lang (reverse contents)))
+                             (read-next lang line0 (cons line contents) (length contents)))]
+                        [(regexp-match? #px"^#lang .+$" line)
+                         (read-next line (add1 line0) contents end)]
+                        [(and lang (null? contents) (regexp-match pxstart line))
+                         (read-next lang line0 (list line) end)]
+                        [(pair? contents) ; still search the end line greedily
+                         (read-next lang line0 (cons line contents) end)]
+                        [else ; still search the start line
+                         (read-next lang (add1 line0) contents end)])))))
+          (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
+                                     (handbook-latex-renderer? get)
+                                     /path/file
+                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #false #:line-number-sep gap
+                                                 (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                              (string-join (if (not line-map) contents (map line-map contents))
+                                                                           (string #\newline)))))))
+      'tamer-racketbox/region))))
+  
 (define tamer-filebox/region
   (lambda [path #:pxstart [pxstart #px"\\S+"] #:pxstop [pxstop #false] #:greedy? [greedy? #false]
                 #:line-number-space [gap (tamer-filebox-line-number-space)] #:line-map [line-map #false]
@@ -963,44 +995,46 @@
     (define raco-setup-forget-my-digimon (current-digimon))
     
     (make-traverse-block
-     (λ [get set!]
-       (parameterize ([tamer-story this-story]
-                      [current-digimon raco-setup-forget-my-digimon])
-         (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
-         (define-values (line0 contents)
-           (call-with-input-file* /path/file
-             (lambda [in.rkt]
-               (let read-next ([line0 1] [contents null] [end 0])
-                 (define line (read-line in.rkt))
-                 ; if it does not work, please check whether your pxstart and pxend are pregexps first.
-                 (cond [(eof-object? line)
-                        (if (zero? end)
-                            (values line0 (reverse contents))
-                            (values line0 (reverse (take-right contents end))))]
-                       [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
-                        ; the stop line itself is excluded
-                        (if (false? greedy?)
-                            (values line0 (reverse contents))
-                            (read-next line0 (cons line contents) (length contents)))]
-                       [(and (null? contents) (regexp-match pxstart line))
-                        (read-next line0 (list line) end)]
-                       [(pair? contents) ; still search the end line greedily
-                        (read-next line0 (cons line contents) end)]
-                       [else ; still search the start line
-                        (read-next (add1 line0) contents end)])))))
-         (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
-                                    (handbook-latex-renderer? get)
-                                    /path/file
-                                    (codeblock0 #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
-                                                (string-trim #:left? #false #:right? #true ; remove tail blank lines 
-                                                             (string-join (if (not line-map) contents (map line-map contents))
-                                                                          (string #\newline))))))))))
-
+     (procedure-rename
+      (λ [get set!]
+        (parameterize ([tamer-story this-story]
+                       [current-digimon raco-setup-forget-my-digimon])
+          (define /path/file (simplify-path (if (symbol? path) (tamer-require path) path)))
+          (define-values (line0 contents)
+            (call-with-input-file* /path/file
+              (lambda [in.rkt]
+                (let read-next ([line0 1] [contents null] [end 0])
+                  (define line (read-line in.rkt))
+                  ; if it does not work, please check whether your pxstart and pxend are pregexps first.
+                  (cond [(eof-object? line)
+                         (if (zero? end)
+                             (values line0 (reverse contents))
+                             (values line0 (reverse (take-right contents end))))]
+                        [(and (regexp? pxstop) (pair? contents) (regexp-match? pxstop line))
+                         ; the stop line itself is excluded
+                         (if (false? greedy?)
+                             (values line0 (reverse contents))
+                             (read-next line0 (cons line contents) (length contents)))]
+                        [(and (null? contents) (regexp-match pxstart line))
+                         (read-next line0 (list line) end)]
+                        [(pair? contents) ; still search the end line greedily
+                         (read-next line0 (cons line contents) end)]
+                        [else ; still search the start line
+                         (read-next (add1 line0) contents end)])))))
+          (handbook-colorful-filebox #:tag tag #:path-centerized? ct?
+                                     (handbook-latex-renderer? get)
+                                     /path/file
+                                     (codeblock0 #:line-numbers line0 #:keep-lang-line? #true #:line-number-sep gap
+                                                 (string-trim #:left? #false #:right? #true ; remove tail blank lines 
+                                                              (string-join (if (not line-map) contents (map line-map contents))
+                                                                           (string #\newline)))))))
+      'tamer-filebox/region))))
+  
 (define tamer-indent-paragraphs
   (lambda [#:space [space 4] . contents]
     (define blocks (decode-flow contents))
     (define spaces (hspace space))
-
+      
     (if (and (pair? blocks) (null? (cdr blocks)))
         (handbook-indent-para (car blocks) spaces)        
         (make-compound-paragraph plain

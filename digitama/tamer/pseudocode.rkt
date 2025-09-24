@@ -63,17 +63,7 @@
         (define line-No. (number->string lNo.))
         (define line-name (and (pair? line) (car line) (handbook-content-filter (car line))))
         (define body (if (pair? line) (decode-content (cdr line)) null))
-        (define sublines
-          (let partition ([senil null]
-                          [enil null]
-                          [rest body])
-            (cond [(pair? rest)
-                   (let-values ([(self tail) (values (car rest) (cdr rest))])
-                     (cond [(not (handbook-newline-element? self)) (partition senil (cons self enil) tail)]
-                           [(null? senil) (partition (list (list (decode-content (reverse enil)))) null tail)]
-                           [else (partition (cons (list (decode-content (reverse enil))) senil) null tail)]))]
-                  [(pair? senil) (tabular (reverse (cons (list (decode-content (reverse enil))) senil)))]
-                  [else body])))
+        (define sublines (handbook-decode-lines body #:finalize tabular #:each-line list))
         
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
               (λ [type] (cond [(not line-name) algo-column-hspace]

@@ -21,46 +21,54 @@
 (define $
   (lambda strs
     (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (make-element math-inline-style strs)
-           (apply math strs))))))
+     (procedure-rename
+      (λ [get set!]
+        (if (handbook-latex-renderer? get)
+            (make-element math-inline-style strs)
+            (apply math strs)))
+      '$))))
 
 (define $$
   (lambda [#:tag [tag #false] . strs]
     (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (if (not tag)
-               (make-element math-display-style strs)
-               (make-multiarg-element math-eqnarray-style
-                                  (list strs
-                                        (texbook-command "label"
-                                                         (make-equation-tag (or tag (gensym)))))))
-           (apply math strs))))))
-
+     (procedure-rename
+      (λ [get set!]
+        (if (handbook-latex-renderer? get)
+            (if (not tag)
+                (make-element math-display-style strs)
+                (make-multiarg-element math-eqnarray-style
+                                       (list strs
+                                             (texbook-command "label"
+                                                              (make-equation-tag (or tag (gensym)))))))
+            (apply math strs)))
+      '$$))))
+  
 (define $$=
   (lambda [#:tag [tag #false] . strs]
     (if (pair? strs)
         (make-traverse-element
-         (λ [get set!]
-           (if (handbook-latex-renderer? get)
-               (make-multiarg-element math-equation-style
-                                      (if (not tag)
-                                          (list (car strs) (cdr strs) "equation*" null)
-                                          (list (car strs) (cdr strs) "equation" (texbook-command "label" (make-equation-tag tag)))))
-               (apply math strs))))
+         (procedure-rename
+          (λ [get set!]
+            (if (handbook-latex-renderer? get)
+                (make-multiarg-element math-equation-style
+                                       (if (not tag)
+                                           (list (car strs) (cdr strs) "equation*" null)
+                                           (list (car strs) (cdr strs) "equation" (texbook-command "label" (make-equation-tag tag)))))
+                (apply math strs)))
+          '$$=))
          strs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define eqref
   (lambda [tag #:label [label (tamer-default-equation-label)]]
     (make-traverse-element
-     (λ [get set!]
-       (if (handbook-latex-renderer? get)
-           (:stx:link (list (format "~a" label)
-                            (texbook-command "eqref" (make-equation-tag tag))))
-           null)))))
+     (procedure-rename
+      (λ [get set!]
+        (if (handbook-latex-renderer? get)
+            (:stx:link (list (format "~a" label)
+                             (texbook-command "eqref" (make-equation-tag tag))))
+            null))
+      'eqref))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; copied from the latex-render

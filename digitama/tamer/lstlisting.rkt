@@ -18,8 +18,8 @@
 
 (require "../git/lstree.rkt")
 (require "../git/langstat.rkt")
+(require "../minimal/regexp.rkt")
 
-(require "../../predicate.rkt")
 (require "../../filesystem.rkt")
 
 (require (for-syntax racket/base))

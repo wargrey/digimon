@@ -19,28 +19,42 @@
   
   (require "style.rkt")
   (require "backend.rkt")
-  
+  (require "misc.rkt")
+
   (require "../../filesystem.rkt")
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-  (define handbook-metainfo
+  (define handbook-extract-title+subtitles
+    (lambda [pthis]
+      (define titles
+        (filter non-empty-string?
+                (handbook-decode-lines #:nested? #true #:each-line content->string #:filter handbook-title-token?
+                                       (or (part-title-content pthis) null))))
+
+      (if (pair? titles)
+          (values (car titles) (cdr titles))
+          (values #false null))))
+
+  (define handbook-extract-authors
     (lambda [pthis]
       (define maybe-authors
         (let search-authors ([blocks (part-blocks pthis)])
           (and (pair? blocks)
                (or (let ([block (car blocks)])
                      (cond [(paragraph? block)
+                            #;(when (handbook-meta-paragraph? block)
+                              (displayln (object-name block)))
                             (and (eq? (style-name (paragraph-style block)) 'author)
                                  (paragraph-content block))]
                            [(compound-paragraph? block)
                             (search-authors (compound-paragraph-blocks block))]
                            [else #false]))
                    (search-authors (cdr blocks))))))
+
       
-      (values (string-trim (content->string (or (part-title-content pthis) null)))
-              (if (list? maybe-authors) (map content->string maybe-authors) null))))
+      (if (list? maybe-authors) (map content->string maybe-authors) null)))
   
-  (define handbook-scripts
+  (define handbook-extract-scripts
     (lambda [part type]
       ; the required arguments of `render`
       (define docs (list part))
@@ -154,10 +168,17 @@
               [(list? maybe-path)
                (for ([p (in-list maybe-path)]
                      #:when (path-literal? p))
-                 (push-path p))])))))
+                 (push-path p))]))))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (define handbook-title-token?
+    (lambda [v]
+      (or (string? v)
+          (element? v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (require/typed/provide
  (submod "." unsafe)
- [handbook-metainfo (-> Part (Values String (Listof String)))]
- [handbook-scripts (-> Part Symbol (Listof Path))])
+ [handbook-extract-title+subtitles (-> Part (Values (Option String) (Listof String)))]
+ [handbook-extract-authors (-> Part (Listof String))]
+ [handbook-extract-scripts (-> Part Symbol (Listof Path))])

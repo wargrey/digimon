@@ -48,9 +48,11 @@
 
       (cond [(not tex-only?) tex-elem]
             [else (make-traverse-element
-                   (λ [get set!]
-                     (if (handbook-latex-renderer? get)
-                         tex-elem null)))]))))
+                   (procedure-rename
+                    (λ [get set!]
+                      (if (handbook-latex-renderer? get)
+                          tex-elem null))
+                    (string->symbol (format "\\~a" cmdname))))]))))
 
 (define texbook-command-block ;; \cmd{args}{body}{extra-args}
   (let ([cmd0base (make-hash)])
@@ -77,10 +79,12 @@
 
       (cond [(not fallback-block) tex-block]
             [else (make-traverse-block
-                   (λ [get set!]
-                     (if (handbook-latex-renderer? get)
-                         tex-block
-                         fallback-block)))]))))
+                   (procedure-rename
+                    (λ [get set!]
+                      (if (handbook-latex-renderer? get)
+                          tex-block
+                          fallback-block))
+                    (string->symbol (format "\\~a" cmdname))))]))))
 
 (define texbook-environment ;; \begin{cmd}body\end{cmd}
   (let ([cmd0base (make-hash)])

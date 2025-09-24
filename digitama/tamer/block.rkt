@@ -146,31 +146,33 @@
     (define index-appendix (tamer-appendix-index))
     
     (make-traverse-block
-     (λ [get set!]
-       (parameterize ([tamer-index-story index-story]
-                      [tamer-appendix-index index-appendix])
-         (define order (car index-story))
-         (define this-story (cdr index-story))
-         (define global-tags (traverse-indexed-tagbase get index-type))
-         (define current-index (hash-ref global-tags this-story (λ [] 1)))
-         (define-values (current-tag block) (traverse index-type order current-index))
-
-         (define maybe-anchor
-           (and anchor?
-                (handbook-latex-renderer? get)
-                (cond [(eq? anchor? #true) phantomsection]
-                      [else (make-paragraph refstepcounter-style
-                                            (list (format "~a" anchor?)))])))
-         
-         (hash-set! global-tags current-tag (cons order current-index))
-         (hash-set! global-tags this-story (add1 current-index))
-         (traverse-indexed-tagbase set! index-type global-tags get)
-
-         (make-nested-flow (or block-style quote-style)
-                           (if (list? block)
-                               (if (not maybe-anchor) block (cons maybe-anchor block))
-                               (if (not maybe-anchor) (list block) (list maybe-anchor block)))))))))
-
+     (procedure-rename
+      (λ [get set!]
+        (parameterize ([tamer-index-story index-story]
+                       [tamer-appendix-index index-appendix])
+          (define order (car index-story))
+          (define this-story (cdr index-story))
+          (define global-tags (traverse-indexed-tagbase get index-type))
+          (define current-index (hash-ref global-tags this-story (λ [] 1)))
+          (define-values (current-tag block) (traverse index-type order current-index))
+          
+          (define maybe-anchor
+            (and anchor?
+                 (handbook-latex-renderer? get)
+                 (cond [(eq? anchor? #true) phantomsection]
+                       [else (make-paragraph refstepcounter-style
+                                             (list (format "~a" anchor?)))])))
+          
+          (hash-set! global-tags current-tag (cons order current-index))
+          (hash-set! global-tags this-story (add1 current-index))
+          (traverse-indexed-tagbase set! index-type global-tags get)
+          
+          (make-nested-flow (or block-style quote-style)
+                            (if (list? block)
+                                (if (not maybe-anchor) block (cons maybe-anchor block))
+                                (if (not maybe-anchor) (list block) (list maybe-anchor block))))))
+      (string->symbol (format "make-indexed-~a-block" index-type))))))
+  
 (define make-tamer-indexed-block-ref
   (lambda [resolve index-type tag]
     (define sym:tag (tamer-indexed-block-id->symbol tag))

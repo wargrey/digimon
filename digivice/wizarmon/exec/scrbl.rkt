@@ -38,4 +38,9 @@
           (make-typeset-specs+targets the-name all-typesettings (wizarmon-verbose)))
       
         (make-typeset specs always-files ignored-files targets (wizarmon-remake))
-        (fg-recon-open-file 'exec (car targets))))))
+
+        (let try-open ([targets : (Listof Path) targets])
+          (when (pair? targets)
+            (if (regexp-match? #px"\\.pdf$" (car targets))
+                (fg-recon-open-file 'exec (car targets))
+                (try-open (cdr targets)))))))))

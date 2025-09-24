@@ -83,14 +83,14 @@
       TEXNAME.ext)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes #:dest-dirname String) (Option Path))
-  (lambda [tex [contained-in-package? #true] #:extension [ext #".pdf"] #:dest-dirname [rootdir "typesetting"]]
+(define tex-document-destination : (->* (Path-String) (Boolean #:extension Bytes #:dest-dirname (Option String)) (Option Path))
+  (lambda [tex [contained-in-package? #true] #:extension [ext #".pdf"] #:dest-dirname [rootdir #false]]
     (define dirname : (Option Path) (path-only tex))
     (define basename : (Option Path) (file-name-from-path tex))
 
     (and (path? dirname) (path? basename)
          (build-path dirname (car (use-compiled-file-paths))
-                     rootdir (path-replace-extension basename ext)))))
+                     (or rootdir "typesetting") (path-replace-extension basename ext)))))
 
 (define tex-document-extension : (-> Symbol [#:fallback (U Symbol Bytes)] Bytes)
   (lambda[engine #:fallback [fallback #".pdf"]]

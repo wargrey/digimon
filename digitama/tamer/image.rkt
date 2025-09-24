@@ -30,20 +30,22 @@
            img-obj . pre-contents]
     (cond [(convertible? img-obj)
            (make-traverse-element
-            (λ [get set!]
-              (define mimes
-                (cond [(handbook-stat-renderer? get) null]
-                      [(pair? requests) requests]
-                      [(handbook-latex-renderer? get) default-tex-requests]
-                      [else default-web-requests]))
-              (let request ([mimes mimes])
-                (if (pair? mimes)
-                    (let ([path.img (make-image img-obj (car mimes) base-dir base-name)])
-                      (cond [(not path.img) (request (cdr mimes))]
-                            [else (apply image
-                                         #:scale scale #:style style
-                                         path.img pre-contents)]))
-                    pre-contents))))]
+            (procedure-rename
+             (λ [get set!]
+               (define mimes
+                 (cond [(handbook-stat-renderer? get) null]
+                       [(pair? requests) requests]
+                       [(handbook-latex-renderer? get) default-tex-requests]
+                       [else default-web-requests]))
+               (let request ([mimes mimes])
+                 (if (pair? mimes)
+                     (let ([path.img (make-image img-obj (car mimes) base-dir base-name)])
+                       (cond [(not path.img) (request (cdr mimes))]
+                             [else (apply image
+                                          #:scale scale #:style style
+                                          path.img pre-contents)]))
+                     pre-contents)))
+             'tamer-image))]
           [(not (element? img-obj))
            (apply image
                   #:scale scale #:style style

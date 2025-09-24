@@ -143,8 +143,7 @@
   (lambda [grouping-opt]
     (define languages0 : (Immutable-HashTable Index Github-Language)
       (read-language-metainfos* #:count-lines? #false
-                                (parameterize ([current-digimon "digimon"])
-                                  (digimon-path 'linguist "languages.yml"))))
+                                (collection-file-path "languages.yml" "digimon" "stone" "linguist")))
     
     (cond [(pair? grouping-opt) (github-fork languages0 grouping-opt)]
           [else languages0])))
@@ -152,14 +151,12 @@
 (define github-load-documentations : (-> (Listof PRegexp))
   (lambda []
     (read-pathname-regexps* #:count-lines? #false
-                            (parameterize ([current-digimon "digimon"])
-                              (digimon-path 'linguist "documentation.yml")))))
+                            (collection-file-path "documentation.yml" "digimon" "stone" "linguist"))))
 
 (define github-load-vendors : (-> (Listof PRegexp))
   (lambda []
     (read-pathname-regexps* #:count-lines? #false
-                            (parameterize ([current-digimon "digimon"])
-                              (digimon-path 'linguist "vendor.yml")))))
+                            (collection-file-path "vendor.yml" "digimon" "stone" "linguist"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-select-id : (-> (Listof Index) (Option Index))

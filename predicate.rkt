@@ -1,8 +1,10 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
+(provide (all-from-out "digitama/minimal/regexp.rkt"))
 
 (require "digitama/predicate.rkt")
+(require "digitama/minimal/regexp.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define maybe? : (All (a) (case-> [Any (-> Any Boolean : a) -> Boolean : #:+ (Option a) #:- (! (Option a))]
@@ -41,11 +43,6 @@
          (andmap ? v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define bs-regexp? : (-> Any Boolean : (U Regexp Byte-Regexp))
-  (lambda [v]
-    (or (byte-regexp? v)
-        (regexp? v))))
-
 (define string-like? : (-> Any Boolean : (U String Symbol))
   (lambda [v]
     (or (string? v)

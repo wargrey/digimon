@@ -17,16 +17,18 @@
 (define handbook-colorful-sharp-box
   (lambda [#:stroke [stroke 'ForestGreen] #:fill [fill 'MintCream] #:corner [corner 'none] content]
     (make-traverse-block
-     (λ [get set!]
-       (cond [(not (handbook-latex-renderer? get)) (nested #:style named-boxed-style content)]
-             [(eq? corner 'none) (make-nested-flow rounded-style
-                                                   (list (colorize stroke) (colorize fill)
-                                                         content))]
-             [else (make-nested-flow sharp-style
-                                     (list (make-paragraph plain (symbol->immutable-string corner))
-                                           (colorize stroke) (colorize fill)
-                                           content))])))))
-
+     (procedure-rename
+      (λ [get set!]
+        (cond [(not (handbook-latex-renderer? get)) (nested #:style named-boxed-style content)]
+              [(eq? corner 'none) (make-nested-flow rounded-style
+                                                    (list (colorize stroke) (colorize fill)
+                                                          content))]
+              [else (make-nested-flow sharp-style
+                                      (list (make-paragraph plain (symbol->immutable-string corner))
+                                            (colorize stroke) (colorize fill)
+                                            content))]))
+      'handbook-colorful-sharp-box))))
+  
 (define handbook-colorful-filebox
   (lambda [#:tag [tag #false] #:path-centerized? [ct? #false] latex? /path/file block]
     (define filename (path->string (tr-if-path /path/file)))

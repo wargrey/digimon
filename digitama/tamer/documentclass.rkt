@@ -3,41 +3,25 @@
 (provide (all-defined-out))
 
 (require scribble/core)
-(require scribble/render)
 (require scribble/latex-properties)
-(require (prefix-in tex: scribble/latex-render))
 
 (require setup/collects)
 
 (require racket/path)
 (require racket/file)
+(require racket/string)
 (require file/convertible)
+
+(require (submod "scrbl.rkt" unsafe))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-inspect
-  (lambda [scrbl TEXNAME.tex pdfinfo.tex dtrace]
+  (lambda [scrbl dtrace]
     (if (regexp-match? #px"\\.scrbl$" scrbl)
-        (let ([doc (dynamic-require scrbl 'doc)]
-              [dest-dir (path-only TEXNAME.tex)])
+        (let ([doc (dynamic-require scrbl 'doc)])
           (dtrace 'debug "Inspecting")
-          
-          (define adjusted-style (handbook-style-adjust (part-style doc) pdfinfo.tex dtrace))
-          (define adjusted-part (struct-copy part doc [style adjusted-style]))
-          
-          (define (tex-render hook.rktl)
-            (dtrace 'info "(handbook-tex-render ~a #:dest ~a #:dest-name ~a)" scrbl dest-dir (file-name-from-path TEXNAME.tex))
-            
-            (when (file-exists? hook.rktl)
-              (define ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false)))
-              (when (procedure? ecc)
-                (dtrace 'info "(load-extra-character-conversions ~a)" hook.rktl)
-                (tex:extra-character-conversions ecc)))
-            
-            (render #:render-mixin tex:render-mixin #:dest-dir dest-dir
-                    (list adjusted-part) (list TEXNAME.tex)))
-          
-          (values adjusted-part tex-render))
-        (values #false void))))
+          (struct-copy part doc [style (handbook-style-adjust doc dtrace)]))
+        #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct tex-config (documentclass options cjk load style extra-files)
@@ -69,26 +53,44 @@
                               null)))))
 
 (define handbook-style-adjust
-  (lambda [s pdfinfo.tex dtrace]
+  (lambda [self dtrace]
+    (define s (part-style self))
     (define s:props (style-properties s))
     (define h:tconf (memf tex-config? s:props))
 
-    (if (pair? h:tconf)
-        (let adjust ([rest s:props]
-                     [sporp null])
-          (cond [(null? rest) (make-style (style-name s) (reverse sporp))]
-                [else (let-values ([(self tail) (values (car rest) (cdr rest))])
-                        (cond [(tex-config? self) (adjust tail sporp)]
-                              [(not (latex-defaults? self)) (adjust tail (cons self sporp))]
-                              [else (let ([tex-config (handbook-documentclass-adjust (car h:tconf) self pdfinfo.tex dtrace)])
-                                      (adjust tail (cons tex-config sporp)))]))]))
-        (let ([texdef (memf latex-defaults? s:props)])
-          (when (pair? texdef)
-            (handbook-documentclass-adjust default-tex-config (car texdef) pdfinfo.tex dtrace))
-          s))))
+    (define-values (props setup)
+      (let adjust ([rest s:props]
+                   [sporp null]
+                   [setup #false]
+                   [done? #false])
+        (cond [(pair? rest)
+               (let-values ([(self tail) (values (car rest) (cdr rest))])
+                 (cond [(latex-defaults? self)
+                        (let* ([tconf (if (pair? h:tconf) (car h:tconf) default-tex-config)]
+                               [tex-config (handbook-documentclass-adjust tconf self dtrace)])
+                          (adjust tail (cons tex-config sporp) setup #true))]
+                       [(tex-config? self) (adjust tail (cons self sporp) setup done?)] ; for collecting dependencies
+                       [(and (hash? self) (immutable? self) (hash-has-key? self 'hypersetup)) (adjust tail (cons self sporp) self done?)]
+                       [else (adjust tail (cons self sporp) setup done?)]))]
+              [(not done?)
+               (values (if (pair? h:tconf)
+                           (let ([tex-prop (handbook-documentclass-adjust (car h:tconf) #false dtrace)])
+                             (cons tex-prop (reverse sporp)))
+                           (reverse sporp))
+                       setup)]
+              [else (values (reverse sporp) setup)])))
+
+    (let ([/dev/pdfout (open-output-bytes '/dev/pdfout)]
+          [/dev/cfgout (open-output-bytes '/dev/cfgout)])
+      (tex-hypersetup-pdfinfo self /dev/pdfout dtrace)
+      (tex-hypersetup-config setup /dev/cfgout dtrace)
+      (make-style (style-name s)
+                  (list* (tex-addition (get-output-bytes /dev/pdfout))
+                         (tex-addition (get-output-bytes /dev/cfgout))
+                         props)))))
 
 (define handbook-documentclass-adjust
-  (lambda [texconf self pdfinfo.tex dtrace]
+  (lambda [texconf self dtrace]
     (define alt-load "scribble-load-replace.tex")
     (define doclass (tex-config-documentclass texconf))
 
@@ -105,16 +107,19 @@
     (define prefix
       (tex-documentclass-option-replace
        (let ([enc (tex-config-cjk texconf)])
-         (if (not doclass)
-             (tex-unicode-filter enc (latex-defaults-prefix self))
-             (tex-unicode-append enc doclass)))
+         (cond [(or doclass) (tex-unicode-append enc doclass)]
+               [(or self) (tex-unicode-filter enc (latex-defaults-prefix self))]
+               [else (tex-unicode-append enc (tex-documentclass 'article))]))
        (tex-config-options texconf)))
 
-    (define style.tex (or (tex-config-style texconf) (latex-defaults-style self)))
+    (define style.tex
+      (or (tex-config-style texconf)
+          (cond [(not self) #""]
+                [else (latex-defaults-style self)])))
+    
     (define extra-files
-      (cons pdfinfo.tex
-            (cond [(not doclass) (latex-defaults-extra-files self)]
-                  [else (tex-config-extra-files texconf)])))
+      (append (if (or doclass) (tex-config-extra-files texconf) null)
+              (if (or self) (latex-defaults-extra-files self) null)))
 
     (let-values ([(dclass doptions) (tex-documentclass-info prefix #true)])
       (dtrace 'note "documentclass: ~a" dclass)
@@ -142,6 +147,45 @@
                    (tex-config-load tinfo)
                    (tex-config-style tinfo)
                    (tex-config-extra-files tinfo)))))
+
+(define tex-hypersetup-pdfinfo
+  (lambda [self /dev/pdfout dtrace]
+    (define-values (title subtitles) (handbook-extract-title+subtitles self))
+    (define-values (authors) (handbook-extract-authors self))
+    
+    (displayln "\\hypersetup{" /dev/pdfout)
+    
+    (when (and title)
+      (dtrace 'debug "title: ~a" title)
+      
+      (for ([subtitle (in-list subtitles)])
+        (dtrace 'debug "subtitle: ~a" subtitle))
+      
+      (if (null? subtitles)
+          (fprintf /dev/pdfout "    pdftitle={~a},~n" title)
+          (fprintf /dev/pdfout "    pdftitle={~a: ~a},~n" title (car subtitles))))
+    
+    (when (pair? authors)
+      (dtrace 'debug "authors: ~a" authors)
+      (fprintf /dev/pdfout "    pdfauthor={~a},~n" (string-join authors "; ")))
+    
+    (displayln "}" /dev/pdfout)
+    (newline /dev/pdfout)))
+
+(define tex-hypersetup-config
+  (lambda [cfg /dev/pdfout dtrace]
+    (displayln "\\hypersetup{" /dev/pdfout)
+    
+    (fprintf /dev/pdfout "    pdffitwindow=true,~n") ; window fit to page when opened
+    (fprintf /dev/pdfout "    colorlinks=true,~n")   ; false: boxed links; true: colored links
+
+    (when (and cfg)
+      (for ([(key color) (in-immutable-hash (hash-remove cfg 'hypersetup))])
+        (dtrace 'debug "~a: ~a" key color)
+        (fprintf /dev/pdfout "    ~a=~a,~n" key color)))
+    
+    (displayln "}" /dev/pdfout)
+    (newline /dev/pdfout)))
 
 (define tex-documentclass
   (lambda [doclass]
