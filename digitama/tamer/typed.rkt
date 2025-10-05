@@ -1,6 +1,12 @@
 #lang typed/racket/base
 
+(provide (all-defined-out))
+
 (require typed/racket/unsafe)
+
+(define-type Tag-Body (U String Generated-Tag (Pairof Any (Listof Any))))
+(define-type Link-Tag (List Symbol Tag-Body))
+(define-type Scribble-Message (-> Symbol String Any * Void))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module unsafe racket/base
@@ -38,7 +44,32 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (unsafe-require/typed/provide
  scribble/core
- [#:opaque Part part?])
+ [#:opaque Block block?]
+ [#:opaque Content content?]
+
+ [#:struct generated-tag ()
+  #:extra-constructor-name make-generated-tag #:type-name Generated-Tag]
+
+ [#:struct style
+  ([name : (U String Symbol False)]
+   [properties : (Listof Any)])
+  #:extra-constructor-name make-style
+  #:type-name Style]
+ 
+ [#:struct part
+  ([tag-prefix : (U False String HashTableTop)]
+   [tags : (Listof Link-Tag)]
+   [title-content : (Option (Listof Content))]
+   [style : Style]
+   [to-collect : (Listof Any)]
+   [blocks : (Listof Block)]
+   [parts : (Listof Part)])
+  #:extra-constructor-name make-part
+  #:type-name Part])
+
+(unsafe-require/typed/provide
+ scribble/core
+ [content->string (-> (Listof Content) String)])
 
 (unsafe-require/typed/provide
  (submod "." unsafe)

@@ -28,7 +28,7 @@
 
 (require/typed
  "../../../digitama/tamer/documentclass.rkt"
- [handbook-tex-inspect (-> Path (-> Symbol String Any * Void) (Option Part))])
+ [handbook-tex-inspect (-> Path Scribble-Message (Option Part))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct tex-info
@@ -98,7 +98,7 @@
               TEXNAME.ext TEXNAME.tex)))
 
 (define digimon-typeset-specs : (-> Part Tex-Desc Path Path
-                                    Symbol (Listof Path) Symbol Boolean (-> Symbol String Any * Void)
+                                    Symbol (Listof Path) Symbol Boolean Scribble-Message
                                     Wisemon-Specification)
   (lambda [scrbl.doc self hook.rktl local-info.rkt engine all-deps topic-name halt-on-error? dtrace-msg]
     (list (wisemon-spec (tex-desc-a.out self) #:^ (list (tex-desc-self.tex self)) #:-
@@ -126,7 +126,7 @@
       (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
       (define pwd : Path (assert (path-only TEXNAME.scrbl)))
 
-      (define selector (tex-info-selector typesetting))
+      (define selector (or (current-user-specified-selector) (tex-info-selector typesetting)))
       (define hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl"))
       (define main-volume : Tex-Desc (digimon-typeset-desc TEXNAME.scrbl maybe-name engine #false))
       (define this-name (assert (file-name-from-path TEXNAME.scrbl)))
@@ -143,7 +143,7 @@
                      [exit-handler (λ _ (error topic-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
                                                topic-name (current-make-phony-goal) (find-relative-path local-rootdir TEXNAME.scrbl)))])
         (define scrbl.doc (handbook-tex-inspect TEXNAME.scrbl dtrace-msg))
-        (define foreign-deps (if (not scrbl.doc) null (handbook-extract-scripts scrbl.doc 'latex)))
+        (define foreign-deps (if (not scrbl.doc) null (handbook-extract-scripts scrbl.doc 'latex dtrace-msg)))
         (define scrbl-deps (filter file-exists? #| <- say, commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
         (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
         (define all-deps (append scrbl-deps foreign-deps regexp-deps))
@@ -151,13 +151,14 @@
 
         (define offprints : (Listof (Pairof Part Tex-Desc))
           (if (and scrbl.doc selector)
-              (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (handbook-offprint scrbl.doc selector)])
+              (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (handbook-offprint scrbl.doc selector dtrace-msg)])
                 (cons (car offprint)
                       (digimon-typeset-desc TEXNAME.scrbl maybe-name engine "offprint")))
               null))
 
         (define all-typesets
-          (cond [(memq '#:no-volume options) offprints]
+          (cond [(current-user-request-no-volume?) offprints]
+                [(memq '#:no-volume options) offprints]
                 [else(cons (cons scrbl.doc main-volume) offprints)]))
 
         (define-values (always-files++ ignored-files++)
@@ -285,7 +286,7 @@
         (dtrace-note "~a ~a: ~a" topic-name engine TEXNAME.scrbl)
         (dtrace-note "~a ~a: ~a [~a]" topic-name engine TEXNAME.scrbl maybe-name))))
 
-(define typeset-dtrace : (-> Symbol Symbol Path (-> Symbol String Any * Void))
+(define typeset-dtrace : (-> Symbol Symbol Path Scribble-Message)
   (lambda [topic-name engine TEXNAME.scrbl]
     (define scrptdb : (HashTable Path Boolean) (make-hash))
     

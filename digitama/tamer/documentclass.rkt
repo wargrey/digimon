@@ -151,7 +151,7 @@
 (define tex-hypersetup-pdfinfo
   (lambda [self /dev/pdfout dtrace]
     (define-values (title subtitles) (handbook-extract-title+subtitles self))
-    (define-values (authors) (handbook-extract-authors self))
+    (define-values (authors keywords) (handbook-extract-metainfo self))
     
     (displayln "\\hypersetup{" /dev/pdfout)
     
@@ -168,6 +168,12 @@
     (when (pair? authors)
       (dtrace 'debug "authors: ~a" authors)
       (fprintf /dev/pdfout "    pdfauthor={~a},~n" (string-join authors "; ")))
+
+    (when (pair? keywords)
+      (dtrace 'debug "keywords: ~a" keywords)
+      (fprintf /dev/pdfout "    pdfkeywords={~a},~n" (string-join authors ", ")))
+
+    (fprintf /dev/pdfout "    pdfcreator={wisemon over Scribble},~n")
     
     (displayln "}" /dev/pdfout)
     (newline /dev/pdfout)))

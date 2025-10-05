@@ -51,7 +51,7 @@
         (let ([str? (spec-string-output? outputs)])
           ; the issue format should be combined with existing `default-spec-issue-format`
           ; nevertheless, it is not a big deal here
-          (parameterize ([default-spec-issue-extra-arguments (list (vector 'given (if (not str?) given (bytes->string/utf-8 given)) #false))]
+          (parameterize ([default-spec-issue-extra-arguments (list (vector 'given (spec-clear-string (bytes->string/utf-8 given)) #false))]
                          [default-spec-issue-format (if (not str?) spec-exec-bytes-format spec-exec-string-format)])
             (spec-misbehave))))))
 
@@ -98,3 +98,9 @@
     (cond [(bytes? v) (~s v)]
           [(string? v) (~s (string->bytes/utf-8 v))]
           [else (~s v)])))
+
+(define spec-clear-string : (-> String String)
+  (lambda [s]
+    (if (regexp-match? #px"[[:blank:]]" s)
+        (string-replace s #px"[[:blank:]]" "·")
+        s)))

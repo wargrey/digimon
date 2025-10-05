@@ -13,6 +13,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define noncontent-style (make-style #false '(unnumbered reverl no-index)))
 (define grouper-style (make-style #false '(grouper)))
+(define bonus-style (make-style #false '(bonus)))
 (define subsub*toc-style (make-style #false '(toc)))
 (define subtitle-style (make-style "large" null))
 (define quote-style (make-style "quote" null))
@@ -70,6 +71,14 @@
         (make-paragraph (paragraph-style p)
                         (cons spaces (paragraph-content p)))
          p)))
+
+(define handbook-element-style-name=?
+  (lambda [e name [=? string=?]]
+    (and (element? e)
+         (let* ([s (element-style e)]
+                [n (and s (style-name s))])
+           (and (string? n)
+                (=? name n))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-remove-style-name

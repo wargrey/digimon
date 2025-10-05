@@ -15,9 +15,46 @@
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/collection.rkt")
 
+(require "../../../digitama/tamer/selector.rkt")
+
+(require "../../../cmdopt.rkt")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define cmdopt-string->chapter-index : (-> Symbol String (U Positive-Index Char))
+  (lambda [option s]
+    (if (= (string-length s) 1)
+        (let ([idx (string-ref s 0)])
+          (cond [(char<=? #\A idx #\Z) idx]
+                [(char<=? #\a idx #\z) (char-upcase idx)]
+                [else (cmdopt-string+>index option s)]))
+        (cmdopt-string+>index option s))))
+
+(define-cmdlet-option scrbl-flags #: Scrbl-Flags
+  #:program 'scrbl
+  #:args args
+
+  #:usage-help "set and overload the offprint configuration"
+  #:once-each
+  [[(#\f flatten) "perform a granular offprinting"]]
+  #:multi
+  [[(chapter seq) #:=> cmdopt-string->chapter-index id #: Handbook-Chapter-Index  "build the part or chapter whose number is ~1"]])
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-typeset : (-> Path Symbol Any)
   (lambda [path.scrbl lang-name]
+    (define-values (options λargv) (parse-scrbl-flags))
+
+    (cond [(scrbl-flags-help? options) (display-scrbl-flags)]
+          [(pair? (scrbl-flags-chapter options))
+           (let ([selector (make-user-specified-selector (scrbl-flags-chapter options) (scrbl-flags-flatten options))])
+             (parameterize ([current-user-specified-selector selector]
+                            [current-user-request-no-volume? #true])
+               (shell-typeset-do path.scrbl)))]
+          [else (shell-typeset-do path.scrbl)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define shell-typeset-do : (-> Path Any)
+  (lambda [path.scrbl]
     (define maybe-info : (Option Pkg-Info)
       (single-collection-info #:bootstrap? #true
                               (or (path-only path.scrbl)

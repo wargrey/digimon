@@ -77,7 +77,7 @@
      (syntax/loc stx
        (begin (define-enumeration id : TypeU [enum ...])
               (define (kw-filter [kw : Symbol] [args : Args] ...) : Type
-                (case kw [(enum) sexp ...] ... [else defsexp ...]))))]
+                (cond [(eq? kw 'enum) sexp ...] ... [else defsexp ...]))))]
 
     [(_ id #:as TypeU kw-filter #:-> [args Args] ... Type [(enum) sexp ...] ...)
      (syntax/loc stx
@@ -88,7 +88,7 @@
                 (let ([expected (exn-constraint->string (list 'enum ...))])
                   (case-lambda
                     [(kw args ... throw) (or (kw-filter kw args ...) (throw 'kw-filter expected kw))]
-                    [(kw args ...) (case kw [(enum) sexp ...] ... [else #false])])))))]
+                    [(kw args ...) (cond [(eq? kw 'enum) sexp ...] ... [else #false])])))))]
 
     [(_ id #:+> TypeU kw->enum enum->kw [enum:id value:integer] ...)
      (syntax/loc stx

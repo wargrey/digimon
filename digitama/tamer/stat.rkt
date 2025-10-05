@@ -201,4 +201,4 @@
 (require/typed/provide
  (submod "." unsafe)
  [handbook-stats (-> Part Symbol (HashTable Symbol Word-Statistics))]
- [handbook-display-metrics (-> (-> Symbol String Any * Any) Symbol (HashTable Symbol Word-Statistics) Void)])
+ [handbook-display-metrics (-> Scribble-Message Symbol (HashTable Symbol Word-Statistics) Void)])

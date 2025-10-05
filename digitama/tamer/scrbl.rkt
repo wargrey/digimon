@@ -2,6 +2,8 @@
 
 (provide (all-defined-out))
 
+(require typed/racket/unsafe)
+
 (require "typed.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -35,32 +37,41 @@
           (values (car titles) (cdr titles))
           (values #false null))))
 
-  (define handbook-extract-authors
+  ;;; TODO: extract more metainfo
+  (define handbook-extract-metainfo
     (lambda [pthis]
-      (define maybe-authors
-        (let search-authors ([blocks (part-blocks pthis)])
-          (and (pair? blocks)
-               (or (let ([block (car blocks)])
-                     (cond [(paragraph? block)
-                            #;(when (handbook-meta-paragraph? block)
-                              (displayln (object-name block)))
-                            (and (eq? (style-name (paragraph-style block)) 'author)
-                                 (paragraph-content block))]
-                           [(compound-paragraph? block)
-                            (search-authors (compound-paragraph-blocks block))]
-                           [else #false]))
-                   (search-authors (cdr blocks))))))
-
+      (define-values (authors metas)
+        (let search-metainfo ([blocks (part-blocks pthis)]
+                              [satem null]
+                              [srohtua null])
+          (if (pair? blocks)
+              (let-values ([(self rest) (values (car blocks) (cdr blocks))])
+                (cond [(paragraph? self)
+                       (cond [(handbook-meta-paragraph? self)
+                              (let ([c (paragraph-content self)])
+                                (if (handbook-element-style-name=? c "keywords")
+                                    (search-metainfo rest (cons c satem) srohtua)
+                                    (search-metainfo rest satem srohtua)))]
+                             [(eq? (style-name (paragraph-style self)) 'author)
+                              (search-metainfo rest satem (append (paragraph-content self) srohtua))]
+                             [else (search-metainfo rest satem srohtua)])]
+                      [(compound-paragraph? self)
+                       (search-metainfo (append (compound-paragraph-blocks self) rest) satem srohtua)]
+                      [(nested-flow? self) ; TODO: this object can also be styled with 'pretitle
+                       (search-metainfo (append (nested-flow-blocks self) rest) satem srohtua)]
+                      [else (search-metainfo rest satem srohtua)]))
+              (values (reverse srohtua) (reverse satem)))))
       
-      (if (list? maybe-authors) (map content->string maybe-authors) null)))
+      (values (map content->string authors)
+              (map content->string metas))))
   
   (define handbook-extract-scripts
-    (lambda [part type]
+    (lambda [part type dtrace]
       ; the required arguments of `render`
       (define docs (list part))
       (define names (list #false))
       
-      (define script (make-object scrbl-script% type))
+      (define script (make-object scrbl-script% type dtrace))
       
       (define t:metrics (send script traverse docs names))
       (define c:metrics (send script collect  docs names t:metrics))
@@ -75,7 +86,7 @@
     (class render%
       (super-new [dest-dir #false])
       
-      (init-field render-type)
+      (init-field render-type dtrace)
       
       (field [scripts (make-hash)])
       
@@ -177,8 +188,8 @@
           (element? v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(require/typed/provide
+(unsafe-require/typed/provide
  (submod "." unsafe)
  [handbook-extract-title+subtitles (-> Part (Values (Option String) (Listof String)))]
- [handbook-extract-authors (-> Part (Listof String))]
- [handbook-extract-scripts (-> Part Symbol (Listof Path))])
+ [handbook-extract-metainfo (-> Part (Values (Listof String) (Listof String)))]
+ [handbook-extract-scripts (-> Part Symbol Scribble-Message (Listof Path))])

@@ -12,7 +12,6 @@
 (provide tamer-tabular/3-lines)
 (provide fg:rgb bg:rgb fg-rgb bg-rgb type-rgb)
 
-
 (provide (except-out (all-from-out racket) abstract))
 (provide (except-out (all-from-out scribble/manual) title author))
 (provide (all-from-out scribble/core scribble/decode scriblib/autobib scribble/example))
@@ -350,13 +349,13 @@
 
 (define handbook-preface-title
   (lambda [#:tag [tag #false] . pre-contents]
-    (title #:tag (or tag (symbol->immutable-string (gensym "#%prefix:"))) #:style noncontent-style
+    (title #:tag (or tag (symbol->immutable-string (gensym "preface:"))) #:style noncontent-style
            (cond [(pair? pre-contents) pre-contents]
                  [else (literal (speak 'preface #:dialect 'tamer))]))))
 
 (define handbook-preface-section
   (lambda [#:tag [tag #false] . pre-contents]
-    (section #:tag (or tag (symbol->immutable-string (gensym "#%prefix:"))) #:style noncontent-style
+    (section #:tag (or tag (symbol->immutable-string (gensym "preface:"))) #:style noncontent-style
              (cond [(pair? pre-contents) pre-contents]
                    [else (literal (speak 'preface #:dialect 'tamer))]))))
 
@@ -437,8 +436,9 @@
 
     (when (or (not auto-hide?)
               (pair? (table-blockss (car (part-blocks references)))))
-      (cond [(and numbered?) (struct-copy part references [style plain])]
-            [else references]))))
+      (struct-copy part references
+                   [style (cond [(or numbered?) bonus-style]
+                                [else (style-merge-property (part-style references) bonus-style)])]))))
 
 (define handbook-bibliography
   (lambda [#:auto-hide? [auto-hide? #true] #:numbered? [numbered? #false] #:racket-bibentries? [racket? #true]
@@ -450,21 +450,26 @@
     (when (or (not auto-hide?)
               (pair? all-bibentries))
       (define bibliography-self (apply bibliography #:tag handbook-bibliography-tag all-bibentries))
+      (define s:bonus (if numbered? bonus-style (style-merge-property (part-style bibliography-self) bonus-style)))
 
-      (cond [(and title)
-             (struct-copy part bibliography-self
-                          [title-content (list (section-title title tongue))]
-                          [style (if numbered? plain (part-style bibliography-self))])]
-            [(and numbered?) (struct-copy part bibliography-self [style plain])]
-            [else bibliography-self]))))
+      (if (and title)
+          (struct-copy part bibliography-self
+                       [title-content (list (section-title title tongue))]
+                       [style s:bonus])
+          (struct-copy part bibliography-self
+                       [style s:bonus])))))
 
 (define handbook-index
   (lambda [#:numbered? [numbered? #false] #:title [title 'index] #:tongue [tongue (current-tongue)]]
     (define index-origin (index-section #:tag handbook-index-tag))
     (define index-self
       (struct-copy part index-origin 
-                   ; stop `latex` from generating another empty `Index` label
-                   [style (if numbered? plain (handbook-remove-style-name (part-style index-origin)))]
+                   [style (cond [(or numbered?) bonus-style]
+
+                                ;;; NOTE
+                                ; we also remove the name of original style here,
+                                ; to stop `latex` from generating another empty `Index` label
+                                [else (style-merge-property bonus-style (part-style index-origin))])]
 
                    [blocks (list (let ([origin (car (part-blocks index-origin))])
                                    (texbook-command-block #:args "2" #:fallback-block origin

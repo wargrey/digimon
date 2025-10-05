@@ -5,6 +5,11 @@
 (provide (all-from-out "digitama/minimal/port.rkt"))
 (provide EvtSelf port-always-write-evt port-always-write-special-evt)
 
+(provide Output-Gate output-gate? make-output-gate)
+(provide Output-Gate<%> output-gate<%>? make-output-gate<%>)
+(provide Output-Gate-Write Output-Gate-Flush Output-Gate-Close Output-Gate-Position0)
+(provide (rename-out [output-gate-port open-output-gate]))
+
 (require racket/port)
 
 (require typed/racket/random)
@@ -291,13 +296,11 @@
            #:cursor? [cursor? #true] #:binary? [binary? #false] #:ascii? [ascii? #true] #:decimal-cursor? [dec-cursor? #false]
            #:upcase? [upcase? #false] #:name [name #false]
            [/dev/hexout (current-output-port)] [close-origin? #false]]
-    (define magazine : Bytes (make-bytes width 0))
-    (define payload : Natural 0)
-    (define cursor : Natural initial)
+    (define snapshot (hexstate (make-bytes width 0) 0 initial))
 
     (define-values (q r) (quotient/remainder width 2))
     
-    (define (hexdump [n : Natural]) : Natural
+    (define (hexdump [magazine : Bytes] [cursor : Natural] [n : Natural]) : Natural
       (define diff : Integer (- width n))
       (define cursor++ : Natural (+ cursor n))
 
@@ -336,50 +339,54 @@
       
       (newline /dev/hexout)
       cursor++)
-    
-    (define (hexdump-flush [n : Natural])
-      (when (> n 0)
-        (set! cursor (hexdump n))
-        (set! payload 0)))
 
-    (define (hexdump-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
-      (define src-size : Integer (- end start))
-      
-      (if (> src-size 0) 
-          (let dump ([src-size : Natural src-size]
-                     [start : Natural start]
-                     [available : Natural (max (- width payload) 0)])
-            (if (< src-size available)
-                (begin
-                  (bytes-copy! magazine payload bs start end)
-                  (set! payload (+ payload src-size)))
-                (let ([start++ (+ start available)]
-                      [size-- (- src-size available)])
-                  (bytes-copy! magazine payload bs start start++)
-                  (hexdump-flush width)
-                  (when (> size-- 0)
-                    (dump size-- start++ width)))))
+    (define hexdump-write : (Output-Gate-Write hexstate)
+      (lambda [bs start span s]
+        (define width : Index (bytes-length (hexstate-magazine s)))
+        (define payload : Natural (hexstate-payload s))
+        (define magazine : Bytes (hexstate-magazine s))
+        (define cursor : Natural (hexstate-cursor s))
+        (define available : Natural (max (- width payload) 0))
+        
+        (if (< span available)
+            (begin
+              (bytes-copy! magazine payload bs start (+ start span))
+              (values (hexstate magazine (+ payload span) cursor) span))
+            (let ([start++ (+ start available)])
+              (bytes-copy! magazine payload bs start start++)
+              (values (hexstate magazine (+ payload available) cursor)
+                      available)))))
 
-          ; explicitly calling `flush-port`
-          (hexdump-flush payload))
+    (define hexdump-flush : (Output-Gate-Flush hexstate)
+      (lambda [s]
+        (define width : Index (bytes-length (hexstate-magazine s)))
+        (define payload : Natural (hexstate-payload s))
+        (define magazine : Bytes (hexstate-magazine s))
+        (define cursor : Natural (hexstate-cursor s))
+        (define available : Natural (max (- width payload) 0))
+        
+        (if (> (hexstate-payload s) 0)
+            (hexstate (hexstate-magazine s)
+                      0
+                      (hexdump magazine cursor payload))
+            s)))
 
-      (unless (not non-block/buffered?)
-        ; do writing without block, say, calling `write-bytes-avail*`,
-        ; usually implies flush, and can return #false if failed.
-        (hexdump-flush payload))
-      
-      src-size)
+    (define (hexdump-position0 [s : hexstate]) : Positive-Integer
+      (+ (hexstate-cursor s) 1))
 
-    (define (hexdump-close) : Void
-      (hexdump-flush payload)
-
+    (define (hexdump-close [s : hexstate]) : Void
       (unless (not close-origin?)
         (close-output-port /dev/hexout)))
-    
-    (make-output-port (or name (object-name /dev/hexout))
-                      always-evt hexdump-write hexdump-close
-                      #false port-always-write-evt #false
-                      #false void (λ [] (+ cursor 1)) #false)))
+
+    (define gate : (Output-Gate hexstate)
+      (make-output-gate #:name (or name (object-name /dev/hexout))
+                        snapshot
+                        ((inst make-output-gate<%> hexstate) #:write hexdump-write
+                                                             #:flush hexdump-flush
+                                                             #:close hexdump-close
+                                                             #:position0 hexdump-position0)))
+
+    (output-gate-port gate)))
 
 (define open-output-memory : (->* (Bytes) (Natural Natural #:name Any) Output-Port)
   (lambda [memory [memory-start 0] [memory-end (bytes-length memory)] #:name [name #false]]
