@@ -82,7 +82,10 @@
     [(problem-info a.out cmd-argv stdin-log-level)
      (dtrace-problem-info problem-info)
      (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
-                    [default-spec-exec-stdout-port (current-output-port)])
+                    [default-spec-exec-stdout-port (current-output-port)]
+                    [default-spec-exec-strict? (wizarmon-strict)]
+                    [default-spec-exec-stdin-line-limit (wizarmon-stdio-line-limit)]
+                    [default-spec-exec-stdout-line-limit (wizarmon-stdio-line-limit)])
        (spec-prove #:no-timing-info? #false #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
                    #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
                    (clang-problem->feature problem-info a.out cmd-argv)))]))

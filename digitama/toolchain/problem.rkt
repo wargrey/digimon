@@ -6,7 +6,6 @@
 
 (require "../../filesystem.rkt")
 (require "../../string.rkt")
-(require "../../token.rkt")
 
 (require "../collection.rkt")
 (require "../minimal/dtrace.rkt")
@@ -52,7 +51,9 @@
 (define dtrace-problem-info : (-> Problem-Info Void)
   (lambda [pinfo]
     (when (pair? (problem-info-description pinfo))
-      (dtrace-debug "@~a:" 'problem)
+      (if (problem-info-title pinfo)
+          (dtrace-debug "@~a: ~a" 'problem (problem-info-title pinfo))
+          (dtrace-debug "@~a:" 'problem))
       (for ([brief (in-list (problem-info-description pinfo))])
         (dtrace-note "~a" brief)))
     (when (pair? (problem-info-arguments pinfo))

@@ -5,7 +5,7 @@
 (provide (all-from-out "digitama/minimal/port.rkt"))
 (provide EvtSelf port-always-write-evt port-always-write-special-evt)
 
-(provide Output-Gate output-gate? make-output-gate)
+(provide Output-Gate output-gate? make-output-gate output-gate-snapshot)
 (provide Output-Gate<%> output-gate<%>? make-output-gate<%>)
 (provide Output-Gate-Write Output-Gate-Flush Output-Gate-Close Output-Gate-Position0)
 (provide (rename-out [output-gate-port open-output-gate]))

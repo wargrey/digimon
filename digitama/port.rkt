@@ -13,8 +13,7 @@
 (struct (S) output-gate
   ([port : Output-Port]
    [&snapshot : (Boxof S)])
-  #:type-name Output-Gate
-  #:property prop:output-port 0)
+  #:type-name Output-Gate)
 
 (struct (S) output-gate<%>
   ([write : (Output-Gate-Write S)]
@@ -23,6 +22,10 @@
    [position0 : (Output-Gate-Position0 S)])
   #:type-name Output-Gate<%>
   #:transparent)
+
+(define #:forall (S) output-gate-snapshot : (-> (Output-Gate S) S)
+  (lambda [self]
+    (unbox (output-gate-&snapshot self))))
 
 (define #:forall (S) make-output-gate<%> : (-> [#:write (Option (Output-Gate-Write S))]
                                                [#:flush (Option (Output-Gate-Flush S))]

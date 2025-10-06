@@ -3,9 +3,13 @@
 (provide (all-defined-out))
 
 (require racket/unsafe/ops)
+(require racket/case)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define unsafe-bytes-scan-linefeed : (-> Bytes Index Index (Values (Option Index) Byte))
+(define-type Bytes-Scan-Line (-> Bytes Index Index (Values (Option Index) Byte)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define unsafe-bytes-scan-linefeed : Bytes-Scan-Line
   (lambda [bs start end]
     (values (let scan ([pos : Nonnegative-Fixnum start])
               (and (< pos end)
@@ -13,7 +17,7 @@
                          [else (scan (+ pos 1))])))
             1)))
     
-(define unsafe-bytes-scan-return : (-> Bytes Index Index (Values (Option Index) Byte))
+(define unsafe-bytes-scan-return : Bytes-Scan-Line
   (lambda [bs start end]
     (values (let scan ([pos : Nonnegative-Fixnum start])
               (and (< pos end)
@@ -21,7 +25,7 @@
                          [else (scan (+ pos 1))])))
             1)))
 
-(define unsafe-bytes-scan-refeed : (-> Bytes Index Index (Values (Option Index) Byte))
+(define unsafe-bytes-scan-refeed : Bytes-Scan-Line
   (lambda [bs start end]
     (values (let scan ([pos : Nonnegative-Fixnum start])
               (and (< pos end)
@@ -34,7 +38,7 @@
                                          [else (scan (+ \l-pos 1))]))]))))
             2)))
 
-(define unsafe-bytes-scan-any : (-> Bytes Index Index (Values (Option Index) Byte))
+(define unsafe-bytes-scan-any : Bytes-Scan-Line
   (lambda [bs start end]
     (let scan ([pos : Nonnegative-Fixnum start])
       (cond [(>= pos end) (values #false 2)]
@@ -46,7 +50,7 @@
                           [(eq? (unsafe-bytes-ref bs \l-pos) 10) (values pos 2)]
                           [else (values pos 1)]))]))))
 
-(define unsafe-bytes-scan-anyone : (-> Bytes Index Index (Values (Option Index) Byte))
+(define unsafe-bytes-scan-anyone : Bytes-Scan-Line
   (lambda [bs start end]
     (values (let scan ([pos : Nonnegative-Fixnum start])
               (and (< pos end)
@@ -55,3 +59,14 @@
                            [(eq? b 13) pos]
                            [else (scan (+ pos 1))]))))
             1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define bytes-scanline-select : (-> Symbol Bytes-Scan-Line)
+  (lambda [mode]
+    (case/eq mode
+      [(any) unsafe-bytes-scan-any]
+      [(return-linefeed) unsafe-bytes-scan-refeed]
+      [(linefeed) unsafe-bytes-scan-linefeed]
+      [(return) unsafe-bytes-scan-return]
+      [(any-one) unsafe-bytes-scan-anyone]
+      [else unsafe-bytes-scan-any])))

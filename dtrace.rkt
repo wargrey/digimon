@@ -83,26 +83,28 @@
 (define open-output-dtrace : (->* ()
                                   ((U Symbol (-> String (Values Symbol (Option String)))) Any
                                    #:special (U Symbol (-> Any (Values (Option Symbol) Any String)) False)
-                                   #:line-mode Symbol #:prefix? Boolean #:fallback-char (Option Char))
+                                   #:line-limit (Option Natural) #:line-mode Symbol #:prefix? Boolean #:fallback-char (Option Char))
                                   Output-Port)
-  (lambda [[line-level 'debug] [topic /dev/dtrace] #:special [special-level #false] #:line-mode [mode 'any] #:prefix? [prefix? #false] #:fallback-char [echar #\uFFFD]]
+  (lambda [#:special [special-level #false] #:line-mode [mode 'any] #:line-limit [maxline #false] #:prefix? [prefix? #false] #:fallback-char [echar #\uFFFD]
+           [line-level 'debug] [topic /dev/dtrace]]
     (define name : Symbol (string->symbol (format "<~a:~a>" (if (logger? topic) (logger-name topic) topic) mode)))
     (define /dev/bufout : Output-Port (open-output-bytes name))
+    (define scan-line (bytes-scanline-select mode))
 
-    (define scan-line : (-> Bytes Index Index (Values (Option Index) Byte))
-      (case mode
-        [(any) unsafe-bytes-scan-any]
-        [(return-linefeed) unsafe-bytes-scan-refeed]
-        [(linefeed) unsafe-bytes-scan-linefeed]
-        [(return) unsafe-bytes-scan-return]
-        [(any-one) unsafe-bytes-scan-anyone]
-        [else unsafe-bytes-scan-any]))
-    
-    (define (dtrace-write-line [line : String]) : Void
+    (define (dtrace-always-write-line [line : String]) : Void
       (cond [(symbol? line-level) (dtrace-send topic line-level line #false prefix?)]
             [else (let-values ([(level message) (line-level line)])
                     (when (string? message)
                       (dtrace-send topic level message #false prefix?)))]))
+
+    (define dtrace-write-line
+      (if (or maxline)
+          (let ([&line : (Boxof Natural) (box 0)])
+            (λ [[line : String]] : Void
+              (when (< (unbox &line) maxline)
+                (set-box! &line (add1 (unbox &line)))
+                (dtrace-always-write-line line))))
+          dtrace-always-write-line))
 
     (define (dtrace-flush)
       (when (> (file-position /dev/bufout) 0)
@@ -110,18 +112,21 @@
 
     (define (dtrace-write [bs : Bytes] [start : Natural] [end : Natural] [non-block/buffered? : Boolean] [enable-break? : Boolean]) : Integer
       (with-asserts ([end index?])
-        (cond [(= start end) (dtrace-flush)] ; explicitly calling `flush-port`
-              [else (let write-line ([pos : Index (assert start index?)]
-                                     [bufsize : Natural (file-position /dev/bufout)])
-                      (define-values (brkpos offset) (scan-line bs pos end))
-                      (cond [(not brkpos) (write-bytes bs /dev/bufout pos end)]
-                            [else (let ([nxtpos (+ brkpos offset)])
-                                    (dtrace-write-line
-                                     (cond [(= bufsize 0) (bytes->string/utf-8 bs echar pos brkpos)]
-                                           [else (let ([total (+ bufsize (write-bytes bs /dev/bufout pos brkpos))])
-                                                   (bytes->string/utf-8 (get-output-bytes /dev/bufout #true 0 total) echar 0 total))]))
-                                    (when (< nxtpos end)
-                                      (write-line nxtpos 0)))]))]))
+        (if (< start end)
+            (let write-line ([pos : Index (assert start index?)]
+                             [bufsize : Natural (file-position /dev/bufout)])
+              (define-values (brkpos offset) (scan-line bs pos end))
+              (cond [(not brkpos) (write-bytes bs /dev/bufout pos end)]
+                    [else (let ([nxtpos (+ brkpos offset)])
+                            (dtrace-write-line
+                             (cond [(= bufsize 0) (bytes->string/utf-8 bs echar pos brkpos)]
+                                   [else (let ([total (+ bufsize (write-bytes bs /dev/bufout pos brkpos))])
+                                           (bytes->string/utf-8 (get-output-bytes /dev/bufout #true 0 total) echar 0 total))]))
+                            (when (< nxtpos end)
+                              (write-line nxtpos 0)))]))
+
+            ; explicitly calling `flush-port`
+            (dtrace-flush)))
 
       (unless (not non-block/buffered?)
         ; do writing without block, say, calling `write-bytes-avail*`,
