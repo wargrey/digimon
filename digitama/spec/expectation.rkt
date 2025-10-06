@@ -182,9 +182,9 @@
               ([s (sequence-tail givens 1)])
       (if (op r s) s (spec-misbehave)))))
 
-(define-spec-expectation (match [pattern : Spec-Match-Datum] [given : (U Path-String Bytes Input-Port)])
-  (or (cond [(input-port? given) (regexp-match-peek pattern given)]
-            [else (regexp-match? pattern given)])
+(define-spec-expectation (match [pattern : Spec-Match-Datum] [actual : (U Path-String Bytes Input-Port)])
+  (or (cond [(input-port? actual) (regexp-match-peek pattern actual)]
+            [else (regexp-match? pattern actual)])
       (spec-misbehave)))
 
 (define-spec-expectation (throw [exception : (U (-> Any Boolean) Spec-Match-Datum)] [routine : (-> Any)])

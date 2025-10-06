@@ -15,7 +15,9 @@
   ([brief : String]
    [input : String]
    [output : (Option (Listof (U String Regexp)))]
-   [timeout : (Option Natural)])
+   [timeout : (Option Natural)]
+   [stdio-lines : (Option Natural)]
+   [strict? : Boolean])
   #:type-name Problem-Spec
   #:constructor-name make-problem-spec
   #:transparent)
@@ -136,31 +138,43 @@
                 [is : (Listof String) null]
                 [os : (Listof (Listof String)) null]
                 [timeout : (Option Natural) #false]
+                [lines : (Option Natural) #false]
+                [strict? : Boolean #false]
                 [ydob : (Listof String) null]
                 [dir : (Option Symbol) #false]
                 [defout? : Boolean #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
-               (cond [(regexp-match? "^(input:?|[>]{2})" self) (parse rest (problem-input-prepare is self) os timeout ydob 'input defout?)]
-                     [(regexp-match? "^(output:?|[<]{2})" self) (parse rest is (problem-output-prepare os self) timeout ydob 'output #true)]
-                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self) (parse (problem-spec-include main.cpp self rest) is os timeout ydob dir defout?)]
-                     [(regexp-match? "^(timeout:?)" self) (parse rest is os (problem-spec-extract-timeout self) ydob dir defout?)]
-                     [(eq? dir 'input) (parse rest (cons self is) os timeout ydob dir defout?)]
-                     [(eq? dir 'output) (parse rest is (cons (cons self (car os)) (cdr os)) timeout ydob dir defout?)]
-                     [else (parse rest is os timeout (cons self ydob) dir defout?)]))]
+               (cond [(regexp-match? "^(input:?|[>]{2})" self)
+                      (parse rest (problem-input-prepare is self) os timeout lines strict? ydob 'input defout?)]
+                     [(regexp-match? "^(output:?|[<]{2})" self)
+                      (parse rest is (problem-output-prepare os self) timeout lines strict? ydob 'output #true)]
+                     [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self)
+                      (parse (problem-spec-include main.cpp self rest) is os timeout lines strict? ydob dir defout?)]
+                     [(regexp-match? "^(timeout:?)" self)
+                      (parse rest is os (problem-spec-extract-natural self) lines strict? ydob dir defout?)]
+                     [(regexp-match? "^((stdio|echo)-lines:?)" self)
+                      (parse rest is os timeout (problem-spec-extract-natural self) strict? ydob dir defout?)]
+                     [(regexp-match? "^(strict)" self)
+                      (parse rest is os timeout lines #true ydob dir defout?)]
+                     [(eq? dir 'input)
+                      (parse rest (cons self is) os timeout lines strict? ydob dir defout?)]
+                     [(eq? dir 'output)
+                      (parse rest is (cons (cons self (car os)) (cdr os)) timeout lines strict? ydob dir defout?)]
+                     [else (parse rest is os timeout lines strict? (cons self ydob) dir defout?)]))]
 
             [(not dir) ; no (#:input ior #:output)
              (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
                                     (and (not (string-blank? output)) (list output)))
-                                  timeout))]
+                                  timeout lines strict?))]
 
             [else
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
                                 (and defout? (map problem-spec-rjoin (reverse os)))
-                                timeout)]))))
+                                timeout lines strict?)]))))
 
 (define problem-spec-description : (-> String Nonnegative-Fixnum String)
   (lambda [headline idx]
@@ -202,7 +216,7 @@
   (lambda [self]
     (regexp-match #px"^(@|\\\\)(test)" self)))
 
-(define problem-spec-extract-timeout : (-> String (Option Natural))
+(define problem-spec-extract-natural : (-> String (Option Natural))
   (lambda [self]
     (define content : (Option String) (problem-spec-one-line-datum self))
 

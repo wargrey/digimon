@@ -37,6 +37,7 @@
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 (define default-spec-issue-format : (Parameterof (Option Spec-Issue-Format)) (make-parameter #false))
 (define default-spec-issue-extra-arguments : (Parameterof (Listof Spec-Issue-Extra-Argument)) (make-parameter null))
+(define default-spec-issue-ignored-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
 
@@ -52,6 +53,7 @@
    [arguments : (Listof Any)]
    [parameters : (Listof Symbol)]
    [extras : (Listof Spec-Issue-Extra-Argument)]
+   [ignores : (Listof Symbol)]
    [exception : (Option exn:fail)]
    
    [format : (Option Spec-Issue-Format)])
@@ -70,6 +72,7 @@
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
                 (default-spec-issue-extra-arguments)
+                (default-spec-issue-ignored-arguments)
                 (default-spec-issue-exception)
 
                 (default-spec-issue-format))))
@@ -89,6 +92,7 @@
                 (default-spec-issue-arguments)
                 (default-spec-issue-parameters)
                 (default-spec-issue-extra-arguments)
+                (default-spec-issue-ignored-arguments)
                 e
                 
                 (default-spec-issue-format))))
@@ -133,14 +137,16 @@
       (eechof #:fgcolor color "~a expectation: ~a~n" headspace (spec-issue-expectation issue)))
     
     (define self-argv : (Listof Spec-Issue-Argument-Datum)
-      (let ([f (spec-make-argument (spec-issue-format issue))])
+      (let ([f (spec-make-argument (spec-issue-format issue))]
+            [ignores (spec-issue-ignores issue)])
         (for/list ([p (in-list (spec-issue-parameters issue))]
                    [a (in-list (spec-issue-arguments issue))]
 
                    ; WARNING: the issue expressions might also contain arguments
                    ;   that user-provided to create the issue message,
                    ;   despite the fact that `for/list` would ignore them.
-                   [e (in-list (syntax-e (spec-issue-expressions issue)))])
+                   [e (in-list (syntax-e (spec-issue-expressions issue)))]
+                   #:unless (memq p ignores))
           (f p a e))))
 
     (define all-argv : (Listof Spec-Issue-Argument-Datum)

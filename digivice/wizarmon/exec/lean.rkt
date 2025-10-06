@@ -99,7 +99,10 @@
                  (it brief #:do #;(pending))
 
                  (it brief #:do #:millisecond timeout
-                   #:do (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null))))))))
+                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
+                                       [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
+                                       [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                          (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)))))))))
 
 (define lean-interpreter : (-> Path (Option Path))
   (lambda [main.lean]

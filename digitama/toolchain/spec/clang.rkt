@@ -53,7 +53,10 @@
              (if (and (string-blank? args) (not result))
                  (it brief #:do #;(pending))
                  (it brief #:do #:millisecond (or timeout 0)
-                   #:do (expect-stdout a.out cmd-argv args (or result null))))))))
+                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
+                                       [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
+                                       [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                          (expect-stdout a.out cmd-argv args (or result null)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

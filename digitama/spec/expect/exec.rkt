@@ -4,6 +4,7 @@
 
 (require racket/string)
 (require racket/format)
+(require racket/list)
 
 (require "../expectation.rkt")
 (require "../prompt.rkt")
@@ -48,56 +49,87 @@
     (define given : Bytes (if eols (subbytes raw 0 (- (bytes-length raw) (bytes-length (car eols)))) raw))
     (define givens : (Listof Bytes) (if (regexp-match? #px"(\r|\n)" given) (regexp-split #px"(\r|\n)+" given) null))
     (define strict? : Boolean (default-spec-exec-strict?))
-    
-    (or (for/or : Boolean ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
-          (cond [(bytes? expected)
-                 (if (null? givens)
-                     (spec-bytes=? given expected strict?)
-                     (spec-mbytes=? givens expected strict?))]
-                [(string? expected)
-                 (if (null? givens)
-                     (spec-string=? (bytes->string/utf-8 given) expected strict?)
-                     (spec-mbytes=? givens (string->bytes/utf-8 expected) strict?))]
-                [(byte-regexp? expected) (regexp-match? expected given)]
-                [else (regexp-match? expected given)]))
-        (let ([str? (spec-string-output? outputs)])
-          ; the issue format should be combined with existing `default-spec-issue-format`
-          ; nevertheless, it is not a big deal here
-          (parameterize ([default-spec-issue-extra-arguments (list (vector 'given (spec-clear-string (bytes->string/utf-8 given)) #false))]
-                         [default-spec-issue-format (if (not str?) spec-exec-bytes-format spec-exec-string-format)])
-            (spec-misbehave))))))
+
+    (for/fold ([failures : (Listof Spec-Issue-Extra-Argument) null]
+               #:result (and (pair? failures)
+                             (parameterize ([default-spec-issue-extra-arguments failures]
+                                            [default-spec-issue-ignored-arguments (list 'outputs)]
+
+                                            ; the issue format should be combined with existing `default-spec-issue-format`
+                                            ; nevertheless, it is not a big deal here
+                                            [default-spec-issue-format (if (spec-string-output? outputs) spec-exec-string-format spec-exec-bytes-format)])
+                               (spec-misbehave))))
+              ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
+      (define failure (spec-fetch-failure expected given givens strict?))
+      (cond [(null? failure) failures]
+            [else (append failures failure)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define spec-fetch-failure : (-> (U Spec-Stdout-Expect-Bytes Spec-Stdout-Expect-String) Bytes (Listof Bytes) Boolean
+                                 (Listof Spec-Issue-Extra-Argument))
+  (lambda [expected given givens strict?]
+    (cond [(string? expected)
+           (if (null? givens)
+               (spec-string-failure (bytes->string/utf-8 given) expected strict?)
+               (spec-mbytes-failures given givens (string->bytes/utf-8 expected) (default-spec-exec-stdout-line-limit) strict?))]
+          [(bytes? expected) (spec-bytes-failure given expected #true #true)] ; binary mode
+          [else (spec-match-failure given expected)])))
+
 (define spec-string-output? : (-> Spec-Stdout-Expectation Boolean)
   (lambda [outputs]
     (for/or : Boolean ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
       (or (string? expected)
           (regexp? expected)))))
 
-(define spec-bytes=? : (-> Bytes Bytes Boolean Boolean)
+(define spec-match-failure : (-> Bytes (U Byte-Regexp Regexp) (Listof Spec-Issue-Extra-Argument))
+  (lambda [given expected]
+    (cond [(regexp-match? expected given) null]
+          [else (list (vector 'pattern expected #false)
+                      (vector 'actual given #false))])))
+
+(define spec-bytes-failure : (->* (Bytes Bytes Boolean Boolean) (Symbol Symbol) (Listof Spec-Issue-Extra-Argument))
+  (lambda [given expected strict? binary? [expected-name 'expected] [given-name 'given]]
+    (cond [(bytes=? given expected) null]
+          [(and (not strict?)
+                (bytes=? (regexp-replace #px"\\s+$" given #"")
+                         (regexp-replace #px"\\s+$" expected #""))) null]
+          [else (list (vector expected-name (spec-clear-string expected binary?) #false)
+                      (vector given-name (spec-clear-string given binary?) #false))])))
+
+(define spec-string-failure : (-> String String Boolean (Listof Spec-Issue-Extra-Argument))
   (lambda [given expected strict?]
-    (if (and strict?)
-        (bytes=? given expected)
-        (or (bytes=? given expected)
-            (bytes=? (regexp-replace #px"\\s+$" given #"")
-                     (regexp-replace #px"\\s+$" expected #""))))))
+    (cond [(string=? given expected) null]
+          [(and (not strict?)
+                (string=? (string-trim given #:left? #false #:repeat? #true)
+                          (string-trim expected #:left? #false #:repeat? #true))) null]
+          [else (list (vector 'expected (spec-clear-string expected) #false)
+                      (vector 'given (spec-clear-string given) #false))])))
 
-(define spec-string=? : (-> String String Boolean Boolean)
-  (lambda [given expected strict?]
-    (if (and strict?)
-        (string=? given expected)
-        (or (string=? given expected)
-            (string=? (string-trim given #:left? #false #:repeat? #true)
-                      (string-trim expected #:left? #false #:repeat? #true))))))
+(define spec-mbytes-failures : (-> Bytes (Listof Bytes) Bytes (Option Natural) Boolean (Listof Spec-Issue-Extra-Argument))
+  (lambda [given givens expected line-limit strict?]
+    (define expectations (regexp-split #px"(\r|\n)+" expected))
 
-(define spec-mbytes=? : (-> (Listof Bytes) Bytes Boolean Boolean)
-  (lambda [givens expected strict?]
-    (define es (regexp-split #px"(\r|\n)+" expected))
-
-    (and (= (length givens) (length es))
-         (for/and : Boolean ([g (in-list givens)]
-                             [e (in-list es)])
-           (spec-bytes=? g e strict?)))))
+    (if (= (length givens) (length expectations))
+        (for/fold ([failures : (Listof Spec-Issue-Extra-Argument) null]
+                   #:result (cond [(null? failures) failures]
+                                  [else (append ((inst list Spec-Issue-Extra-Argument)
+                                                 (vector 'expected (spec-clear-string expected expectations line-limit) #false)
+                                                 (vector 'given (spec-clear-string given givens line-limit) #false))
+                                                failures)]))
+                  ([g (in-list givens)]
+                   [e (in-list expectations)]
+                   [i (in-naturals 1)])
+          (define failure (spec-bytes-failure g e strict? #false 'should-be 'but-was))
+          (cond [(null? failure) failures]
+                [(and line-limit (> (length failures) line-limit)) failures]
+                [else (append failures
+                              ((inst cons Spec-Issue-Extra-Argument (Listof Spec-Issue-Extra-Argument))
+                               (vector 'line i #false)
+                               failure))]))
+        (list (vector 'reason "mismatched lines of output" #false)
+              (vector 'diff (- (length expectations) (length givens)) #false)
+              (vector 'expected (spec-clear-string expected expectations line-limit) #false)
+              (vector 'given (spec-clear-string given givens line-limit) #false)))))
 
 (define spec-exec-string-format : Spec-Issue-Format
   (lambda [v fallback]
@@ -107,6 +139,7 @@
           [(path? v) (path->string v)]
           [else (fallback v)])))
 
+; TODO: should we display bytes in hexadecimal?
 (define spec-exec-bytes-format : Spec-Issue-Format
   (lambda [v fallback]
     (cond [(string? v) (spec-expected-bytes v)]
@@ -127,8 +160,22 @@
           [(string? v) (~s (string->bytes/utf-8 v))]
           [else (~s v)])))
 
-(define spec-clear-string : (-> String String)
-  (lambda [s]
-    (if (regexp-match? #px"[[:blank:]]" s)
-        (string-replace s #px"[[:blank:]]" "·")
-        s)))
+(define spec-clear-string : (case-> [Bytes -> Bytes]
+                                    [String -> String]
+                                    [Bytes Boolean -> (U Bytes String)]
+                                    [Bytes (Listof Bytes) (Option Natural) -> String])
+  (case-lambda
+    [(s)
+     (if (bytes? s)
+         (regexp-replace* #px#"[[:blank:]]" s #"·")
+         (regexp-replace*  #px"[[:blank:]]" s  "·"))]
+    [(s binary?)
+     (if (not binary?)
+         (spec-clear-string (bytes->string/utf-8 s))
+         (spec-clear-string s))]
+    [(s lines limit)
+     (if (or (not limit) (>= limit (length lines)))
+         (spec-clear-string (bytes->string/utf-8 s))
+         (string-join (for/list : (Listof String) ([given (in-list (take lines limit))])
+                        (spec-clear-string (bytes->string/utf-8 given)))
+                      "\n"))]))

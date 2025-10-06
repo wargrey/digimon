@@ -115,12 +115,18 @@
                     (it brief #:do #;(pending))]
                    [(list? result) ; a complete test spec overrides the doctests
                     (it brief #:do #:millisecond timeout
-                      #:do (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result))]
+                      #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
+                                          [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
+                                          [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                             (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result)))]
                    [else ; let doctest do its job
                     (it brief #:do #:millisecond timeout
-                      #:do (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
-                                  [doctest? (pair? (python-problem-attachment-doctests attachment))])
-                             (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null)))])))))
+                      #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
+                                          [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
+                                          [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                             (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
+                                    [doctest? (pair? (python-problem-attachment-doctests attachment))])
+                               (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null))))])))))
 
 (define python-interpreter : (-> Path (Option Path))
   (lambda [mod.py]
