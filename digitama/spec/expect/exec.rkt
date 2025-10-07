@@ -27,7 +27,11 @@
 (define default-spec-exec-stdin-echo-lines : (Parameterof (Option Natural)) (make-parameter #false))
 (define default-spec-exec-stdout-echo-lines : (Parameterof (Option Natural)) (make-parameter #false))
 
-;;; TODO: we should treat bytes as in binary mode.
+;;; NOTE
+; the `expect-stdout` works for text based subprocesses.
+; we still allow bytes as input arguments for efficiency.
+
+;;; TODO: define `expect-binary-stdout`
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-spec-expectation (stdout [program : Path-String] [cmd-argv : (Vectorof String)] [/dev/stdin : (U String Bytes)] [outputs : Spec-Stdout-Expectation])
@@ -38,7 +42,7 @@
                         #:/dev/stdout /dev/stdout #:/dev/stderr (default-spec-exec-stderr-port)
                         #:pre-fork spec-timeout-start #:post-fork spec-timeout-start #:atexit spec-timeout-terminate
                         #:stdin-log-level (default-spec-exec-stdin-log-level)
-                        #:stdin-echo-lines (and (string? /dev/stdin) (default-spec-exec-stdin-echo-lines))
+                        #:stdin-echo-lines (default-spec-exec-stdin-echo-lines)
                         #:stdout-echo-lines (default-spec-exec-stdout-echo-lines)
                         (default-spec-exec-operation-name) (if (string? program) (string->path program) program) cmd-argv))
 
@@ -60,38 +64,35 @@
                                               
                                               ; the issue format should be combined with existing `default-spec-issue-format`
                                               ; nevertheless, it is not a big deal here
-                                              [default-spec-issue-format (if (spec-string-output? outputs) spec-exec-string-format spec-exec-bytes-format)])
+                                              [default-spec-issue-format spec-exec-string-format])
                                  (spec-misbehave)))))
               ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
-      (define failure (spec-fetch-failure expected given givens strict?))
+      (define failure (spec-fetch-text-failure expected given givens strict?))
       (cond [(not failure) failures]
             [(not failures) failure]
             [else (append failures failure)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define spec-fetch-failure : (-> (U Spec-Stdout-Expect-Bytes Spec-Stdout-Expect-String) Bytes (Listof Bytes) Boolean
-                                 (Option (Listof Spec-Issue-Extra-Argument)))
+(define spec-fetch-text-failure : (-> (U Spec-Stdout-Expect-Bytes Spec-Stdout-Expect-String) Bytes (Listof Bytes) Boolean
+                                      (Option (Listof Spec-Issue-Extra-Argument)))
   (lambda [expected given givens strict?]
     (cond [(string? expected)
            (if (null? givens)
-               (spec-string-failure (bytes->string/utf-8 given) expected strict?)
-               (spec-mbytes-failures given givens (string->bytes/utf-8 expected) (default-spec-exec-stdout-echo-lines) strict?))]
-          [(bytes? expected) (spec-bytes-failure given expected #true #true)] ; binary mode
-          [else (spec-match-failure given expected)])))
+               (spec-fetch-string-failure (bytes->string/utf-8 given) expected strict?)
+               (spec-fetch-mbytes-failures given givens (string->bytes/utf-8 expected) (default-spec-exec-stdout-echo-lines) strict? #false))]
+          [(bytes? expected)
+           (if (null? givens)
+               (spec-fetch-bytes-failure given expected strict? #false)
+               (spec-fetch-mbytes-failures given givens expected (default-spec-exec-stdout-echo-lines) strict? #false))]
+          [else (spec-fetch-match-failure given expected)])))
 
-(define spec-string-output? : (-> Spec-Stdout-Expectation Boolean)
-  (lambda [outputs]
-    (for/or : Boolean ([expected (if (pair? outputs) (in-list outputs) (in-value outputs))])
-      (or (string? expected)
-          (regexp? expected)))))
-
-(define spec-match-failure : (-> Bytes (U Byte-Regexp Regexp) (Option (Listof Spec-Issue-Extra-Argument)))
+(define spec-fetch-match-failure : (-> Bytes (U Byte-Regexp Regexp) (Option (Listof Spec-Issue-Extra-Argument)))
   (lambda [given expected]
     (cond [(regexp-match? expected given) #false]
           [else (list (make-spec-extra-argument 'pattern expected)
                       (make-spec-extra-argument 'actual given))])))
 
-(define spec-bytes-failure : (->* (Bytes Bytes Boolean Boolean) (Symbol Symbol Byte) (Option (Listof Spec-Issue-Extra-Argument)))
+(define spec-fetch-bytes-failure : (->* (Bytes Bytes Boolean Boolean) (Symbol Symbol Byte) (Option (Listof Spec-Issue-Extra-Argument)))
   (lambda [given expected strict? binary? [expected-name 'expected] [given-name 'given] [indent 0]]
     (cond [(bytes=? given expected) #false]
           [(and (not strict?)
@@ -100,7 +101,7 @@
           [else (list (make-spec-extra-argument expected-name (spec-clear-string expected binary?) #:indent indent)
                       (make-spec-extra-argument given-name (spec-clear-string given binary?) #:indent indent))])))
 
-(define spec-string-failure : (-> String String Boolean (Option (Listof Spec-Issue-Extra-Argument)))
+(define spec-fetch-string-failure : (-> String String Boolean (Option (Listof Spec-Issue-Extra-Argument)))
   (lambda [given expected strict?]
     (cond [(string=? given expected) #false]
           [(and (not strict?)
@@ -109,8 +110,8 @@
           [else (list (make-spec-extra-argument 'expected (spec-clear-string expected))
                       (make-spec-extra-argument 'given (spec-clear-string given)))])))
 
-(define spec-mbytes-failures : (-> Bytes (Listof Bytes) Bytes (Option Natural) Boolean (Option (Listof Spec-Issue-Extra-Argument)))
-  (lambda [given givens expected echo-lines strict?]
+(define spec-fetch-mbytes-failures : (-> Bytes (Listof Bytes) Bytes (Option Natural) Boolean Boolean (Option (Listof Spec-Issue-Extra-Argument)))
+  (lambda [given givens expected echo-lines strict? binary?]
     (define expectations (regexp-split #px"(\r|\n)+" expected))
 
     (if (= (length givens) (length expectations))
@@ -124,7 +125,7 @@
                   ([g (in-list givens)]
                    [e (in-list expectations)]
                    [i (in-naturals 1)])
-          (define failure (spec-bytes-failure g e strict? #false 'should-be '|  but-was|))
+          (define failure (spec-fetch-bytes-failure g e strict? binary? 'should-be '|  but-was|))
           (cond [(not failure) (values failures failure-in-window?)]
                 [(and echo-lines (>= (length (or failures null)) echo-lines)) (values (or failures null) failure-in-window?)]
                 [else (values (cons (make-spec-extra-argument (string->symbol (format "@line:~a" i))
@@ -145,15 +146,6 @@
     (cond [(string? v) (spec-expected-string v)]
           [(bytes? v) (spec-expected-string v)]
           [(list? v) (string-join (map spec-expected-string v) "\n------\n")]
-          [(path? v) (path->string v)]
-          [else (fallback v)])))
-
-; TODO: should we display bytes in hexadecimal?
-(define spec-exec-bytes-format : Spec-Issue-Format
-  (lambda [v fallback]
-    (cond [(string? v) (spec-expected-bytes v)]
-          [(bytes? v) (spec-expected-bytes v)]
-          [(list? v) (string-join (map spec-expected-bytes v) "\n------\n")]
           [(path? v) (path->string v)]
           [else (fallback v)])))
 
