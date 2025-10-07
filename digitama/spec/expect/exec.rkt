@@ -84,17 +84,17 @@
 (define spec-match-failure : (-> Bytes (U Byte-Regexp Regexp) (Listof Spec-Issue-Extra-Argument))
   (lambda [given expected]
     (cond [(regexp-match? expected given) null]
-          [else (list (vector 'pattern expected #false)
-                      (vector 'actual given #false))])))
+          [else (list (make-spec-extra-argument 'pattern expected)
+                      (make-spec-extra-argument 'actual given))])))
 
-(define spec-bytes-failure : (->* (Bytes Bytes Boolean Boolean) (Symbol Symbol) (Listof Spec-Issue-Extra-Argument))
-  (lambda [given expected strict? binary? [expected-name 'expected] [given-name 'given]]
+(define spec-bytes-failure : (->* (Bytes Bytes Boolean Boolean) (Symbol Symbol Byte) (Listof Spec-Issue-Extra-Argument))
+  (lambda [given expected strict? binary? [expected-name 'expected] [given-name 'given] [indent 0]]
     (cond [(bytes=? given expected) null]
           [(and (not strict?)
                 (bytes=? (regexp-replace #px"\\s+$" given #"")
                          (regexp-replace #px"\\s+$" expected #""))) null]
-          [else (list (vector expected-name (spec-clear-string expected binary?) #false)
-                      (vector given-name (spec-clear-string given binary?) #false))])))
+          [else (list (make-spec-extra-argument expected-name (spec-clear-string expected binary?) #:indent indent)
+                      (make-spec-extra-argument given-name (spec-clear-string given binary?) #:indent indent))])))
 
 (define spec-string-failure : (-> String String Boolean (Listof Spec-Issue-Extra-Argument))
   (lambda [given expected strict?]
@@ -102,8 +102,8 @@
           [(and (not strict?)
                 (string=? (string-trim given #:left? #false #:repeat? #true)
                           (string-trim expected #:left? #false #:repeat? #true))) null]
-          [else (list (vector 'expected (spec-clear-string expected) #false)
-                      (vector 'given (spec-clear-string given) #false))])))
+          [else (list (make-spec-extra-argument 'expected (spec-clear-string expected))
+                      (make-spec-extra-argument 'given (spec-clear-string given)))])))
 
 (define spec-mbytes-failures : (-> Bytes (Listof Bytes) Bytes (Option Natural) Boolean (Listof Spec-Issue-Extra-Argument))
   (lambda [given givens expected line-limit strict?]
@@ -111,25 +111,30 @@
 
     (if (= (length givens) (length expectations))
         (for/fold ([failures : (Listof Spec-Issue-Extra-Argument) null]
-                   #:result (cond [(null? failures) failures]
-                                  [else (append ((inst list Spec-Issue-Extra-Argument)
-                                                 (vector 'expected (spec-clear-string expected expectations line-limit) #false)
-                                                 (vector 'given (spec-clear-string given givens line-limit) #false))
-                                                failures)]))
+                   [failure-in-window? : Boolean #false]
+                   #:result (cond [(null? failures) null]
+                                  [(not failure-in-window?) (reverse failures)]
+                                  [else (list* (make-spec-extra-argument 'expected (spec-clear-string expected expectations line-limit))
+                                               (make-spec-extra-argument 'given (spec-clear-string given givens line-limit))
+                                               (reverse failures))]))
                   ([g (in-list givens)]
                    [e (in-list expectations)]
                    [i (in-naturals 1)])
-          (define failure (spec-bytes-failure g e strict? #false 'should-be 'but-was))
-          (cond [(null? failure) failures]
-                [(and line-limit (> (length failures) line-limit)) failures]
-                [else (append failures
-                              ((inst cons Spec-Issue-Extra-Argument (Listof Spec-Issue-Extra-Argument))
-                               (vector 'line i #false)
-                               failure))]))
-        (list (vector 'reason "mismatched lines of output" #false)
-              (vector 'diff (- (length expectations) (length givens)) #false)
-              (vector 'expected (spec-clear-string expected expectations line-limit) #false)
-              (vector 'given (spec-clear-string given givens line-limit) #false)))))
+          (define failure (spec-bytes-failure g e strict? #false 'should-be '|  but-was|))
+          (cond [(null? failure) (values failures failure-in-window?)]
+                [(and line-limit (> (length failures) line-limit)) (values failures failure-in-window?)]
+                [else (values (cons (make-spec-extra-argument (string->symbol (format "@line:~a" i))
+                                                              (string-join (for/list : (Listof String) ([arg (in-list failure)])
+                                                                             (format "~a: ~a"
+                                                                               (spec-extra-argument-name arg)
+                                                                               (spec-extra-argument-value arg)))
+                                                                           "\n"))
+                                    failures)
+                              (or failure-in-window? (not line-limit) (<= i line-limit)))]))
+        (list (make-spec-extra-argument 'reason "mismatched lines of output")
+              (make-spec-extra-argument 'diff (- (length expectations) (length givens)))
+              (make-spec-extra-argument 'expected (spec-clear-string expected expectations line-limit))
+              (make-spec-extra-argument 'given (spec-clear-string given givens line-limit))))))
 
 (define spec-exec-string-format : Spec-Issue-Format
   (lambda [v fallback]

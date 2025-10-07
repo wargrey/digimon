@@ -24,7 +24,7 @@
   #:once-each
   [[(#\l lang)                                      lang              "treat the source as having the type ~1"]
    [(timeout)           #:=> cmdopt-string->natural ms    #: Natural  "set the timeout of execution to ~1 millisecond"]
-   [(#\n lines)         #:=> cmdopt-string->natural count #: Natural  ["set the line limits of both stdin and stdout to ~1 for the spec (default: ~a)"
+   [(#\n lines)         #:=> cmdopt-string->natural count #: Natural  ["set the echo lines of both stdin and stdout to ~1 for the spec (default: ~a)"
                                                                        (wizarmon-stdio-line-limit)]]
    
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index    ["use ~1 as the default width for pretty printing (default: ~a)"

@@ -18,11 +18,7 @@
 (define-type Spec-Issue-Message-Datum (U String (-> (Option String))))
 (define-type Spec-Issue-Format-Datum (U String Void False))
 (define-type Spec-Issue-Format (-> Any (-> Any Spec-Issue-Format-Datum) Spec-Issue-Format-Datum))
-(define-type Spec-Issue-Argument-Datum (Immutable-Vector String (Pairof String (Listof String)) (Option (Syntaxof Any))))
-
-(define-type Spec-Issue-Extra-Argument
-  (U (Vector Symbol Any (Option (Syntaxof Any)))     
-     (Pairof Symbol (-> Any))))
+(define-type Spec-Issue-Argument-Datum (Immutable-Vector String (Pairof String (Listof String)) (Option (Syntaxof Any)) Byte))
 
 (struct Spec-Syntax ([location : Syntax] [expressions : (Syntaxof Spec-Sexps)]) #:transparent)
 
@@ -40,6 +36,18 @@
 (define default-spec-issue-ignored-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct spec-extra-argument
+  ([name : Symbol]
+   [value : Any]
+   [syntax : (Option (Syntaxof Any))]
+   [indent : Byte])
+  #:type-name Spec-Issue-Extra-Argument)
+
+(define make-spec-extra-argument : (->* (Symbol (U Any (-> Any))) ((Syntaxof Any) #:indent Byte) Spec-Issue-Extra-Argument)
+  (lambda [name val [syntax #false] #:indent [indent 0]]
+    (spec-extra-argument name val syntax indent)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct spec-issue
@@ -147,7 +155,7 @@
                    ;   despite the fact that `for/list` would ignore them.
                    [e (in-list (syntax-e (spec-issue-expressions issue)))]
                    #:unless (memq p ignores))
-          (f p a e))))
+          (f p a e 0))))
 
     (define all-argv : (Listof Spec-Issue-Argument-Datum)
       (let ([es (spec-issue-extras issue)])
@@ -163,9 +171,9 @@
       (define asize : Index (apply max (map spec-arg-head-length all-argv)))
 
       (for ([argu (in-list all-argv)])
-        (define-values (name vals expr) (values (vector-ref argu 0) (vector-ref argu 1) (vector-ref argu 2)))
-        (define datum-space : String (~space (- psize (string-length name))))
-        (define subdatum-space : String (~space psize))
+        (define-values (name vals expr nested) (values (vector-ref argu 0) (vector-ref argu 1) (vector-ref argu 2) (vector-ref argu 3)))
+        (define datum-space : String (~space (+ (- psize (string-length name)) nested)))
+        (define subdatum-space : String (~space (+ psize nested)))
         (define expr-space : String (~space (- asize (string-length (car vals)))))
         
         (eechof #:fgcolor color "~a   ~a~a: ~a" headspace datum-space name (car vals))
@@ -263,33 +271,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define spec-arg-name-length : (-> Spec-Issue-Argument-Datum Index)
   (lambda [ss]
-    (string-length (vector-ref ss 0))))
+    (if (zero? (vector-ref ss 3))
+        (string-length (vector-ref ss 0))
+        0)))
 
 (define spec-arg-head-length : (-> Spec-Issue-Argument-Datum Index)
   (lambda [ss]
     (string-length (car (vector-ref ss 1)))))
 
-(define spec-s : (-> Symbol Any (Option (Syntaxof Any)) Spec-Issue-Argument-Datum)
-  (lambda [name val expr]
-    (vector-immutable (symbol->immutable-string name) (~string-lines (~s val)) expr)))
+(define spec-s : (-> Symbol Any (Option (Syntaxof Any)) Byte Spec-Issue-Argument-Datum)
+  (lambda [name val expr indent]
+    (vector-immutable (symbol->immutable-string name) (~string-lines (~s val)) expr indent)))
 
-(define spec-make-argument : (-> (Option Spec-Issue-Format) (-> Symbol Any (Option (Syntaxof Any)) Spec-Issue-Argument-Datum))
+(define spec-make-argument : (-> (Option Spec-Issue-Format) (-> Symbol Any (Option (Syntaxof Any)) Byte Spec-Issue-Argument-Datum))
   (lambda [spec-format]
     (or (and spec-format
-             (λ [[name : Symbol] [val : Any] [expr : (Option (Syntaxof Any))]]
+             (λ [[name : Symbol] [val : Any] [expr : (Option (Syntaxof Any))] [indent : Byte]]
                (let ([desc (spec-format val ~s)])
                  (vector-immutable (symbol->immutable-string name)
                                    (~string-lines (if (string? desc) desc (~s val)))
-                                   expr))))
+                                   expr
+                                   indent))))
         spec-s)))
 
 (define spec-make-argument-for-extra : (-> (Option Spec-Issue-Format) (-> Spec-Issue-Extra-Argument Spec-Issue-Argument-Datum))
   (lambda [spec-format]
     (define make-argv (spec-make-argument spec-format))
     
-    (match-lambda
-      [(vector name val expr) (make-argv name val expr)]
-      [(cons name val) (make-argv name (val) #false)])))
+    (λ [[self : Spec-Issue-Extra-Argument]] : Spec-Issue-Argument-Datum
+      (make-argv (spec-extra-argument-name self)
+                 (spec-extra-argument-value self)
+                 (spec-extra-argument-syntax self)
+                 (spec-extra-argument-indent self)))))
 
 (define spec-format-stack : (-> (Option Spec-Issue-Format) (Option Spec-Issue-Format) (Option Spec-Issue-Format))
   (lambda [usr-format fallback-format]
