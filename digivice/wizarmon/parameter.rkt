@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wizarmon-timeout : (Parameterof Natural) (make-parameter 0))
 (define wizarmon-strict : (Parameterof Boolean) (make-parameter #false))
-(define wizarmon-stdio-line-limit : (Parameterof Natural) (make-parameter 32))
+(define wizarmon-stdio-echo-lines : (Parameterof Natural) (make-parameter 32))
 
 (define wizarmon-lang : (Parameterof (Option String)) (make-parameter #false))
 (define wizarmon-errno : (Parameterof Byte) (make-parameter 1))

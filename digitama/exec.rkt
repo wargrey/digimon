@@ -39,19 +39,19 @@
                              ((Option Exec-Error-Handler)
                               #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                               #:/dev/stdin (Option Input-Port) #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                              #:stdin-log-level (Option Symbol) #:stdin-line-limit (Option Natural) #:stdout-line-limit (Option Natural)
+                              #:stdin-log-level (Option Symbol) #:stdin-echo-lines (Option Natural) #:stdout-echo-lines (Option Natural)
                               #:pre-fork (-> Void) #:post-fork (-> Void) #:atexit (-> Void))
                              Void)
   (let ([stdout-void (λ [[line : String] [v : Void]] : Void v)])
     (lambda [#:silent [silents null] #:env [alt-env #false]
              #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-             #:stdin-log-level [log-level 'note] #:stdin-line-limit [stdin-line-limit #false] #:stdout-line-limit [stdout-line-limit #false]
+             #:stdin-log-level [log-level 'note] #:stdin-echo-lines [stdin-echo-lines #false] #:stdout-echo-lines [stdout-echo-lines #false]
              #:pre-fork [pre-fork void] #:post-fork [post-fork void] #:atexit [atexit void]
            operation program arguments [on-error-do #false]]
       ((inst fg-recon-exec* Void)
        #:silent silents #:env alt-env
        #:/dev/stdin /dev/stdin #:/dev/stdout /dev/stdout #:/dev/stderr /dev/stderr
-       #:stdin-log-level log-level #:stdin-line-limit stdin-line-limit #:stdout-line-limit stdout-line-limit
+       #:stdin-log-level log-level #:stdin-echo-lines stdin-echo-lines #:stdout-echo-lines stdout-echo-lines
        #:pre-fork pre-fork #:post-fork post-fork #:atexit atexit
        operation program arguments stdout-void (void) on-error-do))))
 
@@ -59,13 +59,13 @@
                                        ((Option Exec-Error-Handler)
                                         #:silent (Listof Exec-Silent) #:env Exec-Alt-Env
                                         #:/dev/stdin (Option Input-Port) #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                                        #:stdin-log-level (Option Symbol) #:stdin-line-limit (Option Natural) #:stdout-line-limit (Option Natural)
+                                        #:stdin-log-level (Option Symbol) #:stdin-echo-lines (Option Natural) #:stdout-echo-lines (Option Natural)
                                         #:pre-fork (-> Void) #:post-fork (-> Void) #:atexit (-> Void))
                                        a))
   (lambda [#:silent [silents null] #:env [alt-env #false]
            #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
            #:pre-fork [pre-fork void] #:post-fork [post-fork void] #:atexit [atexit void]
-           #:stdin-log-level [log-level 'note] #:stdin-line-limit [stdin-line-limit #false] #:stdout-line-limit [stdout-line-limit #false]
+           #:stdin-log-level [log-level 'note] #:stdin-echo-lines [stdin-echo-lines #false] #:stdout-echo-lines [stdout-echo-lines #false]
            operation:any program arguments stdout-fold initial-datum [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -87,7 +87,7 @@
             (thread (λ [] (when (or /dev/stdin)
                             (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/frkout
                                                 (and (not stdin-silent?) log-level)
-                                                operation stdin-line-limit)))))
+                                                operation stdin-echo-lines)))))
 
           (define final-datum : a
             (let wait-fold-loop ([outin-evt : (Rec x (Evtof x)) /dev/outin]
@@ -98,7 +98,7 @@
                   (let ([e (sync/enable-break outin-evt errin-evt)])             
                     (if (eq? e /dev/outin)
                         (let ([line (read-line /dev/outin 'any)]
-                              [display? (if (and stdout-line-limit) (< line-count stdout-line-limit) #true)])
+                              [display? (if (and stdout-echo-lines) (< line-count stdout-echo-lines) #true)])
                           (if (string? line)
                               (begin (when (and /dev/stdout display?)
                                        (displayln line /dev/stdout)
@@ -133,11 +133,11 @@
                                   ((Option Exec-Error-Handler)
                                    #:env Exec-Alt-Env #:pre-fork (-> Void) #:post-fork (-> Void) #:atexit (-> Void)
                                    #:/dev/stdin (Option Input-Port) #:/dev/stdout (Option Output-Port) #:/dev/stderr (Option Output-Port)
-                                   #:stdin-log-level (Option Symbol) #:stdin-line-limit (Option Natural) #:stdout-line-limit (Option Natural))
+                                   #:stdin-log-level (Option Symbol) #:stdin-echo-lines (Option Natural) #:stdout-echo-lines (Option Natural))
                                   Bytes)
   (lambda [#:env [alt-env #false] #:pre-fork [pre-fork void] #:post-fork [post-fork void] #:atexit [atexit void]
            #:/dev/stdin [/dev/stdin #false] #:/dev/stdout [/dev/stdout #false] #:/dev/stderr [/dev/stderr #false]
-           #:stdin-log-level [log-level #false] #:stdin-line-limit [stdin-line-limit #false] #:stdout-line-limit [stdout-line-limit #false]
+           #:stdin-log-level [log-level #false] #:stdin-echo-lines [stdin-echo-lines #false] #:stdout-echo-lines [stdout-echo-lines #false]
            operation:any program arguments [on-error-do #false]]
     (parameterize ([subprocess-group-enabled #true]
                    [current-subprocess-custodian-mode 'kill]
@@ -155,13 +155,13 @@
           (post-fork)
 
           (define-values (ghostcat/out ghostcat/err ghostcat/frkout)
-            (values (thread (λ [] (if (not stdout-line-limit)
+            (values (thread (λ [] (if (not stdout-echo-lines)
                                       (when (input-port? /dev/outin)
                                         (port-copy /dev/outin /dev/bytout /dev/stdout))
                                       (let port-copy-limited ([outin-evt : (Rec x (Evtof x)) /dev/outin]
                                                               [line-count : Natural 0])
                                         (define line (read-line /dev/outin 'any))
-                                        (define display? (if (and stdout-line-limit) (< line-count stdout-line-limit) #true))
+                                        (define display? (if (and stdout-echo-lines) (< line-count stdout-echo-lines) #true))
 
                                         (when (string? line)
                                           (when (and /dev/stdout display?)
@@ -172,7 +172,7 @@
                     (thread (λ [] (when (input-port? /dev/errin)
                                     (port-copy /dev/errin /dev/byterr /dev/stderr))))
                     (thread (λ [] (when (and /dev/stdin /dev/frkout)
-                                    (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/frkout log-level operation stdin-line-limit))))))
+                                    (fg-recon-copy-port /usr/bin/$0 /dev/stdin /dev/frkout log-level operation stdin-echo-lines))))))
 
           (thread-wait ghostcat/out)
           (thread-wait ghostcat/err)

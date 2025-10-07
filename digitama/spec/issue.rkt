@@ -43,7 +43,8 @@
    [value : Any]
    [syntax : (Option (Syntaxof Any))]
    [indent : Byte])
-  #:type-name Spec-Issue-Extra-Argument)
+  #:type-name Spec-Issue-Extra-Argument
+  #:transparent)
 
 (define make-spec-extra-argument : (->* (Symbol (U Any (-> Any))) ((Syntaxof Any) #:indent Byte) Spec-Issue-Extra-Argument)
   (lambda [name val [syntax #false] #:indent [indent 0]]

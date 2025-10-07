@@ -57,10 +57,7 @@
           (dtrace-problem-info maybe-problem-info)
           
           (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
-                         [default-spec-exec-stdout-port (current-output-port)]
-                         [default-spec-exec-strict? (wizarmon-strict)]
-                         [default-spec-exec-stdin-line-limit (wizarmon-stdio-line-limit)]
-                         [default-spec-exec-stdout-line-limit (wizarmon-stdio-line-limit)])
+                         [default-spec-exec-stdout-port (current-output-port)])
             (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
                         #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
                         (lean-problem->feature maybe-problem-info lean main.lean cmd-argv)))))))
@@ -99,9 +96,9 @@
                  (it brief #:do #;(pending))
 
                  (it brief #:do #:millisecond timeout
-                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
-                                       [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
-                                       [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (wizarmon-strict))]
+                                       [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))]
+                                       [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))])
                           (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)))))))))
 
 (define lean-interpreter : (-> Path (Option Path))

@@ -54,8 +54,8 @@
                  (it brief #:do #;(pending))
                  (it brief #:do #:millisecond (or timeout 0)
                    #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
-                                       [default-spec-exec-stdin-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-line-limit))]
-                                       [default-spec-exec-stdout-line-limit (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-line-limit))])
+                                       [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-echo-lines))]
+                                       [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-echo-lines))])
                           (expect-stdout a.out cmd-argv args (or result null)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
