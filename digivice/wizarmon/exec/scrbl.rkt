@@ -30,7 +30,7 @@
         (cmdopt-string+>index option s))))
 
 (define-cmdlet-option scrbl-flags #: Scrbl-Flags
-  #:program 'scrbl
+  #:program '|wizarmon scrbl|
   #:args args
 
   #:usage-help "set and overload the offprint configuration"
@@ -40,7 +40,7 @@
   [[(chapter seq) #:=> cmdopt-string->chapter-index id #: Handbook-Chapter-Index  "build the part or chapter whose number is ~1"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell-typeset : (-> Path Symbol Any)
+(define shell-typeset/flags : (-> Path Symbol Any)
   (lambda [path.scrbl lang-name]
     (define-values (options λargv) (parse-scrbl-flags))
 
@@ -49,12 +49,12 @@
            (let ([selector (make-user-specified-selector (scrbl-flags-chapter options) (scrbl-flags-flatten options))])
              (parameterize ([current-user-specified-selector selector]
                             [current-user-request-no-volume? #true])
-               (shell-typeset-do path.scrbl)))]
-          [else (shell-typeset-do path.scrbl)])))
+               (shell-typeset path.scrbl lang-name)))]
+          [else (shell-typeset path.scrbl lang-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell-typeset-do : (-> Path Any)
-  (lambda [path.scrbl]
+(define shell-typeset : (-> Path Symbol Any)
+  (lambda [path.scrbl lang-name]
     (define maybe-info : (Option Pkg-Info)
       (single-collection-info #:bootstrap? #true
                               (or (path-only path.scrbl)

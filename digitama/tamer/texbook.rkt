@@ -95,20 +95,33 @@
           (make-nested-flow (make-style cmdname null) (map handbook-block-filter body))
           (hash-ref! cmd0base cmdname (λ [] (make-nested-flow (make-style cmdname null) null)))))))
 
-;; Scribble ignores blocks and elements inbetween included subparts
+;;; NOTE
+; Scribble's high level API, such as `title` and `section`, produces `part-start` objects.
+; That's the key it decodes the DOM tree.
+; Here We produce a `part` directly to set a milestone between the main content and the back content.
+; Also, Latex generated PDF would happy to fold all appendices, which
+; should be a good design for books organized by parts.
 (define texbook-command-part
-  (lambda [#:part? [part? #true] #:tag [tag #false] cmd contents]
+  (lambda [#:book-part? [book-part? #true] #:tag [tag #false] #:property [property #false] cmd contents]
     (make-part #false
-                `((part ,(or tag cmd)))
-                (cond [(pair? contents) contents]
-                      [(not part?) null]
-                      [else (list (speak (string->symbol cmd) #:dialect 'tamer))])
-               (make-style #false (if (not part?) '(unnumbered hidden toc-hidden) '(unnumbered grouper)))
+               `((part ,(or tag cmd)))
+               (cond [(pair? contents) contents]
+                     [(not book-part?) null]
+                     [else (list (speak (string->symbol cmd) #:dialect 'tamer))])
+               (let ([prps (if (and book-part?) '(unnumbered grouper) '(unnumbered hidden toc-hidden))])
+                 (make-style #false (if (symbol? property) (cons property prps) prps)))
                null
                (list (texbook-command-block cmd))
                null)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define texbook-appendix
+  (lambda [#:book-part? [part? #true] #:tag [tag #false] . contents]
+    (texbook-command-part #:book-part? part?
+                          #:tag (or tag "tamer-appendix")
+                          #:property 'fin
+                          "appendix" contents)))
+
 (define texbook-frontmatter
   (lambda []
     (texbook-command "frontmatter")))
@@ -117,16 +130,13 @@
   (lambda []
     (texbook-command "mainmatter")))
 
-(define texbook-appendix
-  (lambda [#:part? [part? #true] #:tag [tag #false] . contents]
-    (texbook-command-part #:part? part? #:tag (or tag "tamer-appendix")
-                          "appendix" contents)))
-
 ; make following sections unnumbered,
 ; note that unnumbered sections might be hard to be located in resulting PDF
 (define texbook-backmatter
-  (lambda [#:part? [part? #false] #:tag [tag #false] . contents]
-    (texbook-command-part #:part? part? #:tag (or tag "tamer-backmatter")
+  (lambda [#:book-part? [part? #false] #:tag [tag #false] . contents]
+    (texbook-command-part #:book-part? part?
+                          #:tag (or tag "tamer-backmatter")
+                          #:property 'fin
                           "backmatter" contents)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

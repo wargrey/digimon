@@ -4,9 +4,7 @@
 
 (require "parameter.rkt")
 
-(require "exec/c.rkt")
-(require "exec/lean.rkt")
-(require "exec/python.rkt")
+(require "exec/spec.rkt")
 (require "exec/scrbl.rkt")
 (require "exec/dot.rkt")
 
@@ -31,12 +29,12 @@
       (dtrace-notice #:topic the-name "language: ~a" lang))
 
     (case (and lang (string-downcase lang))
-      [("c++") (shell-cpp path 'cpp)]
-      [("cpp") (shell-cpp path 'cpp)]
-      [("c") (shell-c path 'c)]
-      [("lean") (shell-lean path 'lean)]
-      [("python") (shell-python path 'python)]
-      [("scribble") (shell-typeset path 'scribble)]
+      [("c++") (shell-spec/flags path 'cpp)]
+      [("cpp") (shell-spec/flags path 'cpp)]
+      [("c") (shell-spec/flags path 'c)]
+      [("lean") (shell-spec/flags path 'lean)]
+      [("python") (shell-spec/flags path 'python)]
+      [("scribble") (shell-typeset/flags path 'scribble)]
       [("tex") (shell-typeset path 'tex)]
       [("graphviz (dot)") (shell-dot path 'png #".png")]
       [else (wizarmon-errno 126)

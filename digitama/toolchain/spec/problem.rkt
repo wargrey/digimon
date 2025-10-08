@@ -4,11 +4,11 @@
 
 (require racket/list)
 
-(require "../../filesystem.rkt")
-(require "../../string.rkt")
+(require "../../../filesystem.rkt")
+(require "../../../string.rkt")
 
-(require "../collection.rkt")
-(require "../minimal/dtrace.rkt")
+(require "../../collection.rkt")
+(require "../../minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct problem-spec

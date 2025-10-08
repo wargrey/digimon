@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require "../parameter.rkt")
+(require "../problem.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
 (require (only-in "../../wisemon/parameter.rkt"
@@ -17,7 +18,6 @@
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/collection.rkt")
 
-(require "../../../digitama/toolchain/problem.rkt")
 (require "../../../digitama/toolchain/spec/clang.rkt")
 (require "../../../digitama/toolchain/cc/configuration.rkt")
 
@@ -81,11 +81,7 @@
      (unbox &status)]
     [(problem-info a.out cmd-argv stdin-log-level)
      (dtrace-problem-info problem-info)
-     (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
-                    [default-spec-exec-stdout-port (current-output-port)]
-                    [default-spec-exec-strict? (wizarmon-strict)]
-                    [default-spec-exec-stdin-echo-lines (wizarmon-stdio-echo-lines)]
-                    [default-spec-exec-stdout-echo-lines (wizarmon-stdio-echo-lines)])
-       (spec-prove #:no-timing-info? #false #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
-                   #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                   (clang-problem->feature problem-info a.out cmd-argv)))]))
+     (spec-prove #:no-timing-info? #false #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
+                 #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
+                 (clang-problem->feature problem-info a.out cmd-argv
+                                         (make-spec-problem-config stdin-log-level)))]))

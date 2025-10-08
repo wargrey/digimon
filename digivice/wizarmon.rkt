@@ -23,18 +23,15 @@
   #:usage-help "run source file of C/C++, Lean, Scribble/tex, Python, and more"
   #:once-each
   [[(#\l lang)                                      lang              "treat the source as having the type ~1"]
-   [(timeout)           #:=> cmdopt-string->natural ms    #: Natural  "set the timeout of execution to ~1 millisecond"]
-   [(#\n lines)         #:=> cmdopt-string->natural count #: Natural  ["set the echo lines of both stdin and stdout to ~1 for the spec (default: ~a)"
-                                                                       (wizarmon-stdio-echo-lines)]]
    
    [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index    ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                        the-print-width]]
 
-   [(#\S strict)        #:=> wizarmon-strict                          "check expected output of a program strictly for the spec"]
    [(#\B always-remake) #:=> wizarmon-remake                          "unconditionally remake the target"]
    [(#\s slient quiet)  #:=> wizarmon-silent                          "suppress the standard output"]
    [(#\v verbose)       #:=> wizarmon-verbose                         "run with verbose messages"]
 
+   
    ; The C++ extension for VSCode isn't smart enough
    ;   we have to trick it for not launching the debugger when
    ;   our task script has already run the program.
@@ -73,8 +70,6 @@
     (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-verbose)))])
       (parameterize ([current-logger /dev/dtrace]
                      [wizarmon-lang (wizarmon-flags-lang options)]
-                     [wizarmon-timeout (or (wizarmon-flags-timeout options) (wizarmon-timeout))]
-                     [wizarmon-stdio-echo-lines (or (wizarmon-flags-lines options) (wizarmon-stdio-echo-lines))]
                      [pretty-print-columns (or (wizarmon-flags-print-columns options) the-print-width)]
                      [current-command-line-arguments (list->vector argv)])  
         (define pretend-status : (Option Byte) (wizarmon-flags-pretend options))

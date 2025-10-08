@@ -5,7 +5,7 @@
 (require racket/vector)
 (require racket/path)
 
-(require "../parameter.rkt")
+(require "../problem.rkt")
 
 (require "../../../token.rkt")
 (require "../../../string.rkt")
@@ -14,11 +14,8 @@
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/spec/dsl.rkt")
 (require "../../../digitama/spec/behavior.rkt")
-(require "../../../digitama/spec/expect/exec.rkt")
 
 (require "../../../digitama/collection.rkt")
-(require "../../../digitama/toolchain/problem.rkt")
-
 (require "../../../digitama/minimal/dtrace.rkt")
 (require "../../../digitama/minimal/dtrecho.rkt")
 
@@ -55,12 +52,9 @@
 
         (let ([specs (problem-info-specs maybe-problem-info)])
           (dtrace-problem-info maybe-problem-info)
-          
-          (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
-                         [default-spec-exec-stdout-port (current-output-port)])
-            (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
-                        #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                        (lean-problem->feature maybe-problem-info lean main.lean cmd-argv)))))))
+          (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
+                      #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
+                      (lean-problem->feature maybe-problem-info lean main.lean cmd-argv (make-spec-problem-config stdin-log-level)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-lean-problem-info : (-> Path (Option Problem-Info))
@@ -85,8 +79,8 @@
                  (try-next-docstring)]
                 [else #false]))))))
 
-(define lean-problem->feature : (-> Problem-Info Path String (Vectorof String) Spec-Feature)
-  (lambda [problem-info lean main.lean cmd-argv]
+(define lean-problem->feature : (-> Problem-Info Path String (Vectorof String) Problem-Config Spec-Feature)
+  (lambda [problem-info lean main.lean cmd-argv spec->config]
     (describe ["~a" (or (problem-info-title problem-info) main.lean)]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
@@ -94,12 +88,9 @@
              (define timeout (or (problem-spec-timeout t) 0))
              (if (and (string-blank? usr-args) (not result))
                  (it brief #:do #;(pending))
-
                  (it brief #:do #:millisecond timeout
-                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (wizarmon-strict))]
-                                       [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))]
-                                       [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))])
-                          (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)))))))))
+                   #:do (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)
+                                       (spec->config t))))))))
 
 (define lean-interpreter : (-> Path (Option Path))
   (lambda [main.lean]

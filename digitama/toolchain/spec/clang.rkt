@@ -2,9 +2,8 @@
 
 (provide (all-defined-out))
 
-(require "../problem.rkt")
+(require "problem.rkt")
 
-(require "../../collection.rkt")
 (require "../../spec/dsl.rkt")
 (require "../../spec/behavior.rkt")
 (require "../../spec/expect/exec.rkt")
@@ -36,15 +35,15 @@
                  (try-next-comment-block)]
                 [else #false]))))))
 
-(define read-clang-problem-feature : (-> Path Path (Vectorof String) (Option Spec-Feature))
-  (lambda [main.cpp a.out cmd-argv]
+(define read-clang-problem-feature : (-> Path Path (Vectorof String) (-> Problem-Spec Spec-Exec.Cfg) (Option Spec-Feature))
+  (lambda [main.cpp a.out cmd-argv make-cfg]
     (define problem-info : (Option Problem-Info) (read-clang-problem-info main.cpp))
     
     (and problem-info
-         (clang-problem->feature problem-info a.out cmd-argv))))
+         (clang-problem->feature problem-info a.out cmd-argv make-cfg))))
 
-(define clang-problem->feature : (-> Problem-Info Path (Vectorof String) Spec-Feature)
-  (lambda [problem-info a.out cmd-argv]
+(define clang-problem->feature : (-> Problem-Info Path (Vectorof String) (-> Problem-Spec Spec-Exec.Cfg) Spec-Feature)
+  (lambda [problem-info a.out cmd-argv make-cfg]
     (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (args result) (values (problem-spec-input t) (problem-spec-output t)))
@@ -53,10 +52,7 @@
              (if (and (string-blank? args) (not result))
                  (it brief #:do #;(pending))
                  (it brief #:do #:millisecond (or timeout 0)
-                   #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (default-spec-exec-strict?))]
-                                       [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (default-spec-exec-stdin-echo-lines))]
-                                       [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (default-spec-exec-stdout-echo-lines))])
-                          (expect-stdout a.out cmd-argv args (or result null)))))))))
+                   #:do (expect-stdout a.out cmd-argv args (or result null) (make-cfg t))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

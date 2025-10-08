@@ -131,10 +131,10 @@
                  (tag-included? tags)
                  (not (tag-excluded? tags))))))))
   
-(define handbook-chapter-index : (-> Handbook-Chapter-Index (Listof Symbol) Boolean (Option Handbook-Chapter-Index))
-  (lambda [idx prps appendix?]
+(define handbook-chapter-index : (-> Handbook-Chapter-Index (Listof Symbol) (Option Part) (Option Handbook-Chapter-Index))
+  (lambda [idx prps milestone-part]
     (cond [(memq 'unnumbered prps) '#:intact #false]
-          [(exact-nonnegative-integer? idx) '#:main-matter (if (not appendix?) (add1 idx) #\A)]
+          [(exact-nonnegative-integer? idx) '#:main-matter (if (not milestone-part) (add1 idx) #\A)]
           [(char? idx) '#:appendix (integer->char (add1 (char->integer idx)))]
           [else '#:main-matter-start 1])))
 
@@ -149,7 +149,7 @@
                    [sretpahc : (Listof (Pairof Part Handbook-Chapter-Index)) null]
                    [secaferp : (Listof Part) null]
                    [sunob : (Listof Part) null]
-                   [appendix? : Boolean #false])
+                   [milestone-part : (Option Part) #false])
       (if (pair? children)
           (let* ([self (car children)]
                  [rest (cdr children)]
@@ -158,27 +158,32 @@
                  [title (content->string (or (part-title-content self) null))])
             (cond [(memq 'bonus prps)
                    (dtrace 'debug "BONUS~a: ~a ~a" prps title tags)
-                   (offprint rest part-idx chpt-idx sretpahc secaferp (cons self sunob) appendix?)]
+                   (offprint rest part-idx chpt-idx sretpahc secaferp (cons self sunob) milestone-part)]
                   
                   ; flatten parts if requested
                   [(and (memq 'grouper prps) (handbook-selector-intra-part? selector))
-                   (let ([idx (handbook-chapter-index part-idx prps appendix?)])
+                   (let ([idx (handbook-chapter-index part-idx prps milestone-part)])
                      (dtrace 'debug "PART ~a~a: ~a ~a" idx prps title tags)
-                     (offprint (append (part-parts self) rest) (or idx part-idx) chpt-idx sretpahc secaferp sunob appendix?))]
+                     (offprint (append (part-parts self) rest) (or idx part-idx) chpt-idx sretpahc secaferp sunob milestone-part))]
                   
                   [else ; dealing with real offprint units of a book
-                   (let ([idx (handbook-chapter-index chpt-idx prps appendix?)])
+                   (let ([idx (handbook-chapter-index chpt-idx prps milestone-part)])
                      (cond [(and idx (chapter-match? tags idx))
                             (dtrace 'debug "~a: ~a ~a ~a" idx title tags pin#)
-                            (offprint rest part-idx idx (cons (cons self idx) sretpahc) secaferp sunob appendix?)]
+                            (offprint rest part-idx idx (cons (cons self idx) sretpahc) secaferp sunob milestone-part)]
                            
-                           [(and (not idx) (eq? chpt-idx 0)) ; preface
-                            (dtrace 'debug "FRONT~a: ~a ~a" prps title tags)
-                            (offprint rest part-idx chpt-idx sretpahc (cons self secaferp) sunob appendix?)]
+                           [(not idx)
+                            (if (not (memq 'fin prps))
+                                (begin ; front body
+                                  (dtrace 'debug "FRONT~a: ~a ~a" prps title tags)
+                                  (offprint rest part-idx chpt-idx sretpahc (cons self secaferp) sunob milestone-part))
+                                (begin ; back body
+                                  (dtrace 'debug "BACK~a: ~a ~a" prps title tags)
+                                  (offprint rest part-idx chpt-idx sretpahc secaferp sunob (or milestone-part self))))]
                            
                            [else
                             (dtrace 'debug "~a: ~a ~a" idx title tags)
-                            (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob appendix?)]))]))
+                            (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob milestone-part)]))]))
           
           (let ([preface (if (handbook-selector-preface? selector) (reverse secaferp) null)]
                 [bonus (if (handbook-selector-bonus? selector) (reverse sunob) null)])

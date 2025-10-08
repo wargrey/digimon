@@ -6,6 +6,7 @@
 (require racket/path)
 
 (require "../parameter.rkt")
+(require "../problem.rkt")
 
 (require "../../../token.rkt")
 (require "../../../string.rkt")
@@ -14,13 +15,11 @@
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/spec/dsl.rkt")
 (require "../../../digitama/spec/behavior.rkt")
-(require "../../../digitama/spec/expect/exec.rkt")
 
 (require "../../../digitama/collection.rkt")
-(require "../../../digitama/toolchain/problem.rkt")
-
 (require "../../../digitama/minimal/dtrace.rkt")
 (require "../../../digitama/minimal/dtrecho.rkt")
+(require "../../../digitama/minimal/system.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct python-problem-attachment
@@ -64,11 +63,9 @@
           (dtrace-problem-info maybe-problem-info)
           
           (if (pair? specs)
-              (parameterize ([default-spec-exec-stdin-log-level stdin-log-level]
-                             [default-spec-exec-stdout-port (current-output-port)])
-                (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-timeout)
-                            #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                            (python-problem->feature maybe-problem-info python mod.py cmd-argv)))
+              (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
+                          #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
+                          (python-problem->feature maybe-problem-info python mod.py cmd-argv (make-spec-problem-config stdin-log-level)))
               (shell-env-python (python-problem-attachment-doctests (assert (problem-info-attachment maybe-problem-info) python-problem-attachment?))
                                 python mod.py cmd-argv stdin-log-level))))))
 
@@ -101,8 +98,8 @@
                  (try-next-docstring)]
                 [else #false]))))))
 
-(define python-problem->feature : (-> Problem-Info Path String (Vectorof String) Spec-Feature)
-  (lambda [problem-info python mod.py cmd-argv]
+(define python-problem->feature : (-> Problem-Info Path String (Vectorof String) Problem-Config Spec-Feature)
+  (lambda [problem-info python mod.py cmd-argv spec->config]
     (describe ["~a" (or (problem-info-title problem-info) mod.py)]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
@@ -112,26 +109,22 @@
                     (it brief #:do #;(pending))]
                    [(list? result) ; a complete test spec overrides the doctests
                     (it brief #:do #:millisecond timeout
-                      #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (wizarmon-strict))]
-                                          [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))]
-                                          [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))])
-                             (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result)))]
+                      #:do (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result (spec->config t)))]
                    [else ; let doctest do its job
                     (it brief #:do #:millisecond timeout
-                      #:do (parameterize ([default-spec-exec-strict? (or (problem-spec-strict? t) (wizarmon-strict))]
-                                          [default-spec-exec-stdin-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))]
-                                          [default-spec-exec-stdout-echo-lines (or (problem-spec-stdio-lines t) (wizarmon-stdio-echo-lines))])
-                             (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
-                                    [doctest? (pair? (python-problem-attachment-doctests attachment))])
-                               (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null))))])))))
+                      #:do (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
+                                  [doctest? (pair? (python-problem-attachment-doctests attachment))])
+                             (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null (spec->config t))))])))))
 
-(define python-interpreter : (-> Path (Option Path))
-  (lambda [mod.py]
+(define python-interpreter : (->* () ((Option Path)) (Option Path))
+  (lambda [[mod.py #false]]
     (define python3 (find-executable-path "python3"))
     (define python (or python3 (find-executable-path "python")))
 
     (or python
-        (string->path "C:\\Users\\wargrey\\AppData\\Local\\Microsoft\\WindowsApps\\python3.exe"))))
+        (let ([exe (format "C:\\Users\\~a\\AppData\\Local\\Microsoft\\WindowsApps\\python3.exe" digimon-partner)])
+          (and (file-exists? exe)
+               (string->path exe))))))
 
 (define python-cmd-args : (-> String (Vectorof String) Boolean (Vectorof String))
   (lambda [mod.py cmd-argv doctest?]

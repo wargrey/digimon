@@ -32,7 +32,7 @@
 (define default-spec-issue-parameters : (Parameterof (Listof Symbol)) (make-parameter null))
 (define default-spec-issue-exception : (Parameterof (Option exn:fail)) (make-parameter #false))
 (define default-spec-issue-format : (Parameterof (Option Spec-Issue-Format)) (make-parameter #false))
-(define default-spec-issue-extra-arguments : (Parameterof (Listof Spec-Issue-Extra-Argument)) (make-parameter null))
+(define default-spec-issue-extra-arguments : (Parameterof (Listof Spec-Extra-Argument)) (make-parameter null))
 (define default-spec-issue-ignored-arguments : (Parameterof (Listof Symbol)) (make-parameter null))
 
 (define default-spec-issue-rootdir : (Parameterof Path) current-directory)
@@ -43,10 +43,10 @@
    [value : Any]
    [syntax : (Option (Syntaxof Any))]
    [indent : Byte])
-  #:type-name Spec-Issue-Extra-Argument
+  #:type-name Spec-Extra-Argument
   #:transparent)
 
-(define make-spec-extra-argument : (->* (Symbol (U Any (-> Any))) ((Syntaxof Any) #:indent Byte) Spec-Issue-Extra-Argument)
+(define make-spec-extra-argument : (->* (Symbol (U Any (-> Any))) ((Syntaxof Any) #:indent Byte) Spec-Extra-Argument)
   (lambda [name val [syntax #false] #:indent [indent 0]]
     (spec-extra-argument name val syntax indent)))
 
@@ -61,7 +61,7 @@
    [expressions : (Syntaxof Spec-Sexps)]
    [arguments : (Listof Any)]
    [parameters : (Listof Symbol)]
-   [extras : (Listof Spec-Issue-Extra-Argument)]
+   [extras : (Listof Spec-Extra-Argument)]
    [ignores : (Listof Symbol)]
    [exception : (Option exn:fail)]
    
@@ -295,11 +295,11 @@
                                    indent))))
         spec-s)))
 
-(define spec-make-argument-for-extra : (-> (Option Spec-Issue-Format) (-> Spec-Issue-Extra-Argument Spec-Issue-Argument-Datum))
+(define spec-make-argument-for-extra : (-> (Option Spec-Issue-Format) (-> Spec-Extra-Argument Spec-Issue-Argument-Datum))
   (lambda [spec-format]
     (define make-argv (spec-make-argument spec-format))
     
-    (λ [[self : Spec-Issue-Extra-Argument]] : Spec-Issue-Argument-Datum
+    (λ [[self : Spec-Extra-Argument]] : Spec-Issue-Argument-Datum
       (make-argv (spec-extra-argument-name self)
                  (spec-extra-argument-value self)
                  (spec-extra-argument-syntax self)
