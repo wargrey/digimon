@@ -9,6 +9,24 @@
 \setcounter{secnumdepth}{4}
 \setcounter{tocdepth}{4}
 
+% Hooks for real world publication
+\newcommand{\preFrontMatter}{
+   % Scribble Book/Report cancelled the \phantomsection for unnumbered chapters,
+   % which is an awful design for real world publication.
+   % So, fallback to the original commands
+   \renewcommand{\Spartstarx}[2]{\Spartstar{##2}\phantomsection\addcontentsline{toc}{part}{\STexOrPDFTitle{##1}}}
+   \renewcommand{\Ssectionstarx}[2]{\Ssectionstar{##2}\phantomsection\addcontentsline{toc}{section}{\STexOrPDFTitle{##1}}}}
+
+\newcommand{\preMainMatter}{}
+\newcommand{\postMainMatter}{}
+
+\newcommand{\handbookTableOfContents}{
+   \newpage
+   \phantomsection\addcontentsline{toc}{section}{\contentsname}
+   \tableofcontents
+   \newpage
+}
+
 % Math Notations
 \def\math#1{\ensuremath{#1}}
 \def\texMathInline#1{\ensuremath{#1}}

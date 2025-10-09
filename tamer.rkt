@@ -498,14 +498,18 @@
             (handbook-index #:numbered? numbered? #:title i:title #:tongue tongue)))))
 
 (define handbook-smart-table
-  (lambda []
+  (lambda [#:phantom? [phantom? #false]]
     (define this-story (tamer-story))
 
     (define toc
       (make-delayed-block
        (procedure-rename
         (λ [render% pthis _]
-          (cond [(handbook-markdown-renderer? render%)
+          (cond [(handbook-latex-renderer? render%)
+                 (cond [(and this-story) (local-table-of-contents)]
+                       [(not phantom?) (table-of-contents)]
+                       [else ($tex:table-of-contents)])]
+                [(handbook-markdown-renderer? render%)
                  (let-values ([(/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout)])
                    (parameterize ([current-input-port /dev/tamer/stdin]
                                   [current-error-port /dev/tamer/stdout]

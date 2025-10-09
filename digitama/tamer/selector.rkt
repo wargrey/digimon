@@ -164,8 +164,8 @@
                    (dtrace 'debug "BONUS~a: ~a ~a" prps title tags)
                    (offprint rest part-idx chpt-idx sretpahc secaferp (cons self sunob) post-skriuq appendix-part)]
 
-                  [(memq 'post-quirk prps)
-                   (dtrace 'debug "QUIRK~a: ~a" prps tags)
+                  [(memq 'post-hook prps)
+                   (dtrace 'debug "HOOK~a: ~a" prps tags)
                    (offprint rest part-idx chpt-idx sretpahc secaferp sunob (cons self post-skriuq) appendix-part)]
                   
                   ; flatten parts if requested
@@ -197,24 +197,24 @@
                             (dtrace 'debug "~a: ~a ~a" idx title tags)
                             (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob post-skriuq appendix-part)]))]))
           
-          (values (cond [(not (handbook-selector-preface? selector)) (reverse secaferp)]
+          (values (cond [(handbook-selector-preface? selector) (reverse secaferp)]
                         [(null? secaferp) null]
-                        [else (let search-latex-quirks ([skcolb : (Listof Block) (reverse (part-blocks (car secaferp)))]
-                                                        [quirk-blocks : (Listof Block) null])
+                        [else (let search-latex-hooks ([skcolb : (Listof Block) (reverse (part-blocks (car secaferp)))]
+                                                       [hook-blocks : (Listof Block) null])
                                 (if (pair? skcolb)
                                     (let-values ([(self rest) (values (car skcolb) (cdr skcolb))])
                                       (cond [(and (compound-paragraph? self)
-                                                  (memq 'pre-quirks (style-properties (compound-paragraph-style self))))
-                                             (search-latex-quirks rest (cons self quirk-blocks))]
+                                                  (memq 'pre-hook (style-properties (compound-paragraph-style self))))
+                                             (search-latex-hooks rest (cons self hook-blocks))]
 
                                             ; stop when we see the table of content
                                             [(and (delayed-block? self)
                                                   (eq? (object-name (delayed-block-resolve self))
                                                        'handbook-smart-table))
-                                             (search-latex-quirks null (cons self quirk-blocks))]
+                                             (search-latex-hooks null (cons self hook-blocks))]
                                             
-                                            [else (search-latex-quirks rest quirk-blocks)]))
-                                    (box quirk-blocks)))])
+                                            [else (search-latex-hooks rest hook-blocks)]))
+                                    (box hook-blocks)))])
                   (reverse sretpahc)
                   (cond [(not (handbook-selector-bonus? selector)) null]
                         [(and appendix-part) (append (reverse post-skriuq) (cons appendix-part (reverse sunob)))]

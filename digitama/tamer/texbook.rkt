@@ -116,26 +116,19 @@
                null)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define texbook-appendix
-  (lambda [#:book-part? [part? #true] #:tag [tag #false] #:pre-quirk-command [pre-cmds null] . contents]
-    (define appendix-part
-      (texbook-command-part #:book-part? part?
-                            #:tag (or tag "tamer-appendix")
-                            #:property 'fin
-                            "appendix" contents))
-    
-    (cond [(null? pre-cmds) appendix-part]
-          [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
-                          (texbook-command-part #:book-part? #false #:property 'post-quirk cmd null))
-                        (list appendix-part))])))
-
 (define texbook-frontmatter
-  (lambda []
-    (texbook-command "frontmatter")))
+  (lambda [#:pre-frontmatter [pre-cmds "preFrontMatter"]]
+    (define frontmatter-elem (texbook-command "frontmatter"))
+
+    (cond [(null? pre-cmds) frontmatter-elem]
+          [else (append (map texbook-command
+                             (cond [(list? pre-cmds) pre-cmds]
+                                   [else (list pre-cmds)]))
+                        (list frontmatter-elem))])))
 
 (define texbook-mainmatter
-  (let ([quirk-style (make-style #false '(pre-quirks))])
-    (lambda [#:pre-quirk-command [pre-cmds null]]
+  (let ([quirk-style (make-style #false '(pre-hook))])
+    (lambda [#:pre-mainmatter [pre-cmds "preMainMatter"]]
       (make-compound-paragraph
        quirk-style
        (list (make-paragraph plain
@@ -144,10 +137,23 @@
                                                 [else (list pre-cmds)]))
                                      (list (texbook-command "mainmatter")))))))))
 
+(define texbook-appendix
+  (lambda [#:book-part? [part? #true] #:tag [tag #false] #:post-mainmatter [pre-cmds "postMainMatter"] . contents]
+    (define appendix-part
+      (texbook-command-part #:book-part? part?
+                            #:tag (or tag "tamer-appendix")
+                            #:property 'fin
+                            "appendix" contents))
+    
+    (cond [(null? pre-cmds) appendix-part]
+          [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
+                          (texbook-command-part #:book-part? #false #:property 'post-hook cmd null))
+                        (list appendix-part))])))
+
 ; make following sections unnumbered,
 ; note that unnumbered sections might be hard to be located in resulting PDF
 (define texbook-backmatter
-  (lambda [#:book-part? [part? #false] #:tag [tag #false] #:pre-quirk-command [pre-cmds null] . contents]
+  (lambda [#:book-part? [part? #false] #:tag [tag #false] #:post-mainmatter [pre-cmds "postMainMatter"] . contents]
     (define backmatter-part
       (texbook-command-part #:book-part? part?
                             #:tag (or tag "tamer-backmatter")
@@ -156,10 +162,14 @@
 
     (cond [(null? pre-cmds) backmatter-part]
           [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
-                          (texbook-command-part #:book-part? #false #:property 'quirk cmd null))
+                          (texbook-command-part #:book-part? #false #:property 'post-hook cmd null))
                         (list backmatter-part))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define $tex:table-of-contents
+  (lambda []
+    (texbook-command-block "handbookTableOfContents")))
+
 (define $tex:phantomsection
   (lambda []
     (texbook-command "phantomsection")))
