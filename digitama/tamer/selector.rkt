@@ -139,7 +139,10 @@
           [else '#:main-matter-start 1])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define handbook-offprint : (-> Part Handbook-Selector Scribble-Message (Listof (Pairof Part Handbook-Chapter-Index)))
+(define handbook-offprint : (-> Part Handbook-Selector Scribble-Message
+                                (Values (U (Listof Part) (Boxof (Listof Block)))
+                                        (Listof (Pairof Part Handbook-Chapter-Index))
+                                        (Listof Part)))
   (lambda [volume selector dtrace]
     (define chapter-match? (handbook-selector->predicate selector))
     
@@ -149,7 +152,8 @@
                    [sretpahc : (Listof (Pairof Part Handbook-Chapter-Index)) null]
                    [secaferp : (Listof Part) null]
                    [sunob : (Listof Part) null]
-                   [milestone-part : (Option Part) #false])
+                   [post-skriuq : (Listof Part) null]
+                   [appendix-part : (Option Part) #false])
       (if (pair? children)
           (let* ([self (car children)]
                  [rest (cdr children)]
@@ -158,35 +162,60 @@
                  [title (content->string (or (part-title-content self) null))])
             (cond [(memq 'bonus prps)
                    (dtrace 'debug "BONUS~a: ~a ~a" prps title tags)
-                   (offprint rest part-idx chpt-idx sretpahc secaferp (cons self sunob) milestone-part)]
+                   (offprint rest part-idx chpt-idx sretpahc secaferp (cons self sunob) post-skriuq appendix-part)]
+
+                  [(memq 'post-quirk prps)
+                   (dtrace 'debug "QUIRK~a: ~a" prps tags)
+                   (offprint rest part-idx chpt-idx sretpahc secaferp sunob (cons self post-skriuq) appendix-part)]
                   
                   ; flatten parts if requested
                   [(and (memq 'grouper prps) (handbook-selector-intra-part? selector))
-                   (let ([idx (handbook-chapter-index part-idx prps milestone-part)])
-                     (dtrace 'debug "PART ~a~a: ~a ~a" idx prps title tags)
-                     (offprint (append (part-parts self) rest) (or idx part-idx) chpt-idx sretpahc secaferp sunob milestone-part))]
+                   (if (memq 'fin prps)
+                       (begin ; begin back body
+                         (dtrace 'debug "BACK~a: ~a ~a" prps title tags)
+                         (offprint rest part-idx chpt-idx sretpahc secaferp sunob post-skriuq (or appendix-part self)))
+                       (let ([idx (handbook-chapter-index part-idx prps appendix-part)])
+                         (dtrace 'debug "PART ~a~a: ~a ~a" idx prps title tags)
+                         (offprint (append (part-parts self) rest) (or idx part-idx) chpt-idx sretpahc secaferp sunob post-skriuq appendix-part)))]
                   
                   [else ; dealing with real offprint units of a book
-                   (let ([idx (handbook-chapter-index chpt-idx prps milestone-part)])
+                   (let ([idx (handbook-chapter-index chpt-idx prps appendix-part)])
                      (cond [(and idx (chapter-match? tags idx))
                             (dtrace 'debug "~a: ~a ~a ~a" idx title tags pin#)
-                            (offprint rest part-idx idx (cons (cons self idx) sretpahc) secaferp sunob milestone-part)]
+                            (offprint rest part-idx idx (cons (cons self idx) sretpahc) secaferp sunob post-skriuq appendix-part)]
                            
-                           [(not idx)
-                            (if (not (memq 'fin prps))
+                           [(not idx) ; TODO: deal with other unnumbered sections
+                            (if (or (memq 'fin prps) (char? chpt-idx) (> chpt-idx 0))
+                                (begin ; begin back body
+                                  (dtrace 'debug "BACK~a: ~a ~a" prps title tags)
+                                  (offprint rest part-idx chpt-idx sretpahc secaferp sunob post-skriuq (or appendix-part self)))
                                 (begin ; front body
                                   (dtrace 'debug "FRONT~a: ~a ~a" prps title tags)
-                                  (offprint rest part-idx chpt-idx sretpahc (cons self secaferp) sunob milestone-part))
-                                (begin ; back body
-                                  (dtrace 'debug "BACK~a: ~a ~a" prps title tags)
-                                  (offprint rest part-idx chpt-idx sretpahc secaferp sunob (or milestone-part self))))]
+                                  (offprint rest part-idx chpt-idx sretpahc (cons self secaferp) sunob post-skriuq appendix-part)))]
                            
                            [else
                             (dtrace 'debug "~a: ~a ~a" idx title tags)
-                            (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob milestone-part)]))]))
+                            (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob post-skriuq appendix-part)]))]))
           
-          (let ([preface (if (handbook-selector-preface? selector) (reverse secaferp) null)]
-                [bonus (if (handbook-selector-bonus? selector) (reverse sunob) null)])
-            (reverse sretpahc)
-            null)))
-    null))
+          (values (cond [(not (handbook-selector-preface? selector)) (reverse secaferp)]
+                        [(null? secaferp) null]
+                        [else (let search-latex-quirks ([skcolb : (Listof Block) (reverse (part-blocks (car secaferp)))]
+                                                        [quirk-blocks : (Listof Block) null])
+                                (if (pair? skcolb)
+                                    (let-values ([(self rest) (values (car skcolb) (cdr skcolb))])
+                                      (cond [(and (compound-paragraph? self)
+                                                  (memq 'pre-quirks (style-properties (compound-paragraph-style self))))
+                                             (search-latex-quirks rest (cons self quirk-blocks))]
+
+                                            ; stop when we see the table of content
+                                            [(and (delayed-block? self)
+                                                  (eq? (object-name (delayed-block-resolve self))
+                                                       'handbook-smart-table))
+                                             (search-latex-quirks null (cons self quirk-blocks))]
+                                            
+                                            [else (search-latex-quirks rest quirk-blocks)]))
+                                    (box quirk-blocks)))])
+                  (reverse sretpahc)
+                  (cond [(not (handbook-selector-bonus? selector)) null]
+                        [(and appendix-part) (append (reverse post-skriuq) (cons appendix-part (reverse sunob)))]
+                        [else '#:deadcode (append (reverse post-skriuq) (reverse sunob))]))))))

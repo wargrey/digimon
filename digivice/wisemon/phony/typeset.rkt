@@ -46,7 +46,7 @@
   ([scrbl : Path]
    [alt-name : (Option String)]
    [subdir : Path]
-   [a.out : Path]
+   [self.out : Path]
    [self.tex : Path])
   #:type-name Tex-Desc
   #:transparent)
@@ -84,28 +84,28 @@
 (define digimon-typeset-desc : (-> Path (Option String) Symbol (Option String) Tex-Desc)
   (lambda [self.scrbl alt-name engine destdir]
     (define TEXNAME.scrbl (or (and alt-name (path-replace-filename self.scrbl (string-append alt-name ".hack-for-dotted-name"))) self.scrbl))
-    (define TEXNAME.ext : Path
+    (define TEXNAME.out : Path
       (assert (tex-document-destination #:extension (tex-document-extension engine #:fallback tex-fallback-engine)
                                         #:dest-dirname destdir
                                         TEXNAME.scrbl #true)))
     
-    (define basename (assert (file-name-from-path TEXNAME.ext)))
+    (define basename (assert (file-name-from-path TEXNAME.out)))
     (define subdir (path-replace-extension basename #""))
-    (define TEXNAME.sub (build-path (assert (path-only TEXNAME.ext)) subdir basename))
+    (define TEXNAME.sub (build-path (assert (path-only TEXNAME.out)) subdir basename))
     (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
 
     (tex-desc self.scrbl alt-name subdir
-              TEXNAME.ext TEXNAME.tex)))
+              TEXNAME.out TEXNAME.tex)))
 
 (define digimon-typeset-specs : (-> Part Tex-Desc Path Path
                                     Symbol (Listof Path) Symbol Boolean Scribble-Message
                                     Wisemon-Specification)
   (lambda [scrbl.doc self hook.rktl local-info.rkt engine all-deps topic-name halt-on-error? dtrace-msg]
-    (list (wisemon-spec (tex-desc-a.out self) #:^ (list (tex-desc-self.tex self)) #:-
+    (list (wisemon-spec (tex-desc-self.out self) #:^ (list (tex-desc-self.tex self)) #:-
                         (tex-render #:dest-subdir (tex-desc-subdir self) #:fallback tex-fallback-engine #:enable-filter #true
                                     #:halt-on-error? halt-on-error? #:shell-escape? #false
                                     #:dest-copy? #false
-                                    engine (tex-desc-self.tex self) (assert (path-only (tex-desc-a.out self))))
+                                    engine (tex-desc-self.tex self) (assert (path-only (tex-desc-self.out self))))
                         
                         (handbook-display-metrics dtrace-msg 'note (handbook-stats scrbl.doc 'latex)))
           
@@ -151,15 +151,32 @@
 
         (define offprints : (Listof (Pairof Part Tex-Desc))
           (if (and scrbl.doc selector)
-              (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (handbook-offprint scrbl.doc selector dtrace-msg)])
-                (cons (car offprint)
-                      (digimon-typeset-desc TEXNAME.scrbl maybe-name engine "offprint")))
+              (let*-values ([(preface offprints bonus) (handbook-offprint scrbl.doc selector dtrace-msg)]
+                            [(volume-name) (path->string (tex-desc-subdir main-volume))]
+                            [(rootdir) (path->string (build-path "offprint" volume-name))])
+                (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (in-list offprints)])
+                  (define name-tag (cadar (part-tags (car offprint))))
+                  (define chapter-name : String
+                    (string-append (let ([seq (cdr offprint)])
+                                     (cond [(char? seq) (string seq)]
+                                           [else (number->string (cdr offprint))]))
+                                   "-"
+                                   (cond [(string? name-tag) (tex-chapter-name TEXNAME.scrbl name-tag)]
+                                         [else volume-name])))
+                  
+                  (cons (cond [(list? preface)         (struct-copy part scrbl.doc [parts (append preface (cons (car offprint) bonus))])]
+                              [(null? (unbox preface)) (struct-copy part scrbl.doc [parts (cons (car offprint) bonus)])]
+                              [else (struct-copy part scrbl.doc
+                                                 [blocks (append (part-blocks scrbl.doc) (unbox preface))]
+                                                 [parts (cons (car offprint) bonus)])])
+                        (digimon-typeset-desc TEXNAME.scrbl chapter-name engine rootdir))))
               null))
 
         (define all-typesets
           (cond [(current-user-request-no-volume?) offprints]
                 [(memq '#:no-volume options) offprints]
-                [else(cons (cons scrbl.doc main-volume) offprints)]))
+                [(not scrbl.doc) offprints]
+                [else (cons (cons scrbl.doc main-volume) offprints)]))
 
         (define-values (always-files++ ignored-files++)
           (let ([always-make? (memq '#:always-make options)]
@@ -169,10 +186,10 @@
                        [ignored-selves : (Listof Path) ignored-files])
                       ([scrbl.desc (in-list all-typesets)])
               (define desc (cdr scrbl.desc))
-              (define selves (list (tex-desc-a.out desc) (tex-desc-self.tex desc)))
+              (define selves (list (tex-desc-self.out desc) (tex-desc-self.tex desc)))
               (define real-target?
                 (or (member (tex-desc-scrbl desc) real-targets)
-                    (member (tex-desc-a.out desc) real-targets)))
+                    (member (tex-desc-self.out desc) real-targets)))
               
               (cond [(or always-make? (and real-target? explicit?)) (values (append selves always-selves) ignored-files)]
                     [(and explicit? (not real-target?)) (values always-selves (append selves ignored-selves))]
@@ -185,8 +202,8 @@
          ;;; NOTE: order matters
          (if (not scrbl.doc) ; raw tex document
              (append specs
-                     (list (wisemon-spec (tex-desc-a.out main-volume) #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
-                                         (define dest-dir : Path (assert (path-only (tex-desc-a.out main-volume))))
+                     (list (wisemon-spec (tex-desc-self.out main-volume) #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
+                                         (define dest-dir : Path (assert (path-only (tex-desc-self.out main-volume))))
                                          
                                          (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
                                          (tex-render #:dest-subdir (tex-desc-subdir main-volume) #:fallback tex-fallback-engine #:enable-filter #false
@@ -195,7 +212,8 @@
                                                      engine TEXNAME.scrbl dest-dir))))
              (apply append specs
                     (for/list : (Listof Wisemon-Specification) ([typeset (in-list all-typesets)])
-                      (digimon-typeset-specs scrbl.doc main-volume hook.rktl local-info.rkt engine all-deps topic-name halt-on-error? dtrace-msg)))))))))
+                      (digimon-typeset-specs (car typeset) (cdr typeset) hook.rktl local-info.rkt
+                                             engine all-deps topic-name halt-on-error? dtrace-msg)))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-typeset-specs+targets : (-> Symbol (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
@@ -321,6 +339,19 @@
              (λ [[texin : Input-Port]]
                (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
                               texin))))))
+
+(define tex-chapter-name : (-> Path String String)
+  (lambda [TEXNAME.scrbl name]
+    (if (file-exists? (build-path (assert (path-only TEXNAME.scrbl)) name))
+        (path->string (path-replace-extension (assert (file-name-from-path name)) #""))
+        (list->string (for/list : (Listof Char) ([ch (in-string name)])
+                        (cond [(char-alphabetic? ch) ch]
+                              [(char-numeric? ch) ch]
+                              [(char-blank? ch) #\_]
+                              [(char-symbolic? ch) #\-]
+                              [(char-punctuation? ch) #\-]
+                              [(char-iso-control? ch) #\-]
+                              [else ch]))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony

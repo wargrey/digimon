@@ -500,44 +500,49 @@
 (define handbook-smart-table
   (lambda []
     (define this-story (tamer-story))
-    
-    (make-delayed-block
-     (λ [render% pthis _]
-       (cond [(handbook-markdown-renderer? render%)
-              (let-values ([(/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout)])
-                (parameterize ([current-input-port /dev/tamer/stdin]
-                               [current-error-port /dev/tamer/stdout]
-                               [current-output-port /dev/tamer/stdout]
-                               [tamer-story #false])
-                  (define summary? (make-parameter #false))
-                  (thread (thunk (dynamic-wind collect-garbage*
-                                               tamer-prove
-                                               (thunk (close-output-port /dev/tamer/stdout)))))
-                  (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
-                                    (for/list ([line (in-lines)])
-                                      (cond [(regexp-match #px"^λ\\s+(.+)" line)
-                                             => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
-                                            [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
-                                             ; markdown list-item requires at least 1 char after "+ " before
-                                             ; breaking line if "[~a](~a)" is longer then 72 chars.
-                                             => (λ [pieces] (match-let ([(list _ indt ctxt) pieces])
-                                                              (list (format ">   ~a+ ~a" indt open-book#)
-                                                                    (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))]
-                                            [(regexp-match #px"^(\\s+)λ\\d+(.\\d)*\\s+(.+?)\\s*$" line)
-                                             => (λ [pieces] (format ">   ~a+ ~a~a" (list-ref pieces 1) bookmark# (list-ref pieces 3)))]
-                                            [(regexp-match #px"^$" line) (summary? #true)]
-                                            [(summary?) (parameterize ([current-output-port /dev/stdout])
-                                                          (echof "~a~n" line
-                                                                 #:fgcolor (match line
-                                                                             [(regexp #px" 100.00% Okay") 'lightgreen]
-                                                                             [(regexp #px"( [^0]|\\d\\d) error") 'darkred]
-                                                                             [(regexp #px"( [^0]|\\d\\d) failure") 'lightred]
-                                                                             [(regexp #px"( [^0]|\\d\\d) TODO") 'lightmagenta]
-                                                                             [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
-                                                                             [_ 'lightcyan])))]))))))]
-             [(not this-story) (table-of-contents)]
-             [else (local-table-of-contents)])))))
 
+    (define toc
+      (make-delayed-block
+       (procedure-rename
+        (λ [render% pthis _]
+          (cond [(handbook-markdown-renderer? render%)
+                 (let-values ([(/dev/tamer/stdin /dev/tamer/stdout) (make-pipe #false '/dev/tamer/stdin '/dev/tamer/stdout)])
+                   (parameterize ([current-input-port /dev/tamer/stdin]
+                                  [current-error-port /dev/tamer/stdout]
+                                  [current-output-port /dev/tamer/stdout]
+                                  [tamer-story #false])
+                     (define summary? (make-parameter #false))
+                     (thread (thunk (dynamic-wind collect-garbage*
+                                                  tamer-prove
+                                                  (thunk (close-output-port /dev/tamer/stdout)))))
+                     (para (filter-map (λ [line] (and (not (void? line)) (map ~markdown (if (list? line) line (list line)))))
+                                       (for/list ([line (in-lines)])
+                                         (cond [(regexp-match #px"^λ\\s+(.+)" line)
+                                                => (λ [pieces] (format "> + ~a~a" books# (list-ref pieces 1)))]
+                                               [(regexp-match #px"^(\\s+)λ\\d+\\s+(.+?.rktl?)\\s*$" line)
+                                                ; markdown list-item requires at least 1 char after "+ " before
+                                                ; breaking line if "[~a](~a)" is longer then 72 chars.
+                                                => (λ [pieces] (match-let ([(list _ indt ctxt) pieces])
+                                                                 (list (format ">   ~a+ ~a" indt open-book#)
+                                                                       (hyperlink (format "~a/~a" (~url (current-digimon)) ctxt) ctxt))))]
+                                               [(regexp-match #px"^(\\s+)λ\\d+(.\\d)*\\s+(.+?)\\s*$" line)
+                                                => (λ [pieces] (format ">   ~a+ ~a~a" (list-ref pieces 1) bookmark# (list-ref pieces 3)))]
+                                               [(regexp-match #px"^$" line) (summary? #true)]
+                                               [(summary?) (parameterize ([current-output-port /dev/stdout])
+                                                             (echof "~a~n" line
+                                                                    #:fgcolor (match line
+                                                                                [(regexp #px" 100.00% Okay") 'lightgreen]
+                                                                                [(regexp #px"( [^0]|\\d\\d) error") 'darkred]
+                                                                                [(regexp #px"( [^0]|\\d\\d) failure") 'lightred]
+                                                                                [(regexp #px"( [^0]|\\d\\d) TODO") 'lightmagenta]
+                                                                                [(regexp #px"( [^0]|\\d\\d) skip") 'lightblue]
+                                                                                [_ 'lightcyan])))]))))))]
+                [(not this-story) (table-of-contents)]
+                [else (local-table-of-contents)]))
+        'handbook-smart-table)))
+
+    toc))
+  
 (define handbook-statistics
   (lambda [#:gitstat-width [git-width #false] #:gitstat-radius [git-radius #false] #:recursive? [recursive? #true]
            #:ignore [exclude-submodules null] #:filter [filter null] #:subgroups [subgroups git-default-subgroups]

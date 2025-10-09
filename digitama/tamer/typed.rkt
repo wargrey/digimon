@@ -65,7 +65,30 @@
    [blocks : (Listof Block)]
    [parts : (Listof Part)])
   #:extra-constructor-name make-part
-  #:type-name Part])
+  #:type-name Part]
+
+ [#:struct paragraph
+  ([style : Style]
+   [content : (Listof Content)])
+  #:extra-constructor-name make-paragraph
+  #:type-name Paragraph]
+ 
+ [#:struct compound-paragraph
+  ([style : Style]
+   [blocks : (Listof Block)])
+  #:extra-constructor-name make-compound-paragraph
+  #:type-name Compound-Paragraph]
+
+ [#:struct nested-flow
+  ([style : Style]
+   [blocks : (Listof Block)])
+  #:extra-constructor-name make-nested-flow
+  #:type-name Nested-Flow]
+
+ [#:struct delayed-block
+  ([resolve : Procedure])
+  #:extra-constructor-name make-delayed-block
+  #:type-name Delayed-Block])
 
 (unsafe-require/typed/provide
  scribble/core

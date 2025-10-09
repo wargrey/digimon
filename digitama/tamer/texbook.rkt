@@ -102,7 +102,8 @@
 ; Also, Latex generated PDF would happy to fold all appendices, which
 ; should be a good design for books organized by parts.
 (define texbook-command-part
-  (lambda [#:book-part? [book-part? #true] #:tag [tag #false] #:property [property #false] cmd contents]
+  (lambda [#:book-part? [book-part? #true] #:tag [tag #false] #:property [property #false]
+           cmd contents]
     (make-part #false
                `((part ,(or tag cmd)))
                (cond [(pair? contents) contents]
@@ -116,28 +117,47 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-appendix
-  (lambda [#:book-part? [part? #true] #:tag [tag #false] . contents]
-    (texbook-command-part #:book-part? part?
-                          #:tag (or tag "tamer-appendix")
-                          #:property 'fin
-                          "appendix" contents)))
+  (lambda [#:book-part? [part? #true] #:tag [tag #false] #:pre-quirk-command [pre-cmds null] . contents]
+    (define appendix-part
+      (texbook-command-part #:book-part? part?
+                            #:tag (or tag "tamer-appendix")
+                            #:property 'fin
+                            "appendix" contents))
+    
+    (cond [(null? pre-cmds) appendix-part]
+          [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
+                          (texbook-command-part #:book-part? #false #:property 'post-quirk cmd null))
+                        (list appendix-part))])))
 
 (define texbook-frontmatter
   (lambda []
     (texbook-command "frontmatter")))
 
 (define texbook-mainmatter
-  (lambda []
-    (texbook-command "mainmatter")))
+  (let ([quirk-style (make-style #false '(pre-quirks))])
+    (lambda [#:pre-quirk-command [pre-cmds null]]
+      (make-compound-paragraph
+       quirk-style
+       (list (make-paragraph plain
+                             (append (map texbook-command
+                                          (cond [(list? pre-cmds) pre-cmds]
+                                                [else (list pre-cmds)]))
+                                     (list (texbook-command "mainmatter")))))))))
 
 ; make following sections unnumbered,
 ; note that unnumbered sections might be hard to be located in resulting PDF
 (define texbook-backmatter
-  (lambda [#:book-part? [part? #false] #:tag [tag #false] . contents]
-    (texbook-command-part #:book-part? part?
-                          #:tag (or tag "tamer-backmatter")
-                          #:property 'fin
-                          "backmatter" contents)))
+  (lambda [#:book-part? [part? #false] #:tag [tag #false] #:pre-quirk-command [pre-cmds null] . contents]
+    (define backmatter-part
+      (texbook-command-part #:book-part? part?
+                            #:tag (or tag "tamer-backmatter")
+                            #:property 'fin
+                            "backmatter" contents))
+
+    (cond [(null? pre-cmds) backmatter-part]
+          [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
+                          (texbook-command-part #:book-part? #false #:property 'quirk cmd null))
+                        (list backmatter-part))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:phantomsection
