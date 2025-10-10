@@ -150,8 +150,7 @@
                           (texbook-command-part #:book-part? #false #:property 'post-hook cmd null))
                         (list appendix-part))])))
 
-; make following sections unnumbered,
-; note that unnumbered sections might be hard to be located in resulting PDF
+; make following sections unnumbered, less useful than `texbook-appendix`
 (define texbook-backmatter
   (lambda [#:book-part? [part? #false] #:tag [tag #false] #:post-mainmatter [pre-cmds "postMainMatter"] . contents]
     (define backmatter-part

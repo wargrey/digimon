@@ -218,7 +218,7 @@
                                      #:author alt-author #:hide-version? noversion?
                                      #:documentclass doclass #:document-options options #:tex-CJK? CJK?
                                      #:tex-urlcolor url-color #:tex-linkcolor link-color
-                                     #:tex-citeclor cite-color #:tex-filecolor file-color
+                                     #:tex-citecolor cite-color #:tex-filecolor file-color
                                      #:tex-style tex-style #:tex-extra-files tex-extra-files
                                      #:tex-package tex-load
                                      (#%info 'pkg-desc
@@ -480,7 +480,7 @@
                      [title-content (list (section-title title tongue))])
         index-self)))
 
-(define handbook-appendix
+(define handbook-bonus-appendix
   (lambda [#:reference-section? [reference? #true] #:bibliography-section? [bibliography? #true] #:index-section? [index? #true]
            #:numbered? [numbered? #false] #:auto-hide [auto-hide? #true] #:prefab-bibentries? [racket? #true]
            #:reference-title [r:title #false] #:bibliography-title [b:title 'bibliography] #:index-title [i:title 'index]
