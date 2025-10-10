@@ -151,24 +151,28 @@
 
         (define offprints : (Listof (Pairof Part Tex-Desc))
           (if (and scrbl.doc selector)
-              (let*-values ([(preface offprints bonus) (handbook-offprint scrbl.doc selector dtrace-msg)]
+              (let*-values ([(preface offprints hooks bonus) (handbook-offprint scrbl.doc selector dtrace-msg)]
                             [(volume-name) (path->string (tex-desc-subdir main-volume))]
                             [(rootdir) (path->string (build-path "offprint" volume-name))])
                 (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (in-list offprints)])
                   (define name-tag (cadar (part-tags (car offprint))))
+                  (define chapter-seq : Handbook-Chapter-Index (cdr offprint))
                   (define chapter-name : String
-                    (string-append (let ([seq (cdr offprint)])
-                                     (cond [(char? seq) (string seq)]
-                                           [else (number->string (cdr offprint))]))
+                    (string-append (cond [(char? chapter-seq) (string chapter-seq)]
+                                         [else (number->string chapter-seq)])
                                    "-"
-                                   (cond [(string? name-tag) (tex-chapter-name TEXNAME.scrbl name-tag)]
+                                   (cond [(string? name-tag) (tex-chapter-name pwd name-tag)]
                                          [else volume-name])))
+                  (define body+back-parts : (Listof Part)
+                    (if (exact-integer? chapter-seq)
+                        (cons (car offprint) (append hooks bonus))
+                        (append hooks (cons (car offprint) bonus))))
                   
-                  (cons (cond [(list? preface)         (struct-copy part scrbl.doc [parts (append preface (cons (car offprint) bonus))])]
-                              [(null? (unbox preface)) (struct-copy part scrbl.doc [parts (cons (car offprint) bonus)])]
+                  (cons (cond [(list? preface)         (struct-copy part scrbl.doc [parts (append preface body+back-parts)])]
+                              [(null? (unbox preface)) (struct-copy part scrbl.doc [parts body+back-parts])]
                               [else (struct-copy part scrbl.doc
                                                  [blocks (append (part-blocks scrbl.doc) (unbox preface))]
-                                                 [parts (cons (car offprint) bonus)])])
+                                                 [parts body+back-parts])])
                         (digimon-typeset-desc TEXNAME.scrbl chapter-name engine rootdir))))
               null))
 
@@ -341,9 +345,13 @@
                               texin))))))
 
 (define tex-chapter-name : (-> Path String String)
-  (lambda [TEXNAME.scrbl name]
-    (if (file-exists? (build-path (assert (path-only TEXNAME.scrbl)) name))
-        (path->string (path-replace-extension (assert (file-name-from-path name)) #""))
+  (lambda [pwd name]
+    (define maybe-subpath (path-normalize/system name))
+    
+    (if (or (regexp-match? #px"[.](scrbl|rkt)$" name)
+            (file-exists? (build-path pwd maybe-subpath))
+            (file-exists? (build-path (digimon-path 'zone) maybe-subpath)))
+        (path->string (path-replace-extension (assert (file-name-from-path maybe-subpath)) #""))
         (list->string (for/list : (Listof Char) ([ch (in-string name)])
                         (cond [(char-alphabetic? ch) ch]
                               [(char-numeric? ch) ch]
