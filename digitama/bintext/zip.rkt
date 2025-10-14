@@ -135,8 +135,9 @@
                           (file-position /dev/zipout end-of-body-position)))
                     (values crc32 csize))]))
 
-    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a" entry-name method (~size rsize) (~size csize)
-                 (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2)))
+    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a +~a" entry-name method (~size rsize) (~size csize)
+                 (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2))
+                 (offsetof-zip-file #| self-local |# 'crc32))
 
     (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version
                         #:filename entry-name #:relative-offset (assert (if (not zip64-format?) position 0xFF32) index?)
@@ -235,8 +236,8 @@
                              (zip-file-name entry) (zip-directory-filename cdir)))
 
         (unless (= (zip-file-crc32 entry) (zip-directory-crc32 cdir))
-          (throw-check-error /dev/zipin 'open-input-zip-entry "checksum mismatch: [local]~a [central]~a"
-                             (number->string (zip-file-crc32 entry) 16) (number->string (zip-directory-crc32 cdir) 16)))))
+          (throw-check-error /dev/zipin 'open-input-zip-entry "checksum mismatch: ~a: [local]~a [central]~a"
+                             (zip-file-name entry) (~hexstring (zip-file-crc32 entry) 8) (~hexstring (zip-directory-crc32 cdir) 8)))))
 
     (when (zip-encrypted? (zip-directory-gpflag cdir))
       (throw-unsupported-error /dev/zipin 'open-input-zip-entry "encryped entry: ~a" (zip-directory-filename cdir)))
@@ -287,7 +288,7 @@
     (with-handlers ([exn:fail? exn-message])
       (let-values ([(rsize crc32) (zip-entry-copy /dev/zipin /dev/zipout pool0)])
         (cond [(not (= rSize rsize)) (format "bad size ~a (should be ~a, shortened by ~a)" rsize rSize (- rSize rsize))]
-              [(not (= CRC32 crc32)) (format "bad checksum ~a (should be ~a)" (~hexstring crc32) (~hexstring CRC32))]
+              [(not (= CRC32 crc32)) (format "bad checksum ~a (should be ~a)" (~hexstring crc32 8) (~hexstring CRC32 8))]
               [else #true])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

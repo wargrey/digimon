@@ -12,8 +12,6 @@
 (require digimon/debug)
 (require digimon/dtrace)
 
-(require (for-syntax racket/base))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option unzip-flags #: UnZip-Flags
   #:program 'unzip

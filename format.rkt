@@ -37,9 +37,9 @@
                [else fallback]))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~hexstring : (-> Any String)
-  (lambda [val]
-    (cond [(integer? val) (~r val #:base 16)]
+(define ~hexstring : (->* (Any) (Integer) String)
+  (lambda [val [width 0]]
+    (cond [(integer? val) (if (<= width 0) (~r val #:base 16) (~r val #:base 16 #:min-width width #:pad-string "0"))]
           [(bytes? val) (bytes->hexstring val #:separator " ")]
           [(boolean? val) (~hexstring (if val 1 0))]
           [else (~hexstring (string->bytes/utf-8 (~a val)))])))

@@ -5,6 +5,7 @@
                      [write-luintptr write-lsize]))
 
 (require racket/list)
+(require racket/case)
 
 (require "port.rkt")
 (require "string.rkt")
@@ -274,13 +275,13 @@
                                           (cons (list <field> <ref>) sdleif)
                                           stesffo))])))]
                     [(size0 [offset field-n] ...)
-                     (for/fold ([size0 0] [offsets null] #:result (cons size0 offsets))
-                               ([size (in-list (reverse (map syntax-e (syntax->list #'(fixed-size ...)))))]
+                     (for/fold ([prev-size 0] [offsets null] #:result (cons prev-size (reverse offsets)))
+                               ([size (in-list (map syntax-e (syntax->list #'(fixed-size ...))))]
                                 [n (in-naturals 0)])
-                       (values (cond [(not (exact-integer? size)) size0]
-                                     [(>= size 0) (+ size0 size)]
-                                     [else (- size0 size)])
-                               (cons (list size0 n) offsets)))])
+                       (values (cond [(not (exact-integer? size)) prev-size]
+                                     [(>= size 0) (+ prev-size size)]
+                                     [else (- prev-size size)])
+                               (cons (list prev-size n) offsets)))])
        (syntax/loc stx
          (begin (struct layout super ... ([field : FieldType] ...)
                   #:constructor-name constructor
@@ -321,14 +322,14 @@
                                                   [Layout Symbol -> Natural])
                   (case-lambda
                     [(fieldname)
-                     (case fieldname
+                     (case/eq fieldname
                        [(field) offset] ...
                        [else (raise-argument-error 'offsetof-layout
                                                    (exn-constraint->string '(field ...))
                                                    fieldname)])]
                     [(instance fieldname)
                      (let ([sizes (list (dynamic-size (field-ref instance)) ...)])
-                       (case fieldname
+                       (case/eq fieldname
                          [(field) (apply + offset (take sizes field-n))] ...
                          [else (raise-argument-error 'offsetof-layout
                                                      (exn-constraint->string '(field ...))
