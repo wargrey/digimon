@@ -386,7 +386,7 @@
                    (cond [(list? entry) (zip-flatten (reverse entry) entries size)]
                          [else (values (cons entry entries) (+ size (archive-entry-size entry)))]))))
              
-             (dtrace-note "~a" #:topic topic (object-name /dev/zipout))
+             (dtrace-note "creating ~a" #:topic topic (object-name /dev/zipout))
              
              (progress-handler topic 0 total-size)
              
@@ -401,7 +401,7 @@
                      (zip-write (cdr entries) (cons zdir sridz) zipped++))
                    (let* ()
                      (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)
-                     (dtrace-note "~a in ~a ~a" #:topic topic (~size total-size) (length flat-entries) comment)))))))))
+                     (dtrace-note "~a in ~a ; ~a" #:topic topic (~size total-size) (length flat-entries) comment)))))))))
 
 (define zip-update : (->* (Path-String Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:freshen? Boolean
@@ -410,7 +410,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           src.zip entries [comment "updated by λsh - https://github.com/wargrey/lambda-shell"]]
+           src.zip entries [comment "updated by https://github.com/wargrey/mox"]]
     (if (file-exists? src.zip)
         (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
                       [(existed-entries rest-entries new-entries) (zip-archive-entry-partition cdirectories entries root zip-root)])
@@ -421,7 +421,7 @@
                     src.zip entries))))
 
 (define zip-delete : (->* (Path-String (U Path-String Regexp (Listof (U Path-String Regexp)))) ((Option String)) Void)
-  (lambda [src.zip entry-names [comment "shrunk by λsh - https://github.com/wargrey/lambda-shell"]]
+  (lambda [src.zip entry-names [comment "shrunk by https://github.com/wargrey/mox"]]
     (file-or-directory-identity src.zip) ; check existence 
     (call-in-nested-custodian
      (λ [] (let ([/dev/zipin (open-input-file src.zip)]
@@ -439,7 +439,7 @@
                  (file-truncate /dev/zipout new-size))))))))
 
 (define zip-copy : (->* ((U Input-Port Path-String) (U Path-String Regexp (Listof (U Path-String Regexp))) Path-String) ((Option String)) Void)
-  (lambda [/dev/zipsrc entry-names dest.zip [comment "copied by λsh - https://github.com/wargrey/lambda-shell"]]
+  (lambda [/dev/zipsrc entry-names dest.zip [comment "copied by https://github.com/wargrey/mox"]]
     (if (input-port? /dev/zipsrc)
         (call-in-nested-custodian
           (λ []

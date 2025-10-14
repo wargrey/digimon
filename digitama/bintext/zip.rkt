@@ -84,7 +84,7 @@
     (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (> rsize 0xFF31) #| just in case `csize` greater than `rsize`|#))
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
 
-    (dtrace-debug #:topic topic "~a[~a]: @~a ~a ; ~a" entry-name method
+    (dtrace-debug #:topic topic "~a: ~a: @~a ~a ; ~a" method entry-name
                   (~r position #:base 16 #:min-width 8 #:pad-string "0")
                   (if zip64-format? '64bit '32bit) comment)
 
@@ -135,7 +135,7 @@
                           (file-position /dev/zipout end-of-body-position)))
                     (values crc32 csize))]))
 
-    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a" entry-name method (~size rsize) (~size csize)
+    (dtrace-note #:topic topic "~a: ~a: ~a => ~a ~a" method entry-name (~size rsize) (~size csize)
                  (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2)))
 
     (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version
