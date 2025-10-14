@@ -361,7 +361,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           out.zip entries [comment "created by λsh - https://github.com/wargrey/lambda-shell"]]
+           out.zip entries [comment "created by https://github.com/wargrey/mox"]]
     (call-in-nested-custodian
      (λ [] (parameterize ([default-stdout-all-fields? #false])
              (define /dev/zipout : Output-Port
@@ -401,7 +401,7 @@
                      (zip-write (cdr entries) (cons zdir sridz) zipped++))
                    (let* ()
                      (zip-write-directories /dev/zipout comment (reverse sridz) force-zip64?)
-                     (dtrace-note "~a in ~a ; ~a" #:topic topic (~size total-size) (length flat-entries) comment)))))))))
+                     (dtrace-note "Done with ~a in ~a ; ~a" #:topic topic (~size total-size) (length flat-entries) comment)))))))))
 
 (define zip-update : (->* (Path-String Archive-Entries)
                           (#:root (Option Path-String) #:zip-root (Option Path-String) #:suffixes (Listof Symbol) #:freshen? Boolean
