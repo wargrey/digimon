@@ -84,9 +84,9 @@
     (define zip64-format? : Boolean (or force-zip64? (>= position 0xFF32) (> rsize 0xFF31) #| just in case `csize` greater than `rsize`|#))
     (define /dev/zmiout : Output-Port (open-output-bytes '/dev/zmiout))
 
-    (dtrace-note #:topic topic "~a[~a]: @~a ~a ~a" entry-name method
-                 (~r position #:base 16 #:min-width 8 #:pad-string "0")
-                 (if zip64-format? '64bit '32bit) comment)
+    (dtrace-debug #:topic topic "~a[~a]: @~a ~a ; ~a" entry-name method
+                  (~r position #:base 16 #:min-width 8 #:pad-string "0")
+                  (if zip64-format? '64bit '32bit) comment)
 
     ; please keep the zip64 extended info as the first extra fields, so that we can easily modify the compressed size
     ; TODO: squeeze out every single byte based on the trick of zip64 extended data
@@ -135,9 +135,8 @@
                           (file-position /dev/zipout end-of-body-position)))
                     (values crc32 csize))]))
 
-    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a +~a" entry-name method (~size rsize) (~size csize)
-                 (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2))
-                 (offsetof-zip-file #| self-local |# 'crc32))
+    (dtrace-note #:topic topic "~a[~a]: ~a => ~a ~a" entry-name method (~size rsize) (~size csize)
+                 (~% (- 1.0 (if (= rsize 0) 1.0 (/ csize rsize))) #:precision `(= 2)))
 
     (make-zip-directory #:csystem pkzip-host-system #:cversion pkzip-digimon-version #:esystem pkzip-extraction-system #:eversion extraction-version
                         #:filename entry-name #:relative-offset (assert (if (not zip64-format?) position 0xFF32) index?)

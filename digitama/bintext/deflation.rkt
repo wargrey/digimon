@@ -33,7 +33,7 @@
     (define favor-dynamic? : Boolean (eq? huffman-codes 'dynamic))
     (define memory-level : Positive-Byte (min memlevel 9))
 
-    (dtrace-note #:topic topic "deflate: ~a #~a ~a" (zip-strategy-name strategy) (zip-strategy-level strategy) huffman-codes)
+    (dtrace-debug #:topic topic "deflate: ~a #~a ~a" (zip-strategy-name strategy) (zip-strategy-level strategy) huffman-codes)
     
     ;;; NOTE
     ; The `block splitting` is a tough optimization problem.
@@ -51,8 +51,8 @@
     (define lz77-blocksize : Positive-Index (unsafe-idxlshift 1 (+ memory-level 6)))
     (define bits-blocksize : Positive-Index raw-blocksize)
 
-    (dtrace-note #:topic topic "deflate: memory level: ~a (~a, ~a, ~a)"
-                 memory-level (~size raw-blocksize) (~size lz77-blocksize) (~size bits-blocksize))
+    (dtrace-debug #:topic topic "deflate: memory level: ~a (~a, ~a, ~a)"
+                  memory-level (~size raw-blocksize) (~size lz77-blocksize) (~size bits-blocksize))
 
     (define-values (PUSH-BITS SEND-BITS $SHELL) (open-output-lsb-bitstream /dev/zipout bits-blocksize 1))
     (define lz77-block : (Vectorof Index) (smart-make-vector lz77-blocksize stored-only? #false))
@@ -65,7 +65,7 @@
     (define window-size : Index (unsafe-idx* window-size/2 2))
     (define window : Bytes (make-bytes window-size 0))
 
-    (dtrace-note #:topic topic "deflate: window size: ~a (~a, ~a)" (~size window-size) hash-bits (~size hash-size))
+    (dtrace-debug #:topic topic "deflate: window size: ~a (~a, ~a)" (~size window-size) hash-bits (~size hash-size))
 
     (define hash-heads : (Vectorof Index) (smart-make-vector hash-size stored-only? #false))
     (define hash-prevs : (Vectorof Index) (smart-make-vector window-size/2 stored-only? #false))
