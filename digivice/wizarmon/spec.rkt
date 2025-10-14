@@ -4,12 +4,12 @@
 
 (require racket/case)
 
-(require "../../../cmdopt.rkt")
-(require "../problem.rkt")
+(require "problem.rkt")
+(require "exec/c.rkt")
+(require "exec/lean.rkt")
+(require "exec/python.rkt")
 
-(require "c.rkt")
-(require "lean.rkt")
-(require "python.rkt")
+(require "../../cmdopt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option spec-flags #: Spec-Flags

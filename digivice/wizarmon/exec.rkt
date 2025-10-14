@@ -3,20 +3,21 @@
 (provide (all-defined-out))
 
 (require "parameter.rkt")
+(require "spec.rkt")
+(require "typeset.rkt")
 
-(require "exec/spec.rkt")
 (require "exec/scrbl.rkt")
 (require "exec/dot.rkt")
 
+(require "../wisemon/cmdname.rkt")
 (require "../../digitama/minimal/dtrace.rkt")
-
 (require "../../digitama/git/lstree.rkt")
 (require "../../digitama/git/langstat.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-exec : (-> Path Any)
   (lambda [path]
-    (dtrace-notice #:topic the-name "source: ~a" path)
+    (dtrace-notice #:topic (the-cmd-name) "source: ~a" path)
     
     (define lang : (Option String)
       (or (wizarmon-lang)
@@ -26,7 +27,7 @@
                  (git-language-name (cdar (hash->list gl)))))))
 
     (when (or lang)
-      (dtrace-notice #:topic the-name "language: ~a" lang))
+      (dtrace-notice #:topic (the-cmd-name) "language: ~a" lang))
 
     (case (and lang (string-downcase lang))
       [("c++") (shell-spec/flags path 'cpp)]
@@ -34,7 +35,7 @@
       [("c") (shell-spec/flags path 'c)]
       [("lean") (shell-spec/flags path 'lean)]
       [("python") (shell-spec/flags path 'python)]
-      [("scribble") (shell-typeset/flags path 'scribble)]
+      [("scribble") (shell-typeset/flags path 'scribble shell-typeset)]
       [("tex") (shell-typeset path 'tex)]
       [("graphviz (dot)") (shell-dot path 'png #".png")]
       [else (wizarmon-errno 126)

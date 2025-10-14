@@ -13,6 +13,7 @@
 (require "../phony.rkt")
 (require "../racket.rkt")
 (require "../parameter.rkt")
+(require "../cmdname.rkt")
 
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/exec.rkt")
@@ -47,11 +48,11 @@
                   (wisemon-spec target #:^ (filter file-exists? (list* (digimon-path 'info) (scribble-smart-dependencies readme.scrbl))) #:-
                                 (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
 
-                                (dtrace-note "~a dist: ~a" the-name ./readme.scrbl)
+                                (dtrace-note "~a dist: ~a" (the-cmd-name) ./readme.scrbl)
                                 
                                 (parameterize ([current-namespace (make-base-namespace)]
                                                [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
-                                               [exit-handler (λ _ (error the-name "[fatal] ~a needs a proper `exit-handler`!" ./readme.scrbl))])
+                                               [exit-handler (λ _ (error (the-cmd-name) "[fatal] ~a needs a proper `exit-handler`!" ./readme.scrbl))])
                                   (eval '(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
                                 
                                   (eval `(define (dynamic-extract-readme readme.scrbl start endp1)

@@ -5,6 +5,7 @@
 (require racket/path)
 
 (require "wisemon/parameter.rkt")
+(require "wisemon/cmdname.rkt")
 (require "wisemon/racket.rkt")
 (require "wisemon/phony.rkt")
 
@@ -21,7 +22,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wisemon-flags #: Wisemon-Flags
-  #:program the-name
+  #:program (short-program+command-name)
   #:args phony-target丨file-path
 
   #:usage-help "Carefully options are not exactly the same as those of GNU Make"

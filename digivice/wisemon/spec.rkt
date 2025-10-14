@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wisemon-make : (->* (Wisemon-Specification) ((U (Listof Path-String) Regexp) Boolean) Void)
   (lambda [specs [targets null] [always-run (make-always-run)]]
-    (wisemon:make #:name the-name #:jobs (parallel-workers)
+    (wisemon:make #:name (current-make-phony-goal) #:jobs (parallel-workers)
                   #:keep-going? (make-keep-going) #:dry-run? (make-dry-run) #:always-run? always-run #:just-touch? (make-just-touch)
                   #:assume-old (make-assumed-oldfiles) #:assume-new (make-assumed-newfiles)
                   specs targets)))

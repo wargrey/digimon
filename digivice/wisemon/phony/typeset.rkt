@@ -17,6 +17,7 @@
 (require "../../../digitama/system.rkt")
 (require "../../../filesystem.rkt")
 
+(require "../../wisemon/cmdname.rkt")
 (require "../parameter.rkt")
 (require "../ffi.rkt")
 (require "../phony.rkt")
@@ -26,9 +27,17 @@
 
 (require "cc.rkt")
 
-(require/typed
+(require typed/racket/unsafe)
+
+(unsafe-require/typed
  "../../../digitama/tamer/documentclass.rkt"
  [handbook-tex-inspect (-> Path Scribble-Message (Option Part))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define-type Wisemon-Scribble->Extension (-> Symbol Bytes))
+(define-type Wisemon-Scribble->Specification
+  (-> Part Tex-Desc Path (Listof Path) Symbol Scribble-Message
+      (U Wisemon-Spec (Listof Wisemon-Spec))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (struct tex-info
@@ -81,13 +90,30 @@
               (if (not typeset/fly) required-typesets (cons typeset/fly required-typesets)))
             (cons info-p required-typesets))))))
 
-(define digimon-typeset-desc : (-> Path (Option String) Symbol (Option String) Tex-Desc)
-  (lambda [self.scrbl alt-name engine destdir]
+(define digimon-typeset-files : (-> Tex-Info (U (Listof (Pairof (Option Part) Tex-Desc)) Tex-Desc) (Values (Listof Path) (Listof Path)))
+  (lambda [typesetting all-typesets]
+    (define options : (Listof Keyword) (tex-info-options typesetting))
+    
+    (let ([always-make? (memq '#:always-make options)]
+          [explicit? (memq '#:explicitly-make options)]
+          [real-targets (current-make-real-targets)])
+      (for/fold ([always-selves : (Listof Path) null]
+                 [ignored-selves : (Listof Path) null])
+                ([scrbl.desc (if (list? all-typesets) (in-list all-typesets) (in-value (cons #false all-typesets)))])
+        (define desc (cdr scrbl.desc))
+        (define selves (list (tex-desc-self.out desc) (tex-desc-self.tex desc)))
+        (define real-target?
+          (or (member (tex-desc-scrbl desc) real-targets)
+              (member (tex-desc-self.out desc) real-targets)))
+        
+        (cond [(or always-make? (and real-target? explicit?)) (values (append selves always-selves) ignored-selves)]
+              [(and explicit? (not real-target?)) (values always-selves (append selves ignored-selves))]
+              [else (values always-selves ignored-selves)])))))
+
+(define digimon-typeset-desc : (-> Path (Option String) (Option String) Bytes Tex-Desc)
+  (lambda [self.scrbl alt-name destdir extension]
     (define TEXNAME.scrbl (or (and alt-name (path-replace-filename self.scrbl (string-append alt-name ".hack-for-dotted-name"))) self.scrbl))
-    (define TEXNAME.out : Path
-      (assert (tex-document-destination #:extension (tex-document-extension engine #:fallback tex-fallback-engine)
-                                        #:dest-dirname destdir
-                                        TEXNAME.scrbl #true)))
+    (define TEXNAME.out : Path (assert (tex-document-destination #:extension extension #:dest-dirname destdir TEXNAME.scrbl #true)))
     
     (define basename (assert (file-name-from-path TEXNAME.out)))
     (define subdir (path-replace-extension basename #""))
@@ -97,136 +123,134 @@
     (tex-desc self.scrbl alt-name subdir
               TEXNAME.out TEXNAME.tex)))
 
-(define digimon-typeset-specs : (-> Part Tex-Desc Path Path
-                                    Symbol (Listof Path) Symbol Boolean Scribble-Message
-                                    Wisemon-Specification)
-  (lambda [scrbl.doc self hook.rktl local-info.rkt engine all-deps topic-name halt-on-error? dtrace-msg]
+(define digimon-typeset-scrbl-specs : Wisemon-Scribble->Specification
+  (lambda [scrbl.doc self hook.rktl all-deps engine dtrace-msg]
     (list (wisemon-spec (tex-desc-self.out self) #:^ (list (tex-desc-self.tex self)) #:-
                         (tex-render #:dest-subdir (tex-desc-subdir self) #:fallback tex-fallback-engine #:enable-filter #true
-                                    #:halt-on-error? halt-on-error? #:shell-escape? #false
+                                    #:halt-on-error? (make-verbose) #:shell-escape? #false
                                     #:dest-copy? #false
                                     engine (tex-desc-self.tex self) (assert (path-only (tex-desc-self.out self))))
                         
                         (handbook-display-metrics dtrace-msg 'note (handbook-stats scrbl.doc 'latex)))
           
-          (wisemon-spec (tex-desc-self.tex self) #:^ all-deps #:-
-                        (typeset-note topic-name engine (tex-desc-alt-name self) (tex-desc-scrbl self))
+          (wisemon-spec (tex-desc-self.tex self) #:^ (append (if (file-exists? hook.rktl) (list hook.rktl) null) all-deps) #:-
+                        (typeset-note engine (tex-desc-alt-name self) (tex-desc-scrbl self))
                         (handbook-tex-render (tex-desc-scrbl self) scrbl.doc (tex-desc-self.tex self) hook.rktl dtrace-msg)))))
 
-(define make-typesetting-specs : (-> Symbol (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification))
-  (lambda [topic-name typesettings halt-on-error?]
-    (define local-rootdir : Path (digimon-path 'zone))
-    (define local-info.rkt : Path (digimon-path 'info))
+(define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol (Values (Listof Path) (Listof Path) (List Wisemon-Spec)))
+  (lambda [VOLUME.tex volume-desc typesetting engine]
+    (define dependencies (tex-info-dependencies typesetting))
+    (define scrbl-deps (filter file-exists? #| <- say, commented out includes |# (tex-smart-dependencies VOLUME.tex)))
+    (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) (digimon-path 'zone)) null))
+    (define all-deps (append scrbl-deps regexp-deps))
+    
+    (define-values (always-files ignored-files) (digimon-typeset-files typesetting volume-desc))
+    
+    (values always-files ignored-files
+            (list (wisemon-spec (tex-desc-self.out volume-desc) #:^ all-deps #:-
+                                (define dest-dir : Path (assert (path-only (tex-desc-self.out volume-desc))))
+                                
+                                (typeset-note engine (tex-info-name typesetting) VOLUME.tex)
+                                (tex-render #:dest-subdir (tex-desc-subdir volume-desc) #:fallback tex-fallback-engine #:enable-filter #false
+                                            #:halt-on-error? (make-verbose) #:shell-escape? #false
+                                            #:dest-copy? #false
+                                            engine VOLUME.tex dest-dir))))))
+
+(define make-typesetting-scrbl-specs : (-> Path Part Tex-Desc Tex-Info Symbol Scribble-Message Wisemon-Scribble->Specification
+                                           (Values (Listof Path) (Listof Path) Wisemon-Specification))
+  (lambda [VOLUME.scrbl scrbl.doc volume-desc typesetting engine dtrace-msg make-specs]
+    (define zonedir : Path (digimon-path 'zone))
+    (define info.rkt : Path (digimon-path 'info))
+    (define hook.rktl : Path (path-replace-extension VOLUME.scrbl #".rktl"))
+    
+    (define op.cfg (or (current-user-specified-selector) (tex-info-selector typesetting)))
+    (define dependencies (tex-info-dependencies typesetting))
+
+    (define foreign-deps (handbook-extract-scripts scrbl.doc 'latex dtrace-msg))
+    (define scrbl-deps (filter file-exists? #| <- say, commented out (require)s |# (scribble-smart-dependencies VOLUME.scrbl)))
+    (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) zonedir) null))
+    (define all-deps (append (if (file-exists? info.rkt) (list info.rkt) null) scrbl-deps foreign-deps regexp-deps))
+    
+    (define offprints : (Listof (Pairof Part Tex-Desc))
+      (if (and op.cfg)
+          (let*-values ([(preface offprints hooks bonus) (handbook-offprint scrbl.doc op.cfg dtrace-msg)]
+                        [(volume-name) (path->string (tex-desc-subdir volume-desc))]
+                        [(rootdir) (path->string (build-path "offprint" volume-name))])
+            (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (in-list offprints)])
+              (define name-tag (cadar (part-tags (car offprint))))
+              (define chapter-seq : Handbook-Chapter-Index (cdr offprint))
+              (define chapter-name : String
+                (string-append (cond [(char? chapter-seq) (string chapter-seq)]
+                                     [else (number->string chapter-seq)])
+                               "-"
+                               (cond [(string? name-tag) (tex-chapter-name zonedir name-tag)]
+                                     [else volume-name])))
+              (define body+back-parts : (Listof Part)
+                (if (exact-integer? chapter-seq)
+                    (cons (car offprint) (append hooks bonus))
+                    (append hooks (cons (car offprint) bonus))))
+              
+              (cons (cond [(list? preface)         (struct-copy part scrbl.doc [parts (append preface body+back-parts)])]
+                          [(null? (unbox preface)) (struct-copy part scrbl.doc [parts body+back-parts])]
+                          [else (struct-copy part scrbl.doc
+                                             [blocks (append (part-blocks scrbl.doc) (unbox preface))]
+                                             [parts body+back-parts])])
+                    (digimon-typeset-desc VOLUME.scrbl chapter-name rootdir
+                                          (assert (path-get-extension (tex-desc-self.out volume-desc)))))))
+          null))
+    
+    (define all-typesets
+      (cond [(current-user-request-no-volume?) offprints]
+            [(memq '#:no-volume (tex-info-options typesetting)) offprints]
+            [(not scrbl.doc) offprints]
+            [else (cons (cons scrbl.doc volume-desc) offprints)]))
+    
+    (define-values (always-files ignored-files) (digimon-typeset-files typesetting all-typesets))
+    
+    (values always-files ignored-files
+            (apply append
+                   (for/list : (Listof Wisemon-Specification) ([typeset (in-list all-typesets)])
+                     (define specs (make-specs (car typeset) (cdr typeset) hook.rktl all-deps engine dtrace-msg))
+
+                     (cond [(list? specs) specs]
+                           [else (list specs)]))))))
+
+(define make-typesetting-specs : (-> (Listof Tex-Info) Wisemon-Scribble->Specification Wisemon-Scribble->Extension
+                                     (Values (Listof Path) (Listof Path) Wisemon-Specification))
+  (lambda [typesettings make-specs engine-extension]
+    (define zonedir : Path (digimon-path 'zone))
 
     (for/fold ([always-files : (Listof Path) null]
                [ignored-files : (Listof Path) null]
                [specs : Wisemon-Specification null])
               ([typesetting (in-list typesettings)])
-      (define-values (TEXNAME.scrbl engine) (values (tex-info-path typesetting) (or (tex-info-engine typesetting) tex-fallback-engine)))
-      (define-values (maybe-name dependencies) (values (tex-info-name typesetting) (tex-info-dependencies typesetting)))
-      (define pwd : Path (assert (path-only TEXNAME.scrbl)))
-
-      (define selector (or (current-user-specified-selector) (tex-info-selector typesetting)))
-      (define hook.rktl (path-replace-extension TEXNAME.scrbl #".rktl"))
-      (define main-volume : Tex-Desc (digimon-typeset-desc TEXNAME.scrbl maybe-name engine #false))
+      (define-values (TEXNAME.scrbl maybe-name) (values (tex-info-path typesetting) (tex-info-name typesetting)))
+      (define engine (or (tex-info-engine typesetting) tex-fallback-engine))
+      (define volume-desc : Tex-Desc (digimon-typeset-desc TEXNAME.scrbl maybe-name #false (engine-extension engine)))
       (define this-name (assert (file-name-from-path TEXNAME.scrbl)))
-      (define dtrace-msg (typeset-dtrace topic-name engine this-name))
+      (define dtrace-msg (typeset-dtrace engine this-name))
       
       (unless (tex-info-engine typesetting)
-        (dtrace-warning #:topic topic-name #:prefix? #false
+        (dtrace-warning #:topic (the-cmd-name) #:prefix? #false
                         "~a ~a: ~a: no suitable engine is found, use `~a` instead"
-                        topic-name (current-make-phony-goal) this-name
+                        (the-cmd-name) (current-make-phony-goal) this-name
                         tex-fallback-engine))
       
-      (parameterize ([current-directory pwd]
+      (parameterize ([current-directory (assert (path-only TEXNAME.scrbl))]
                      [current-command-line-arguments (tex-info-extra-argv typesetting)]
-                     [exit-handler (λ _ (error topic-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
-                                               topic-name (current-make-phony-goal) (find-relative-path local-rootdir TEXNAME.scrbl)))])
+                     [exit-handler (λ _ (error (the-cmd-name) "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
+                                               (the-cmd-name) (current-make-phony-goal) (find-relative-path zonedir TEXNAME.scrbl)))])
         (define scrbl.doc (handbook-tex-inspect TEXNAME.scrbl dtrace-msg))
-        (define foreign-deps (if (not scrbl.doc) null (handbook-extract-scripts scrbl.doc 'latex dtrace-msg)))
-        (define scrbl-deps (filter file-exists? #| <- say, commented out (require)s |# (scribble-smart-dependencies TEXNAME.scrbl)))
-        (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) local-rootdir) null))
-        (define all-deps (append scrbl-deps foreign-deps regexp-deps))
-        (define options : (Listof Keyword) (tex-info-options typesetting))
-
-        (define offprints : (Listof (Pairof Part Tex-Desc))
-          (if (and scrbl.doc selector)
-              (let*-values ([(preface offprints hooks bonus) (handbook-offprint scrbl.doc selector dtrace-msg)]
-                            [(volume-name) (path->string (tex-desc-subdir main-volume))]
-                            [(rootdir) (path->string (build-path "offprint" volume-name))])
-                (for/list : (Listof (Pairof Part Tex-Desc)) ([offprint (in-list offprints)])
-                  (define name-tag (cadar (part-tags (car offprint))))
-                  (define chapter-seq : Handbook-Chapter-Index (cdr offprint))
-                  (define chapter-name : String
-                    (string-append (cond [(char? chapter-seq) (string chapter-seq)]
-                                         [else (number->string chapter-seq)])
-                                   "-"
-                                   (cond [(string? name-tag) (tex-chapter-name pwd name-tag)]
-                                         [else volume-name])))
-                  (define body+back-parts : (Listof Part)
-                    (if (exact-integer? chapter-seq)
-                        (cons (car offprint) (append hooks bonus))
-                        (append hooks (cons (car offprint) bonus))))
-                  
-                  (cons (cond [(list? preface)         (struct-copy part scrbl.doc [parts (append preface body+back-parts)])]
-                              [(null? (unbox preface)) (struct-copy part scrbl.doc [parts body+back-parts])]
-                              [else (struct-copy part scrbl.doc
-                                                 [blocks (append (part-blocks scrbl.doc) (unbox preface))]
-                                                 [parts body+back-parts])])
-                        (digimon-typeset-desc TEXNAME.scrbl chapter-name engine rootdir))))
-              null))
-
-        (define all-typesets
-          (cond [(current-user-request-no-volume?) offprints]
-                [(memq '#:no-volume options) offprints]
-                [(not scrbl.doc) offprints]
-                [else (cons (cons scrbl.doc main-volume) offprints)]))
-
-        (define-values (always-files++ ignored-files++)
-          (let ([always-make? (memq '#:always-make options)]
-                [explicit? (memq '#:explicitly-make options)]
-                [real-targets (current-make-real-targets)])
-            (for/fold ([always-selves : (Listof Path) always-files]
-                       [ignored-selves : (Listof Path) ignored-files])
-                      ([scrbl.desc (in-list all-typesets)])
-              (define desc (cdr scrbl.desc))
-              (define selves (list (tex-desc-self.out desc) (tex-desc-self.tex desc)))
-              (define real-target?
-                (or (member (tex-desc-scrbl desc) real-targets)
-                    (member (tex-desc-self.out desc) real-targets)))
-              
-              (cond [(or always-make? (and real-target? explicit?)) (values (append selves always-selves) ignored-files)]
-                    [(and explicit? (not real-target?)) (values always-selves (append selves ignored-selves))]
-                    [else (values always-selves ignored-selves)]))))
+        (define-values (this-always this-ignored this-specs)
+          (if (or scrbl.doc)
+              (make-typesetting-scrbl-specs TEXNAME.scrbl scrbl.doc volume-desc typesetting engine dtrace-msg make-specs)
+              (make-typesetting-raw-tex-specs TEXNAME.scrbl volume-desc typesetting engine)))
         
-        (values
-         always-files++
-         ignored-files++
-         
-         ;;; NOTE: order matters
-         (if (not scrbl.doc) ; raw tex document
-             (append specs
-                     (list (wisemon-spec (tex-desc-self.out main-volume) #:^ (filter file-exists? (tex-smart-dependencies TEXNAME.scrbl)) #:-
-                                         (define dest-dir : Path (assert (path-only (tex-desc-self.out main-volume))))
-                                         
-                                         (typeset-note topic-name engine maybe-name TEXNAME.scrbl)
-                                         (tex-render #:dest-subdir (tex-desc-subdir main-volume) #:fallback tex-fallback-engine #:enable-filter #false
-                                                     #:halt-on-error? halt-on-error? #:shell-escape? #false
-                                                     #:dest-copy? #false
-                                                     engine TEXNAME.scrbl dest-dir))))
-             (apply append specs
-                    (for/list : (Listof Wisemon-Specification) ([typeset (in-list all-typesets)])
-                      (digimon-typeset-specs (car typeset) (cdr typeset) hook.rktl local-info.rkt
-                                             engine all-deps topic-name halt-on-error? dtrace-msg)))))))))
+        (values (append always-files this-always)
+                (append ignored-files this-ignored)
+                (append specs this-specs))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typeset-specs+targets : (-> Symbol (Listof Tex-Info) Boolean (Values (Listof Path) (Listof Path) Wisemon-Specification (Listof Path)))
-  (lambda [topic-name typesettings halt-on-error?]
-    (define-values (always-files ignored-files specs)
-      (make-typesetting-specs topic-name typesettings halt-on-error?))
-
-    (values always-files ignored-files specs (wisemon-targets-flatten specs))))
-
 (define make-typeset-prepare : (-> String (Option Info-Ref) (Listof Tex-Info))
   (lambda [digimon info-ref]
     (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref)))
@@ -244,21 +268,24 @@
     (compile-scribble (map tex-info-path texinfos) (current-directory))
     texinfos))
 
-(define make-typeset : (-> Wisemon-Specification (Listof Path) (Listof Path) (Listof Path) Boolean Void)
-  (lambda [specs always-files ignored-files targets always-run?]
+(define make-typeset : (->* ((Pairof Tex-Info (Listof Tex-Info)) Boolean)
+                            (Wisemon-Scribble->Specification Wisemon-Scribble->Extension)
+                            (Listof Path))
+  (lambda [typesettings always-run? [make-specs digimon-typeset-scrbl-specs] [engine-ext tex-engine-extension]]
+    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings make-specs engine-ext))
+    (define targets (wisemon-targets-flatten specs))
+    
     (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
                    [make-assumed-newfiles (append ignored-files (make-assumed-newfiles))])
-      (wisemon-make specs targets always-run?))))
+      (wisemon-make specs targets always-run?)
+      targets)))
 
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
     (define typesettings : (Listof Tex-Info) (make-typeset-prepare digimon info-ref))
-
-    (when (pair? typesettings)
-      (define-values (always-files ignored-files specs targets)
-        (make-typeset-specs+targets the-name typesettings (make-verbose)))
       
-      (make-typeset specs always-files ignored-files targets (make-always-run)))))
+    (when (pair? typesettings)
+      (void (make-typeset typesettings (make-always-run))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Typeset-Offprint-Datum (U '#:offprint (Pairof (U 'offprint '#:offprint) Any)))
@@ -302,32 +329,19 @@
                          [(vector? arg) (append argv (for/list : (Listof String) ([a (in-vector arg)]) (format "~a" a)))]
                          [else argv])))))))
 
-(define typeset-note : (-> Symbol Symbol (Option String) Path Void)
-  (lambda [topic-name engine maybe-name TEXNAME.scrbl]
+(define typeset-note : (-> Symbol (Option String) Path Void)
+  (lambda [engine maybe-name TEXNAME.scrbl]
     (if (not maybe-name)
-        (dtrace-note "~a ~a: ~a" topic-name engine TEXNAME.scrbl)
-        (dtrace-note "~a ~a: ~a [~a]" topic-name engine TEXNAME.scrbl maybe-name))))
+        (dtrace-note "~a ~a: ~a" (the-cmd-name) engine TEXNAME.scrbl)
+        (dtrace-note "~a ~a: ~a [~a]" (the-cmd-name) engine TEXNAME.scrbl maybe-name))))
 
-(define typeset-dtrace : (-> Symbol Symbol Path Scribble-Message)
-  (lambda [topic-name engine TEXNAME.scrbl]
-    (define scrptdb : (HashTable Path Boolean) (make-hash))
-    
-    (values
-     #;(λ [level title]
-       (when (<= 0 level 1)
-         (dtrace-debug "~a ~a: ~a: ~a~a"
-                       topic-name engine TEXNAME.scrbl
-                       (~space (* level 2)) title)))
-     #;(λ [scrpt]
-       (unless (hash-has-key? scrptdb scrpt)
-         (hash-set! scrptdb scrpt #true)
-         (dtrace-debug "~a ~a: ~a: [depend on ~a]"
-                       topic-name engine TEXNAME.scrbl scrpt)))
-     (λ [level fmt . argl]
-       (apply dtrace-message
-              level (string-append "~a ~a: ~a: " fmt)
-              topic-name engine TEXNAME.scrbl
-              argl)))))
+(define typeset-dtrace : (-> Symbol Path Scribble-Message)
+  (lambda [engine volume-name]
+    (λ [level fmt . argl]
+      (apply dtrace-message
+             level (string-append "~a ~a: ~a: " fmt)
+             (the-cmd-name) engine volume-name
+             argl))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-fallback-engine : Symbol 'xelatex)
@@ -345,12 +359,12 @@
                               texin))))))
 
 (define tex-chapter-name : (-> Path String String)
-  (lambda [pwd name]
+  (lambda [zonedir name]
     (define maybe-subpath (path-normalize/system name))
     
     (if (or (regexp-match? #px"[.](scrbl|rkt)$" name)
-            (file-exists? (build-path pwd maybe-subpath))
-            (file-exists? (build-path (digimon-path 'zone) maybe-subpath)))
+            (file-exists? (build-path zonedir maybe-subpath))
+            (file-exists? (build-path (current-directory) maybe-subpath)))
         (path->string (path-replace-extension (assert (file-name-from-path maybe-subpath)) #""))
         (list->string (for/list : (Listof Char) ([ch (in-string name)])
                         (cond [(char-alphabetic? ch) ch]
@@ -360,6 +374,10 @@
                               [(char-punctuation? ch) #\-]
                               [(char-iso-control? ch) #\-]
                               [else ch]))))))
+
+(define tex-engine-extension : Wisemon-Scribble->Extension
+  (lambda [engine]
+    (tex-document-extension engine #:fallback tex-fallback-engine)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony

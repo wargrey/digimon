@@ -4,6 +4,7 @@
 
 (require racket/pretty)
 
+(require "wisemon/cmdname.rkt")
 (require "wizarmon/parameter.rkt")
 (require "wizarmon/echo.rkt")
 (require "wizarmon/exec.rkt")
@@ -17,7 +18,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wizarmon-flags #: Wizarmon-Flags
-  #:program the-name
+  #:program (short-program+command-name)
   #:args [file . args]
 
   #:usage-help "run source file of C/C++, Lean, Scribble/tex, Python, and more"
@@ -74,7 +75,7 @@
                      [current-command-line-arguments (list->vector argv)])  
         (define pretend-status : (Option Byte) (wizarmon-flags-pretend options))
         
-        (trick-exit (time* (begin0 (exec-shell (cmdopt-string->path the-name target))
+        (trick-exit (time* (begin0 (exec-shell (cmdopt-string->path (the-cmd-name) target))
                                    (dtrace-sentry-notice #:end? #true eof)
                                    (thread-wait tracer)))
                     pretend-status)))))

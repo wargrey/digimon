@@ -8,6 +8,7 @@
 (require typed/setup/getinfo)
 
 (require "parameter.rkt")
+(require "cmdname.rkt")
 
 (require "../../filesystem.rkt")
 (require "../../dtrace.rkt")
@@ -62,7 +63,7 @@
     (define (stderr-level [line : String]) : (Values Symbol (Option String))
       (values (if (eq? context 'summary) 'error 'warning) line))
     
-    (parameterize ([setup-program-name (symbol->immutable-string the-name)]
+    (parameterize ([setup-program-name (symbol->immutable-string (the-cmd-name))]
                    [make-launchers #false]
                    [make-info-domain #false]
                    [make-foreign-libs #false]
@@ -71,7 +72,7 @@
                    [current-output-port (open-output-dtrace stdout-level)]
                    [current-error-port (open-output-dtrace stderr-level)])
       (or (setup #:collections (list (list digimon)) #:make-docs? #false #:fail-fast? #true #:recompile-only? recompiling?)
-          (error the-name "compiling failed.")))
+          (error (string->symbol (setup-program-name)) "compiling failed.")))
 
     (when again? (compile-collection digimon (add1 round)))))
 
@@ -92,7 +93,7 @@
             [(regexp-match? #px"(newer|skipping:)" info) (when (and verbose?) (traceln info))]
             [else (traceln info)]))
 
-    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error the-name "[error] ~a" (exn-message e)))])
+    (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error (the-cmd-name) "[error] ~a" (exn-message e)))])
       (parameterize ([manager-trace-handler filter-verbose]
                      [error-display-handler (λ [s e] (dtrace-error ">> ~a" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? (not for-typesetting?))))
@@ -107,7 +108,7 @@
         src))
     
     (define info-ref : Info-Ref
-      (lambda [symid [fallback (λ [] (raise-user-error (current-make-phony-goal) "undefined symbol: `~a`" symid))]]
+      (lambda [symid [fallback (λ [] (raise-user-error (the-cmd-name) "undefined symbol: `~a`" symid))]]
         (case symid
           [(scribblings) (if (pair? scrbls) (list scrbls) (fallback))]
           [else (fallback)])))

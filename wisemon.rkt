@@ -38,12 +38,12 @@
 (define wisemon-make : (->* (Wisemon-Specification)
                             ((U (Listof Path-String) Regexp)
                              #:keep-going? Boolean #:dry-run? Boolean #:always-run? Boolean #:just-touch? Boolean
-                             #:jobs Positive-Integer #:name Symbol #:cd Path-String
+                             #:jobs Positive-Integer #:name (Option Symbol) #:cd Path-String
                              #:assume-old (Listof Path-String) #:assume-new (Listof Path-String))
                             Void)
   (lambda [specs [targets null]
                  #:keep-going? [keep-going? #false] #:dry-run? [dry-run? #false] #:always-run? [always-run? #false] #:just-touch? [just-touch? #false]
-                 #:jobs [jobs (processor-count)] #:name [the-name 'wisemon] #:cd [cd (current-directory)]
+                 #:jobs [jobs (processor-count)] #:name [name #false] #:cd [cd (current-directory)]
                  #:assume-old [oldfiles null] #:assume-new [newfiles null]]
     (when (or (pair? specs) (pair? targets) (regexp? targets))
       (parameterize ([current-directory cd])
@@ -52,7 +52,8 @@
           (cond [(pair? targets) (map simple-form-path targets)]
                 [(regexp? targets) (wisemon-targets-flatten specs targets)]
                 [else (wisemon-targets-flatten specs #false)]))
-
+        (define the-name : Symbol (or name 'wisemon))
+        
         (for ([t (in-list all-targets)])
           (with-handlers ([exn:wisemon? (λ [[e : exn:wisemon]] (if (not keep-going?) (raise e) (dtrace-warn-exception the-name e)))])
             (wisemon-make-target specs t the-name oldfiles-cache dry-run? always-run? just-touch?

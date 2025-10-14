@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require "../parameter.rkt")
+(require "../cmdname.rkt")
 (require "../phony.rkt")
 
 (require "../spec.rkt")
@@ -37,20 +38,20 @@
                     (when (and pwd (directory-exists? pwd))
                       (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook.scrbl))
                       
-                      (dtrace-note "~a ~a: ~a" the-name (current-make-phony-goal) ./handbook)
+                      (dtrace-note "~a ~a: ~a" (the-cmd-name) (current-make-phony-goal) ./handbook)
                       
                       (parameterize ([current-directory pwd]
                                      [current-namespace (make-base-namespace)])
                         (if (equal? (path-get-extension ./handbook) #".rkt")
                             (parameterize ([exit-handler (λ [[retcode : Any]]
                                                            (when (and (exact-integer? retcode) (<= 1 retcode 255))
-                                                             (error the-name "~a ~a: [error] ~a breaks ~a!"
-                                                                    the-name (current-make-phony-goal) ./handbook (~n_w retcode "sample"))))])
+                                                             (error (the-cmd-name) "~a ~a: [error] ~a breaks ~a!"
+                                                                    (the-cmd-name) (current-make-phony-goal) ./handbook (~n_w retcode "sample"))))])
                               (define modpath `(submod ,handbook.scrbl main))
                               (when (module-declared? modpath #true)
                                 (dynamic-require `(submod ,handbook.scrbl main) #false)))
-                            (parameterize ([exit-handler (λ _ (error the-name "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
-                                                                     the-name (current-make-phony-goal) ./handbook))])
+                            (parameterize ([exit-handler (λ _ (error (the-cmd-name) "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
+                                                                     (the-cmd-name) (current-make-phony-goal) ./handbook))])
                               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
                               (eval `(define (multi-html:render handbook.scrbl #:dest-dir dest-dir)
                                        (define scribble.doc (dynamic-require handbook.scrbl 'doc))

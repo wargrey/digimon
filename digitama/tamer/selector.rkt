@@ -48,9 +48,9 @@
                          (map abs seq:excludes)
                          (filter bs-regexp? (map unbox reg:excludes))))))
 
-(define make-user-specified-selector : (-> (Listof Handbook-Chapter-Index) Boolean Handbook-Selector)
-  (lambda [seqs flatten?]
-    (handbook-selector #false #true flatten? #true
+(define make-user-specified-selector : (-> (Listof Handbook-Chapter-Index) Boolean Boolean Handbook-Selector)
+  (lambda [seqs flatten? strip?]
+    (handbook-selector #false (not strip?) flatten? (not strip?)
                        seqs null null null)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -144,8 +144,8 @@
                                         (Listof (Pairof Part Handbook-Chapter-Index))
                                         (Listof Part)
                                         (Listof Part)))
-  (lambda [volume selector dtrace]
-    (define chapter-match? (handbook-selector->predicate selector))
+  (lambda [volume op.cfg dtrace]
+    (define chapter-match? (handbook-selector->predicate op.cfg))
     
     (let offprint ([children : (Listof Part) (part-parts volume)]
                    [part-idx : Handbook-Chapter-Index 0]
@@ -170,7 +170,7 @@
                    (offprint rest part-idx chpt-idx sretpahc secaferp sunob (cons self post-skooh) appendix-part)]
                   
                   ; flatten parts if requested
-                  [(and (memq 'grouper prps) (handbook-selector-intra-part? selector))
+                  [(and (memq 'grouper prps) (handbook-selector-intra-part? op.cfg))
                    (if (memq 'fin prps)
                        (begin ; begin back body
                          (dtrace 'debug "BACK~a: ~a ~a" prps title tags)
@@ -198,7 +198,7 @@
                             (dtrace 'debug "~a: ~a ~a" idx title tags)
                             (offprint rest part-idx (or idx chpt-idx) sretpahc secaferp sunob post-skooh appendix-part)]))]))
           
-          (values (cond [(handbook-selector-preface? selector) (reverse secaferp)]
+          (values (cond [(handbook-selector-preface? op.cfg) (reverse secaferp)]
                         [(null? secaferp) null]
                         [else (let search-latex-hooks ([skcolb : (Listof Block) (reverse (part-blocks (car secaferp)))]
                                                        [hook-blocks : (Listof Block) null])
@@ -220,4 +220,4 @@
                   (if (and appendix-part)
                       (append (reverse post-skooh) (list appendix-part))
                       (reverse post-skooh))
-                  (if (handbook-selector-bonus? selector) (reverse sunob) null))))))
+                  (if (handbook-selector-bonus? op.cfg) (reverse sunob) null))))))

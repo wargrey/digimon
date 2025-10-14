@@ -5,52 +5,13 @@
 (require "../parameter.rkt")
 
 (require "../../wisemon/phony/typeset.rkt")
-(require (only-in "../../wisemon/parameter.rkt"
-                  current-make-real-targets
-                  current-make-phony-goal))
+(require "../../wisemon/parameter.rkt")
 
 (require "../../../filesystem.rkt")
 
 (require "../../../digitama/exec.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/collection.rkt")
-
-(require "../../../digitama/tamer/selector.rkt")
-
-(require "../../../cmdopt.rkt")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cmdopt-string->chapter-index : (-> Symbol String (U Positive-Index Char))
-  (lambda [option s]
-    (if (= (string-length s) 1)
-        (let ([idx (string-ref s 0)])
-          (cond [(char<=? #\A idx #\Z) idx]
-                [(char<=? #\a idx #\z) (char-upcase idx)]
-                [else (cmdopt-string+>index option s)]))
-        (cmdopt-string+>index option s))))
-
-(define-cmdlet-option scrbl-flags #: Scrbl-Flags
-  #:program '|wizarmon scrbl|
-  #:args args
-
-  #:usage-help "set and overload the offprint configuration"
-  #:once-each
-  [[(#\f flatten) "perform a granular offprinting"]]
-  #:multi
-  [[(chapter seq) #:=> cmdopt-string->chapter-index id #: Handbook-Chapter-Index  "build the part or chapter whose number is ~1"]])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define shell-typeset/flags : (-> Path Symbol Any)
-  (lambda [path.scrbl lang-name]
-    (define-values (options λargv) (parse-scrbl-flags))
-
-    (cond [(scrbl-flags-help? options) (display-scrbl-flags)]
-          [(pair? (scrbl-flags-chapter options))
-           (let ([selector (make-user-specified-selector (scrbl-flags-chapter options) (scrbl-flags-flatten options))])
-             (parameterize ([current-user-specified-selector selector]
-                            [current-user-request-no-volume? #true])
-               (shell-typeset path.scrbl lang-name)))]
-          [else (shell-typeset path.scrbl lang-name)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-typeset : (-> Path Symbol Any)
@@ -60,7 +21,8 @@
                               (or (path-only path.scrbl)
                                   (current-directory))))
 
-    (parameterize ([current-make-phony-goal 'exec]
+    (parameterize ([make-verbose (wizarmon-verbose)]
+                   [current-make-phony-goal 'exec]
                    [current-make-real-targets (list path.scrbl)]
                    [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
@@ -71,10 +33,7 @@
                                   (pkg-info-ref maybe-info))))
 
       (when (pair? all-typesettings)
-        (define-values (always-files ignored-files specs targets)
-          (make-typeset-specs+targets the-name all-typesettings (wizarmon-verbose)))
-      
-        (make-typeset specs always-files ignored-files targets (wizarmon-remake))
+        (define targets (make-typeset all-typesettings (wizarmon-remake)))
 
         (let try-open ([targets : (Listof Path) targets])
           (when (pair? targets)

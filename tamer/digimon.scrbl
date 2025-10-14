@@ -10,4 +10,4 @@
 
 @handbook-smart-table[]
 
-@handbook-appendix[]
+@handbook-bonus-appendix[]

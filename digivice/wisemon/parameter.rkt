@@ -3,14 +3,12 @@
 (provide (all-defined-out))
 
 (require racket/future)
+(require typed/racket/unsafe)
 
-(require/typed/provide
+(unsafe-require/typed/provide
  setup/option
  [compiler-verbose (Parameterof Boolean)]
  [parallel-workers (Parameterof Positive-Integer)])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define the-name 'wisemon)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define current-make-real-targets : (Parameterof (Listof Path)) (make-parameter null))

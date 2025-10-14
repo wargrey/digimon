@@ -6,8 +6,8 @@
 (require "../problem.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
-(require (only-in "../../wisemon/parameter.rkt"
-                  current-make-real-targets))
+(require "../../wisemon/parameter.rkt")
+(require "../../wisemon/cmdname.rkt")
 
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")
@@ -40,7 +40,7 @@
       (if (and cc-specs.launchers (pair? (cdr cc-specs.launchers)) (pair? targets))
           (let*-values ([(cc-specs launcher) (values (car cc-specs.launchers) (cdadr cc-specs.launchers))]
                         [(extra-libraries) (map path->complete-path (map path-normalize/system (c-path-flatten (cc-launcher-info-libpaths launcher))))])
-            (wisemon-make cc-specs targets #:name the-name #:keep-going? #false #:always-run? (wizarmon-remake))
+            (wisemon-make cc-specs targets #:name (the-cmd-name) #:keep-going? #false #:always-run? (wizarmon-remake))
             (define self-env : (Option Environment-Variables)
               (and (pair? extra-libraries)
                    (let ([env (environment-variables-copy (current-environment-variables))]
@@ -49,7 +49,7 @@
                                   [(unix) #"LD_LIBRARY_PATH"]
                                   [else #"PATH"])])
                      (environment-variables-push-path! env #:name epath extra-libraries)
-                     (dtrace-notice #:topic the-name "${~a}: ~a" epath (environment-variables-ref env epath))
+                     (dtrace-notice #:topic (the-cmd-name) "${~a}: ~a" epath (environment-variables-ref env epath))
                      env)))
 
             (parameterize ([current-environment-variables (or self-env (current-environment-variables))])

@@ -155,7 +155,8 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null])))
+        ...
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
@@ -211,7 +212,8 @@
               (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
               (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
               (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
-              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))) ...
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null])))
+        ...
         pre-contents ...)
      (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:figure image #:figure-vspace distance
@@ -231,39 +233,60 @@
     [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
               (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
+              (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:document-options options) #:defaults ([options #'#false]))
+              (~optional (~seq #:tex-citecolor cite-color) #:defaults ([cite-color #''green]))
+              (~optional (~seq #:tex-filecolor file-color) #:defaults ([file-color #''magenta]))
+              (~optional (~seq #:tex-linkcolor link-color) #:defaults ([link-color #''cyan])) ; internal links
+              (~optional (~seq #:tex-urlcolor url-color) #:defaults ([url-color #''blue]))    ; external links
+              (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
+              (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
+              (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
               (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         contents ...)
      (quasisyntax/loc stx
-       (begin (tamer-taming-start! scribble)
-
-              (tamer-bibtex-load tex-bib)
+       (let ([tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)]
+             [tex.bib (and tex-bib (simple-form-path tex-bib))])
+         (tamer-taming-start! scribble)
+         (tamer-bibtex-load tex-bib)
               
-              (define-footnote ~endnote ~endnote-section)
-              (tamer-endnote ~endnote)
-              (tamer-endnote-section ~endnote-section)
+         (define-footnote ~endnote ~endnote-section)
+         (tamer-endnote ~endnote)
+         (tamer-endnote-section ~endnote-section)
 
-              (when (or counter-step?)
-                (tamer-index-story
-                 (cons (add1 (car (tamer-index-story)))
-                       (tamer-story))))
-
-              (title #:tag (or tag (tamer-story->tag (tamer-story)))
-                     #:style (cond [(not tex-bib) style]
-                                   [(not style) (make-style #false (list (simple-form-path tex-bib)))]
-                                   [(string? style) (make-style style (list (simple-form-path tex-bib)))]
-                                   [(symbol? style) (make-style #false (list style (simple-form-path tex-bib)))]
-                                   [(list? style) (make-style #false (cons (simple-form-path tex-bib) style))]
-                                   [else (style-attach-property style (simple-form-path tex-bib))])
-                     (let ([story-literal (speak 'story #:dialect 'tamer)]
-                           [input-contents (list contents ...)])
-                       (cond [(string=? story-literal "") input-contents]
-                             [else (list* (literal story-literal ":")) ~ input-contents])))))]))
+         (when (or counter-step?)
+           (tamer-index-story
+            (cons (add1 (car (tamer-index-story)))
+                  (tamer-story))))
+         
+         (title #:tag (or tag (tamer-story->tag (tamer-story)))
+                #:style (cond [(not style) (make-style #false (list tex-info tex.bib book-index-style-properties))]
+                              [(string? style) (make-style style (list tex-info tex.bib book-index-style-properties))]
+                              [(symbol? style) (make-style #false (list style tex-info tex.bib book-index-style-properties))]
+                              [(list? style) (make-style #false (list* tex-info tex.bib style book-index-style-properties))]
+                              [(or tex-bib) (style-attach-property style tex-info tex.bib book-index-style-properties)]
+                              [else (style-attach-property style tex-info book-index-style-properties)])
+                (let ([story-literal (speak 'story #:dialect 'tamer)]
+                      [input-contents (list contents ...)])
+                  (cond [(string=? story-literal "") input-contents]
+                        [else (list* (literal story-literal ":")) ~ input-contents])))))]))
 
 (define-syntax (handbook-part stx)
   (syntax-parse stx #:literals []
     [(_ (~alt (~optional (~seq #:style style) #:defaults ([style #'#false]))
               (~optional (~seq #:counter-step? counter-step?) #:defaults ([counter-step? #'#false]))
+              (~optional (~seq #:documentclass doclass) #:defaults ([doclass #'#false]))
+              (~optional (~seq #:document-options options) #:defaults ([options #'#false]))
+              (~optional (~seq #:tex-citecolor cite-color) #:defaults ([cite-color #''green]))
+              (~optional (~seq #:tex-filecolor file-color) #:defaults ([file-color #''magenta]))
+              (~optional (~seq #:tex-linkcolor link-color) #:defaults ([link-color #''cyan])) ; internal links
+              (~optional (~seq #:tex-urlcolor url-color) #:defaults ([url-color #''blue]))    ; external links
+              (~optional (~seq #:tex-CJK? CJK?) #:defaults ([CJK? #'#true]))
+              (~optional (~seq #:tex-package tex-load) #:defaults ([tex-load #'#false]))
+              (~optional (~seq #:tex-style tex-style) #:defaults ([tex-style #'#false]))
+              (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null]))
               (~optional (~seq #:bibtex tex-bib) #:defaults ([tex-bib #'#false])))
         ...
         pre-contents ...)
@@ -273,6 +296,11 @@
        ; whereas the the `tamer-story` is different from the `tamer-index-story`
        (handbook-story #:counter-step? counter-step?
                        #:style (style-merge-property style grouper-style)
+                       #:documentclass doclass #:document-options options #:tex-CJK? CJK?
+                       #:tex-urlcolor url-color #:tex-linkcolor link-color
+                       #:tex-citecolor cite-color #:tex-filecolor file-color
+                       #:tex-style tex-style #:tex-extra-files tex-extra-files
+                       #:tex-package tex-load
                        #:bibtex tex-bib
                        pre-contents ...))]))
 
