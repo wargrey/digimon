@@ -45,13 +45,13 @@
                         (if (equal? (path-get-extension ./handbook) #".rkt")
                             (parameterize ([exit-handler (λ [[retcode : Any]]
                                                            (when (and (exact-integer? retcode) (<= 1 retcode 255))
-                                                             (error (the-cmd-name) "~a ~a: [error] ~a breaks ~a!"
-                                                                    (the-cmd-name) (current-make-phony-goal) ./handbook (~n_w retcode "sample"))))])
+                                                             (error (the-cmd-name) "~a: [error] ~a breaks ~a!"
+                                                                    (current-make-phony-goal) ./handbook (~n_w retcode "sample"))))])
                               (define modpath `(submod ,handbook.scrbl main))
                               (when (module-declared? modpath #true)
                                 (dynamic-require `(submod ,handbook.scrbl main) #false)))
-                            (parameterize ([exit-handler (λ _ (error (the-cmd-name) "~a ~a: [fatal] ~a needs a proper `exit-handler`!"
-                                                                     (the-cmd-name) (current-make-phony-goal) ./handbook))])
+                            (parameterize ([exit-handler (λ _ (error (the-cmd-name) "~a: [fatal] ~a needs a proper `exit-handler`!"
+                                                                     (current-make-phony-goal) ./handbook))])
                               (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
                               (eval `(define (multi-html:render handbook.scrbl #:dest-dir dest-dir)
                                        (define scribble.doc (dynamic-require handbook.scrbl 'doc))
