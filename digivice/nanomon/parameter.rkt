@@ -13,6 +13,7 @@
 
 (define nanomon-errno : (Parameterof Byte) (make-parameter 1))
 (define nanomon-verbose : (Parameterof Boolean) (make-parameter #false))
+(define nanomon-debug : (Parameterof Boolean) (make-parameter #false))
 (define nanomon-silent : (Parameterof Boolean) (make-parameter #false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -20,5 +21,6 @@
   (lambda []
     (nanomon-errno 1)
     (nanomon-verbose #false)
+    (nanomon-debug #false)
     (nanomon-silent #false)
     (pretty-print-columns the-print-width)))

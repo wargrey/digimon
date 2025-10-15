@@ -49,7 +49,7 @@
                            #:- (c-compile #:standard standard #:cpp? cpp? #:compilers compilers
                                           #:includes (cons rootdir includes)
                                           #:macros (cons '__racket__ macros)
-                                          #:verbose? (compiler-verbose)
+                                          #:verbose? (make-trace-log)
                                           c c.o))
 
              (cond [(or contained-in-package? (and ffi? (not (member c ex-shared-objects))))
@@ -60,7 +60,7 @@
                                           #:- (c-link #:linkers compilers #:cpp? cpp?
                                                       #:subsystem #false #:entry #false
                                                       #:libpaths libpaths #:libraries libraries
-                                                      #:verbose? (compiler-verbose)
+                                                      #:verbose? (make-trace-log)
                                                       objects c.so))
                             specs))]
                    [else specs])))))

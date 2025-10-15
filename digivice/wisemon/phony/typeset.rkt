@@ -4,7 +4,6 @@
 
 (require racket/list)
 (require racket/symbol)
-(require racket/string)
 
 (require "../../../digitama/tamer/scrbl.rkt")
 (require "../../../digitama/tamer/stat.rkt")
@@ -18,7 +17,7 @@
 (require "../../../filesystem.rkt")
 (require "../../../scribble.rkt")
 
-(require "../../wisemon/cmdname.rkt")
+(require "../../wisemon/display.rkt")
 (require "../parameter.rkt")
 (require "../ffi.rkt")
 (require "../phony.rkt")
@@ -32,7 +31,7 @@
 
 (unsafe-require/typed
  "../../../digitama/tamer/documentclass.rkt"
- [handbook-tex-inspect (-> Path Scribble-Message (Option Part))])
+ [handbook-tex-inspect (-> Path Scribble-Message Boolean (Option Part))])
 
 (module unsafe racket/base
   (provide (all-defined-out))
@@ -80,7 +79,7 @@
 (struct tex-info
   ([path : Path]
    [engine : (Option Symbol)]
-   [name : (Option String)]
+   [alias : (Option String)]
    [dependencies : (Listof (U Regexp Byte-Regexp))]
    [options : (Listof Keyword)]
    [selector : (Option Handbook-Selector)]
@@ -90,7 +89,7 @@
 
 (struct tex-desc
   ([volume.scrbl : Path]
-   [alt-name : (Option String)]
+   [alias : (Option String)]
    [subdir : Path]
    [self.out : Path]
    [self.tex : Path])
@@ -148,8 +147,8 @@
               [else (values always-selves ignored-selves)])))))
 
 (define digimon-typeset-desc : (-> Path (Option String) (Option String) Bytes Tex-Desc)
-  (lambda [self.scrbl alt-name destdir extension]
-    (define TEXNAME.scrbl (or (and alt-name (path-replace-filename self.scrbl (string-append alt-name ".hack-for-dotted-name"))) self.scrbl))
+  (lambda [self.scrbl alias destdir extension]
+    (define TEXNAME.scrbl (or (and alias (path-replace-filename self.scrbl (string-append alias ".hack-for-dotted-name"))) self.scrbl))
     (define TEXNAME.out : Path (assert (tex-document-destination #:extension extension #:dest-dirname destdir TEXNAME.scrbl #true)))
     
     (define basename (assert (file-name-from-path TEXNAME.out)))
@@ -157,7 +156,7 @@
     (define TEXNAME.sub (build-path (assert (path-only TEXNAME.out)) subdir basename))
     (define TEXNAME.tex (path-replace-extension TEXNAME.sub #".tex"))
 
-    (tex-desc self.scrbl alt-name subdir
+    (tex-desc self.scrbl alias subdir
               TEXNAME.out TEXNAME.tex)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -219,20 +218,20 @@
                      (cond [(list? specs) specs]
                            [else (list specs)]))))))
 
-(define make-typesetting-specs : (-> (Listof Tex-Info) Wisemon-Scribble->Specification Wisemon-Scribble->Extension
+(define make-typesetting-specs : (-> (Listof Tex-Info) Boolean Wisemon-Scribble->Specification Wisemon-Scribble->Extension
                                      (Values (Listof Path) (Listof Path) Wisemon-Specification))
-  (lambda [typesettings make-specs engine-extension]
+  (lambda [typesettings adjust? make-specs engine-extension]
     (define zonedir : Path (digimon-path 'zone))
 
     (for/fold ([always-files : (Listof Path) null]
                [ignored-files : (Listof Path) null]
                [specs : Wisemon-Specification null])
               ([typesetting (in-list typesettings)])
-      (define-values (TEXNAME.scrbl maybe-name) (values (tex-info-path typesetting) (tex-info-name typesetting)))
+      (define-values (TEXNAME.scrbl alias) (values (tex-info-path typesetting) (tex-info-alias typesetting)))
       (define engine (or (tex-info-engine typesetting) tex-fallback-engine))
-      (define volume-desc : Tex-Desc (digimon-typeset-desc TEXNAME.scrbl maybe-name #false (engine-extension engine)))
+      (define volume-desc : Tex-Desc (digimon-typeset-desc TEXNAME.scrbl alias #false (engine-extension engine)))
       (define this-name (assert (file-name-from-path TEXNAME.scrbl)))
-      (define dtrace-msg (typeset-dtrace engine this-name))
+      (define dtrace-msg (make-wisemon-dtrace engine this-name))
       
       (unless (tex-info-engine typesetting)
         (dtrace-warning #:topic (the-cmd-name) #:prefix? #false
@@ -244,11 +243,11 @@
                      [current-command-line-arguments (tex-info-extra-argv typesetting)]
                      [exit-handler (λ _ (error (the-cmd-name) "~a: [fatal] ~a needs a proper `exit-handler`!"
                                                (current-make-phony-goal) (find-relative-path zonedir TEXNAME.scrbl)))])
-        (define scrbl.doc (handbook-tex-inspect TEXNAME.scrbl dtrace-msg))
+        (define scrbl.doc (handbook-tex-inspect TEXNAME.scrbl dtrace-msg adjust?))
         (define-values (this-always this-ignored this-specs)
           (if (or scrbl.doc)
               (make-typesetting-scrbl-specs TEXNAME.scrbl scrbl.doc volume-desc typesetting engine dtrace-msg make-specs)
-              (make-typesetting-raw-tex-specs TEXNAME.scrbl volume-desc typesetting engine)))
+              (make-typesetting-raw-tex-specs TEXNAME.scrbl volume-desc typesetting engine dtrace-msg)))
         
         (values (append always-files this-always)
                 (append ignored-files this-ignored)
@@ -273,10 +272,10 @@
     texinfos))
 
 (define make-typeset : (->* ((Pairof Tex-Info (Listof Tex-Info)) Boolean)
-                            (Wisemon-Scribble->Specification Wisemon-Scribble->Extension)
+                            (Boolean Wisemon-Scribble->Specification Wisemon-Scribble->Extension)
                             (Listof Path))
-  (lambda [typesettings always-run? [make-specs typeset-scrbl-specs] [engine-ext typeset-engine-extension]]
-    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings make-specs engine-ext))
+  (lambda [typesettings always-run? [adjust? #true] [make-specs typeset-scrbl-specs] [engine-ext typeset-engine-extension]]
+    (define-values (always-files ignored-files specs) (make-typesetting-specs typesettings adjust? make-specs engine-ext))
     (define targets (wisemon-targets-flatten specs))
     
     (parameterize ([make-assumed-oldfiles (append always-files (make-assumed-oldfiles))]
@@ -292,8 +291,8 @@
       (void (make-typeset typesettings (make-always-run))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol (Values (Listof Path) (Listof Path) (List Wisemon-Spec)))
-  (lambda [VOLUME.tex volume-desc typesetting engine]
+(define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol Scribble-Message (Values (Listof Path) (Listof Path) (List Wisemon-Spec)))
+  (lambda [VOLUME.tex volume-desc typesetting engine dtrace-msg]
     (define dependencies (tex-info-dependencies typesetting))
     (define scrbl-deps (filter file-exists? #| <- say, commented out includes |# (tex-smart-dependencies VOLUME.tex)))
     (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) (digimon-path 'zone)) null))
@@ -304,28 +303,28 @@
     (values always-files ignored-files
             (list (wisemon-spec (tex-desc-self.out volume-desc) #:^ all-deps #:-
                                 (define dest-dir : Path (assert (path-only (tex-desc-self.out volume-desc))))
-                                
-                                (typeset-note engine (tex-info-name typesetting) VOLUME.tex)
+
                                 (tex-render #:dest-subdir (tex-desc-subdir volume-desc) #:fallback tex-fallback-engine #:enable-filter #false
-                                            #:halt-on-error? (make-verbose) #:shell-escape? #false
+                                            #:halt-on-error? (make-trace-log) #:shell-escape? #false
                                             #:dest-copy? #false
                                             engine VOLUME.tex dest-dir))))))
 
 (define typeset-scrbl-specs : Wisemon-Scribble->Specification
-  (lambda [engine scrbl.doc desc all-deps dtrace-msg]
-    (define hook.rktl : Path (path-replace-extension (tex-desc-volume.scrbl desc) #".rktl"))
+  (lambda [engine scrbl.doc volume-desc all-deps dtrace-msg]
+    (define hook.rktl : Path (path-replace-extension (tex-desc-volume.scrbl volume-desc) #".rktl"))
     
-    (list (wisemon-spec (tex-desc-self.out desc) #:^ (list (tex-desc-self.tex desc)) #:-
-                        (tex-render #:dest-subdir (tex-desc-subdir desc) #:fallback tex-fallback-engine #:enable-filter #true
-                                    #:halt-on-error? (make-verbose) #:shell-escape? #false
+    (list (wisemon-spec (tex-desc-self.out volume-desc) #:^ (list (tex-desc-self.tex volume-desc)) #:-
+                        (tex-render #:dest-subdir (tex-desc-subdir volume-desc) #:fallback tex-fallback-engine #:enable-filter #true
+                                    #:halt-on-error? (make-trace-log) #:shell-escape? #false
                                     #:dest-copy? #false
-                                    engine (tex-desc-self.tex desc) (assert (path-only (tex-desc-self.out desc))))
+                                    engine (tex-desc-self.tex volume-desc) (assert (path-only (tex-desc-self.out volume-desc))))
                         
                         (handbook-display-metrics dtrace-msg 'note (handbook-stats scrbl.doc 'latex)))
           
-          (wisemon-spec (tex-desc-self.tex desc) #:^ (append (if (file-exists? hook.rktl) (list hook.rktl) null) all-deps) #:-
-                        (typeset-note engine (tex-desc-alt-name desc) (tex-desc-volume.scrbl desc))
-                        (handbook-tex-render (tex-desc-volume.scrbl desc) scrbl.doc (tex-desc-self.tex desc) hook.rktl dtrace-msg)))))
+          (wisemon-spec (tex-desc-self.tex volume-desc) #:^ (append (if (file-exists? hook.rktl) (list hook.rktl) null) all-deps) #:-
+                        (handbook-tex-render (tex-desc-volume.scrbl volume-desc) scrbl.doc
+                                             (tex-desc-self.tex volume-desc) hook.rktl
+                                             dtrace-msg)))))
 
 (define typeset-engine-extension : Wisemon-Scribble->Extension
   (lambda [engine]
@@ -358,14 +357,14 @@
     (let*-values ([(maybe-offprints rest) (partition typeset-offprint? (if (list? argv) argv (list argv)))]
                   [(maybe-engines rest) (partition symbol? rest)]
                   [(maybe-options rest) (partition keyword? rest)]
-                  [(maybe-names rest) (partition string? rest)]
+                  [(aliass rest) (partition string? rest)]
                   [(dependencies rest) (partition bs-regexp? rest)])
       (tex-info setting.scrbl
                 (let check : (Option Symbol) ([engines : (Listof Symbol) maybe-engines])
                   (and (pair? engines)
                        (cond [(memq (car engines) candidates) (car engines)]
                              [else (check (cdr engines))])))
-                (and (pair? maybe-names) (car maybe-names))
+                (and (pair? aliass) (car aliass))
                 dependencies
                 maybe-options
                 (and (pair? maybe-offprints)
@@ -376,20 +375,6 @@
                    (cond [(list? arg) (append argv (for/list : (Listof String) ([a (in-list arg)]) (format "~a" a)))]
                          [(vector? arg) (append argv (for/list : (Listof String) ([a (in-vector arg)]) (format "~a" a)))]
                          [else argv])))))))
-
-(define typeset-note : (-> Symbol (Option String) Path Void)
-  (lambda [engine maybe-name TEXNAME.scrbl]
-    (if (not maybe-name)
-        (dtrace-note "~a ~a: ~a" (the-cmd-name) engine TEXNAME.scrbl)
-        (dtrace-note "~a ~a: ~a [~a]" (the-cmd-name) engine TEXNAME.scrbl maybe-name))))
-
-(define typeset-dtrace : (-> Symbol Path Scribble-Message)
-  (lambda [engine volume-name]
-    (λ [level fmt . argl]
-      (apply dtrace-message
-             level (string-append "~a ~a: ~a: " fmt)
-             (the-cmd-name) engine volume-name
-             argl))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tex-fallback-engine : Symbol 'xelatex)
@@ -425,4 +410,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define typeset-phony-goal : Wisemon-Phony
-  (wisemon-make-info-phony #:name 'typeset #:phony make~typeset #:desc "Typeset writting publication in PDF via LaTex"))
+  (wisemon-make-info-phony #:name 'typeset #:phony make~typeset #:desc "Typeset publications in PDF via LaTex"))

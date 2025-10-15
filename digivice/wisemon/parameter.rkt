@@ -29,8 +29,8 @@
 (define make-restore-options! : (-> Void)
   (lambda []
     (parallel-workers (processor-count))
-    (compiler-verbose #false)
-    
+
+    (make-trace-log #false)
     (make-set-verbose! #false)
     
     (make-dry-run #false)
@@ -46,4 +46,4 @@
   (lambda [switch]
     (for-each (λ [[make-verbose : (Parameterof Boolean)]]
                 (make-verbose switch))
-              (list make-verbose make-trace-log compiler-verbose))))
+              (list make-verbose compiler-verbose))))

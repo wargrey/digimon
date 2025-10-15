@@ -16,11 +16,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define handbook-tex-inspect
-  (lambda [scrbl dtrace]
+  (lambda [scrbl dtrace adjust?]
     (if (regexp-match? #px"\\.scrbl$" scrbl)
         (let ([doc (dynamic-require scrbl 'doc)])
-          (dtrace 'debug "Inspecting")
-          (struct-copy part doc [style (handbook-style-adjust doc dtrace)]))
+          (dtrace 'note "Inspecting ~a" scrbl)
+          (cond [(not adjust?) doc]
+                [else (let ([new-style (handbook-style-adjust doc dtrace)])
+                        (struct-copy part doc [style new-style]))]))
         #false)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -126,11 +128,11 @@
       (when (bytes? doptions)
         (dtrace 'note "options: ~a" doptions))
       
-      (dtrace 'debug "embed `~a` for style" (tex-desc style.tex))
+      (dtrace 'debug "embed '~a' for style" (tex-desc style.tex))
 
       (when (hash? replacements)
         (for ([(target tex) (in-hash replacements)])
-          (dtrace 'debug "embed `~a` as `~a`" (tex-desc tex) target)))
+          (dtrace 'debug "embed '~a' as '~a'" (tex-desc tex) target)))
 
       (for ([tex (in-list extra-files)])
         (dtrace 'debug "copy `~a`" (tex-desc tex))))
@@ -156,21 +158,21 @@
     (displayln "\\hypersetup{" /dev/pdfout)
     
     (when (and title)
-      (dtrace 'debug "title: ~a" title)
+      (dtrace 'note "title: ~a" title)
       
       (for ([subtitle (in-list subtitles)])
-        (dtrace 'debug "subtitle: ~a" subtitle))
+        (dtrace 'note "subtitle: ~a" subtitle))
       
       (if (null? subtitles)
           (fprintf /dev/pdfout "    pdftitle={~a},~n" title)
           (fprintf /dev/pdfout "    pdftitle={~a: ~a},~n" title (car subtitles))))
     
     (when (pair? authors)
-      (dtrace 'debug "authors: ~a" authors)
+      (dtrace 'note "authors: ~a" authors)
       (fprintf /dev/pdfout "    pdfauthor={~a},~n" (string-join authors "; ")))
 
     (when (pair? keywords)
-      (dtrace 'debug "keywords: ~a" keywords)
+      (dtrace 'note "keywords: ~a" keywords)
       (fprintf /dev/pdfout "    pdfkeywords={~a},~n" (string-join authors ", ")))
 
     (fprintf /dev/pdfout "    pdfcreator={wisemon over Scribble},~n")

@@ -4,7 +4,7 @@
 
 (require racket/pretty)
 
-(require "wisemon/cmdname.rkt")
+(require "wisemon/display.rkt")
 (require "wizarmon/parameter.rkt")
 (require "wizarmon/echo.rkt")
 (require "wizarmon/exec.rkt")
@@ -23,14 +23,15 @@
 
   #:usage-help "run source file of C/C++, Lean, Scribble/tex, Python, and more"
   #:once-each
-  [[(#\l lang)                                      lang              "treat the source as having the type ~1"]
+  [[(#\l lang)                                       lang          "treat the source as having the type ~1"]
    
-   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index    ["use ~1 as the default width for pretty printing (default: ~a)"
-                                                                       the-print-width]]
+   [(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
+                                                                    the-print-width]]
 
-   [(#\B always-remake) #:=> wizarmon-remake                          "unconditionally remake the target"]
-   [(#\s slient quiet)  #:=> wizarmon-silent                          "suppress the standard output"]
-   [(#\v verbose)       #:=> wizarmon-verbose                         "run with verbose messages"]
+   [(#\B always-remake) #:=> wizarmon-remake                       "unconditionally remake the target"]
+   [(#\s slient quiet)  #:=> wizarmon-silent                       "suppress the standard output"]
+   [(#\d debug)         #:=> wizarmon-debug                        "run with debug information"]
+   [(#\v verbose)       #:=> wizarmon-verbose                      "run with verbose messages"]
 
    
    ; The C++ extension for VSCode isn't smart enough
@@ -38,7 +39,7 @@
    ;   our task script has already run the program.
    ; Besides, in Windows, the debugger always starts another terminal
    ;   and causes the one running our task script hidden.
-   [(pretend)           #:=> cmdopt-string->byte status   #: Byte     "replace normal exit status with ~1"]])
+   [(pretend)           #:=> cmdopt-string->byte status   #: Byte  "replace normal exit status with ~1"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Path Byte)
@@ -68,7 +69,7 @@
 
     (define-values (target argv) (λargv))
     
-    (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-verbose)))])
+    (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-debug) (wizarmon-verbose)))])
       (parameterize ([current-logger /dev/dtrace]
                      [wizarmon-lang (wizarmon-flags-lang options)]
                      [pretty-print-columns (or (wizarmon-flags-print-columns options) the-print-width)]

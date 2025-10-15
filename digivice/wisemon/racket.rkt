@@ -8,7 +8,7 @@
 (require typed/setup/getinfo)
 
 (require "parameter.rkt")
-(require "cmdname.rkt")
+(require "display.rkt")
 
 (require "../../filesystem.rkt")
 (require "../../dtrace.rkt")
@@ -45,7 +45,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define compile-collection : (->* (String) (Natural) Void)
   (lambda [digimon [round 1]]
-    (define verbose! : Boolean (make-verbose))
+    (define debug! : Boolean (make-trace-log))
     (define recompiling? : Boolean (> round 1))
     (define context : Symbol 'platform)
     (set!-values (again? compiling-round) (values #false round))
@@ -57,7 +57,7 @@
                      [(platform) (when (regexp-match? #px"main collects" line) (set! context 'paths))]
                      [(paths) (when (regexp-match? #px"---" line) (set! context 'compiling))]
                      [(compiling) (when (regexp-match? #px"--- summary of errors ---" line) (set! context 'summary))])
-                   (or verbose! (not (eq? context 'paths)))
+                   (or debug! (not (eq? context 'paths)))
                    line)))
 
     (define (stderr-level [line : String]) : (Values Symbol (Option String))
@@ -78,23 +78,23 @@
 
 (define compile-directory : (->* (Path-String Info-Ref) (Natural #:for-typesetting? Boolean) Void)
   (lambda [pwd info-ref [round 1] #:for-typesetting? [for-typesetting? #false]]
-    (define verbose? : Boolean (make-verbose))
+    (define debug? : Boolean (make-trace-log))
     (define px.in : Regexp (pregexp (regexp-quote (path->string (current-directory)))))
     (define traceln (λ [[line : Any]] (dtrace-note "round[~a]: ~a" round line)))
 
     (set! again? #false)
 
-    (define (filter-verbose [info : String])
-      (cond [(regexp-match? #px"checking:" info) (when (and verbose? (regexp-match? px.in info)) (traceln info))]
+    (define (filter-trace [info : String])
+      (cond [(regexp-match? #px"checking:" info) (when (and debug? (regexp-match? px.in info)) (traceln info))]
             [(regexp-match? #px"compiling " info) (set! again? #true)]
             [(regexp-match? #px"done:" info) (when (regexp-match? px.in info) (traceln info) (set! again? #true))]
             [(regexp-match? #px"maybe-compile-zo starting" info) (traceln info)]
-            [(regexp-match? #px"(wrote|compiled|processing:|maybe-compile-zo finished)" info) '|Skip Task Endline|]
-            [(regexp-match? #px"(newer|skipping:)" info) (when (and verbose?) (traceln info))]
+            [(regexp-match? #px"(wrote|compiled|processing:|maybe-compile-zo finished)" info) (void '|Skip Task Endline|)]
+            [(regexp-match? #px"(newer|skipping:)" info) (when (and debug?) (traceln info))]
             [else (traceln info)]))
 
     (with-handlers ([exn:fail? (λ [[e : exn:fail]] (error (the-cmd-name) "[error] ~a" (exn-message e)))])
-      (parameterize ([manager-trace-handler filter-verbose]
+      (parameterize ([manager-trace-handler filter-trace]
                      [error-display-handler (λ [s e] (dtrace-error ">> ~a" s))])
         (compile-directory-zos pwd info-ref #:verbose #false #:skip-doc-sources? (not for-typesetting?))))
 
@@ -176,7 +176,7 @@
     (cond [(make-dry-run)
            (case level
              [(info) (echof #:fgcolor info-color "~a~n" message)])]
-          [(make-trace-log)
+          [(or (make-verbose) (make-trace-log))
            (case level
              [(note) (echof #:fgcolor 246 "~a~n" message)]
              [(info) (echof #:fgcolor info-color "~a~n" message)]
@@ -198,6 +198,6 @@
   (lambda []
     (make-dtrace-loop #:topic-receivers (list (cons 'setup/parallel-build racket-setup-event-echo))
                       #:default-receiver racket-event-echo
-                      (cond [(make-verbose) 'trace]
-                            [(make-trace-log) 'note]
+                      (cond [(make-trace-log) 'trace]
+                            [(make-verbose) 'note]
                             [else 'info]))))

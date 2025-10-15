@@ -3,7 +3,7 @@
 (provide (all-defined-out))
 
 (require "../parameter.rkt")
-(require "../cmdname.rkt")
+(require "../display.rkt")
 (require "../phony.rkt")
 
 (require "../spec.rkt")
@@ -14,7 +14,6 @@
 (require "../../../digitama/exec.rkt")
 
 (require "../../../digitama/minimal/format.rkt")
-(require "../../../digitama/minimal/dtrace.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-handbooks : (-> Info-Ref (Listof Path))
@@ -38,7 +37,7 @@
                     (when (and pwd (directory-exists? pwd))
                       (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook.scrbl))
                       
-                      (dtrace-note "~a ~a: ~a" (the-cmd-name) (current-make-phony-goal) ./handbook)
+                      (wisemon-note (current-make-phony-goal) handbook.scrbl)
                       
                       (parameterize ([current-directory pwd]
                                      [current-namespace (make-base-namespace)])

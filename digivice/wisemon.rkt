@@ -5,7 +5,7 @@
 (require racket/path)
 
 (require "wisemon/parameter.rkt")
-(require "wisemon/cmdname.rkt")
+(require "wisemon/display.rkt")
 (require "wisemon/racket.rkt")
 (require "wisemon/phony.rkt")
 

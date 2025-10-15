@@ -7,7 +7,7 @@
 
 (require "../../wisemon/phony/cc.rkt")
 (require "../../wisemon/parameter.rkt")
-(require "../../wisemon/cmdname.rkt")
+(require "../../wisemon/display.rkt")
 
 (require "../../../wisemon.rkt")
 (require "../../../environ.rkt")

@@ -13,12 +13,11 @@
 (require "../phony.rkt")
 (require "../racket.rkt")
 (require "../parameter.rkt")
-(require "../cmdname.rkt")
+(require "../display.rkt")
 
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/exec.rkt")
 
-(require "../../../digitama/minimal/dtrace.rkt")
 (require "../../../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -48,7 +47,7 @@
                   (wisemon-spec target #:^ (filter file-exists? (list* (digimon-path 'info) (scribble-smart-dependencies readme.scrbl))) #:-
                                 (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
 
-                                (dtrace-note "~a dist: ~a" (the-cmd-name) ./readme.scrbl)
+                                (wisemon-note (current-make-phony-goal) readme.scrbl)
                                 
                                 (parameterize ([current-namespace (make-base-namespace)]
                                                [current-input-port /dev/eof] ; tell scribble this is rendering to markdown

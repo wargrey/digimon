@@ -9,6 +9,7 @@
 (require "../filesystem.rkt")
 (require "../port.rkt")
 
+(require "privacy.rkt")
 (require "minimal/system.rkt")
 (require "minimal/string.rkt")
 (require "minimal/symbol.rkt")
@@ -305,7 +306,7 @@
             [(environment-variables? alt-env) alt-env]
             [else (alt-env)]))
     
-    (dtrace-info #:topic operation "~a ~a" program (string-join args))
+    (dtrace-info #:topic operation "~a ~a" program (string-join (tr-path-arguments args)))
 
     (pre-fork)
     (cond [(not subenv) (apply subprocess #false #false #false program args)]

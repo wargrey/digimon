@@ -244,6 +244,3 @@
 (define ~github
   (lambda [projname username]
     (format "https://github.com/~a/~a" username projname)))
-
-(define tr-d (λ [p] (string-replace p (path->string (digimon-path 'zone)) "")))
-(define tr-if-path (λ [p] (if (path? p) (build-path (tr-d (format "~a" p))) p)))

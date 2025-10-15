@@ -8,6 +8,7 @@
 (require "typeset/engine.rkt")
 (require "typeset/exec.rkt")
 (require "typeset/tex.rkt")
+(require "privacy.rkt")
 (require "exec.rkt")
 
 (require "../filesystem.rkt")
@@ -53,7 +54,7 @@
               (unless (directory-exists? dest-dir)
                 (fg-recon-mkdir engine dest-dir))
               
-              (dtrace-info #:topic engine "(~a ~a)" (object-name preamble-filter) src.tex)
+              (dtrace-info #:topic engine "(~a ~a)" (object-name preamble-filter) (tr-d src.tex))
               
               (with-handlers ([exn? (λ [[e : exn]] (fg-recon-handler engine e (λ [] (custodian-shutdown-all (current-custodian)))))])
                 (define /dev/texin : Input-Port

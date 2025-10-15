@@ -6,19 +6,20 @@
 (require "../../continuation.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-wizarmon-log-trace : (-> Boolean (-> Void))
-  (lambda [verbose?]
-    (make-dtrace-loop #:default-receiver (wizarmon-event-echo verbose?)
-                      (cond [(or verbose?) 'trace]
+(define make-wizarmon-log-trace : (-> Boolean Boolean (-> Void))
+  (lambda [debug? verbose?]
+    (make-dtrace-loop #:default-receiver (wizarmon-event-echo debug? verbose?)
+                      (cond [(or debug?) 'trace]
+                            [(or verbose?) 'note]
                             [else 'info]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define wizarmon-event-echo : (-> Boolean Dtrace-Receiver)
-  (lambda [verbose?]
+(define wizarmon-event-echo : (-> Boolean Boolean Dtrace-Receiver)
+  (lambda [debug? verbose?]
     (λ [level message urgent topic]
       (dtrace-event-echo level message urgent topic)
 
-      (when (and (exn:fail? urgent) verbose?)
+      (when (and (exn:fail? urgent) (or debug? verbose?))
         (let ([/dev/stderr (open-output-string)])
           (display-continuation-stacks urgent /dev/stderr)
           (let ([errmsg (get-output-string /dev/stderr)])

@@ -10,7 +10,7 @@
 (require "tag.rkt")
 (require "backend.rkt")
 
-(require "../tamer.rkt")
+(require "../privacy.rkt")
 (require "../../emoji.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -31,7 +31,7 @@
   
 (define handbook-colorful-filebox
   (lambda [#:tag [tag #false] #:path-centerized? [ct? #false] latex? /path/file block]
-    (define filename (path->string (tr-if-path /path/file)))
+    (define filename (tr-d /path/file))
     
     (centered
      (if (not latex?)

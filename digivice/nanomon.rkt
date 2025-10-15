@@ -23,6 +23,7 @@
   [[(#\w print-columns) #:=> cmdopt-string+>index columns #: Index ["use ~1 as the default width for pretty printing (default: ~a)"
                                                                     the-print-width]]
    [(#\s slient quiet)  #:=> nanomon-silent                        "suppress lang's standard output"]
+   [(#\d debug)         #:=> nanomon-debug                         "run with debug information"]
    [(#\v verbose)       #:=> nanomon-verbose                       "run with verbose messages"]])
 
 (define wisemon-display-help : (->* () ((Option Byte)) Void)
@@ -72,7 +73,7 @@
 
     (define-values (name argv) (λargv))
     
-    (let ([tracer (thread (make-wizarmon-log-trace (nanomon-verbose)))])
+    (let ([tracer (thread (make-wizarmon-log-trace (nanomon-debug) (nanomon-verbose)))])
       (dtrace-info #:topic the-name "shell: ~a" name)
       
       (parameterize ([current-logger /dev/dtrace]
