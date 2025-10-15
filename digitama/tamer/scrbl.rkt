@@ -4,7 +4,7 @@
 
 (require typed/racket/unsafe)
 
-(require "typed.rkt")
+(require "../../scribble.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (module unsafe racket/base

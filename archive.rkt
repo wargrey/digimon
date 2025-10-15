@@ -361,7 +361,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           out.zip entries [comment "created by https://github.com/wargrey/mox"]]
+           out.zip entries [comment "created by https://github.com/wargrey/digimon"]]
     (call-in-nested-custodian
      (λ [] (parameterize ([default-stdout-all-fields? #false])
              (define /dev/zipout : Output-Port
@@ -410,7 +410,7 @@
                           Void)
   (lambda [#:root [root (current-directory)] #:zip-root [zip-root #false] #:suffixes [suffixes (archive-no-compression-suffixes)] #:freshen? [freshen? #false]
            #:strategy [strategy #false] #:memory-level [memlevel 8] #:force-zip64? [force-zip64? #false] #:disable-seeking? [disable-seeking? #false]
-           src.zip entries [comment "updated by https://github.com/wargrey/mox"]]
+           src.zip entries [comment "updated by https://github.com/wargrey/digimon"]]
     (if (file-exists? src.zip)
         (let*-values ([(cdirectories) ((inst sort ZIP-Directory Index) (zip-directory-list* src.zip) < #:key zip-directory-relative-offset)]
                       [(existed-entries rest-entries new-entries) (zip-archive-entry-partition cdirectories entries root zip-root)])
@@ -421,7 +421,7 @@
                     src.zip entries))))
 
 (define zip-delete : (->* (Path-String (U Path-String Regexp (Listof (U Path-String Regexp)))) ((Option String)) Void)
-  (lambda [src.zip entry-names [comment "shrunk by https://github.com/wargrey/mox"]]
+  (lambda [src.zip entry-names [comment "shrunk by https://github.com/wargrey/digimon"]]
     (file-or-directory-identity src.zip) ; check existence 
     (call-in-nested-custodian
      (λ [] (let ([/dev/zipin (open-input-file src.zip)]
@@ -439,7 +439,7 @@
                  (file-truncate /dev/zipout new-size))))))))
 
 (define zip-copy : (->* ((U Input-Port Path-String) (U Path-String Regexp (Listof (U Path-String Regexp))) Path-String) ((Option String)) Void)
-  (lambda [/dev/zipsrc entry-names dest.zip [comment "copied by https://github.com/wargrey/mox"]]
+  (lambda [/dev/zipsrc entry-names dest.zip [comment "copied by https://github.com/wargrey/digimon"]]
     (if (input-port? /dev/zipsrc)
         (call-in-nested-custodian
           (λ []

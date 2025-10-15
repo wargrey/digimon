@@ -187,7 +187,7 @@
          (define get (curry hash-ref (collect-info-fp (resolve-info-ci infobase))))
          (define global-tags (traverse-indexed-tagbase get index-type))
          (define target-info (hash-ref global-tags sym:tag (λ [] (cons (car index-story) #false))))
-         
+
          (resolve index-type (tamer-block-chapter-label (car target-info)) (cdr target-info))))
      (λ [] (content-width (resolve index-type (car index-story) #false)))
      (λ [] (content->string (resolve index-type (car index-story) #false))))))

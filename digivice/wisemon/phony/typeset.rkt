@@ -6,7 +6,6 @@
 (require racket/symbol)
 (require racket/string)
 
-(require "../../../digitama/tamer/typed.rkt")
 (require "../../../digitama/tamer/scrbl.rkt")
 (require "../../../digitama/tamer/stat.rkt")
 (require "../../../digitama/tamer/selector.rkt")
@@ -17,6 +16,7 @@
 (require "../../../digitama/latex.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../filesystem.rkt")
+(require "../../../scribble.rkt")
 
 (require "../../wisemon/cmdname.rkt")
 (require "../parameter.rkt")
@@ -33,6 +33,42 @@
 (unsafe-require/typed
  "../../../digitama/tamer/documentclass.rkt"
  [handbook-tex-inspect (-> Path Scribble-Message (Option Part))])
+
+(module unsafe racket/base
+  (provide (all-defined-out))
+
+  (require racket/path)
+
+  (require scribble/core)
+  (require scribble/render)
+  (require (prefix-in tex: scribble/latex-render))
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (define handbook-tex-render
+    (lambda [handbook.scrbl self TEXNAME.tex hook.rktl dtrace]
+      (define dest-dir (path-only TEXNAME.tex))
+      (define tags (part-tags self))
+
+      (if (or (null? tags) (equal? (cadar tags) "tamer-book"))
+          (dtrace 'info "(handbook-tex-render ~a #:dest ~a #:dest-name ~a)"
+                  handbook.scrbl dest-dir (file-name-from-path TEXNAME.tex))
+          (dtrace 'info "(handbook-tex-render ~a #:dest ~a #:dest-name ~a #:tag ~a)"
+                  handbook.scrbl dest-dir (file-name-from-path TEXNAME.tex)
+                  (cadar tags)))
+    
+      (when (file-exists? hook.rktl)
+        (define ecc (dynamic-require hook.rktl 'extra-character-conversions (λ [] #false)))
+        (when (procedure? ecc)
+          (dtrace 'info "(load-extra-character-conversions ~a)" hook.rktl)
+          (tex:extra-character-conversions ecc)))
+      
+      (render #:render-mixin tex:render-mixin #:dest-dir dest-dir
+              (list self) (list TEXNAME.tex))
+      (void))))
+
+(unsafe-require/typed/provide
+ (submod "." unsafe)
+ [handbook-tex-render (-> Path Part Path Path (-> Symbol String Any * Any) Void)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Wisemon-Scribble->Extension (-> Symbol Bytes))

@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "typed.rkt")
+(require "../../scribble.rkt")
 (require "../unicode.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

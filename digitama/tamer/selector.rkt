@@ -5,9 +5,9 @@
 (require racket/list)
 (require racket/string)
 
-(require "typed.rkt")
-
+(require "../../scribble.rkt")
 (require "../../emoji.rkt")
+
 (require "../minimal/regexp.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
