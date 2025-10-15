@@ -12,6 +12,7 @@
 
 (require "../../../filesystem.rkt")
 (require "../../../digitama/exec.rkt")
+(require "../../../digitama/tamer/render.rkt")
 
 (require "../../../digitama/minimal/format.rkt")
 
@@ -34,15 +35,15 @@
     (for/list : Wisemon-Specification ([handbook.scrbl (in-list handbooks)])
       (wisemon-spec handbook.scrbl #:-
                     (define pwd : (Option Path) (path-only handbook.scrbl))
+                    
                     (when (and pwd (directory-exists? pwd))
                       (define ./handbook : Path-For-Some-System (find-relative-path (current-directory) handbook.scrbl))
+                      (define dtrace-msg (make-wisemon-dtrace (current-make-phony-goal) #false))
                       
-                      (wisemon-note (current-make-phony-goal) handbook.scrbl)
-                      
-                      (parameterize ([current-directory pwd]
-                                     [current-namespace (make-base-namespace)])
+                      (parameterize ([current-directory pwd])
                         (if (equal? (path-get-extension ./handbook) #".rkt")
-                            (parameterize ([exit-handler (λ [[retcode : Any]]
+                            (parameterize ([current-namespace (make-base-namespace)]
+                                           [exit-handler (λ [[retcode : Any]]
                                                            (when (and (exact-integer? retcode) (<= 1 retcode 255))
                                                              (error (the-cmd-name) "~a: [error] ~a breaks ~a!"
                                                                     (current-make-phony-goal) ./handbook (~n_w retcode "sample"))))])
@@ -51,15 +52,8 @@
                                 (dynamic-require `(submod ,handbook.scrbl main) #false)))
                             (parameterize ([exit-handler (λ _ (error (the-cmd-name) "~a: [fatal] ~a needs a proper `exit-handler`!"
                                                                      (current-make-phony-goal) ./handbook))])
-                              (eval '(require (prefix-in html: scribble/html-render) setup/xref scribble/render))
-                              (eval `(define (multi-html:render handbook.scrbl #:dest-dir dest-dir)
-                                       (define scribble.doc (dynamic-require handbook.scrbl 'doc))
-                                       
-                                       (render (list scribble.doc) (list ,handbook.scrbl)
-                                               #:render-mixin (λ [%] (html:render-multi-mixin (html:render-mixin %))) #:dest-dir dest-dir
-                                               #:redirect "/~:/" #:redirect-main "/~:/" #:xrefs (list (load-collections-xref))
-                                               #:image-preferences '(svg png gif pdf))))
-                              (fg-recon-eval 'weave `(multi-html:render ,handbook.scrbl #:dest-dir ,(build-path pwd (car (use-compiled-file-paths)))))))))))))
+                              (handbook-html-render handbook.scrbl (build-path pwd (car (use-compiled-file-paths)))
+                                                    dtrace-msg)))))))))
 
 (define make~weave : Make-Free-Phony
   (lambda [digimon info-ref]

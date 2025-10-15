@@ -18,7 +18,7 @@
 (require "../../../digitama/system.rkt")
 (require "../../../digitama/exec.rkt")
 
-(require "../../../digitama/minimal/port.rkt")
+(require "../../../digitama/tamer/render.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-type Tex-Sample-Info (Pairof (Pairof Path Path) (Pairof Index (Option Index))))
@@ -42,34 +42,14 @@
     (cond [(string=? digimon-partner "root") null]
           [else (for/list : (Listof Wisemon-Spec) ([readme (in-list readmes)])
                   (define-values (readme.scrbl start endp1) (values (caar readme) (cadr readme) (cddr readme)))
-                  (define target : Path (build-path (cdar readme) "README.md"))
+                  (define readme.md : Path (build-path (cdar readme) "README.md"))
+                  (define dtrace-msg (make-wisemon-dtrace (current-make-phony-goal) #false))
 
-                  (wisemon-spec target #:^ (filter file-exists? (list* (digimon-path 'info) (scribble-smart-dependencies readme.scrbl))) #:-
-                                (define ./readme.scrbl (find-relative-path (current-directory) readme.scrbl))
-
-                                (wisemon-note (current-make-phony-goal) readme.scrbl)
-                                
-                                (parameterize ([current-namespace (make-base-namespace)]
-                                               [current-input-port /dev/eof] ; tell scribble this is rendering to markdown
-                                               [exit-handler (λ _ (error (the-cmd-name) "[fatal] ~a needs a proper `exit-handler`!" ./readme.scrbl))])
-                                  (eval '(require (prefix-in markdown: scribble/markdown-render) scribble/core scribble/render racket/list))
-                                
-                                  (eval `(define (dynamic-extract-readme readme.scrbl start endp1)
-                                           (let* ([readme (dynamic-require readme.scrbl 'doc)]
-                                                  [subparts (part-parts readme)]
-                                                  [size (length subparts)]
-                                                  [span (- (if (not endp1) size (min endp1 size)) start)])
-                                             (list (cond [(null? subparts) readme]
-                                                         [(or (<= span 0) (>= start size)) (struct-copy part readme [parts null])]
-                                                         [(= start 0) (struct-copy part readme [parts (take subparts span)])]
-                                                         [else (struct-copy part readme [parts (take (list-tail subparts start) span)])])))))
-
-                                  (eval `(define (markdown:render readme #:dest-dir dest-dir)
-                                           (render #:dest-dir dest-dir #:render-mixin markdown:render-mixin
-                                                   readme (list ,target))))
-
-                                  (fg-recon-eval 'dist `(markdown:render (dynamic-extract-readme ,readme.scrbl ,start ,endp1)
-                                                                         #:dest-dir ,(path-only target))))))])))
+                  (wisemon-spec readme.md #:^ (filter file-exists? (list* (digimon-path 'info) (scribble-smart-dependencies readme.scrbl))) #:-
+                                (parameterize ([current-directory (assert (path-only readme.scrbl))]
+                                               [exit-handler (λ _ (error (the-cmd-name) "~a: [fatal] ~a needs a proper `exit-handler`!"
+                                                                         (current-make-phony-goal) (find-relative-path (current-directory) readme.scrbl)))])
+                                  (handbook-readme-render readme.scrbl readme.md start endp1 dtrace-msg))))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typeseting-samples : (-> Info-Ref (Listof Tex-Sample-Info))
