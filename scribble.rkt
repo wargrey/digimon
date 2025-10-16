@@ -27,8 +27,10 @@
   ([name : Style-Name]
    [properties : Style-Properties])
   #:extra-constructor-name make-style
-  #:type-name Style]
- 
+  #:type-name Style])
+
+(unsafe-require/typed/provide
+ scribble/core 
  [#:struct part
   ([tag-prefix : (U False String HashTableTop)]
    [tags : (Listof Link-Tag)]
@@ -58,6 +60,23 @@
   #:extra-constructor-name make-nested-flow
   #:type-name Nested-Flow]
 
+ [#:struct table
+  ([style : Style]
+   [blockss : (Listof (Listof (U Block 'cont)))])
+  #:extra-constructor-name make-table
+  #:type-name Table]
+ 
+ [#:struct itemization
+  ([style : Style]
+   [blockss : (Listof (Listof Block))])
+  #:extra-constructor-name make-itemization
+  #:type-name Itemization]
+
+ [#:struct traverse-block
+  ([traverse : Procedure])
+  #:extra-constructor-name make-traverse-block
+  #:type-name Traverse-Block]
+ 
  [#:struct delayed-block
   ([resolve : Procedure])
   #:extra-constructor-name make-delayed-block
