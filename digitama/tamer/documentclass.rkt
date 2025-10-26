@@ -168,12 +168,13 @@
           (fprintf /dev/pdfout "    pdftitle={~a: ~a},~n" title (car subtitles))))
     
     (when (pair? authors)
-      (dtrace 'note "authors: ~a" authors)
-      (fprintf /dev/pdfout "    pdfauthor={~a},~n" (string-join authors "; ")))
+      (for ([author (in-list authors)])
+        (dtrace 'note "author: ~a" (author-desc author)))
+      (fprintf /dev/pdfout "    pdfauthor={~a},~n" (string-join (map author->content authors) "; ")))
 
     (when (pair? keywords)
       (dtrace 'note "keywords: ~a" keywords)
-      (fprintf /dev/pdfout "    pdfkeywords={~a},~n" (string-join authors ", ")))
+      (fprintf /dev/pdfout "    pdfkeywords={~a},~n" (string-join keywords ", ")))
 
     (fprintf /dev/pdfout "    pdfcreator={wisemon over Scribble},~n")
     

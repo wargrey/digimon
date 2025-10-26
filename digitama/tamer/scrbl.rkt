@@ -62,7 +62,7 @@
                       [else (search-metainfo rest satem srohtua)]))
               (values (reverse srohtua) (reverse satem)))))
       
-      (values (map content->string authors)
+      (values authors
               (map content->string metas))))
   
   (define handbook-extract-scripts
@@ -80,7 +80,35 @@
       (send script render docs names r:metrics)
       
       (hash-keys (get-field scripts script))))
-  
+
+  (define author-desc
+    (lambda [author [paran #false]]
+      (define content
+        (cond [(multiarg-element? author) (multiarg-element-contents author)]
+              [(element? author) (element-content author)]
+              [else author]))
+      
+      (cond [(and (list? content) (pair? (cdr content)))
+             (string-join #:before-first (if (pair? paran) (car paran) "")
+                          #:after-last (if (pair? paran) (cdr paran) "")
+                          (for/list ([sub (in-list content)])
+                            (author-desc sub #false))
+                          " | ")]
+            [(or (multiarg-element? content) (element? content))
+             (author-desc content #false)]
+            [else (content->string author)])))
+
+  (define author->content
+    (lambda [author]
+      (define content
+        (cond [(multiarg-element? author) (multiarg-element-contents author)]
+              [(element? author) (element-content author)]
+              [else author]))
+      
+      (cond [(pair? content) (content->string (car content))]
+            [(or (multiarg-element? content) (element? content)) (author-desc content #false)]
+            [else (content->string author)])))
+
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   (define scrbl-script%
     (class render%
