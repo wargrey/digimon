@@ -5,6 +5,7 @@
 (require digimon/digitama/tamer/selector)
 
 (require "cmdopt.rkt")
+(require "parameter.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-scrbl-name : Symbol '|wizarmon scrbl|)
@@ -16,8 +17,9 @@
 
   #:usage-help "set and overload the offprint configuration"
   #:once-each
-  [[(#\f flatten) "perform a granular offprinting"]
-   [(#\S strip)   "remove prefaces and bonus appendices"]]
+  [[(#\f flatten)                                                                 "perform a granular offprinting"]
+   [(#\S strip)                                                                   "remove prefaces and bonus appendices"]
+   [(no-preview)  #:=> wizarmon-skip-view                                         "do not open the file after generating"]]
   #:multi
   [[(chapter seq) #:=> cmdopt-string->chapter-index id #: Handbook-Chapter-Index  "build the part or chapter whose number is ~1"]])
 
