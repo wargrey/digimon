@@ -27,7 +27,7 @@
 (define tamer-story-propagate-exceptions (make-parameter #true))
 (define tamer-story-lang+modules (make-parameter null))
 (define tamer-story-private-modules (make-parameter null))
-(define tamer-index-story (make-parameter (cons 0 #false)))
+(define tamer-index-story (make-parameter (cons 0 (void))))
 (define tamer-appendix-index (make-parameter #false))
 
 (define tamer-endnote (make-parameter void))

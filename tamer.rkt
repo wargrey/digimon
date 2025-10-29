@@ -160,11 +160,12 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)])
+              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)]
+              [toplevel-tag (if (void? (cdr (tamer-index-story))) handbook-title-tag (tamer-story->tag (quote-module-path)))])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (cons (λtitle #:tag handbook-title-tag
+         (cons (λtitle #:tag toplevel-tag
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                        #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path)
                                                      (list* tex-info (handbook-bibtex-path)
