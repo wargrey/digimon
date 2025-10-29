@@ -139,7 +139,8 @@
 
 (define-syntax (handbook-title stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
+    [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
+              (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
@@ -160,12 +161,11 @@
         pre-contents ...)
      (syntax/loc stx
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
-              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)]
-              [toplevel-tag (if (void? (cdr (tamer-index-story))) handbook-title-tag (tamer-story->tag (quote-module-path)))])
+              [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)])
          (enter-digimon-zone!)
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
-         (cons (λtitle #:tag toplevel-tag
+         (cons (λtitle #:tag (or tag handbook-title-tag)
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
                        #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path)
                                                      (list* tex-info (handbook-bibtex-path)
@@ -197,7 +197,8 @@
 
 (define-syntax (handbook-title/pkg-desc stx)
   (syntax-parse stx #:literals []
-    [(_ (~alt (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
+    [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
+              (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
@@ -216,7 +217,8 @@
               (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null])))
         ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:λtitle λtitle #:subtitle subtitle #:properties props
+     (syntax/loc stx (handbook-title #:tag tag
+                                     #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:figure image #:figure-vspace distance
                                      #:author alt-author #:hide-version? noversion?
                                      #:documentclass doclass #:document-options options #:tex-CJK? CJK?
