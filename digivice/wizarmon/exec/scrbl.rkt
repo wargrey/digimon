@@ -27,10 +27,10 @@
                    [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
       (define all-typesettings : (Listof Tex-Info)
-        (if (not maybe-info)
-            (make-typeset-prepare "" #false)
-            (make-typeset-prepare (pkg-info-name maybe-info)
-                                  (pkg-info-ref maybe-info))))
+        (cond [(not maybe-info) (make-typeset-prepare "" #false #false)]
+              [else (make-typeset-prepare (pkg-info-name maybe-info)
+                                          (pkg-info-ref maybe-info)
+                                          #false)]))
 
       (when (pair? all-typesettings)
         (define targets (make-typeset all-typesettings (wizarmon-remake)))

@@ -63,9 +63,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define find-digimon-typesettings : (->* (Info-Ref)
-                                         ((Option (-> (Listof Symbol))) #:info-id Symbol)
+                                         ((Option (-> (Listof Symbol))) #:force-engine (Option Symbol) #:info-id Symbol)
                                          (Listof Tex-Info))
-  (lambda [#:info-id [symid 'typesettings] info-ref [list-engines #false]]
+  (lambda [#:info-id [symid 'typesettings] #:force-engine [force-engine #false] info-ref [list-engines #false]]
     (define maybe-typesettings (info-ref symid (λ [] null)))
     
     (unless (list? maybe-typesettings)
@@ -75,19 +75,19 @@
      (λ [typesetting]
        (if (and (pair? typesetting) (path-string? (car typesetting)))
            (let ([setting.scrbl (build-path (current-directory) (path-normalize/system (car typesetting)))])
-             (typeset-filter-texinfo setting.scrbl (cdr typesetting) (or list-engines tex-list-engines)))
+             (typeset-filter-texinfo setting.scrbl (cdr typesetting) (or list-engines tex-list-engines) force-engine))
            (raise-user-error 'info.rkt "malformed `~a`: ~a" symid typesetting)))
      maybe-typesettings)))
 
 (define digimon-scribbles->typesettings : (->* ((Listof Tex-Info) (Listof Path))
-                                               ((Option (-> (Listof Symbol))))
+                                               ((Option (-> (Listof Symbol))) #:force-engine (Option Symbol))
                                                (Listof Tex-Info))
-  (lambda [info-targets targets [list-engines #false]]
+  (lambda [#:force-engine [force-engine #false] info-targets targets [list-engines #false]]
     (for/fold ([required-typesets : (Listof Tex-Info) null])
               ([p (in-list targets)])
       (let ([info-p (findf (λ [[ti : Tex-Info]] (equal? p (tex-info-path ti))) info-targets)])
         (if (not info-p)
-            (let ([typeset/fly (typeset-filter-texinfo p null (or list-engines tex-list-engines))])
+            (let ([typeset/fly (typeset-filter-texinfo p null (or list-engines tex-list-engines) force-engine)])
               (if (not typeset/fly) required-typesets (cons typeset/fly required-typesets)))
             (cons info-p required-typesets))))))
 
@@ -221,13 +221,13 @@
                 (append specs this-specs))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typeset-prepare : (-> String (Option Info-Ref) (Listof Tex-Info))
-  (lambda [digimon info-ref]
-    (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref)))
+(define make-typeset-prepare : (-> String (Option Info-Ref) (Option Symbol) (Listof Tex-Info))
+  (lambda [digimon info-ref force-engine]
+    (define all-typesettings (if (not info-ref) null (find-digimon-typesettings info-ref #:force-engine force-engine)))
     (define real-goals : (Listof Path) (current-make-real-targets))
     (define texinfos : (Listof Tex-Info)
       (cond [(null? real-goals) all-typesettings]
-            [else (digimon-scribbles->typesettings all-typesettings real-goals)]))
+            [else (digimon-scribbles->typesettings all-typesettings real-goals #:force-engine force-engine)]))
 
     (when (and info-ref)
       (define natives (map (inst car Path CC-Launcher-Info) (find-digimon-native-launcher-names info-ref #false)))
@@ -252,7 +252,7 @@
 
 (define make~typeset : Make-Info-Phony
   (lambda [digimon info-ref]
-    (define typesettings : (Listof Tex-Info) (make-typeset-prepare digimon info-ref))
+    (define typesettings : (Listof Tex-Info) (make-typeset-prepare digimon info-ref #false))
       
     (when (pair? typesettings)
       (void (make-typeset typesettings (make-always-run))))))
@@ -318,8 +318,8 @@
            (cdr opt)
            (values 'all))))))
 
-(define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Tex-Info))
-  (lambda [setting.scrbl argv list-engines]
+(define typeset-filter-texinfo : (-> Path Any (-> (Listof Symbol)) (Option Symbol) (Option Tex-Info))
+  (lambda [setting.scrbl argv list-engines force-engine]
     (define candidates : (Listof Symbol) (list-engines))
     (let*-values ([(maybe-offprints rest) (partition typeset-offprint? (if (list? argv) argv (list argv)))]
                   [(maybe-engines rest) (partition symbol? rest)]
@@ -327,10 +327,11 @@
                   [(aliass rest) (partition string? rest)]
                   [(dependencies rest) (partition bs-regexp? rest)])
       (tex-info setting.scrbl
-                (let check : (Option Symbol) ([engines : (Listof Symbol) maybe-engines])
-                  (and (pair? engines)
-                       (cond [(memq (car engines) candidates) (car engines)]
-                             [else (check (cdr engines))])))
+                (or force-engine
+                    (let check : (Option Symbol) ([engines : (Listof Symbol) maybe-engines])
+                      (and (pair? engines)
+                           (cond [(memq (car engines) candidates) (car engines)]
+                                 [else (check (cdr engines))]))))
                 (and (pair? aliass) (car aliass))
                 dependencies
                 maybe-options
