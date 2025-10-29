@@ -5,19 +5,19 @@
 (require racket/vector)
 (require racket/path)
 
+(require digimon/token)
+(require digimon/string)
+(require digimon/spec)
+
+(require digimon/digitama/exec)
+(require digimon/digitama/spec/dsl)
+(require digimon/digitama/spec/behavior)
+
+(require digimon/digitama/collection)
+(require digimon/digitama/minimal/dtrace)
+(require digimon/digitama/minimal/dtrecho)
+
 (require "../problem.rkt")
-
-(require "../../../token.rkt")
-(require "../../../string.rkt")
-(require "../../../spec.rkt")
-
-(require "../../../digitama/exec.rkt")
-(require "../../../digitama/spec/dsl.rkt")
-(require "../../../digitama/spec/behavior.rkt")
-
-(require "../../../digitama/collection.rkt")
-(require "../../../digitama/minimal/dtrace.rkt")
-(require "../../../digitama/minimal/dtrecho.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-lean : (-> Path Symbol Natural)

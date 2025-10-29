@@ -3,13 +3,12 @@
 (provide (all-defined-out))
 
 (require racket/case)
+(require digimon/cmdopt)
 
 (require "problem.rkt")
 (require "exec/c.rkt")
 (require "exec/lean.rkt")
 (require "exec/python.rkt")
-
-(require "../../cmdopt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option spec-flags #: Spec-Flags

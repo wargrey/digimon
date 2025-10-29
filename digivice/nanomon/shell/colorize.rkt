@@ -5,12 +5,12 @@
 (require racket/port)
 (require racket/match)
 
+(require digimon/token)
+(require digimon/cmdopt)
+
 (require "../shell.rkt")
 (require "../parameter.rkt")
 (require "../unsafe/colorize.rkt")
-
-(require "../../../token.rkt")
-(require "../../../cmdopt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-shell : Symbol 'colorize)

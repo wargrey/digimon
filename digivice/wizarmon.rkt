@@ -4,17 +4,17 @@
 
 (require racket/pretty)
 
+(require digimon/dtrace)
+(require digimon/cmdopt)
+(require digimon/debug)
+(require digimon/custodian)
+
+(require digimon/digitama/minimal/port)
+
 (require "wisemon/display.rkt")
 (require "wizarmon/parameter.rkt")
 (require "wizarmon/echo.rkt")
 (require "wizarmon/exec.rkt")
-
-(require "../dtrace.rkt")
-(require "../cmdopt.rkt")
-(require "../debug.rkt")
-(require "../custodian.rkt")
-
-(require "../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option wizarmon-flags #: Wizarmon-Flags

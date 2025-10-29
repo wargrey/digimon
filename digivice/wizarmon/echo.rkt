@@ -2,8 +2,8 @@
 
 (provide (all-defined-out))
 
-(require "../../dtrace.rkt")
-(require "../../continuation.rkt")
+(require digimon/dtrace)
+(require digimon/continuation)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-wizarmon-log-trace : (-> Boolean Boolean (-> Void))

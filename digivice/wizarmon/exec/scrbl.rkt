@@ -2,16 +2,16 @@
 
 (provide (all-defined-out))
 
+(require digimon/filesystem)
+
+(require digimon/digitama/exec)
+(require digimon/digitama/system)
+(require digimon/digitama/collection)
+
 (require "../parameter.rkt")
 
 (require "../../wisemon/phony/typeset.rkt")
 (require "../../wisemon/parameter.rkt")
-
-(require "../../../filesystem.rkt")
-
-(require "../../../digitama/exec.rkt")
-(require "../../../digitama/system.rkt")
-(require "../../../digitama/collection.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-typeset : (-> Path Symbol Any)

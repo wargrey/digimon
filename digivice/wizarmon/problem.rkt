@@ -1,13 +1,12 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide (all-from-out "../../digitama/spec/expect/exec.rkt"))
-(provide (all-from-out "../../digitama/toolchain/spec/problem.rkt"))
+(provide (all-from-out digimon/digitama/spec/expect/exec))
+(provide (all-from-out digimon/digitama/toolchain/spec/problem))
 
-(require "../../digitama/toolchain/spec/problem.rkt")
-(require "../../digitama/spec/expect/exec.rkt")
-
-(require "../../digitama/minimal/dtrace.rkt")
+(require digimon/digitama/toolchain/spec/problem)
+(require digimon/digitama/spec/expect/exec)
+(require digimon/digitama/minimal/dtrace)
 
 (require (for-syntax racket/base))
 

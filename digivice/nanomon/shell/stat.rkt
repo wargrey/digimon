@@ -4,13 +4,13 @@
 
 (require "../shell.rkt")
 
-(require "../../../git.rkt")
-(require "../../../echo.rkt")
-(require "../../../cmdopt.rkt")
+(require digimon/git)
+(require digimon/echo)
+(require digimon/cmdopt)
 
-(require "../../../digitama/git/numstat.rkt")
-(require "../../../digitama/git/langstat.rkt")
-(require "../../../digitama/minimal/format.rkt")
+(require digimon/digitama/git/numstat)
+(require digimon/digitama/git/langstat)
+(require digimon/digitama/minimal/format)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-shell : Symbol 'stat)

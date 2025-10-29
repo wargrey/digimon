@@ -2,6 +2,10 @@
 
 (provide (all-defined-out))
 
+(require digimon/digitama/minimal/dtrace)
+(require digimon/digitama/git/lstree)
+(require digimon/digitama/git/langstat)
+
 (require "parameter.rkt")
 (require "spec.rkt")
 (require "typeset.rkt")
@@ -10,9 +14,6 @@
 (require "exec/dot.rkt")
 
 (require "../wisemon/display.rkt")
-(require "../../digitama/minimal/dtrace.rkt")
-(require "../../digitama/git/lstree.rkt")
-(require "../../digitama/git/langstat.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-exec : (-> Path Any)

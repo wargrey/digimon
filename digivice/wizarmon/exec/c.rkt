@@ -2,27 +2,27 @@
 
 (provide (all-defined-out))
 
+(require digimon/wisemon)
+(require digimon/environ)
+(require digimon/filesystem)
+(require digimon/spec)
+
+(require digimon/digitama/exec)
+(require digimon/digitama/system)
+(require digimon/digitama/collection)
+
+(require digimon/digitama/toolchain/spec/clang)
+(require digimon/digitama/toolchain/cc/configuration)
+
+(require digimon/digitama/minimal/dtrace)
+(require digimon/digitama/minimal/dtrecho)
+
 (require "../parameter.rkt")
 (require "../problem.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
 (require "../../wisemon/parameter.rkt")
 (require "../../wisemon/display.rkt")
-
-(require "../../../wisemon.rkt")
-(require "../../../environ.rkt")
-(require "../../../filesystem.rkt")
-(require "../../../spec.rkt")
-
-(require "../../../digitama/exec.rkt")
-(require "../../../digitama/system.rkt")
-(require "../../../digitama/collection.rkt")
-
-(require "../../../digitama/toolchain/spec/clang.rkt")
-(require "../../../digitama/toolchain/cc/configuration.rkt")
-
-(require "../../../digitama/minimal/dtrace.rkt")
-(require "../../../digitama/minimal/dtrecho.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-c : (-> Path Symbol Natural)

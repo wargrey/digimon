@@ -2,8 +2,8 @@
 
 (provide (all-defined-out))
 
-(require "../../../digitama/exec.rkt")
-(require "../../../digitama/diagram/graphviz.rkt")
+(require digimon/digitama/exec)
+(require digimon/digitama/diagram/graphviz)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-dot : (-> Path Symbol Bytes Any)

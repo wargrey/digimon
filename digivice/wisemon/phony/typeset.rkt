@@ -134,10 +134,9 @@
     (define op.cfg (or (current-user-specified-selector) (tex-info-selector typesetting)))
     (define dependencies (tex-info-dependencies typesetting))
 
-    (define foreign-deps (handbook-extract-scripts scrbl.doc 'latex dtrace-msg))
     (define scrbl-deps (filter file-exists? #| <- say, commented out (require)s |# (scribble-smart-dependencies VOLUME.scrbl)))
     (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) zonedir) null))
-    (define all-deps (append (if (file-exists? info.rkt) (list info.rkt) null) scrbl-deps foreign-deps regexp-deps))
+    (define all-deps (append (if (file-exists? info.rkt) (list info.rkt) null) scrbl-deps regexp-deps))
     
     (define offprints : (Listof (Pairof Part Tex-Desc))
       (if (and op.cfg)
@@ -178,7 +177,10 @@
     (values always-files ignored-files
             (apply append
                    (for/list : (Listof Wisemon-Specification) ([typeset (in-list all-typesets)])
-                     (define specs (make-specs engine (car typeset) (cdr typeset) all-deps dtrace-msg))
+                     (define specs : (U Wisemon-Spec Wisemon-Specification)
+                       (make-specs engine (car typeset) (cdr typeset)
+                                   (append all-deps (handbook-extract-scripts (car typeset) 'latex dtrace-msg))
+                                   dtrace-msg))
 
                      (cond [(list? specs) specs]
                            [else (list specs)]))))))

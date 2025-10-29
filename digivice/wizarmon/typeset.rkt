@@ -2,22 +2,14 @@
 
 (provide (all-defined-out))
 
-(require "../../digitama/tamer/selector.rkt")
-(require "../../cmdopt.rkt")
+(require digimon/digitama/tamer/selector)
+
+(require "cmdopt.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define the-scrbl-name : Symbol '|wizarmon scrbl|)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define cmdopt-string->chapter-index : (-> Symbol String (U Positive-Index Char))
-  (lambda [option s]
-    (if (= (string-length s) 1)
-        (let ([idx (string-ref s 0)])
-          (cond [(char<=? #\A idx #\Z) idx]
-                [(char<=? #\a idx #\z) (char-upcase idx)]
-                [else (cmdopt-string+>index option s)]))
-        (cmdopt-string+>index option s))))
-
 (define-cmdlet-option scrbl-flags #: Scrbl-Flags
   #:program the-scrbl-name
   #:args args
@@ -25,7 +17,7 @@
   #:usage-help "set and overload the offprint configuration"
   #:once-each
   [[(#\f flatten) "perform a granular offprinting"]
-   [(#\s strip) "remove prefaces and bonus appendices"]]
+   [(#\S strip)   "remove prefaces and bonus appendices"]]
   #:multi
   [[(chapter seq) #:=> cmdopt-string->chapter-index id #: Handbook-Chapter-Index  "build the part or chapter whose number is ~1"]])
 

@@ -2,16 +2,16 @@
 
 (provide main)
 
+(require digimon/dtrace)
+(require digimon/cmdopt)
+(require digimon/debug)
+(require digimon/custodian)
+
+(require digimon/digitama/minimal/port)
+
 (require "nanomon/parameter.rkt")
 (require "nanomon/shell.rkt")
 (require "wizarmon/echo.rkt")
-
-(require "../dtrace.rkt")
-(require "../cmdopt.rkt")
-(require "../debug.rkt")
-(require "../custodian.rkt")
-
-(require "../digitama/minimal/port.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-cmdlet-option nanomon-flags #: Nanomon-Flags
