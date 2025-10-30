@@ -9,9 +9,7 @@
 (require digimon/digitama/collection)
 
 (require "../parameter.rkt")
-
 (require "../../wisemon/phony/typeset.rkt")
-(require "../../wisemon/parameter.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-typeset : (-> Path Symbol Any)
@@ -21,10 +19,7 @@
                               (or (path-only path.scrbl)
                                   (current-directory))))
 
-    (parameterize ([make-verbose (wizarmon-verbose)]
-                   [current-make-phony-goal 'exec]
-                   [current-make-real-targets (list path.scrbl)]
-                   [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
+    (parameterize ([current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.scrbl)))])
       (define all-typesettings : (Listof Tex-Info)
         (cond [(not maybe-info) (make-typeset-prepare "" #false #false)]

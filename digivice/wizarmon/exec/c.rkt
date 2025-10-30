@@ -21,7 +21,6 @@
 (require "../problem.rkt")
 
 (require "../../wisemon/phony/cc.rkt")
-(require "../../wisemon/parameter.rkt")
 (require "../../wisemon/display.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -32,8 +31,7 @@
                               (or (path-only path.c)
                                   (current-directory))))
 
-    (parameterize ([current-make-real-targets (list path.c)]
-                   [current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
+    (parameterize ([current-digimon (if maybe-info (pkg-info-name maybe-info) (current-digimon))]
                    [current-directory (if maybe-info (pkg-info-zone maybe-info) (assert (path-only path.c)))])
       (define-values (cc-specs.launchers targets) (make-cc-spec+targets (and maybe-info (pkg-info-ref maybe-info)) #false lang-name))
       
@@ -45,7 +43,7 @@
               (and (pair? extra-libraries)
                    (let ([env (environment-variables-copy (current-environment-variables))]
                          [epath (case (system-type 'os)
-                                  [(macosx) #"DYLD_LIBRARY_PATH"]
+                                  [(macosx) #"DYLD_FALLBACK_LIBRARY_PATH"]
                                   [(unix) #"LD_LIBRARY_PATH"]
                                   [else #"PATH"])])
                      (environment-variables-push-path! env #:name epath extra-libraries)
