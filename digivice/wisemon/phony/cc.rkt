@@ -17,6 +17,7 @@
 (require "../../../digitama/minimal/dtrace.rkt")
 
 (require "../parameter.rkt")
+(require "../display.rkt")
 (require "../phony.rkt")
 (require "../spec.rkt")
 (require "../native.rkt")
@@ -29,6 +30,7 @@
    [name : (Option String)]
    [subsystem : (Option Symbol)] ; `#false` means building `shared object`
    [entry : (Option Keyword)]
+   [optional? : Boolean]
    [compilers : (Listof Symbol)]
    [macros : (Listof C-Compiler-Macro)]
    [includes : (Listof C-Toolchain-Path-String)]
@@ -67,28 +69,38 @@
     (unless (list? maybe-launchers)
       (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" maybe-launchers))
 
-    (values (for/list ([launcher (in-list maybe-launchers)])
-              (cc-launcher-filter launcher debug? force-lang default-compilers))
+    (values (for/fold ([launchers : (Listof CC-Launcher-Name) null]
+                       #:result (reverse launchers))
+                      ([launcher (in-list maybe-launchers)])
+              (define maybe-launcher (cc-launcher-filter launcher debug? force-lang default-compilers))
+              (when (and (make-trace-log) (not maybe-launcher) (pair? launcher))
+                (dtrace-warning #:topic (the-cmd-name) #:prefix? #false
+                                "~a ~a: skipped `~a` due to target not found"
+                                (the-cmd-name) (current-make-phony-goal) (car launcher)))
+              (cond [(not maybe-launcher) launchers]
+                    [else (cons maybe-launcher launchers)]))
             default-compilers)))
 
 (define digimon-native-files->launcher-names : (->* ((Listof CC-Launcher-Name) (Listof Path) Boolean (Listof Symbol))
                                                     ((Option Symbol))
                                                     (Values (Listof CC-Launcher-Name) (Listof CC-Launcher-Name)))
-  (lambda [info-targets targets debug? default-compilers [force-lang #false]]
-    (define-values (known-launchers unknown-paths)
-      (for/fold ([known-launchers : (Listof CC-Launcher-Name) null]
-                 [unknown-paths : (Listof Path) null])
-                ([p (in-list targets)])
-        (let ([info-p (assoc p info-targets)])
-          (if (pair? info-p)
-              (values (cons info-p known-launchers) unknown-paths)
-              (values known-launchers (cons p unknown-paths))))))
-
-    (values (for/list ([launcher (in-list (reverse known-launchers))])
-              (cc-launcher-filter launcher debug? force-lang default-compilers))
-            (for/list ([path (in-list (reverse unknown-paths))])
-              (cc-launcher-filter (cons path (list 'CONSOLE))
-                                  debug? force-lang default-compilers)))))
+  (lambda [registered-targets targets debug? default-compilers [force-lang #false]]
+    (for/fold ([known-launchers : (Listof CC-Launcher-Name) null]
+               [unknown-launchers : (Listof CC-Launcher-Name) null]
+               #:result (values (reverse known-launchers)
+                                (reverse unknown-launchers)))
+              ([p (in-list targets)])
+      (let ([info-p (assoc p registered-targets)])
+        (if (not info-p)
+            (let ([unknown-launcher (cc-launcher-filter (cons p (list 'CONSOLE 'optional)) debug? force-lang default-compilers)])
+              (when (not unknown-launcher)
+                (dtrace-warning #:topic (the-cmd-name) #:prefix? #false
+                                "~a ~a: skipped `~a` due to target not found"
+                                (the-cmd-name) (current-make-phony-goal) p))
+              (if (or unknown-launcher)
+                  (values known-launchers (cons unknown-launcher unknown-launchers))
+                  (values known-launchers unknown-launchers)))
+            (values (cons info-p known-launchers) unknown-launchers))))))
 
 (define make-object-spec : (->* (Path Path
                                       Boolean (Listof Symbol) (Option CC-Standard-Version)
@@ -100,7 +112,7 @@
                                        (c-include-headers source.c includes #:check-source? #false #:topic (current-make-phony-goal)))
                   #:- (c-compile #:compilers compilers #:standard standard #:cpp? cpp-file?
                                  #:includes (append extra-includes includes) #:macros macros
-                                 #:verbose? (compiler-verbose) #:debug? debug?
+                                 #:verbose? (make-trace-log) #:debug? debug?
                                  source.c object.o))))
 
 (define make-distributed-shared-object-spec : (-> Path Path Wisemon-Spec)
@@ -128,6 +140,7 @@
             (make-header-spec (cdr hs) (cons spec ss)))
           ss))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-cc-specs : (-> (Listof CC-Launcher-Name) (Listof String) CC-Native-Tree (Option CC-Destination-Tree) Boolean Wisemon-Specification)
   (lambda [launchers extra-incdirs build-tree dest-tree debug?]
     (for/fold ([specs : Wisemon-Specification null])
@@ -203,7 +216,7 @@
                             #:- (c-link #:linkers compilers #:cpp? cpp?
                                         #:subsystem (cc-launcher-info-subsystem info) #:entry (cc-launcher-info-entry info)
                                         #:libpaths libdirs #:libraries libs
-                                        #:verbose? (compiler-verbose)
+                                        #:verbose? (make-trace-log)
                                         objects native))
               (make-object-spec native.c native.o cpp? compilers standard macros incdirs debug? extra-incdirs null extra-shared-objects)))
 
@@ -264,19 +277,21 @@
   (lambda [info-ref]
     (c-compiler-filter info-ref "~a-toolchain-names" 'native)))
 
-(define cc-launcher-filter : (-> Any Boolean (Option Symbol) (Listof Symbol) CC-Launcher-Name)
+(define cc-launcher-filter : (-> Any Boolean (Option Symbol) (Listof Symbol) (Option CC-Launcher-Name))
   (lambda [native debug? force-lang default-compilers]
     (if (and (pair? native)
              (or (string? (car native))
-                 (path? (car native))))
+                 (path? (car native)))
+             (list? (cdr native)))
         (let* ([p (car native)]
                [config (cdr native)]
                [native.cc (cond [(relative-path? p) (build-path (current-directory) (path-normalize/system p))]
                                 [(string? p) (string->path p)]
-                                [else p])])
-          (cons native.cc
-                (cond [(cc-launcher-info? config) config]
-                      [else (cc-filter-name config debug? default-compilers force-lang)])))
+                                [else p])]
+               [setting (cc-filter-name config debug? default-compilers force-lang)])
+          (if (cc-launcher-info-optional? setting)
+              (and (file-exists? native.cc) (cons native.cc setting))
+              (cons native.cc setting)))
         (raise-user-error 'info.rkt "malformed `native-launcher-names`: ~a" native))))
 
 (define cc-subpath-filter : (-> (Option Info-Ref) Boolean CC-Native-Tree)
@@ -327,35 +342,37 @@
       (cond [(symbol? lib) (cons lib libaries)]
             [else (append (cdr lib) libaries)]))))
 
-(define cc-filter-name : (-> Any Boolean (Listof Symbol) (Option Symbol) CC-Launcher-Info)
+(define cc-filter-name : (-> (Listof Any) Boolean (Listof Symbol) (Option Symbol) CC-Launcher-Info)
   (lambda [argv debug? default-compilers force-lang]
     (let partition ([lang : (Option Symbol) force-lang]
                     [biname : (Option String) #false]
                     [subsystem : (Option Symbol) #false]
                     [entry : (Option Keyword) #false]
+                    [optional? : Boolean #false]
                     [srehto : (Listof Any) null]
-                    [options : (Listof Any) (if (list? argv) argv (list argv))])
+                    [options : (Listof Any) argv])
       (if (pair? options)
           (let-values ([(self rest) (values (car options) (cdr options))])
             (cond [(list? self)
                    (let-values ([(maybe-distr subopts) (values (car self) (cdr self))])
-                     (cond [(not (keyword? maybe-distr)) (partition lang biname subsystem entry (cons self srehto) rest)]
-                           [(xor debug? (memq maybe-distr '(#:DEBUG #:debug))) (partition lang biname subsystem entry srehto rest)]
-                           [(list? subopts) (partition lang biname subsystem entry srehto (append subopts rest))]
-                           [else (partition lang biname subsystem entry srehto (cons subopts rest))]))]
+                     (cond [(not (keyword? maybe-distr)) (partition lang biname subsystem entry optional? (cons self srehto) rest)]
+                           [(xor debug? (memq maybe-distr '(#:DEBUG #:debug))) (partition lang biname subsystem entry optional? srehto rest)]
+                           [(list? subopts) (partition lang biname subsystem entry optional? srehto (append subopts rest))]
+                           [else (partition lang biname subsystem entry optional? srehto (cons subopts rest))]))]
                   [(symbol? self)
                    (case self
-                     [(C c) (partition (or lang 'c) biname subsystem entry srehto rest)]
-                     [(C++ c++ Cpp cpp) (partition (or lang 'cpp) biname subsystem entry srehto rest)]
-                     [(console) (partition lang biname (or subsystem 'CONSOLE) entry srehto rest)]
-                     [(windows desktop) (partition lang biname (or subsystem 'WINDOWS) entry srehto rest)]
-                     [(so dll dylib) (partition lang biname (or subsystem #false) entry srehto rest)]
-                     [else (partition lang biname (or subsystem self) entry srehto rest)])]
-                  [(keyword? self) (partition lang biname subsystem (or entry self) srehto rest)]
-                  [(string? self) (partition lang (or biname self) subsystem entry srehto rest)]
-                  [else (partition lang biname subsystem entry srehto rest)]))
+                     [(C c) (partition (or lang 'c) biname subsystem entry optional? srehto rest)]
+                     [(C++ c++ Cpp cpp) (partition (or lang 'cpp) biname subsystem entry optional? srehto rest)]
+                     [(console) (partition lang biname (or subsystem 'CONSOLE) entry optional? srehto rest)]
+                     [(windows desktop) (partition lang biname (or subsystem 'WINDOWS) entry optional? srehto rest)]
+                     [(optional) (partition lang biname (or subsystem 'WINDOWS) entry #true srehto rest)]
+                     [(so dll dylib) (partition lang biname (or subsystem #false) entry optional? srehto rest)]
+                     [else (partition lang biname (or subsystem self) entry optional? srehto rest)])]
+                  [(keyword? self) (partition lang biname subsystem (or entry self) optional? srehto rest)]
+                  [(string? self) (partition lang (or biname self) subsystem entry optional? srehto rest)]
+                  [else (partition lang biname subsystem entry optional? srehto rest)]))
           (let-values ([(macros includes libpaths libraries) (c-configuration-filter (reverse srehto) digimon-system)])
-            (cc-launcher-info lang biname subsystem entry default-compilers macros includes libpaths libraries))))))
+            (cc-launcher-info lang biname subsystem entry optional? default-compilers macros includes libpaths libraries))))))
 
 (define cc-lang-from-extension : (->* (Path) (Bytes) Symbol)
   (lambda [native.cc [fallback-ext #".cpp"]]
