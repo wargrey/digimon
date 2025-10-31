@@ -8,8 +8,8 @@
                        [EVP_MD_CTX_reset evp-digest-context-reset]))
   (provide (rename-out [EVP_get_digestbyname evp-digest-fetch]
                        [EVP_DigestUpdate evp-digest-update]
-                       [EVP_MD_size evp-digest-size]
-                       [EVP_MD_block_size evp-digest-block-size]))
+                       [EVP_MD_get_size evp-digest-size]
+                       [EVP_MD_get_block_size evp-digest-block-size]))
 
   (require openssl/libcrypto)
 
@@ -26,8 +26,8 @@
   (define-crypto EVP_MD_CTX_new (_fun -> _EVP_MD_CTX*) #:wrap (allocator EVP_MD_CTX_free))
   (define-crypto EVP_MD_CTX_reset (_fun _EVP_MD_CTX* -> _int))
   (define-crypto EVP_get_digestbyname (_fun _symbol -> _EVP_MD*/null))
-  (define-crypto EVP_MD_size (_fun _EVP_MD* -> _int))
-  (define-crypto EVP_MD_block_size (_fun _EVP_MD* -> _int))
+  (define-crypto EVP_MD_get_size (_fun _EVP_MD* -> _int))
+  (define-crypto EVP_MD_get_block_size (_fun _EVP_MD* -> _int))
   
   (define-crypto EVP_DigestInit_ex
     (_fun _EVP_MD_CTX* _EVP_MD* _ENGINE*/null
