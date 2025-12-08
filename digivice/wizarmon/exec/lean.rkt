@@ -86,11 +86,19 @@
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (define timeout (or (problem-spec-timeout t) 0))
-             (if (and (string-blank? usr-args) (not result))
-                 (it brief #:do #;(pending))
-                 (it brief #:do #:millisecond timeout
-                   #:do (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)
-                                       (spec->config t))))))))
+             (cond [(problem-spec-ignore? t)
+                    (if (eq? (problem-spec-ignore? t) 'skip)
+                        (if (problem-spec-reason t)
+                            (it brief #:do (ignore "~a" (problem-spec-reason t)))
+                            (it brief #:do (collapse "skipped test requires a reason")))
+                        (if (problem-spec-reason t)
+                            (it brief #:do (pending "~a" (problem-spec-reason t)))
+                            (it brief #:do #;(pending))))]
+                   [(not (and (string-blank? usr-args) (not result)))
+                    (it brief #:do #:millisecond timeout
+                      #:do (expect-stdout lean (lean-cmd-args main.lean cmd-argv) usr-args (or result null)
+                                          (spec->config t)))]
+                   [else (it brief #:do #;(pending))])))))
 
 (define lean-interpreter : (-> Path (Option Path))
   (lambda [main.lean]

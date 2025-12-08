@@ -105,7 +105,15 @@
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (define timeout (or (problem-spec-timeout t) 0))
-             (cond [(and (string-blank? usr-args) (not result))
+             (cond [(problem-spec-ignore? t)
+                    (if (eq? (problem-spec-ignore? t) 'skip)
+                        (if (problem-spec-reason t)
+                            (it brief #:do (ignore "~a" (problem-spec-reason t)))
+                            (it brief #:do (collapse "skipped test requires a reason")))
+                        (if (problem-spec-reason t)
+                            (it brief #:do (pending "~a" (problem-spec-reason t)))
+                            (it brief #:do #;(pending))))]
+                   [(and (string-blank? usr-args) (not result))
                     (it brief #:do #;(pending))]
                    [(list? result) ; a complete test spec overrides the doctests
                     (it brief #:do #:millisecond timeout

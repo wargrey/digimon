@@ -49,10 +49,18 @@
              (define-values (args result) (values (problem-spec-input t) (problem-spec-output t)))
              (define brief (problem-spec-brief t))
              (define timeout (problem-spec-timeout t))
-             (if (and (string-blank? args) (not result))
-                 (it brief #:do #;(pending))
-                 (it brief #:do #:millisecond (or timeout 0)
-                   #:do (expect-stdout a.out cmd-argv args (or result null) (make-cfg t))))))))
+             (cond [(problem-spec-ignore? t)
+                    (if (eq? (problem-spec-ignore? t) 'skip)
+                        (if (problem-spec-reason t)
+                            (it brief #:do (ignore "~a" (problem-spec-reason t)))
+                            (it brief #:do (collapse "skipped test requires a reason")))
+                        (if (problem-spec-reason t)
+                            (it brief #:do (pending "~a" (problem-spec-reason t)))
+                            (it brief #:do #;(pending))))]
+                   [(not (and (string-blank? args) (not result)))
+                    (it brief #:do #:millisecond (or timeout 0)
+                      #:do (expect-stdout a.out cmd-argv args (or result null) (make-cfg t)))]
+                   [else (it brief #:do #;(pending))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-clang-problem-title : (-> Input-Port (Values (Option String) Boolean))

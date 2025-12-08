@@ -17,7 +17,9 @@
    [output : (Option (Listof (U String Regexp)))]
    [timeout : (Option Natural)]
    [stdio-lines : (Option Natural)]
-   [strict? : Boolean])
+   [strict? : Boolean]
+   [ignore? : (Option Symbol)]
+   [reason : (Option String)])
   #:type-name Problem-Spec
   #:constructor-name make-problem-spec
   #:transparent)
@@ -142,39 +144,47 @@
                 [strict? : Boolean #false]
                 [ydob : (Listof String) null]
                 [dir : (Option Symbol) #false]
-                [defout? : Boolean #false])
+                [defout? : Boolean #false]
+                [ignore? : (Option Symbol) #false]
+                [reason : (Option String) #false])
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
                (cond [(regexp-match? "^(input:?|[>]{2})" self)
-                      (parse rest (problem-input-prepare is self) os timeout lines strict? ydob 'input defout?)]
+                      (parse rest (problem-input-prepare is self) os timeout lines strict? ydob 'input defout? ignore? reason)]
                      [(regexp-match? "^(output:?|[<]{2})" self)
-                      (parse rest is (problem-output-prepare os self) timeout lines strict? ydob 'output #true)]
+                      (parse rest is (problem-output-prepare os self) timeout lines strict? ydob 'output #true ignore? reason)]
                      [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self)
-                      (parse (problem-spec-include main.cpp self rest) is os timeout lines strict? ydob dir defout?)]
+                      (parse (problem-spec-include main.cpp self rest) is os timeout lines strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^(timeout:?)" self)
-                      (parse rest is os (problem-spec-extract-natural self) lines strict? ydob dir defout?)]
+                      (parse rest is os (problem-spec-extract-natural self) lines strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^((stdio|echo)-lines:?)" self)
-                      (parse rest is os timeout (problem-spec-extract-natural self) strict? ydob dir defout?)]
+                      (parse rest is os timeout (problem-spec-extract-natural self) strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^(strict)" self)
-                      (parse rest is os timeout lines #true ydob dir defout?)]
+                      (parse rest is os timeout lines #true ydob dir defout? ignore? reason)]
+                     [(regexp-match? "^(@|\\\\)(todo:?)" self)
+                      (parse rest is os timeout lines #true ydob dir defout? 'todo (problem-spec-one-line-datum self))]
+                     [(regexp-match? "^(@|\\\\)(skip:?)" self)
+                      (parse rest is os timeout lines #true ydob dir defout? 'skip (problem-spec-one-line-datum self))]
                      [(eq? dir 'input)
-                      (parse rest (cons self is) os timeout lines strict? ydob dir defout?)]
+                      (parse rest (cons self is) os timeout lines strict? ydob dir defout? ignore? reason)]
                      [(eq? dir 'output)
-                      (parse rest is (cons (cons self (car os)) (cdr os)) timeout lines strict? ydob dir defout?)]
-                     [else (parse rest is os timeout lines strict? (cons self ydob) dir defout?)]))]
+                      (parse rest is (cons (cons self (car os)) (cdr os)) timeout lines strict? ydob dir defout? ignore? reason)]
+                     [else (parse rest is os timeout lines strict? (cons self ydob) dir defout? ignore? reason)]))]
 
             [(not dir) ; no (#:input ior #:output)
              (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
                                     (and (not (string-blank? output)) (list output)))
-                                  timeout lines strict?))]
+                                  timeout lines strict?
+                                  ignore? reason))]
 
             [else
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
                                 (and defout? (map problem-spec-rjoin (reverse os)))
-                                timeout lines strict?)]))))
+                                timeout lines strict?
+                                ignore? reason)]))))
 
 (define problem-spec-description : (-> String Nonnegative-Fixnum String)
   (lambda [headline idx]

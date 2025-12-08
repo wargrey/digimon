@@ -33,15 +33,15 @@
                       (it "should tag empty behavior with TODO automatically" #:do)
                       
                       (it "should tag a TODO issue with useful information" #:do
-                          (pending "I am here to tell you some tasks are pending")))
+                        (pending "I am here to tell you some tasks are pending")))
 
             (describe "panic issues indicate bugs in the specification" #:do
                       (it "should be caught by `expect-throw`" #:do
-                          (expect-throw exn:fail? (error 'expect-throw "requires a thunk rather than an expression")))
+                        (expect-throw exn:fail? (error 'expect-throw "requires a thunk rather than an expression")))
                       
                       (it "should be done regardless the prerequisite" #:do
-                          #:before (λ [] (error 'expect-true "setup routine is buggy")) #:do
-                          (make-it)))
+                        #:before (λ [] (error 'expect-true "setup routine is buggy")) #:do
+                        (make-it)))
             
             (describe "features and behaviors are tagged with SKIP whenever a `exn:fail:unsupported` is caught" #:do
                       (it "should skip the extflonum since it is not the number in the sense `number?`" #:do
@@ -54,7 +54,7 @@
                       (describe "skipping user scenarios since no network interface card is found" #:do
                         #:before (λ [] (ignore "NIC is not present")) #:do
                                 
-                        (describe "should searche the network neighbors" #:do
+                        (describe "should search the network neighbors" #:do
                           (it "should be skipped since its grandparent is skipped" #:do
                             (make-it)))))))
 
