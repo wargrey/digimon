@@ -81,5 +81,6 @@
      (dtrace-problem-info problem-info)
      (spec-prove #:no-timing-info? #false #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
                  #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                 (clang-problem->feature problem-info a.out cmd-argv
+                 (clang-problem->feature problem-info a.out
+                                         (if (zero? (vector-length cmd-argv)) cmd-argv cmd-argv)
                                          (make-spec-problem-config stdin-log-level)))]))

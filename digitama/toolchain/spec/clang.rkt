@@ -43,7 +43,7 @@
          (clang-problem->feature problem-info a.out cmd-argv make-cfg))))
 
 (define clang-problem->feature : (-> Problem-Info Path (Vectorof String) (-> Problem-Spec Spec-Exec.Cfg) Spec-Feature)
-  (lambda [problem-info a.out cmd-argv make-cfg]
+  (lambda [problem-info a.out cmd-argv-from-terminal make-cfg]
     (describe ["~a" (or (problem-info-title problem-info) (path->string a.out))]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (args result) (values (problem-spec-input t) (problem-spec-output t)))
@@ -59,7 +59,10 @@
                             (it brief #:do #;(pending))))]
                    [(not (and (string-blank? args) (not result)))
                     (it brief #:do #:millisecond (or timeout 0)
-                      #:do (expect-stdout a.out cmd-argv args (or result null) (make-cfg t)))]
+                      #:do (expect-stdout a.out
+                                          (cond [(> (vector-length cmd-argv-from-terminal) 0) cmd-argv-from-terminal]
+                                                [else (or (problem-spec-argv t) cmd-argv-from-terminal)])
+                                          args (or result null) (make-cfg t)))]
                    [else (it brief #:do #;(pending))])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

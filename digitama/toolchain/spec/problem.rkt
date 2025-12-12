@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/list)
+(require racket/port)
 
 (require "../../../filesystem.rkt")
 (require "../../../string.rkt")
@@ -15,6 +16,7 @@
   ([brief : String]
    [input : String]
    [output : (Option (Listof (U String Regexp)))]
+   [argv : (Option (Vectorof String))]
    [timeout : (Option Natural)]
    [stdio-lines : (Option Natural)]
    [strict? : Boolean]
@@ -139,6 +141,7 @@
     (let parse ([src : (Listof String) lines]
                 [is : (Listof String) null]
                 [os : (Listof (Listof String)) null]
+                [argv : (Option (Vectorof String)) #false]
                 [timeout : (Option Natural) #false]
                 [lines : (Option Natural) #false]
                 [strict? : Boolean #false]
@@ -150,32 +153,35 @@
       (cond [(pair? src)
              (let-values ([(self rest) (values (car src) (cdr src))])
                (cond [(regexp-match? "^(input:?|[>]{2})" self)
-                      (parse rest (problem-input-prepare is self) os timeout lines strict? ydob 'input defout? ignore? reason)]
+                      (parse rest (problem-input-prepare is self) os argv timeout lines strict? ydob 'input defout? ignore? reason)]
                      [(regexp-match? "^(output:?|[<]{2})" self)
-                      (parse rest is (problem-output-prepare os self) timeout lines strict? ydob 'output #true ignore? reason)]
+                      (parse rest is (problem-output-prepare os self) argv timeout lines strict? ydob 'output #true ignore? reason)]
+                     [(regexp-match? "^(argv:?)" self)
+                      (parse rest is os (problem-argv-prepare self) timeout lines strict? ydob 'output #true ignore? reason)]
                      [(regexp-match? #px"^(@|\\\\)(file|include)\\s+" self)
-                      (parse (problem-spec-include main.cpp self rest) is os timeout lines strict? ydob dir defout? ignore? reason)]
+                      (parse (problem-spec-include main.cpp self rest) is os argv timeout lines strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^(timeout:?)" self)
-                      (parse rest is os (problem-spec-extract-natural self) lines strict? ydob dir defout? ignore? reason)]
+                      (parse rest is os argv (problem-spec-extract-natural self) lines strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^((stdio|echo)-lines:?)" self)
-                      (parse rest is os timeout (problem-spec-extract-natural self) strict? ydob dir defout? ignore? reason)]
+                      (parse rest is os argv timeout (problem-spec-extract-natural self) strict? ydob dir defout? ignore? reason)]
                      [(regexp-match? "^(strict)" self)
-                      (parse rest is os timeout lines #true ydob dir defout? ignore? reason)]
+                      (parse rest is os argv timeout lines #true ydob dir defout? ignore? reason)]
                      [(regexp-match? "^(@|\\\\)(todo:?)" self)
-                      (parse rest is os timeout lines #true ydob dir defout? 'todo (problem-spec-one-line-datum self))]
+                      (parse rest is os argv timeout lines #true ydob dir defout? 'todo (problem-spec-one-line-datum self))]
                      [(regexp-match? "^(@|\\\\)(skip:?)" self)
-                      (parse rest is os timeout lines #true ydob dir defout? 'skip (problem-spec-one-line-datum self))]
+                      (parse rest is os argv timeout lines #true ydob dir defout? 'skip (problem-spec-one-line-datum self))]
                      [(eq? dir 'input)
-                      (parse rest (cons self is) os timeout lines strict? ydob dir defout? ignore? reason)]
+                      (parse rest (cons self is) os argv timeout lines strict? ydob dir defout? ignore? reason)]
                      [(eq? dir 'output)
-                      (parse rest is (cons (cons self (car os)) (cdr os)) timeout lines strict? ydob dir defout? ignore? reason)]
-                     [else (parse rest is os timeout lines strict? (cons self ydob) dir defout? ignore? reason)]))]
+                      (parse rest is (cons (cons self (car os)) (cdr os)) argv timeout lines strict? ydob dir defout? ignore? reason)]
+                     [else (parse rest is os argv timeout lines strict? (cons self ydob) dir defout? ignore? reason)]))]
 
             [(not dir) ; no (#:input ior #:output)
              (let-values ([(is os) (splitf-at (string-list-trim-blanks (reverse ydob)) string!blank?)])
                (make-problem-spec brief (problem-spec-join is)
                                   (let ([output (problem-spec-join os)])
                                     (and (not (string-blank? output)) (list output)))
+                                  argv
                                   timeout lines strict?
                                   ignore? reason))]
 
@@ -183,6 +189,7 @@
              (make-problem-spec brief
                                 (problem-spec-join (reverse is))
                                 (and defout? (map problem-spec-rjoin (reverse os)))
+                                argv
                                 timeout lines strict?
                                 ignore? reason)]))))
 
@@ -253,3 +260,15 @@
               [else (cons null os)])
         (cond [(null? os) (list (list one-line-datum))]
               [else (cons (list one-line-datum) os)]))))
+
+(define problem-argv-prepare : (-> String (Option (Vectorof String)))
+  (lambda [self]
+    (define cmdline : (Option String) (problem-spec-one-line-datum self))
+
+    (and cmdline
+         (if (string-contains? cmdline "\"")
+             (call-with-input-string cmdline
+               (λ [[/dev/argin : Input-Port]]
+                 (for/vector : (Vectorof String) ([token (in-port read /dev/argin)])
+                   (if (string? token) token (format "~a" token)))))
+             (list->vector (string-split cmdline))))))
