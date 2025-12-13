@@ -68,19 +68,18 @@
 (define shell-exec-a.out : (case-> [Problem-Info Path (Vectorof String) (Option Dtrace-Level) -> Natural]
                                    [Path (Vectorof String) (Option Dtrace-Level) -> Natural])
   (case-lambda
-    [(a.out cmd-argv stdin-log-level)
+    [(a.out shell-argv stdin-log-level)
      (define &status : (Boxof Nonnegative-Integer) (box 0))
 
      (dtrace-sync)
      (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                          #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
-                         'exec a.out cmd-argv &status)
+                         'exec a.out shell-argv &status)
      (dtrace-sync)
      (unbox &status)]
-    [(problem-info a.out cmd-argv stdin-log-level)
+    [(problem-info a.out shell-argv stdin-log-level)
      (dtrace-problem-info problem-info)
      (spec-prove #:no-timing-info? #false #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
                  #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                 (clang-problem->feature problem-info a.out
-                                         (if (zero? (vector-length cmd-argv)) cmd-argv cmd-argv)
+                 (clang-problem->feature problem-info a.out shell-argv
                                          (make-spec-problem-config stdin-log-level)))]))

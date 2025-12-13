@@ -48,14 +48,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define shell-env-python : (-> (U Problem-Info (Listof String)) Path String (Vectorof String) (Option Dtrace-Level) Natural)
-  (lambda [maybe-problem-info python mod.py cmd-argv stdin-log-level]
+  (lambda [maybe-problem-info python mod.py shell-argv stdin-log-level]
     (if (list? maybe-problem-info)
 
         (let ([&status : (Boxof Natural) (box 0)])
           (dtrace-sync)
           (fg-recon-exec/pipe #:/dev/stdin (current-input-port) #:stdin-log-level stdin-log-level
                               #:/dev/stdout (current-output-port) #:/dev/stderr (current-error-port)
-                              'exec python (python-cmd-args mod.py cmd-argv (pair? maybe-problem-info)) &status)
+                              'exec python (python-cmd-args mod.py shell-argv (pair? maybe-problem-info)) &status)
           (dtrace-sync)
           (unbox &status))
 
@@ -65,9 +65,9 @@
           (if (pair? specs)
               (spec-prove #:no-timing-info? #true #:no-location-info? #true #:no-argument-expression? #true #:timeout (wizarmon-spec-timeout)
                           #:pre-spec dtrace-sync #:post-spec dtrace-sync #:post-behavior dtrace-sync
-                          (python-problem->feature maybe-problem-info python mod.py cmd-argv (make-spec-problem-config stdin-log-level)))
+                          (python-problem->feature maybe-problem-info python mod.py shell-argv (make-spec-problem-config stdin-log-level)))
               (shell-env-python (python-problem-attachment-doctests (assert (problem-info-attachment maybe-problem-info) python-problem-attachment?))
-                                python mod.py cmd-argv stdin-log-level))))))
+                                python mod.py shell-argv stdin-log-level))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define read-python-problem-info : (-> Path (Option Problem-Info))
@@ -99,7 +99,7 @@
                 [else #false]))))))
 
 (define python-problem->feature : (-> Problem-Info Path String (Vectorof String) Problem-Config Spec-Feature)
-  (lambda [problem-info python mod.py cmd-argv spec->config]
+  (lambda [problem-info python mod.py shell-argv spec->config]
     (describe ["~a" (or (problem-info-title problem-info) mod.py)]
       #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
              (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
@@ -117,12 +117,15 @@
                     (it brief #:do #;(pending))]
                    [(list? result) ; a complete test spec overrides the doctests
                     (it brief #:do #:millisecond timeout
-                      #:do (expect-stdout python (python-cmd-args mod.py cmd-argv #false) usr-args result (spec->config t)))]
+                      #:do (expect-stdout python
+                                          (python-cmd-args mod.py (cond [(> (vector-length shell-argv) 0) shell-argv]
+                                                                        [else (or (problem-spec-argv t) shell-argv)]) #false)
+                                          usr-args result (spec->config t)))]
                    [else ; let doctest do its job
                     (it brief #:do #:millisecond timeout
                       #:do (let* ([attachment (assert (problem-info-attachment problem-info) python-problem-attachment?)]
                                   [doctest? (pair? (python-problem-attachment-doctests attachment))])
-                             (expect-stdout python (python-cmd-args mod.py cmd-argv doctest?) usr-args null (spec->config t))))])))))
+                             (expect-stdout python (python-cmd-args mod.py shell-argv doctest?) usr-args null (spec->config t))))])))))
 
 (define python-interpreter : (->* () ((Option Path)) (Option Path))
   (lambda [[mod.py #false]]
