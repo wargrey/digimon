@@ -177,7 +177,7 @@
 
         (echof #:fgcolor fgc "~a~a" headline (car briefs))
 
-        (when (and (eq? type 'pass) (not no-timing-info?))
+        (when (and (not no-timing-info?) (memq type '(pass misbehaved)))
           (echof #:fgcolor 'darkgrey " [~a, ~a task time]" (~size memory) (~gctime (- real gc))))
 
         (newline)
