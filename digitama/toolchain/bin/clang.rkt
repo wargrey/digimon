@@ -56,7 +56,7 @@
                           [(macosx) (list #| MH_DYLIB file type |# "-dynamiclib")]
                           [else (list "-fPIC" "-shared")])])
             (case system
-              [(macosx) (list "-flat_namespace" "-undefined" "suppress")]
+              [(macosx) (list "-flat_namespace")]
               [(illumos) (list "-m64")]
               [else null])
             (if (not verbose?) null (list "-v")))))

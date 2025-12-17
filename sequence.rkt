@@ -3,6 +3,7 @@
 (provide (all-defined-out))
 
 (require racket/list)
+(require racket/vector)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define #:forall (N) ?list : (case-> [(Option N) -> (U Null (List N))]
@@ -45,3 +46,28 @@
     [(src total supplement ->v)
      (for/vector : (Vectorof D) #:length total #:fill supplement
        ([datum (in-list src)]) (->v datum))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define #:forall (N) vector->4:values : (-> (Vectorof N) N (Values N N N N))
+  (lambda [vs defval]
+    (define size (vector-length vs))
+    
+    (cond [(zero? size) (values defval defval defval defval)]
+          [(= size 1) (let ([top (vector-ref vs 0)]) (values top top top top))]
+          [(= size 2) (let ([top (vector-ref vs 0)] [right (vector-ref vs 1)]) (values top right top right))]
+          [(= size 3) (let ([top (vector-ref vs 0)] [right (vector-ref vs 1)] [bottom (vector-ref vs 2)]) (values top right bottom right))]
+          [else (values (vector-ref vs 0) (vector-ref vs 1) (vector-ref vs 2) (vector-ref vs 3))])))
+
+(define #:forall (T) vector->n:vector : (-> (Vectorof T) Natural T (Vectorof T))
+  (lambda [src total supplement]
+    (define size (vector-length src))
+
+    (cond [(= size total) src]
+          [(> size total) (vector-take src total)]
+          [else (vector-append src (make-vector (- total size) supplement))])))
+
+(define #:forall (T D) vector->n:vector* : (-> (Vectorof T) Natural D (-> T D) (Vectorof D))
+  (lambda [src total supplement ->v]
+    (for/vector : (Vectorof D) #:length total #:fill supplement
+      ([datum (in-list src)]) (->v datum))))
+

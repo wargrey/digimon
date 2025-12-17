@@ -109,7 +109,7 @@
 
 (define lean-cmd-args : (-> String (Vectorof String) (Vectorof String))
   (lambda [main.lean cmd-argv]
-    (vector-append (vector "--quiet" "--run" main.lean)
+    (vector-append (vector "--run" main.lean "--quiet")
                    cmd-argv)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
