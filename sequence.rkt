@@ -69,5 +69,5 @@
 (define #:forall (T D) vector->n:vector* : (-> (Vectorof T) Natural D (-> T D) (Vectorof D))
   (lambda [src total supplement ->v]
     (for/vector : (Vectorof D) #:length total #:fill supplement
-      ([datum (in-list src)]) (->v datum))))
+      ([datum (in-vector src)]) (->v datum))))
 
