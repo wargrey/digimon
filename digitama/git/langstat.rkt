@@ -160,40 +160,45 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define git-select-id : (-> (Listof Index) (Option Index))
-  (lambda [ids]
-    ; TODO: heuristically guessing the actual language is difficult for (re-)moved files
-    (and (pair? ids)
-         (apply min ids))))
+  (lambda [ids] ; should be at most one id
+    (and (pair? ids) (car ids))))
+
+(define git-select-language : (-> (Listof Github-Language) (Option Index))
+  (lambda [langs]
+    (and (pair? langs)
+         (if (pair? (cdr langs))
+             (github-language-id (car (sort langs github-language>)))
+             (github-language-id (car langs))))))
 
 (define git-identify-language : (All (Git-Datum) (case-> [(Immutable-HashTable Index (Git-Language-With Git-Datum)) Bytes -> (Option Index)]
                                                          [(Immutable-HashTable Index Any) Bytes (Immutable-HashTable Index Github-Language) -> (Option Index)]))
   (case-lambda
     [(stats ext)
-     (let it ([pos : (Option Integer) (hash-iterate-first stats)]
-              [ids : (Listof Index) null])
+     (let iter ([pos : (Option Integer) (hash-iterate-first stats)]
+                [ids : (Listof Index) null])
        (cond [(not pos) (git-select-id ids)]
              [else (let-values ([(lang-id metainfo) (hash-iterate-key+value stats pos)])
                      (if (member ext (git-language-extensions metainfo))
-                         (it (hash-iterate-next stats pos) (cons lang-id ids))
-                         (it (hash-iterate-next stats pos) ids)))]))]
+                         (iter (hash-iterate-next stats pos) (cons lang-id ids))
+                         (iter (hash-iterate-next stats pos) ids)))]))]
     [(stats ext languages)
-     (let it ([pos : (Option Integer) (hash-iterate-first stats)]
-              [ids : (Listof Index) null])
+     (let iter ([pos : (Option Integer) (hash-iterate-first stats)]
+                [ids : (Listof Index) null])
        (cond [(not pos) (git-select-id ids)]
              [else (let ([lang-id (hash-iterate-key stats pos)])
                      (if (member ext (github-language-extensions (hash-ref languages lang-id)))
-                         (it (hash-iterate-next stats pos) (cons lang-id ids))
-                         (it (hash-iterate-next stats pos) ids)))]))]))
+                         (iter (hash-iterate-next stats pos) (cons lang-id ids))
+                         (iter (hash-iterate-next stats pos) ids)))]))]))
 
 (define github-identify-language : (-> (Immutable-HashTable Index Github-Language) Bytes (Listof Symbol) (Option Index))
   (lambda [languages ext types]
-    (let it ([pos : (Option Integer) (hash-iterate-first languages)]
-             [ids : (Listof Index) null])
-      (cond [(not pos) (git-select-id ids)]
-            [else (let-values ([(lang-id metainfo) (hash-iterate-key+value languages pos)])
-                    (cond [(not (member ext (github-language-extensions metainfo))) (it (hash-iterate-next languages pos) ids)]
-                          [(and (pair? types) (not (memq (github-language-type metainfo) types))) (it (hash-iterate-next languages pos) ids)]
-                          [else (it (hash-iterate-next languages pos) (cons lang-id ids))]))]))))
+    (let iter ([pos : (Option Integer) (hash-iterate-first languages)]
+               [langs : (Listof Github-Language) null])
+      (cond [(not pos) (git-select-language langs)]
+            [else (let-values ([(lang-id lang-self) (hash-iterate-key+value languages pos)])
+                    (cond [(not (member ext (github-language-extensions lang-self))) (iter (hash-iterate-next languages pos) langs)]
+                          [(and (pair? types) (not (memq (github-language-type lang-self) types))) (iter (hash-iterate-next languages pos) langs)]
+                          [else (iter (hash-iterate-next languages pos) (cons lang-self langs))]))]))))
 
 (define github-language-group : (-> (Immutable-HashTable Index Github-Language) Natural Boolean (Values Github-Language Github-Language-Extensions))
   (lambda [languages id grouping?]

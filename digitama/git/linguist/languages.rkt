@@ -17,6 +17,24 @@
 (define px:property-label : PRegexp #px"^\\s+(\\w+):")
 (define px:array : PRegexp #px"^\\s+[-]")
 
+(define github-languague-types : (Listof Symbol) '(programming markup data prose nil))
+
+(define github-language> : (-> Github-Language Github-Language Boolean)
+  (lambda [lgt rgt]
+    (cond [(not (eq? (github-language-type lgt) (github-language-type rgt)))
+           (let ([lt (memq (github-language-type lgt) github-languague-types)]
+                 [rt (memq (github-language-type rgt) github-languague-types)])
+             (cond [(and lt rt) (> (length lt) (length rt))]
+                   [(or lt rt) (and lt #true)]
+                   [else #false]))]
+          [(not (and (github-language-color lgt) (github-language-color rgt)))
+           (let ([lc (github-language-color lgt)]
+                 [rc (github-language-color rgt)])
+             (cond [(or lc rc) (and lc #true)]
+                   [else #false]))]
+          [else (< (github-language-id lgt)
+                   (github-language-id rgt))])))
+
 (struct github-language
   ([id : Index]
    [name : String]
