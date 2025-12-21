@@ -8,11 +8,6 @@
 (require digimon/digitama/spec/expect/exec)
 (require digimon/digitama/minimal/dtrace)
 
-(require (for-syntax racket/base))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-type Problem-Config (-> Problem-Spec Spec-Exec.Cfg))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define wizarmon-spec-timeout : (Parameterof Natural) (make-parameter 0))
 (define wizarmon-spec-strict : (Parameterof Boolean) (make-parameter #false))
@@ -20,7 +15,7 @@
 (define wizarmon-spec-error-limit : (Parameterof Natural) (make-parameter 32))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-spec-problem-config : (-> (Option Dtrace-Level) Problem-Config)
+(define make-spec-problem-config : (-> (Option Dtrace-Level) (-> Problem-Spec Spec-Exec.Cfg))
   (lambda [stdin-log-level]
     (λ [self]
       (make-spec-exec.cfg #:stdout (current-output-port)

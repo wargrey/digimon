@@ -39,7 +39,7 @@
         [("c++") (shell-spec/flags path 'cpp)]
         [("cpp") (shell-spec/flags path 'cpp)]
         [("c") (shell-spec/flags path 'c)]
-        [("lean") (shell-spec/flags path 'lean)]
+        [("lean 4" "lean") (shell-spec/flags path 'lean)]
         [("python") (shell-spec/flags path 'python)]
         [("scribble") (shell-typeset/flags path 'scribble shell-typeset)]
         [("tex") (shell-typeset path 'tex)]

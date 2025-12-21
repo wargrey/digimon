@@ -2,20 +2,14 @@
 
 (provide (all-defined-out))
 
-(require racket/vector)
 (require racket/path)
-
-(require digimon/token)
-(require digimon/string)
 (require digimon/spec)
 
 (require digimon/digitama/exec)
-(require digimon/digitama/spec/dsl)
-(require digimon/digitama/spec/behavior)
-
 (require digimon/digitama/collection)
 (require digimon/digitama/minimal/dtrace)
 (require digimon/digitama/minimal/dtrecho)
+(require digimon/digitama/toolchain/spec/lean)
 
 (require "../problem.rkt")
 
@@ -57,79 +51,6 @@
                       (lean-problem->feature maybe-problem-info lean main.lean cmd-argv (make-spec-problem-config stdin-log-level)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-lean-problem-info : (-> Path (Option Problem-Info))
-  (lambda [main.lean]
-    (call-with-input-file* main.lean
-      (λ [[/dev/stdin : Input-Port]]
-        (syn-token-skip-shebang-line /dev/stdin)
-        
-        (let try-next-docstring : (Option Problem-Info) ()
-          (syn-token-skip-whitespace /dev/stdin)
-
-          (cond [(regexp-try-match #px"^/-+" /dev/stdin)
-                 (let*-values ([(head continue?) (read-lean-problem-title /dev/stdin)]
-                               [(body doctests) (if (not continue?) (values null null) (read-lean-problem-description /dev/stdin))]
-                               [(args results rest) (problem-description-split-input-output body)]
-                               [(specs description) (problem-description-split-spec main.lean rest)])
-                   (if (or (pair? specs) (pair? doctests))
-                       (make-problem-info head description args results specs #false)
-                       (try-next-docstring)))]
-                [(regexp-try-match #px"^\\s*--+" /dev/stdin)
-                 (read-line /dev/stdin 'any)
-                 (try-next-docstring)]
-                [else #false]))))))
-
-(define lean-problem->feature : (-> Problem-Info Path String (Vectorof String) Problem-Config Spec-Feature)
-  (lambda [problem-info lean main.lean shell-argv spec->config]
-    (describe ["~a" (or (problem-info-title problem-info) main.lean)]
-      #:do (for/spec ([t (in-list (problem-info-specs problem-info))])
-             (define-values (usr-args result) (values (problem-spec-input t) (problem-spec-output t)))
-             (define brief (problem-spec-brief t))
-             (define timeout (or (problem-spec-timeout t) 0))
-             (cond [(problem-spec-ignore? t)
-                    (if (eq? (problem-spec-ignore? t) 'skip)
-                        (if (problem-spec-reason t)
-                            (it brief #:do (ignore "~a" (problem-spec-reason t)))
-                            (it brief #:do (collapse "skipped test requires a reason")))
-                        (if (problem-spec-reason t)
-                            (it brief #:do (pending "~a" (problem-spec-reason t)))
-                            (it brief #:do #;(pending))))]
-                   [(not (and (string-blank? usr-args) (not result)))
-                    (it brief #:do #:millisecond timeout
-                      #:do (expect-stdout lean (lean-cmd-args main.lean
-                                                              (cond [(> (vector-length shell-argv) 0) shell-argv]
-                                                                    [else (or (problem-spec-argv t) shell-argv)]))
-                                          usr-args (or result null)
-                                          (spec->config t)))]
-                   [else (it brief #:do #;(pending))])))))
-
 (define lean-interpreter : (-> Path (Option Path))
   (lambda [main.lean]
     (find-executable-path "lean")))
-
-(define lean-cmd-args : (-> String (Vectorof String) (Vectorof String))
-  (lambda [main.lean cmd-argv]
-    (vector-append (vector "--run" main.lean "--quiet")
-                   cmd-argv)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define read-lean-problem-title : (-> Input-Port (Values (Option String) Boolean))
-  (lambda [/dev/stdin]
-    (define self (read-line /dev/stdin 'any))
-    
-    (cond [(or (eof-object? self) (regexp-match? #px"-+/" self)) (values #false #false)]
-          [(string-blank? self) (values #false #true)]
-          [else (values (string-trim self) #true)])))
-
-(define read-lean-problem-description : (-> Input-Port (Values (Listof String) (Listof String)))
-  (lambda [/dev/stdin]
-    ;;; TODO: Lean4 allows nested block comments
-    (let read-desc ([senil : (Listof String) null]
-                    [stsetcod : (Listof String) null])
-      (define self (read-line /dev/stdin 'any))
-
-      (if (string? self)
-          (cond [(regexp-match? #px"-+/" self) (values (reverse senil) (reverse stsetcod))]
-                [(regexp-match? #px"^\\s*--+" self) (read-desc senil stsetcod)]
-                [else (read-desc (cons (regexp-replace #px"`@(\\w+)`" self "@\\1") senil) stsetcod)])
-          (values (reverse senil) (reverse stsetcod))))))

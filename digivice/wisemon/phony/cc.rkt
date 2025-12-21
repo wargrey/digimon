@@ -59,8 +59,7 @@
   (lambda [info-ref debug? [force-lang #false]]
     (define-values (launchers default-compilers) (find-digimon-native-launcher-names* info-ref debug? force-lang))
     launchers))
-  
-  
+
 (define find-digimon-native-launcher-names* : (->* (Info-Ref Boolean) ((Option Symbol)) (Values (Listof CC-Launcher-Name) (Listof Symbol)))
   (lambda [info-ref debug? [force-lang #false]]
     (define maybe-launchers (info-ref 'native-launcher-names (λ [] null)))
