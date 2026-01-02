@@ -20,7 +20,7 @@
                       (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
                               (cons <param> params)))])
        (syntax/loc stx
-         (begin (struct id parent () #:type-name ID #:transparent)
+         (begin (struct id parent () #:type-name ID #:transparent) ; make an alias to parent, without adding new fields
 
                 (define default-parameter : (Parameterof FieldType (-> FieldType))
                   ((inst make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
@@ -39,7 +39,7 @@
                       (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
                               (cons <param> params)))])
        (syntax/loc stx
-         (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
+         (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent) ; extend the (empty) parent
 
                 (define default-parameter : (Parameterof FieldType (-> FieldType))
                   ((make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))

@@ -36,8 +36,7 @@
                    [current-make-phony-goal 'exec]
                    [current-make-real-targets (list path)])
       (case (and lang (string-downcase lang))
-        [("c++") (shell-spec/flags path 'cpp)]
-        [("cpp") (shell-spec/flags path 'cpp)]
+        [("c++" "cpp") (shell-spec/flags path 'cpp)]
         [("c") (shell-spec/flags path 'c)]
         [("lean 4" "lean") (shell-spec/flags path 'lean)]
         [("python") (shell-spec/flags path 'python)]

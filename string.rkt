@@ -10,20 +10,34 @@
 (require "digitama/unicode.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define string-uri? : (-> String Boolean)
+(define string-uri? : (-> (U String Bytes) Boolean)
   (let ([rx:3986 #rx"^(?:([^:/?#]*):)?(?://(?:([^/?#@]*)@)?(?:(?:\\[([0-9a-fA-F:]*:[0-9a-fA-F:]*)\\])|([^/?#:]*))?(?::([0-9]*))?)?([^?#]*)(?:\\?([^#]*))?(?:#(.*))?$"])
     (lambda [s]
       (regexp-match? rx:3986 s))))
 
-(define string-guid? : (-> String Boolean)
+(define string-guid? : (-> (U String Bytes) Boolean)
   (let ([px:guid #px"^[{][0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}[}]$"])
     (lambda [s]
       (regexp-match? px:guid s))))
 
-(define string-panose? : (-> String Boolean) ; a classification system for Font
+(define string-panose? : (-> (U String Bytes) Boolean) ; a classification system for Font
   (let ([px:panose #px"^[0-9A-F]{10}$"])
     (lambda [s]
       (regexp-match? px:panose s))))
+
+(define <<string>>? : (-> (U String Bytes) Boolean)
+  (let ([px:<<w+>> #px"^&lt;&lt;\\w+&gt;&gt;$"])
+    (lambda [s]
+      (regexp-match? px:<<w+>> s))))
+
+(define <<string>>+? : (-> (Listof (U String Bytes)) Boolean)
+  (lambda [s]
+    (ormap <<string>>? s)))
+
+(define string-match-any? : (-> (Listof (U String Bytes)) (U Byte-Regexp Regexp) Boolean)
+  (lambda [ss patterns]
+    (for/or : Boolean ([label (in-list ss)])
+      (regexp-match? patterns label))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define string-empty? : (-> String Boolean)
