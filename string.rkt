@@ -26,7 +26,7 @@
       (regexp-match? px:panose s))))
 
 (define <<string>>? : (-> (U String Bytes) Boolean)
-  (let ([px:<<w+>> #px"^&lt;&lt;\\w+&gt;&gt;$"])
+  (let ([px:<<w+>> #px"^<<\\w+>>$"])
     (lambda [s]
       (regexp-match? px:<<w+>> s))))
 
