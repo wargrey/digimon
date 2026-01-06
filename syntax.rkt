@@ -72,7 +72,35 @@
                  [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
              (values (cons <kw-name> (cons <Argument> args))
                      (cons <kw-name> (cons <ReArgument> reargs))))))
-       (list args reargs)])))
+       (list args reargs)]))
+
+  (define make-keyword-make-arguments
+    (case-lambda
+      [(<field>s <DataType>s)
+       (for/fold ([args null])
+                 ([<field> (in-syntax <field>s)]
+                  [<DataType> (in-syntax <DataType>s)])
+         (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+               [<Argument> #`[#,<field> : #,<DataType>]])
+           (cons <kw-name> (cons <Argument> args))))]
+      [(<field>s <DataType>s <defval>s)
+       (for/fold ([args null])
+                 ([<field> (in-syntax <field>s)]
+                  [<DataType> (in-syntax <DataType>s)]
+                  [<defval> (in-syntax <defval>s)])
+         (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+               [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]])
+           (cons <kw-name> (cons <Argument> args))))]))
+
+  (define make-keyword-remake-arguments
+    (case-lambda
+      [(<field>s <DataType>s)
+       (for/fold ([reargs null])
+                 ([<field> (in-syntax <field>s)]
+                  [<DataType> (in-syntax <DataType>s)])
+         (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
+               [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
+           (cons <kw-name> (cons <ReArgument> reargs))))])))
 
 (define-syntax (with-a-field-replaced stx)
     (syntax-case stx [:]

@@ -17,13 +17,12 @@
                                [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
                       (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                       (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
                               (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id parent () #:type-name ID #:transparent) ; make an alias to parent, without adding new fields
 
-                (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  ((inst make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                (define default-parameter : (Parameterof FieldType) ((inst make-parameter FieldType) defval))
                 ...
 
                 (define (make-id kw-args ...) : ID
@@ -36,13 +35,12 @@
                                [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
                       (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                       (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
                               (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent) ; extend the (empty) parent
 
-                (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  ((make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                (define default-parameter : (Parameterof FieldType) ((inst make-parameter FieldType) defval))
                 ...
                 
                 (define (make-id kw-args ...) : ID
@@ -55,13 +53,12 @@
                                [<FiledType> (in-list (reverse (syntax->list #'(FieldType ...))))])
                       (define <param> (datum->syntax <field> (string->symbol (format (syntax-e #'frmt) (syntax-e <field>)))))
                       (define <kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>)))))
-                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> ((#,<param>))] args))
+                      (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
                               (cons <param> params)))])
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
-                (define default-parameter : (Parameterof FieldType (-> FieldType))
-                  ((inst make-parameter FieldType (-> FieldType)) (λ [] defval) (λ [[v : FieldType]] (λ [] v))))
+                (define default-parameter : (Parameterof FieldType (-> FieldType)) ((inst make-parameter FieldType) defval))
                 ...
                 
                 (define (make-id kw-args ...) : ID
@@ -139,6 +136,50 @@
 
                 (define (remake-id [self : ID] kw-reargs ...) : ID
                   (id (if (void? field) (field-ref self) field) ...)))))]
+
+    [(_ id : ID #:forall ([tfield : T (~optional (~seq #:+ SuperType) #:defaults ([SuperType #'Any])) phantom ...] ...)
+        ([field : FieldType defval ...] ...)
+        options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [remake-id* (format-id #'id "remake-~a*" (syntax-e #'id))]
+                    [id? (format-id #'id "~a?" (syntax-e #'id))]
+                    [id*? (format-id #'id "~a*?" (syntax-e #'id))]
+                    [id?? (format-id #'id "~a??" (syntax-e #'id))]
+                    [(tfield? ...) (make-identifiers #'id #'(tfield ...) "~a-~a?")]
+                    [(tfield-ref ...) (make-identifiers #'id #'(tfield ...))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [(tkw-reargs ...) (make-keyword-remake-arguments #'(tfield ...) #'((∩ T SuperType) ...))]
+                    [(kw-reargs ...) (make-keyword-remake-arguments #'(field ...) #'(FieldType ...))]
+                    [(kw-args ...) (make-keyword-make-arguments #'(tfield ... field ...)
+                                                                #'((∩ T SuperType) ... FieldType ...)
+                                                                #'([phantom ...] ... [defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct (T ...) id ([tfield : T] ... [field : FieldType] ...) options ...)
+
+                (define #:forall (T ...) id*? : (-> Any (-> Any Boolean : #:+ T) ... Boolean : #:+ (ID T ...))
+                  (lambda [self tfield? ...]
+                    (and (id? self)
+                         (tfield? (tfield-ref self))
+                         ...)))
+                
+                (define #:forall (T ...) id?? : (-> (ID SuperType ...) (-> Any Boolean : #:+ T) ... Boolean : #:+ (ID T ...))
+                  (lambda [self tfield? ...]
+                    (and (tfield? (tfield-ref self))
+                         ...)))
+
+                (define #:forall (T ...) (make-id kw-args ...) : (ID (∩ T SuperType) ...)
+                  (id tfield ... field ...))
+
+                (define #:forall (T ...) (remake-id [self : (ID (∩ T SuperType) ...)] kw-reargs ...) : (ID (∩ T SuperType) ...)
+                  (id (tfield-ref self) ...
+                      (if (void? field) (field-ref self) field) ...))
+
+                (define #:forall (T ...) (remake-id* [self : (ID (∩ T SuperType) ...)] tkw-reargs ... kw-reargs ...) : (ID (∩ T SuperType) ...)
+                  (id (if (void? tfield) (tfield-ref self) tfield) ...
+                      (if (void? field) (field-ref self) field) ...)))))]
+    
     [(_ sid : SID #:-> super
         (~optional (~seq #:head [[hid hfield : HFieldType hdefval ...] ...])
                    #:defaults ([(hid 1) null] [(hfield 1) null] [(HFieldType 1) null] [(hdefval 2) null]))
