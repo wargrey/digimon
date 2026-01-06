@@ -137,7 +137,7 @@
                 (define (remake-id [self : ID] kw-reargs ...) : ID
                   (id (if (undefined? field) (field-ref self) field) ...)))))]
 
-    [(_ id : ID #:forall ([tfield : T (~optional (~seq #:+ SuperType) #:defaults ([SuperType #'Any])) phantom ...] ...)
+    [(_ id : ID (~or #:forall #:∀) ([tfield : T (~optional (~seq #:+ SuperType) #:defaults ([SuperType #'Any])) phantom ...] ...)
         ([field : FieldType defval ...] ...)
         options ...)
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
@@ -215,6 +215,41 @@
                   #:head [[hid hfield : HFieldType hdefval ...] ...
                           [sid field : FieldType defval ...] ...]
                   subrest ...) ...)))]))
+
+(define-syntax (define-phantom-struct stx)
+  (syntax-parse stx #:literals [:]
+    [(_ id : ID #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
+        ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([the-id (format-id #'id "the-~a" (syntax-e #'id))]
+                    [make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [default-id (format-id #'id "default-~a" (syntax-e #'id))]
+                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct id () options ...)
+                (define the-id : ID (id))
+
+                (define (make-id #:self [self : ID the-id] kw-args ...) : (Target ID)
+                  (target self field ...))
+                
+                (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
+    [(_ id : ID #:-> super
+        #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
+        ([field : FieldType defval ...] ...)
+        options ...)
+     (with-syntax* ([the-id (format-id #'id "the-~a" (syntax-e #'id))]
+                    [make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [default-id (format-id #'id "default-~a" (syntax-e #'id))]
+                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct id super () options ...)
+                (define the-id : ID (id))
+
+                (define (make-id #:self [self : ID the-id] kw-args ...) : (Target ID)
+                  (target self field ...))
+                
+                (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]))
 
 (define-syntax (define-struct/parameter stx)
   (syntax-parse stx #:literals [:]
