@@ -135,7 +135,7 @@
                   (id field ...))
 
                 (define (remake-id [self : ID] kw-reargs ...) : ID
-                  (id (if (void? field) (field-ref self) field) ...)))))]
+                  (id (if (undefined? field) (field-ref self) field) ...)))))]
 
     [(_ id : ID #:forall ([tfield : T (~optional (~seq #:+ SuperType) #:defaults ([SuperType #'Any])) phantom ...] ...)
         ([field : FieldType defval ...] ...)
@@ -174,11 +174,11 @@
 
                 (define #:forall (T ...) (remake-id [self : (ID (∩ T SuperType) ...)] kw-reargs ...) : (ID (∩ T SuperType) ...)
                   (id (tfield-ref self) ...
-                      (if (void? field) (field-ref self) field) ...))
+                      (if (undefined? field) (field-ref self) field) ...))
 
                 (define #:forall (T ...) (remake-id* [self : (ID (∩ T SuperType) ...)] tkw-reargs ... kw-reargs ...) : (ID (∩ T SuperType) ...)
-                  (id (if (void? tfield) (tfield-ref self) tfield) ...
-                      (if (void? field) (field-ref self) field) ...)))))]
+                  (id (if (undefined? tfield) (tfield-ref self) tfield) ...
+                      (if (undefined? field) (field-ref self) field) ...)))))]
     
     [(_ sid : SID #:-> super
         (~optional (~seq #:head [[hid hfield : HFieldType hdefval ...] ...])
@@ -204,11 +204,11 @@
                   (sid hfield ... field ...))
 
                 (define (remake-id [self : SID] hkw-reargs ... kw-reargs ...) : SID
-                  (sid (if (void? hfield) (hfield-ref self) hfield) ...
-                       (if (void? field) (field-ref self) field) ...))
+                  (sid (if (undefined? hfield) (hfield-ref self) hfield) ...
+                       (if (undefined? field) (field-ref self) field) ...))
 
                 (define (derive-id [self : super] hkw-reargs ... kw-args ...) : SID
-                  (sid (if (void? hfield) (hfield-ref self) hfield) ...
+                  (sid (if (undefined? hfield) (hfield-ref self) hfield) ...
                        field ...))
 
                 (deftree sub : Sub #:-> sid
@@ -232,7 +232,7 @@
                   (id field ...))
                 
                 (define (remake-id [self : ID (default-id)] kw-reargs ...) : ID
-                  (id (if (void? field) (field-ref self) field) ...))
+                  (id (if (undefined? field) (field-ref self) field) ...))
 
                 (define default-id : (Parameterof ID) (make-parameter (make-id))))))]))
 
@@ -252,7 +252,7 @@
                         (~alt (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
                         argl [... ...])
                      (syntax/loc nstx
-                       (f (if (void? field) (field-ref self) field) ...
+                       (f (if (undefined? field) (field-ref self) field) ...
                           argl [... ...]))]))
 
                 ; TODO: It causes "parent struct info not known" out of the module defining the struct
@@ -290,8 +290,8 @@
                               (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
                         argl [... ...])
                      (syntax/loc nstx
-                       (f (if (void? hfield) (hfield-ref self) hfield) ...
-                          (if (void? field) (field-ref self) field) ...
+                       (f (if (undefined? hfield) (hfield-ref self) hfield) ...
+                          (if (undefined? field) (field-ref self) field) ...
                           argl [... ...]))]))
 
                 ; It causes "parent struct info not known" out of the module defining the struct

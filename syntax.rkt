@@ -14,6 +14,10 @@
 (require (for-syntax racket/sequence))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(struct undefined () #:type-name Undefined)
+(define the-undefined-object (undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (begin-for-syntax
   (define (make-identifier <id> fmt [-> values])
     (format-id <id> fmt (-> (syntax-e <id>))))
@@ -40,11 +44,6 @@
                      (string->keyword
                       (symbol->immutable-string (syntax-e <field>))))))
 
-  ;;; NOTE:
-  ; Speaking of `ReArgument`, empolying `Void` as the indication just works fine.
-  ;   if working with field accessors, typed racket will union the field type with the `unsafe-undefined`,
-  ;   thus, it won't make it more efficient than as with `Void`.
-  ; So, giving up the `ReArgument*` for reducing the time of type checking.
   (define make-keyword-optional-arguments
     (case-lambda
       [(<field>s <DataType>s)
@@ -54,7 +53,7 @@
                     [<DataType> (in-syntax <DataType>s)])
            (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
                  [<Argument> #`[#,<field> : (Option #,<DataType>) #false]]
-                 [<ReArgument> #`[#,<field> : (U Void False #,<DataType>) (void)]])
+                 [<ReArgument> #`[#,<field> : (U Undefined False #,<DataType>) the-undefined-object]])
              (values (cons <kw-name> (cons <Argument> args))
                      (cons <kw-name> (cons <ReArgument> reargs))))))
        (list args reargs)]))
@@ -69,7 +68,7 @@
                     [<defval> (in-syntax <defval>s)])
            (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
                  [<Argument> #`[#,<field> : #,<DataType> #,@<defval>]]
-                 [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
+                 [<ReArgument> #`[#,<field> : (U Undefined #,<DataType>) the-undefined-object]])
              (values (cons <kw-name> (cons <Argument> args))
                      (cons <kw-name> (cons <ReArgument> reargs))))))
        (list args reargs)]))
@@ -99,7 +98,7 @@
                  ([<field> (in-syntax <field>s)]
                   [<DataType> (in-syntax <DataType>s)])
          (let ([<kw-name> (datum->syntax <field> (string->keyword (symbol->immutable-string (syntax-e <field>))))]
-               [<ReArgument> #`[#,<field> : (U Void #,<DataType>) (void)]])
+               [<ReArgument> #`[#,<field> : (U Undefined #,<DataType>) the-undefined-object]])
            (cons <kw-name> (cons <ReArgument> reargs))))])))
 
 (define-syntax (with-a-field-replaced stx)

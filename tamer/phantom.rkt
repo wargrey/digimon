@@ -19,4 +19,5 @@
 (remake-matter* m #:type (Phantom:Info 0) #:opacity 0.5)
 
 (when (matter?? m Phantom? byte?)
-  m)
+  (matter-type m))
+
