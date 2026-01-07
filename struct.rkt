@@ -9,6 +9,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-configuration stx)
   (syntax-parse stx #:literals [:]
+    ; make an alias to parent, without adding new fields
     [(_ id : ID #:as parent #:format frmt:str ([field : FieldType defval] ...))
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
@@ -20,7 +21,7 @@
                       (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
                               (cons <param> params)))])
        (syntax/loc stx
-         (begin (struct id parent () #:type-name ID #:transparent) ; make an alias to parent, without adding new fields
+         (begin (struct id parent () #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType) ((inst make-parameter FieldType) defval))
                 ...
@@ -28,6 +29,7 @@
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
     [(_ id : ID #:-> parent #:format frmt:str ([field : FieldType defval] ...))
+      ; extend the (empty) parent
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
                     (for/fold ([args null] [params null] #:result (list args params))
@@ -38,7 +40,7 @@
                       (values (cons <kw-name> (cons #`[#,<field> : #,<FiledType> (#,<param>)] args))
                               (cons <param> params)))])
        (syntax/loc stx
-         (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent) ; extend the (empty) parent
+         (begin (struct id parent ([field : FieldType] ...) #:type-name ID #:transparent)
 
                 (define default-parameter : (Parameterof FieldType) ((inst make-parameter FieldType) defval))
                 ...
@@ -136,6 +138,39 @@
 
                 (define (remake-id [self : ID] kw-reargs ...) : ID
                   (id (if (undefined? field) (field-ref self) field) ...)))))]
+
+    [(_ (~or #:forall #:∀) (T:id ...) id : ID ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'id #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct (T ...) id ([field : FieldType] ...) options ...)
+
+                (define #:forall (T ...) (make-id kw-args ...) : (ID T ...)
+                  (id field ...))
+
+                (define #:forall (T ...) (remake-id [self : (ID T ...)] kw-reargs ...) : (ID T ...)
+                  (id (if (undefined? field) (field-ref self) field) ...)))))]
+
+    ; make a specialized alias to parent, without adding new fields
+    [(_ (~or #:spec #:specialized) (T:id ...) id : ID #:as super (~optional (~seq : Super:expr) #:defaults ([Super #'super]))
+        ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [unsafe-id (format-id #'id "unsafe-~a" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'super #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID (id T ...))
+                (struct (T ...) id super () #:constructor-name unsafe-id options ...)
+
+                (define (make-id kw-args ...) : ID
+                  (unsafe-id field ...))
+
+                (define (remake-id [self : ID] kw-reargs ...) : ID
+                  (unsafe-id (if (undefined? field) (field-ref self) field) ...)))))]
 
     [(_ id : ID (~or #:forall #:∀) ([tfield : T (~optional (~seq #:+ SuperType) #:defaults ([SuperType #'Any])) phantom ...] ...)
         ([field : FieldType defval ...] ...)
@@ -284,7 +319,7 @@
                 (define-syntax (id-apply nstx)
                   (syntax-parse nstx #:literals [:]
                     [(_ f self
-                        (~alt (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
+                        (~alt (~optional (~seq kw-field field) #:defaults ([field #'the-undefined-object])) ...) [... ...]
                         argl [... ...])
                      (syntax/loc nstx
                        (f (if (undefined? field) (field-ref self) field) ...
@@ -321,8 +356,8 @@
                 (define-syntax (id-apply nstx)
                   (syntax-parse nstx #:literals [:]
                     [(_ f self
-                        (~alt (~optional (~seq kw-hfield hfield) #:defaults ([hfield #'(void)])) ...
-                              (~optional (~seq kw-field field) #:defaults ([field #'(void)])) ...) [... ...]
+                        (~alt (~optional (~seq kw-hfield hfield) #:defaults ([hfield #'the-undefined-object])) ...
+                              (~optional (~seq kw-field field) #:defaults ([field #'the-undefined-object])) ...) [... ...]
                         argl [... ...])
                      (syntax/loc nstx
                        (f (if (undefined? hfield) (hfield-ref self) hfield) ...
