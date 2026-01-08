@@ -304,6 +304,27 @@
                 (define (remake-id [self : ID (default-id)] kw-reargs ...) : ID
                   (id (if (undefined? field) (field-ref self) field) ...))
 
+                (define default-id : (Parameterof ID) (make-parameter (make-id))))))]
+
+    ; make a specialized alias to parent, without adding new fields
+    [(_ (~or #:spec #:specialized) (T:id ...) id : ID #:as super (~optional (~seq : Super:expr) #:defaults ([Super #'super]))
+        ([field : FieldType defval ...] ...) options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
+                    [unsafe-id (format-id #'id "unsafe-~a" (syntax-e #'id))]
+                    [default-id (format-id #'id "default-~a" (syntax-e #'id))]
+                    [(field-ref ...) (make-identifiers #'super #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID (id T ...))
+                (struct (T ...) id super () #:constructor-name unsafe-id options ...)
+
+                (define (make-id kw-args ...) : ID
+                  (unsafe-id field ...))
+
+                (define (remake-id [self : ID (default-id)] kw-reargs ...) : ID
+                  (unsafe-id (if (undefined? field) (field-ref self) field) ...))
+
                 (define default-id : (Parameterof ID) (make-parameter (make-id))))))]))
 
 (define-syntax (define-struct* stx)

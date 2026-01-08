@@ -9,7 +9,7 @@
   ([id : (-> T T) id])
   #:transparent)
 
-(define-struct #:specialized (Symbol) symbol-factory : Symbol-Factory #:as factory
+(define-struct/parameter #:specialized (Symbol) symbol-factory : Symbol-Factory #:as factory
   ([id : (-> Symbol Symbol) id]))
 
 (define f (make-symbol-factory))
