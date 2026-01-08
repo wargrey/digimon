@@ -60,12 +60,11 @@
        (syntax/loc stx
          (begin (struct id ([field : FieldType] ...) #:type-name ID #:transparent)
 
-                (define default-parameter : (Parameterof FieldType (-> FieldType)) ((inst make-parameter FieldType) defval))
+                (define default-parameter : (Parameterof FieldType FieldType) ((inst make-parameter FieldType) defval))
                 ...
                 
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (define-object stx)
