@@ -263,7 +263,7 @@
                 (struct id () options ...)
                 (define the-id : ID (id))
 
-                (define (make-id [the-id : ID the-id] kw-args ...) : (Target ID)
+                (define (make-id kw-args ...) : (Target ID)
                   (target the-id field ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
@@ -280,7 +280,7 @@
                 (struct id super () options ...)
                 (define the-id : ID (id))
 
-                (define (make-id [the-id : ID the-id] kw-args ...) : (Target ID)
+                (define (make-id kw-args ...) : (Target ID)
                   (target the-id field ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]))
