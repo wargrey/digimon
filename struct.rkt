@@ -29,7 +29,7 @@
                 (define (make-id kw-args ...) : ID
                   (id field ...)))))]
     [(_ id : ID #:-> parent #:format frmt:str ([field : FieldType defval] ...))
-      ; extend the (empty) parent
+     ; extend the (empty) parent
      (with-syntax ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
                    [([kw-args ...] [default-parameter ...])
                     (for/fold ([args null] [params null] #:result (list args params))
@@ -285,6 +285,8 @@
                   (target the-id field ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
+
+    ; extend the (empty) parent
     [(_ id : ID #:-> super
         #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
         ([field : FieldType defval ...] ...)
@@ -303,6 +305,27 @@
                   (target (id phantom-field ...) field ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
+
+    ; make a specialized alias to parent, without adding new fields
+    [(_ id : ID #:as super
+        #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
+        ([field : FieldType defval ...] ...)
+        #:metadata
+        ([phantom-field : PhantomType phantom-defval ...] ...)
+        options ...)
+     (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [default-id (format-id #'id "default-~a" (syntax-e #'id))]
+                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
+                    [(phantom-args ...) (make-keyword-make-arguments #'(phantom-field ...) #'(PhantomType ...) #'([phantom-defval ...] ...))])
+       (syntax/loc stx
+         (begin (define-type ID id)
+                (struct id super () #:transparent options ...)
+
+                (define (make-id phantom-args ... kw-args ...) : (Target ID)
+                  (target (id phantom-field ...) field ...))
+                
+                (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
+
     [(_ id : ID #:-> super
         #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
         ([field : FieldType defval ...] ...)
