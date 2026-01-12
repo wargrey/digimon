@@ -165,6 +165,7 @@
                     (make-dimension number unit)))))))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; TODO: CSS 4.0 added rem, rex, and more root font-relative lengths  
 (define-struct dimension-environment : Dimension-Environment
   ([em : (-> Nonnegative-Flonum) λnan]
    [ex : (-> Nonnegative-Flonum) λnan]
@@ -188,13 +189,13 @@
                    [(pc)       (fl* 16.0 px)]                               #;1in/6
                    [(pt)       (fl* (fl/ 96.0 72.0) px)]                    #;1in/72
                    [(em)       (fl* ((dimension-environment-em denv)) px)]
-                   [(ex)       (fl* ((dimension-environment-em denv)) px)]
-                   [(cap)      (fl* ((dimension-environment-em denv)) px)]
-                   [(ch)       (fl* ((dimension-environment-em denv)) px)]
-                   [(ic)       (fl* ((dimension-environment-em denv)) px)]
-                   [(lh)       (fl* ((dimension-environment-em denv)) px)]
-                   [(rem)      (fl* ((dimension-environment-em denv)) px)]
-                   [(rlh)      (fl* ((dimension-environment-em denv)) px)]
+                   [(ex)       (fl* ((dimension-environment-ex denv)) px)]
+                   [(cap)      (fl* ((dimension-environment-cap denv)) px)]
+                   [(ch)       (fl* ((dimension-environment-ch denv)) px)]
+                   [(ic)       (fl* ((dimension-environment-ic denv)) px)]
+                   [(lh)       (fl* ((dimension-environment-lh denv)) px)]
+                   [(rem)      (fl* ((dimension-environment-rem denv)) px)]
+                   [(rlh)      (fl* ((dimension-environment-rlh denv)) px)]
                    [(vw vi)    (fl* (fl* 0.01 ((dimension-environment-vw denv))) px)]
                    [(vh vb)    (fl* (fl* 0.01 ((dimension-environment-vh denv))) px)]
                    [(vmin)     (fl* (fl* 0.01 (min ((dimension-environment-vw denv)) ((dimension-environment-vh denv)))) px)]
