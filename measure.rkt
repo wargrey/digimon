@@ -12,14 +12,14 @@
 (struct ~% ([datum : Real]) #:transparent)
 (struct ~L ([datum : Real] [unit : Length-Unit]) #:transparent)
 
-(define-type Real+% (U Real ~%))
+(define-type ~Real (U Real ~%))
 (define-type ~Length (U Real ~L))
 (define-type ~Length+% (U Real ~% ~L))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~px : (case-> [~L -> Nonnegative-Flonum]
                       [Real Length-Unit -> Nonnegative-Flonum]
-                      [Real+% Length-Unit Nonnegative-Flonum -> Nonnegative-Flonum])
+                      [~Real Length-Unit Nonnegative-Flonum -> Nonnegative-Flonum])
   (case-lambda
     [(self) (~px (~L-datum self) (~L-unit self))]
     [(len unit)
@@ -38,7 +38,7 @@
     [(len unit 100%) (~px (~dimension len 100%) unit)]))
 
 (define ~rad : (case-> [Real Angle-Unit -> Flonum]
-                       [Real+% Angle-Unit Nonnegative-Flonum -> Flonum])
+                       [~Real Angle-Unit Nonnegative-Flonum -> Flonum])
   (case-lambda
     [(ang unit)
      (cond [(eq? unit 'deg) (* (real->double-flonum ang) (/ pi 180.0))]
@@ -48,7 +48,7 @@
     [(ang unit 100%) (~rad (~distance ang 100%) unit)]))
 
 (define ~deg : (case-> [Real Angle-Unit -> Flonum]
-                       [Real+% Angle-Unit Nonnegative-Flonum -> Flonum])
+                       [~Real Angle-Unit Nonnegative-Flonum -> Flonum])
   (case-lambda
     [(ang unit)
      (cond [(eq? unit 'deg) (real->double-flonum ang)]
@@ -59,7 +59,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~distance : (case-> [Real -> Flonum]
-                            [Real+% Nonnegative-Flonum -> Flonum])
+                            [~Real Nonnegative-Flonum -> Flonum])
   (case-lambda
     [(fl) (real->double-flonum fl)]
     [(fl% 100%)
