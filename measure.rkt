@@ -1,6 +1,6 @@
 #lang typed/racket/base
 
-(provide (all-defined-out))
+(provide (all-defined-out) pi)
 
 (require racket/math)
 (require racket/case)
