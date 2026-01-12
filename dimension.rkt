@@ -201,7 +201,7 @@
                    [(vmax)     (fl* (fl* 0.01 (max ((dimension-environment-vw denv)) ((dimension-environment-vh denv)))) px)]
                    [(apc)      (fl* (fl* (fl/ 96.0 2.54) 3.086) px)]        #;3.086cm
                    [(pls)      (fl* 1.133 px)]
-                   [(ls)       (fl* 1.133e12 px)]                           #;1e12pls
+                   #;[(ls)       (fl* 1.133e12 px)]                         #;1e12pls
                    #;[(pc)       (fl* (fl* (fl/ 96.0 2.54) 3.086e18) px)]   #;1e18apc]]
    ;;; https://drafts.csswg.org/css-values/#angles
    [dim:angle      #:+> Dim:Angle #:=> deg
