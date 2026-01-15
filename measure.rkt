@@ -29,6 +29,13 @@
           [(~L? v) (rational? (~L-datum v))]
           [else #false])))
 
+(define ~zero? : (-> Any Boolean)
+  (lambda [v]
+    (cond [(real? v) (zero? v)]
+          [(~:? v) (zero? (~:-datum v))]
+          [(~L? v) (zero? (~L-datum v))]
+          [else #false])))
+
 (define default-font-metrics : (Parameterof (U (Listof (Pairof Symbol Nonnegative-Flonum))
                                                (-> Font-Relative-Length-Unit Nonnegative-Flonum)))
   (make-parameter null))
