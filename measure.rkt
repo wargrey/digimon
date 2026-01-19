@@ -36,6 +36,17 @@
           [(&L? v) (zero? (&L-datum v))]
           [else #false])))
 
+(define range% : (case-> [Real -> (Listof &:)]
+                         [Real Real -> (Listof &:)]
+                         [Real Real Real -> (Listof &:)])
+  (case-lambda
+    [(end)
+     (for/list ([p (in-range 0 end 1)]) (&% p))]
+    [(start end)
+     (for/list ([p (in-range start end 1)]) (&% p))]
+    [(start end step)
+     (for/list ([p (in-range start end step)]) (&% p))]))
+
 (define default-font-metrics : (Parameterof (U (Listof (Pairof Symbol Nonnegative-Flonum))
                                                (-> Font-Relative-Length-Unit Nonnegative-Flonum)))
   (make-parameter null))
@@ -122,6 +133,15 @@
             (let ([v (real->double-flonum (&:-datum fl))])
               (if (rational? v) (* v ratio-to) ratio-to))]
            [else #| nan or invalid value |# ratio-to])]))
+
+(define ~placement : (-> Length+% Nonnegative-Flonum Nonnegative-Flonum)
+  (lambda [fl span]
+    (cond [(real? fl)
+           (cond [(> fl span) (~placement (- fl span) span)]
+                 [(>= fl 0.0) (real->double-flonum fl)]
+                 [else (~placement (+ span fl) span)])]
+          [(&L? fl) (~placement (~px (&L-datum fl) (&L-unit fl)) span)]
+          [(&:? fl) (~placement (* (&:-datum fl) span) span)])))
 
 (define ~dimension : (case-> [Real-Length -> Nonnegative-Flonum]
                              [Length+% Nonnegative-Flonum -> Nonnegative-Flonum]
