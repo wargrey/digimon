@@ -112,12 +112,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~distance : (case-> [Real-Length -> Flonum]
-                            [Length+% Nonnegative-Flonum -> Flonum])
+                            [Length+% Flonum -> Flonum])
   (case-lambda
     [(fl) (if (&L? fl) (~distance (~px fl)) (real->double-flonum fl))]
     [(fl ratio-to)
      (cond [(rational? fl) (real->double-flonum fl)]
-           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to)]
+           [(&L? fl) (~distance (~px (&L-datum fl) (&L-unit fl)) ratio-to)]
            [(&:? fl)
             (let ([v (real->double-flonum (&:-datum fl))])
               (if (rational? v) (* v ratio-to) ratio-to))]
