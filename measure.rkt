@@ -10,30 +10,30 @@
 (define-type Font-Relative-Length-Unit (U 'em 'ex 'cap 'ch 'ic))
 (define-type Angle-Unit (U 'deg 'rad 'grad 'turn))
 
-(define-type Real+% (U Real ~:))
-(define-type Length+% (U Real ~L ~:))
-(define-type Real-Length (U Real ~L))
+(define-type Real+% (U Real &:))
+(define-type Length+% (U Real &L &:))
+(define-type Real-Length (U Real &L))
 
-(struct ~L ([datum : Real] [unit : (U Length-Unit Font-Relative-Length-Unit)]) #:transparent)
-(struct ~: ([datum : Real]) #:transparent)
-(define (~% [datum : Real]) (~: (* datum 1/100)))
+(struct &L ([datum : Real] [unit : (U Length-Unit Font-Relative-Length-Unit)]) #:transparent)
+(struct &: ([datum : Real]) #:transparent)
+(define (&% [datum : Real]) (&: (* datum 1/100)))
 
-(define real-length? : (-> Any Boolean : Real-Length) (λ [v] (or (real? v) (~L? v))))
-(define real+%? : (-> Any Boolean : Real+%) (λ [v] (or (real? v) (~:? v))))
-(define length+%? : (-> Any Boolean : Length+%) (λ [v] (or (real? v) (~L? v) (~:? v))))
+(define real-length? : (-> Any Boolean : Real-Length) (λ [v] (or (real? v) (&L? v))))
+(define real+%? : (-> Any Boolean : Real+%) (λ [v] (or (real? v) (&:? v))))
+(define length+%? : (-> Any Boolean : Length+%) (λ [v] (or (real? v) (&L? v) (&:? v))))
 
-(define ~rational? : (-> Any Boolean)
+(define &rational? : (-> Any Boolean)
   (lambda [v]
     (cond [(real? v) (rational? v)]
-          [(~:? v) (rational? (~:-datum v))]
-          [(~L? v) (rational? (~L-datum v))]
+          [(&:? v) (rational? (&:-datum v))]
+          [(&L? v) (rational? (&L-datum v))]
           [else #false])))
 
-(define ~zero? : (-> Any Boolean)
+(define &zero? : (-> Any Boolean)
   (lambda [v]
     (cond [(real? v) (zero? v)]
-          [(~:? v) (zero? (~:-datum v))]
-          [(~L? v) (zero? (~L-datum v))]
+          [(&:? v) (zero? (&:-datum v))]
+          [(&L? v) (zero? (&L-datum v))]
           [else #false])))
 
 (define default-font-metrics : (Parameterof (U (Listof (Pairof Symbol Nonnegative-Flonum))
@@ -54,11 +54,11 @@
 (define -1/phi : Flonum (- 1/phi))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~px : (case-> [~L -> Nonnegative-Flonum]
+(define ~px : (case-> [&L -> Nonnegative-Flonum]
                       [Real (U Length-Unit Font-Relative-Length-Unit) -> Nonnegative-Flonum]
                       [Real+% (U Length-Unit Font-Relative-Length-Unit) Nonnegative-Flonum -> Nonnegative-Flonum])
   (case-lambda
-    [(dim) (~px (~L-datum dim) (~L-unit dim))]
+    [(dim) (~px (&L-datum dim) (&L-unit dim))]
     [(len unit)
      (define px (~dimension len))
      
@@ -100,7 +100,7 @@
     [(ang unit ratio-to) (~rad (~distance ang ratio-to) unit)]))
 
 (define ~deg : (case-> [Real Angle-Unit -> Flonum]
-                       [(U Real ~:) Angle-Unit Nonnegative-Flonum -> Flonum])
+                       [(U Real &:) Angle-Unit Nonnegative-Flonum -> Flonum])
   (case-lambda
     [(ang unit)
      (case/eq unit
@@ -114,12 +114,12 @@
 (define ~distance : (case-> [Real-Length -> Flonum]
                             [Length+% Nonnegative-Flonum -> Flonum])
   (case-lambda
-    [(fl) (if (~L? fl) (~distance (~px fl)) (real->double-flonum fl))]
+    [(fl) (if (&L? fl) (~distance (~px fl)) (real->double-flonum fl))]
     [(fl ratio-to)
      (cond [(rational? fl) (real->double-flonum fl)]
-           [(~L? fl) (~dimension (~px (~L-datum fl) (~L-unit fl)) ratio-to)]
-           [(~:? fl)
-            (let ([v (real->double-flonum (~:-datum fl))])
+           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to)]
+           [(&:? fl)
+            (let ([v (real->double-flonum (&:-datum fl))])
               (if (rational? v) (* v ratio-to) ratio-to))]
            [else #| nan or invalid value |# ratio-to])]))
 
@@ -128,22 +128,22 @@
                              [Length+% Nonnegative-Flonum (-> Nonnegative-Flonum) -> Nonnegative-Flonum])
   (case-lambda
     [(fl)
-     (cond [(~L? fl) (~dimension (~px (~L-datum fl) (~L-unit fl)))]
+     (cond [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)))]
            [(and (> fl 0.0) (< fl +inf.0)) (real->double-flonum fl)]
            [else 0.0])]
     [(fl ratio-to)
      (cond [(real? fl) (if (and (>= fl 0.0) (< fl +inf.0)) (real->double-flonum fl) ratio-to)]
-           [(~L? fl) (~dimension (~px (~L-datum fl) (~L-unit fl)) ratio-to)]
-           [(~:? fl)
-            (let ([ratio (real->double-flonum (~:-datum fl))])
+           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to)]
+           [(&:? fl)
+            (let ([ratio (real->double-flonum (&:-datum fl))])
               (if (and (>= ratio 0.0) (< ratio +inf.0))
                   (* ratio ratio-to)
                   ratio-to))])]
     [(fl ratio-to fallback)
      (cond [(real? fl) (if (and (>= fl 0.0) (< fl +inf.0)) (real->double-flonum fl) (fallback))]
-           [(~L? fl) (~dimension (~px (~L-datum fl) (~L-unit fl)) ratio-to fallback)]
-           [(~:? fl)
-            (let ([ratio (real->double-flonum (~:-datum fl))])
+           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to fallback)]
+           [(&:? fl)
+            (let ([ratio (real->double-flonum (&:-datum fl))])
               (if (and (> ratio 0.0) (< ratio +inf.0))
                   (* ratio ratio-to)
                   (fallback)))])]))
