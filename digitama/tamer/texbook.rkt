@@ -117,25 +117,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-frontmatter
-  (lambda [#:pre-frontmatter [pre-cmds "preFrontMatter"]]
+  (lambda [#:pre-frontmatter [pre-cmds "preFrontMatter"] #:docls-book? [book? #true]]
     (define frontmatter-elem (texbook-command "frontmatter"))
+    (define pre-elems
+      (map texbook-command
+           (cond [(list? pre-cmds) pre-cmds]
+                 [else (list pre-cmds)])))
 
-    (cond [(null? pre-cmds) frontmatter-elem]
-          [else (append (map texbook-command
-                             (cond [(list? pre-cmds) pre-cmds]
-                                   [else (list pre-cmds)]))
-                        (list frontmatter-elem))])))
+    (cond [(not book?) pre-elems]
+          [(null? pre-cmds) frontmatter-elem]
+          [else (append pre-elems (list frontmatter-elem))])))
 
 (define texbook-mainmatter
   (let ([quirk-style (make-style #false '(pre-hook))])
-    (lambda [#:pre-mainmatter [pre-cmds "preMainMatter"]]
+    (lambda [#:pre-mainmatter [pre-cmds "preMainMatter"] #:docls-book? [book? #true]]
       (make-compound-paragraph
        quirk-style
        (list (make-paragraph plain
                              (append (map texbook-command
                                           (cond [(list? pre-cmds) pre-cmds]
                                                 [else (list pre-cmds)]))
-                                     (list (texbook-command "mainmatter")))))))))
+                                     (cond [(and book?) (list (texbook-command "mainmatter"))]
+                                           [else null]))))))))
 
 (define texbook-appendix
   (lambda [#:book-part? [part? #true] #:tag [tag #false] #:post-mainmatter [pre-cmds "postMainMatter"] . contents]
@@ -152,17 +155,20 @@
 
 ; make following sections unnumbered, less useful than `texbook-appendix`
 (define texbook-backmatter
-  (lambda [#:book-part? [part? #false] #:tag [tag #false] #:post-mainmatter [pre-cmds "postMainMatter"] . contents]
+  (lambda [#:book-part? [part? #false] #:tag [tag #false] #:post-mainmatter [post-cmds "postMainMatter"] #:docls-book? [book? #true] . contents]
     (define backmatter-part
       (texbook-command-part #:book-part? part?
                             #:tag (or tag "tamer-backmatter")
                             #:property 'fin
                             "backmatter" contents))
 
-    (cond [(null? pre-cmds) backmatter-part]
-          [else (append (for/list ([cmd (if (list? pre-cmds) (in-list pre-cmds) (in-value pre-cmds))])
-                          (texbook-command-part #:book-part? #false #:property 'post-hook cmd null))
-                        (list backmatter-part))])))
+    (define post-cmds
+      (for/list ([cmd (if (list? post-cmds) (in-list post-cmds) (in-value post-cmds))])
+        (texbook-command-part #:book-part? #false #:property 'post-hook cmd null)))
+
+    (cond [(not book?) post-cmds]
+          [(null? post-cmds) backmatter-part]
+          [else (append post-cmds (list backmatter-part))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $tex:table-of-contents
