@@ -66,13 +66,13 @@
   (make-parameter null))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~px : (case-> [&L -> Nonnegative-Flonum]
-                      [Real (U Length-Unit Font-Relative-Length-Unit) -> Nonnegative-Flonum]
-                      [Real+% (U Length-Unit Font-Relative-Length-Unit) Nonnegative-Flonum -> Nonnegative-Flonum])
+(define ~px : (case-> [&L -> Flonum]
+                      [Real (U Length-Unit Font-Relative-Length-Unit) -> Flonum]
+                      [Real+% (U Length-Unit Font-Relative-Length-Unit) Nonnegative-Flonum -> Flonum])
   (case-lambda
     [(dim) (~px (&L-datum dim) (&L-unit dim))]
     [(len unit)
-     (define px (~dimension len))
+     (define px (~distance len))
      
      (case/eq unit
        [(px)       px]
@@ -98,7 +98,7 @@
                      [(ch)       (* px (frl 'ch))]
                      [(ic)       (* px (frl 'ic))]
                      [(cap)      (* px (frl 'cap))])))])]
-    [(len unit ratio-to) (~px (~dimension len ratio-to) unit)]))
+    [(len unit ratio-to) (~px (~distance len ratio-to) unit)]))
 
 (define ~rad : (case-> [Real Angle-Unit -> Flonum]
                        [Real+% Angle-Unit Nonnegative-Flonum -> Flonum])
