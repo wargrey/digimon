@@ -2,19 +2,29 @@
 
 (provide (all-defined-out) pi)
 (provide (rename-out [pi/2 +pi/2] [3pi/2 +3pi/2] [pi/4 +pi/4] [3pi/4 +3pi/4]
-                     [2pi/5 +2pi/5] [4pi/5 +4pi/5] [pi/3 +pi/3] [2pi/3 +2pi/3]
-                     [phi +phi] [1/phi +1/phi] [pi +pi]))
+                     [2pi/5 +2pi/5] [3pi/5 +3pi/5] [4pi/5 +4pi/5] [pi +pi]
+                     [phi +phi] [1/phi +1/phi]))
+(provide (rename-out [pi/3 +pi/3] [2pi/3 +2pi/3] [pi/6 +pi/6] [5pi/6 +5pi/6]
+                     [pi/8 +pi/8] [3pi/8 +3pi/8] [5pi/8 +5pi/8] [7pi/8 +7pi/8]
+                     [pi/12 +pi/12]))
 
 (require racket/math)
 (require racket/case)
 
+(require (for-syntax racket/base))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-values (-pi/2 pi/2 -3pi/2 3pi/2 -2pi +2pi -pi/4 pi/4 -3pi/4 3pi/4 -2pi/5 2pi/5 -4pi/5 4pi/5 -pi/3 pi/3 -2pi/3 2pi/3 -pi)
+(define-values (-pi/2 pi/2 -3pi/2 3pi/2 -2pi 2pi -pi/4 pi/4 -3pi/4 3pi/4 -2pi/5 2pi/5 -3pi/5 3pi/5 -4pi/5 4pi/5 -pi)
   (values (* pi -0.50) (* pi +0.50) (* pi -1.50) (* pi +1.50) (* pi -2.0) (* pi +2.0)
           (* pi -0.25) (* pi +0.25) (* pi -0.75) (* pi +0.75)
-          (* pi -0.40) (* pi +0.40) (* pi -0.80) (* pi +0.80)
-          (/ pi -3.00) (/ pi +3.00) (/ pi -1.50) (/ pi +1.50)
+          (* pi -0.40) (* pi +0.40) (* pi -0.60) (* pi +0.60) (* pi -0.80) (* pi +0.80)
           (- pi)))
+
+(define-values (-pi/3 pi/3 -2pi/3 2pi/3 -pi/6 pi/6 -5pi/6 5pi/6 -pi/8 pi/8 -3pi/8 3pi/8 -5pi/8 5pi/8 -7pi/8 7pi/8 -pi/12 pi/12)
+  (values (* pi -1/3) (* pi 1/3) (* pi -2/3) (* pi +2/3)
+          (* pi -1/6) (* pi 1/6) (* pi -5/6) (* pi +5/6)
+          (* pi -1/8) (* pi 1/8) (* pi -3/8) (* pi +3/8) (* pi -5/8) (* pi 5/8) (* pi -7/8) (* pi +7/8)
+          (* pi -1/12) (* pi +1/12)))
 
 (define phi : Nonnegative-Flonum (* (+ 1.0 (sqrt 5.0)) 0.5))
 (define 1/phi : Nonnegative-Flonum (/ 2.0 (+ 1.0 (sqrt 5.0))))
