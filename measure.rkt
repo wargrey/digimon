@@ -165,7 +165,7 @@
            [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to fallback)]
            [(&:? fl)
             (let ([ratio (real->double-flonum (&:-datum fl))])
-              (if (and (> ratio 0.0) (< ratio +inf.0))
+              (if (and (>= ratio 0.0) (< ratio +inf.0))
                   (* ratio ratio-to)
                   (fallback)))])]))
 
