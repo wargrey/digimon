@@ -3,7 +3,7 @@
 (provide (all-defined-out) pi)
 (provide (rename-out [pi/2 +pi/2] [3pi/2 +3pi/2] [pi/4 +pi/4] [3pi/4 +3pi/4]
                      [2pi/5 +2pi/5] [4pi/5 +4pi/5] [pi/3 +pi/3] [2pi/3 +2pi/3]
-                     [phi +phi] [1/phi +1/phi]))
+                     [phi +phi] [1/phi +1/phi] [pi +pi]))
 
 (require racket/math)
 (require racket/case)
