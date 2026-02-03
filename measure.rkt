@@ -6,7 +6,7 @@
                      [phi +phi] [1/phi +1/phi]))
 (provide (rename-out [pi/3 +pi/3] [2pi/3 +2pi/3] [pi/6 +pi/6] [5pi/6 +5pi/6]
                      [pi/8 +pi/8] [3pi/8 +3pi/8] [5pi/8 +5pi/8] [7pi/8 +7pi/8]
-                     [pi/12 +pi/12]))
+                     [pi/12 +pi/12] [5pi/12 +5pi/12] [7pi/12 +7pi/12] [11pi/12 +11pi/12]))
 
 (require racket/math)
 (require racket/case)
@@ -20,11 +20,14 @@
           (* pi -0.40) (* pi +0.40) (* pi -0.60) (* pi +0.60) (* pi -0.80) (* pi +0.80)
           (- pi)))
 
-(define-values (-pi/3 pi/3 -2pi/3 2pi/3 -pi/6 pi/6 -5pi/6 5pi/6 -pi/8 pi/8 -3pi/8 3pi/8 -5pi/8 5pi/8 -7pi/8 7pi/8 -pi/12 pi/12)
+(define-values (-pi/3 pi/3 -2pi/3 2pi/3 -pi/6 pi/6 -5pi/6 5pi/6 -pi/8 pi/8 -3pi/8 3pi/8 -5pi/8 5pi/8 -7pi/8 7pi/8)
   (values (* pi -1/3) (* pi 1/3) (* pi -2/3) (* pi +2/3)
           (* pi -1/6) (* pi 1/6) (* pi -5/6) (* pi +5/6)
-          (* pi -1/8) (* pi 1/8) (* pi -3/8) (* pi +3/8) (* pi -5/8) (* pi 5/8) (* pi -7/8) (* pi +7/8)
-          (* pi -1/12) (* pi +1/12)))
+          (* pi -1/8) (* pi 1/8) (* pi -3/8) (* pi +3/8) (* pi -5/8) (* pi 5/8) (* pi -7/8) (* pi +7/8)))
+
+(define-values (-pi/12 pi/12 -5pi/12 5pi/12 -7pi/12 7pi/12 -11pi/12 11pi/12)
+  (values (* pi -1/12) (* pi +1/12) (* pi -5/12) (* pi +5/12)
+          (* pi -7/12) (* pi +7/12) (* pi -11/12) (* pi +11/12)))
 
 (define phi : Nonnegative-Flonum (* (+ 1.0 (sqrt 5.0)) 0.5))
 (define 1/phi : Nonnegative-Flonum (/ 2.0 (+ 1.0 (sqrt 5.0))))
