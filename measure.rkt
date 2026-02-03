@@ -1,17 +1,19 @@
 #lang typed/racket/base
 
 (provide (all-defined-out) pi)
+(provide (rename-out [pi/2 +pi/2] [3pi/2 +3pi/2] [pi/4 +pi/4] [3pi/4 +3pi/4]
+                     [2pi/5 +2pi/5] [4pi/5 +4pi/5] [pi/3 +pi/3] [2pi/3 +2pi/3]
+                     [phi +phi] [1/phi +1/phi]))
 
 (require racket/math)
 (require racket/case)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define-values (-pi/2 pi/2 3pi/2 2pi -2pi pi/4 3pi/4 2pi/5 4pi/5 pi/3 2pi/3 -pi)
-  (values (* pi -0.5) (* pi +0.5)
-          (* pi +1.5) (* pi +2.0) (* pi -2.0)
-          (* pi 0.25) (* pi 0.75)
-          (* pi 0.40) (* pi 0.80)
-          (/ pi 3.00) (/ pi 1.50)
+(define-values (-pi/2 pi/2 -3pi/2 3pi/2 -2pi +2pi -pi/4 pi/4 -3pi/4 3pi/4 -2pi/5 2pi/5 -4pi/5 4pi/5 -pi/3 pi/3 -2pi/3 2pi/3 -pi)
+  (values (* pi -0.50) (* pi +0.50) (* pi -1.50) (* pi +1.50) (* pi -2.0) (* pi +2.0)
+          (* pi -0.25) (* pi +0.25) (* pi -0.75) (* pi +0.75)
+          (* pi -0.40) (* pi +0.40) (* pi -0.80) (* pi +0.80)
+          (/ pi -3.00) (/ pi +3.00) (/ pi -1.50) (/ pi +1.50)
           (- pi)))
 
 (define phi : Nonnegative-Flonum (* (+ 1.0 (sqrt 5.0)) 0.5))
@@ -166,6 +168,31 @@
            [(&:? fl)
             (let ([ratio (real->double-flonum (&:-datum fl))])
               (if (and (>= ratio 0.0) (< ratio +inf.0))
+                  (* ratio ratio-to)
+                  (fallback)))])]))
+
+(define ~dimension/inf : (case-> [Real-Length -> Nonnegative-Flonum]
+                                 [Length+% Nonnegative-Flonum -> Nonnegative-Flonum]
+                                 [Length+% Nonnegative-Flonum (-> Nonnegative-Flonum) -> Nonnegative-Flonum])
+  (case-lambda
+    [(fl)
+     (cond [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)))]
+           [(and (>= fl 0.0) (<= fl +inf.0)) (real->double-flonum fl)]
+           [else 0.0])]
+    [(fl ratio-to)
+     (cond [(real? fl) (if (and (>= fl 0.0) (<= fl +inf.0)) (real->double-flonum fl) ratio-to)]
+           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to)]
+           [(&:? fl)
+            (let ([ratio (real->double-flonum (&:-datum fl))])
+              (if (and (>= ratio 0.0) (<= ratio +inf.0))
+                  (* ratio ratio-to)
+                  ratio-to))])]
+    [(fl ratio-to fallback)
+     (cond [(real? fl) (if (and (>= fl 0.0) (<= fl +inf.0)) (real->double-flonum fl) (fallback))]
+           [(&L? fl) (~dimension (~px (&L-datum fl) (&L-unit fl)) ratio-to fallback)]
+           [(&:? fl)
+            (let ([ratio (real->double-flonum (&:-datum fl))])
+              (if (and (>= ratio 0.0) (<= ratio +inf.0))
                   (* ratio ratio-to)
                   (fallback)))])]))
 
