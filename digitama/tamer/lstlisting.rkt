@@ -170,13 +170,13 @@
                   [else id])])))
 
 (define (lang->class-range lang id)
-  (case (string->symbol lang)
+  (case (if (symbol? lang) lang (string->symbol lang))
     [(C++) (values (pregexp (format "(class|struct)\\s+~a\\s*(:[^{]+)?[{]?" id)) #px"[}];")]
     [(Java) (values (pregexp (format "(class|interface|enum)\\s+~a\\s*((extends|implements)[^{]+)?[{]?" id)) #px"^[}]")]
     [else (error 'lang->class-range "unsupported language: ~a" lang)]))
 
 (define (lang->function-range lang id ns)
-  (case (string->symbol lang)
+  (case (if (symbol? lang) lang (string->symbol lang))
     [(C++)
      (let ([full-id (if (not ns) (format "~a" id) (format "~a::~a" ns id))])
        (values (pregexp (string-append full-id "\\s*[(][^)]*[)]([^{]*)[{;]?")) #px"^[}]"))]
