@@ -19,7 +19,7 @@
     (define TEXNAME.log : Path (build-path dest-dir (path-replace-extension TEXNAME #".log")))
     (define log-timestamp : Natural (file-mtime TEXNAME.log))
     (define options : (Listof (Listof String))
-      (list (list "-interaction=batchmode")
+      (list (list "-interaction=batchmode" "-recorder")
             (if (not halt-on-error?) null (list "-halt-on-error"))
             (list (if (not shell?) "-no-shell-escape" "-shell-escape"))
             (list (format "-output-directory=~a" dest-dir))

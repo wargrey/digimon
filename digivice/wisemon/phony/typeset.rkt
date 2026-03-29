@@ -13,6 +13,7 @@
 (require "../../../digitama/minimal/dtrace.rkt")
 (require "../../../digitama/minimal/regexp.rkt")
 
+(require "../../../digitama/exec.rkt")
 (require "../../../digitama/latex.rkt")
 (require "../../../digitama/system.rkt")
 (require "../../../filesystem.rkt")
@@ -258,23 +259,30 @@
       (void (make-typeset typesettings (make-always-run))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol Scribble-Message (Values (Listof Path) (Listof Path) (List Wisemon-Spec)))
+(define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol Scribble-Message (Values (Listof Path) (Listof Path) (Listof Wisemon-Spec)))
   (lambda [VOLUME.tex volume-desc typesetting engine dtrace-msg]
-    (define dependencies (tex-info-dependencies typesetting))
-    (define scrbl-deps (filter file-exists? #| <- say, commented out includes |# (tex-smart-dependencies VOLUME.tex)))
-    (define regexp-deps (if (pair? dependencies) (find-digimon-files (make-regexps-filter dependencies) (digimon-path 'zone)) null))
-    (define all-deps (append scrbl-deps regexp-deps))
+    (define tex-deps (tex-smart-dependencies VOLUME.tex))
+    (define dest-dir (assert (path-only (tex-desc-self.out volume-desc))))
+    (define tex-subdir (tex-desc-subdir volume-desc))
     
     (define-values (always-files ignored-files) (digimon-typeset-files typesetting volume-desc))
+
+    (define-values (dep-specs all-deps)
+      (for/fold ([specs : (Listof Wisemon-Spec) null]
+                 [deps : (Listof Path) null])
+                ([dep (in-list (cdr tex-deps))])
+        (define dest-dep (build-path dest-dir tex-subdir (assert (find-relative-path (assert (path-only VOLUME.tex)) dep) path?)))
+
+        (values (cons (wisemon-spec dest-dep #:^ (list dep) #:- (fg-cp 'exec dep dest-dep)) specs)
+                (cons dest-dep deps))))
     
     (values always-files ignored-files
-            (list (wisemon-spec (tex-desc-self.out volume-desc) #:^ all-deps #:-
-                                (define dest-dir : Path (assert (path-only (tex-desc-self.out volume-desc))))
-
-                                (tex-render #:dest-subdir (tex-desc-subdir volume-desc) #:fallback tex-fallback-engine #:enable-filter #false
-                                            #:halt-on-error? (make-trace-log) #:shell-escape? #false
-                                            #:dest-copy? #false
-                                            engine VOLUME.tex dest-dir))))))
+            (list* (wisemon-spec (tex-desc-self.out volume-desc) #:^ all-deps #:-
+                                 (tex-render #:dest-subdir tex-subdir #:fallback tex-fallback-engine #:enable-filter #false
+                                             #:halt-on-error? (make-trace-log) #:shell-escape? #false
+                                             #:dest-copy? #false
+                                             engine VOLUME.tex dest-dir))
+                   dep-specs))))
 
 (define typeset-scrbl-specs : Wisemon-Scribble->Specification
   (lambda [engine scrbl.doc volume-desc all-deps dtrace-msg]
@@ -350,14 +358,28 @@
 (define tex-smart-dependencies : (->* (Path) ((Listof Path)) (Listof Path))
   (lambda [entry [memory null]]
     (foldl (λ [[subpath : Bytes] [memory : (Listof Path)]] : (Listof Path)
-             (define subsrc (simplify-path (build-path (assert (path-only entry) path?) (bytes->string/utf-8 subpath))))
-             (cond [(member subsrc memory) memory]
-                   [else (tex-smart-dependencies subsrc memory)]))
+             (define parts (regexp-match #px"[{](.+?)[}]$" subpath))
+
+             (if (and parts (pair? (cdr parts)) (cadr parts))
+                 (let* ([subsrc (simplify-path (build-path (assert (path-only entry) path?) (tex-dependency-auto-filename subpath (cadr parts))))])
+                   (cond [(not (file-exists? subsrc)) memory]
+                         [(member subsrc memory) memory]
+                         [(regexp-match? #"[.]tex$" subsrc) (tex-smart-dependencies subsrc memory)]
+                         [else (append memory (list subsrc))]))
+                 memory))
            (append memory (list entry))
            (call-with-input-file* entry
              (λ [[texin : Input-Port]]
-               (regexp-match* #px"(?<=\\\\(input|include(only)?)[{]).+?.(tex)(?=[}])"
+               (regexp-match* #px"\\\\(documentclass|usepackage|input|include|includegraphics)(\\[.*?\\])?[{].+?[}]"
                               texin))))))
+
+(define tex-dependency-auto-filename : (-> Bytes Bytes Path)
+  (lambda [raw target]
+    (path-normalize/system
+     (cond [(regexp-match? #px"[.]\\w+$" target) (bytes->string/utf-8 target)]
+           [(regexp-match? #px"^\\\\documentclass" raw) (string-append (bytes->string/utf-8 target) ".cls")]
+           [(regexp-match? #px"^\\\\usepackage" raw) (string-append (bytes->string/utf-8 target) ".sty")]
+           [else (string-append (bytes->string/utf-8 target) ".tex")]))))
 
 (define tex-chapter-name : (-> Path String String)
   (lambda [zonedir name]

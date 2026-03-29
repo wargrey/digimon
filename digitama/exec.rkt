@@ -235,8 +235,7 @@
     (unless (equal? (file-or-directory-identity dest)
                     (file-or-directory-identity src))
       (dtrace-info #:topic operation "cp ~a ~a" src dest)
-      (delete-file dest)
-      (copy-file src dest))))
+      (copy-file src dest #:exists-ok? #true))))
 
 (define fg-recon-cp : (-> Symbol Path-String Path-String Void)
   (lambda [operation src dest]

@@ -9,17 +9,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define latex-post-exec : Tex-Post-Exec
   (lambda [func-name TEXNAME.pdf]
-    (define-values (dvips ps2pdf) (values 'dvips 'pstopdf))
+    (define-values (dvips topdf) (values 'dvips 'dvipdfmx))
     (define TEXNAME.dvi : Path (path-replace-extension TEXNAME.pdf #".dvi"))
-    (define TEXNAME.ps : Path (path-replace-extension TEXNAME.pdf #".ps"))
-    (define /bin/dvips : (Option Path) (tex-find-binary-path dvips))
-    (define /bin/ps2pdf : (Option Path) (tex-find-binary-path ps2pdf))
+    ;(define TEXNAME.ps : Path (path-replace-extension TEXNAME.pdf #".ps"))
+    ;(define /bin/dvips : (Option Path) (tex-find-binary-path dvips))
+    (define /bin/topdf : (Option Path) (tex-find-binary-path topdf))
 
-    (cond [(not /bin/dvips)  (raise-user-error func-name "cannot find `~a`" dvips)]
-          [(not /bin/ps2pdf) (raise-user-error func-name "cannot find `~a`" ps2pdf)]
+    (cond ;[(not /bin/dvips)  (raise-user-error func-name "cannot find `~a`" dvips)]
+          [(not /bin/topdf) (raise-user-error func-name "cannot find `~a`" topdf)]
           [else (parameterize ([current-directory (or (path-only TEXNAME.pdf) (current-directory))])
-                  (fg-recon-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) #:silent '(stderr))
-                  (fg-recon-exec func-name /bin/ps2pdf (list (list (path->string TEXNAME.ps))) #:silent '(stderr)))])
+                  ;(fg-recon-exec func-name /bin/dvips (list (list (path->string TEXNAME.dvi))) #:silent '(stderr))
+                  (fg-recon-exec func-name /bin/topdf (list (list (path->string TEXNAME.dvi))) #:silent '(stderr)))])
 
     TEXNAME.pdf))
 
