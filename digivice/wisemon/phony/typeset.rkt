@@ -277,7 +277,7 @@
                 (cons dest-dep deps))))
     
     (values always-files ignored-files
-            (list* (wisemon-spec (tex-desc-self.out volume-desc) #:^ all-deps #:-
+            (list* (wisemon-spec (tex-desc-self.out volume-desc) #:^ (cons VOLUME.tex all-deps) #:-
                                  (tex-render #:dest-subdir tex-subdir #:fallback tex-fallback-engine #:enable-filter #false
                                              #:halt-on-error? (make-trace-log) #:shell-escape? #false
                                              #:dest-copy? #false
@@ -361,11 +361,12 @@
              (define parts (regexp-match #px"[{](.+?)[}]$" subpath))
 
              (if (and parts (pair? (cdr parts)) (cadr parts))
-                 (let* ([subsrc (simplify-path (build-path (assert (path-only entry) path?) (tex-dependency-auto-filename subpath (cadr parts))))])
-                   (cond [(not (file-exists? subsrc)) memory]
-                         [(member subsrc memory) memory]
-                         [(regexp-match? #"[.]tex$" subsrc) (tex-smart-dependencies subsrc memory)]
-                         [else (append memory (list subsrc))]))
+                 (let* ([subsrc (for/list : (Listof Path) ([f (in-list (tex-dependency-auto-filenames (assert (path-only entry) path?) subpath (cadr parts)))]
+                                                           #:when (and (file-exists? f) (not (member f memory))))
+                                  f)])
+                   (cond [(null? subsrc) memory]
+                         [(regexp-match? #"[.]tex$" (car subsrc)) (tex-smart-dependencies (car subsrc) memory)]
+                         [else (append memory subsrc)]))
                  memory))
            (append memory (list entry))
            (call-with-input-file* entry
@@ -373,13 +374,17 @@
                (regexp-match* #px"\\\\(documentclass|usepackage|input|include|includegraphics)(\\[.*?\\])?[{].+?[}]"
                               texin))))))
 
-(define tex-dependency-auto-filename : (-> Bytes Bytes Path)
-  (lambda [raw target]
-    (path-normalize/system
-     (cond [(regexp-match? #px"[.]\\w+$" target) (bytes->string/utf-8 target)]
-           [(regexp-match? #px"^\\\\documentclass" raw) (string-append (bytes->string/utf-8 target) ".cls")]
-           [(regexp-match? #px"^\\\\usepackage" raw) (string-append (bytes->string/utf-8 target) ".sty")]
-           [else (string-append (bytes->string/utf-8 target) ".tex")]))))
+(define tex-dependency-auto-filenames : (-> Path Bytes Bytes (Listof Path))
+  (lambda [pwd raw target]
+    (define bname (bytes->string/utf-8 target))
+    (define fnames : (Listof String)
+      (cond [(regexp-match? #px"[.]\\w+$" target) (list bname)]
+            [(regexp-match? #px"^\\\\documentclass" raw) (list (string-append bname ".cls") (string-append bname ".sty"))]
+            [(regexp-match? #px"^\\\\usepackage" raw) (list (string-append bname ".sty"))]
+            [else (list (string-append bname ".tex"))]))
+    
+    (for/list : (Listof Path) ([f (in-list fnames)])
+      (simplify-path (build-path pwd (path-normalize/system f))))))
 
 (define tex-chapter-name : (-> Path String String)
   (lambda [zonedir name]
