@@ -261,20 +261,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define make-typesetting-raw-tex-specs : (-> Path Tex-Desc Tex-Info Symbol Scribble-Message (Values (Listof Path) (Listof Path) (Listof Wisemon-Spec)))
   (lambda [VOLUME.tex volume-desc typesetting engine dtrace-msg]
-    (define tex-deps (tex-smart-dependencies VOLUME.tex))
     (define dest-dir (assert (path-only (tex-desc-self.out volume-desc))))
     (define tex-subdir (tex-desc-subdir volume-desc))
     
     (define-values (always-files ignored-files) (digimon-typeset-files typesetting volume-desc))
-
-    (define-values (dep-specs all-deps)
-      (for/fold ([specs : (Listof Wisemon-Spec) null]
-                 [deps : (Listof Path) null])
-                ([dep (in-list (cdr tex-deps))])
-        (define dest-dep (build-path dest-dir tex-subdir (assert (find-relative-path (assert (path-only VOLUME.tex)) dep) path?)))
-
-        (values (cons (wisemon-spec dest-dep #:^ (list dep) #:- (fg-cp 'exec dep dest-dep)) specs)
-                (cons dest-dep deps))))
+    (define-values (dep-specs all-deps) (typeset-tex-dependency-specs VOLUME.tex dest-dir tex-subdir))
     
     (values always-files ignored-files
             (list* (wisemon-spec (tex-desc-self.out volume-desc) #:^ (cons VOLUME.tex all-deps) #:-
@@ -287,19 +278,40 @@
 (define typeset-scrbl-specs : Wisemon-Scribble->Specification
   (lambda [engine scrbl.doc volume-desc all-deps dtrace-msg]
     (define hook.rktl : Path (path-replace-extension (tex-desc-volume.scrbl volume-desc) #".rktl"))
+    (define VOLUME.tex : Path (path-replace-extension (tex-desc-volume.scrbl volume-desc) #".tex"))
+
+    (define dest-dir (assert (path-only (tex-desc-self.out volume-desc))))
+    (define tex-subdir (tex-desc-subdir volume-desc))
     
-    (list (wisemon-spec (tex-desc-self.out volume-desc) #:^ (list (tex-desc-self.tex volume-desc)) #:-
-                        (tex-render #:dest-subdir (tex-desc-subdir volume-desc) #:fallback tex-fallback-engine #:enable-filter #true
-                                    #:halt-on-error? (make-trace-log) #:shell-escape? #false
-                                    #:dest-copy? #false
-                                    engine (tex-desc-self.tex volume-desc) (assert (path-only (tex-desc-self.out volume-desc))))
-                        
-                        (handbook-display-metrics dtrace-msg 'note (handbook-stats scrbl.doc 'latex)))
-          
-          (wisemon-spec (tex-desc-self.tex volume-desc) #:^ (append (if (file-exists? hook.rktl) (list hook.rktl) null) all-deps) #:-
-                        (handbook-tex-render (tex-desc-volume.scrbl volume-desc) scrbl.doc
-                                             (tex-desc-self.tex volume-desc) hook.rktl
-                                             dtrace-msg)))))
+    (define-values (dep-specs extra-deps) (typeset-tex-dependency-specs VOLUME.tex dest-dir tex-subdir))
+    
+    (list* (wisemon-spec (tex-desc-self.out volume-desc) #:^ (list (tex-desc-self.tex volume-desc)) #:-
+                         (tex-render #:dest-subdir tex-subdir #:fallback tex-fallback-engine #:enable-filter #true
+                                     #:halt-on-error? (make-trace-log) #:shell-escape? #false
+                                     #:dest-copy? #false
+                                     engine (tex-desc-self.tex volume-desc) (assert (path-only (tex-desc-self.out volume-desc))))
+                         
+                         (handbook-display-metrics dtrace-msg 'note (handbook-stats scrbl.doc 'latex)))
+           
+           (wisemon-spec (tex-desc-self.tex volume-desc) #:^ (append (if (file-exists? hook.rktl) (list hook.rktl) null) all-deps extra-deps) #:-
+                         (handbook-tex-render (tex-desc-volume.scrbl volume-desc) scrbl.doc
+                                              (tex-desc-self.tex volume-desc) hook.rktl
+                                              dtrace-msg))
+           
+           dep-specs)))
+
+(define typeset-tex-dependency-specs : (-> Path Path Path (Values (Listof Wisemon-Spec) (Listof Path)))
+  (lambda [self dest-dir tex-subdir]
+    (define tex-deps (if (file-exists? self) (tex-smart-dependencies self) (list self)))
+    (define rootdir (assert (path-only self)))
+    
+    (for/fold ([specs : (Listof Wisemon-Spec) null]
+               [deps : (Listof Path) null])
+              ([dep (in-list (cdr tex-deps))])
+      (define dest-dep (build-path dest-dir tex-subdir (assert (find-relative-path rootdir dep) path?)))
+      
+      (values (cons (wisemon-spec dest-dep #:^ (list dep) #:- (fg-cp 'exec dep dest-dep)) specs)
+              (cons dest-dep deps)))))
 
 (define typeset-engine-extension : Wisemon-Scribble->Extension
   (lambda [engine]

@@ -188,7 +188,9 @@
                                                    (elem #:style subtitle-style
                                                          subtitle))])
                                  (cond [(not image) null]
-                                       [else (list (linebreak) ($tex:vspace distance) image)]))))
+                                       [else (list (linebreak) ($tex:vspace distance)
+                                                   image
+                                                   (if (or noversion?) null ($tex:vspace distance)))]))))
                (cond [(not alt-author) (map author (pkg-author-contents))]
                      [(procedure? alt-author) (map alt-author (pkg-author-contents))]
                      [else (for/list ([a (if (list? alt-author) (in-list alt-author) (in-value alt-author))])

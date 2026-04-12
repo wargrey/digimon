@@ -198,6 +198,16 @@
                          (format "~apt" skip)
                          (format "~a" skip)))))
 
+(define $tex:\\
+  (lambda [skip]
+    (list ($tex:vspace skip)
+          (linebreak))))
+
+
+(define $tex:drop-folio
+  (lambda []
+    (texbook-command "thispagestyle" "empty")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-datum->option-argument
   (lambda [arg]
