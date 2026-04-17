@@ -33,7 +33,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-pseudocode-index-type 'algorithm)
 
-(define algo-column-hspace (hspace 1))
 (define algo-title-hspace (hspace 4))
 
 (define tamer-default-algorithm-label (make-parameter "Algorithm"))
@@ -66,7 +65,7 @@
         (define sublines (handbook-decode-lines body #:finalize tabular #:each-line list))
         
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
-              (λ [type] (cond [(not line-name) algo-column-hspace]
+              (λ [type] (cond [(not line-name) null]
                               [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (content->string line-name) >~)
                                                    (exec ~< line-name >~))]))
               sublines)))
@@ -83,7 +82,7 @@
                               (list ($tex:vspace vspace))
                               ;;; NOTICE: row borders might also prevent page breaks
                               (list (tabular #:style 'boxed
-                                             #:sep algo-column-hspace
+                                             #:pad (list 1.0 0.0)
                                              #:column-properties '(left right left)
                                              #:row-properties (if (null? pcode-frows) null '(top))
                                              (for/list ([λrows (in-list pcode-frows)])

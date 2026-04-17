@@ -34,7 +34,17 @@
 
 \newenvironment{Figure}{\begin{figure}\FigureSetRef}{\end{figure}}
 \newenvironment{FigureMultiWide}{\begin{figure*}[t!p]\FigureSetRef}{\end{figure*}}
-\newenvironment{Herefigure}{\begin{figure}[ht!]\FigureSetRef\centering}{\end{figure}}
+\newenvironment{HereFigure}{\begin{figure}[ht!]\FigureSetRef\centering}{\end{figure}}
+
+\newenvironment{LargeFigure}{%
+    \begin{figure}[p] % [p] forces a floating page
+    \FigureSetRef
+    \centering
+    \vspace*{\fill} 
+}{
+    \vspace*{\fill}
+    \end{figure}
+}
 
 \newenvironment{FigureInside}{}{}
 

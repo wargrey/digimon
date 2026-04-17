@@ -15,7 +15,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define subfigure-flows
-  (lambda [pre-flows substyle [fmt (tamer-subfigure-index-format)] [sep #false] [sub-align 'bottom] [sub-label-align 'top] [order values]]
+  (lambda [pre-flows substyle [fmt (tamer-subfigure-index-format)] [gap #false] [sub-align 'bottom] [sub-label-align 'top] [order values]]
     (define subfigures (apply append (map subfigure-flatten (decode-flow pre-flows))))
     (define n (length subfigures))
 
@@ -23,7 +23,7 @@
         (let ([rows (subfigure-rows subfigures substyle fmt order)])
           (list (tabular #:column-properties '(center)
                          #:row-properties (if (null? (cdr rows)) (list sub-align) (list sub-align sub-label-align))
-                         #:sep sep
+                         #:pad (if (real? gap) (list gap 0.0) 0.0)
                          rows)))
         subfigures)))
 

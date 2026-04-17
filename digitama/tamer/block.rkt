@@ -74,14 +74,16 @@
      (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
                     [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
-                    [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
+                    [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))]
+                    [tamer-id= (format-id #'id "tamer-~a=" (syntax->datum #'id))])
        (syntax/loc stx
          (define-tamer-indexed-block id
            #:anchor anchor #:target-style target-style #:legend-style tamer-figure-legend-style
            #:with [legend pre-flows args ...] #:do make-block ...
            #:for [[tamer-id figure-style]
                   [tamer-id* figuremultiwide-style]
-                  [tamer-id! herefigure-style]])))]))
+                  [tamer-id! herefigure-style]
+                  [tamer-id= largefigure-style]])))]))
 
 (define-syntax (define-tamer-indexed-table stx)
   (syntax-parse stx #:datum-literals []
@@ -259,7 +261,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define phantomsection-style (make-style "phantomsection" null))
 (define refstepcounter-style (make-style "refstepcounter" null))
-(define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
 
 (define centertext-style (make-style "Centertext" '(never-indents)))
 (define centeringtext-style (make-style "Centeringtext" '('never-indents)))
@@ -280,7 +281,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define figure-style (make-style "Figure" block-style-extras))
 (define marginfigure-style (make-style "marginfigure" block-style-extras))
-(define herefigure-style (make-style "Herefigure" block-style-extras))
+(define herefigure-style (make-style "HereFigure" block-style-extras))
+(define largefigure-style (make-style "LargeFigure" block-style-extras))
 (define figuremultiwide-style (make-style "FigureMultiWide" block-style-extras))
 
 (define gydm-table-style (make-style "GydmTable" block-style-extras))

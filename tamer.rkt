@@ -617,7 +617,7 @@
               (nested (filebox (elem #:style (fg-rgb file-color file-header-style) (~integer src-file) (subscript "files")
                                      ~ (elem #:style (fg-rgb insertion-color file-header-style) (~integer insertions) (subscript "++"))
                                      ~ (elem #:style (fg-rgb deletion-color file-header-style) (~integer deletions) (subscript (literal "--"))))
-                               (tabular #:sep (hspace 1) #:column-properties '(left right)
+                               (tabular #:pad (list 1 0) #:column-properties '(left right)
                                         (list (let* ([pie-radius (or git-radius 75)]
                                                      [series-height (* (or git-radius pie-radius) 2)]
                                                      [series-width (or git-width 380)])
@@ -629,12 +629,12 @@
       'handbook-statistics))))
   
 (define handbook-appendix-tabular/2
-  (lambda [table-head table-rows [gap 1] [empty-cols (list "")]]
+  (lambda [table-head table-rows [gapex 1] [empty-cols (list "")]]
     (define col-size (length table-head))
     (define col-properties (make-list col-size 'left))
     (define cel-properties (make-list col-size '()))
     
-    (tabular #:sep (hspace gap)
+    (tabular #:pad (list gapex 0)
              #:style 'centered
              #:row-properties '(bottom-border ())
              #:column-properties (append col-properties '(center) col-properties)
@@ -1091,7 +1091,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style]
-   #:sub-sep [subgap #false] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
+   #:sub-gapex [subgap #false] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
    #:sub-style [substyle tamer-figure-sublegend-style] #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top]]
   #:with [legend pre-flows]
   #:λ (make-block-self legend align-style figureinside-style

@@ -18,6 +18,8 @@
 (define subtitle-style (make-style "large" null))
 (define quote-style (make-style "quote" null))
 
+(define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
+
 (define empty-block (make-paragraph plain null))
 
 (define tamer-stone-source
