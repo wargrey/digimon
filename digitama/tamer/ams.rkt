@@ -5,6 +5,8 @@
 (require scribble/core)
 (require scribble/manual)
 
+(require racket/string)
+
 (require "backend.rkt")
 (require "theme.rkt")
 (require "texbook.rkt")
@@ -19,17 +21,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define $
-  (lambda strs
+  (lambda [#:name [plain #false] . strs]
     (make-traverse-element
      (procedure-rename
       (λ [get set!]
         (if (handbook-latex-renderer? get)
             (make-element math-inline-style strs)
             (apply math strs)))
-      '$))))
+      (string->symbol (content->string (or plain strs)))))))
 
 (define $$
-  (lambda [#:tag [tag #false] . strs]
+  (lambda [#:tag [tag #false] #:name [plain #false] . strs]
     (make-traverse-element
      (procedure-rename
       (λ [get set!]
@@ -41,10 +43,10 @@
                                              (texbook-command "label"
                                                               (make-equation-tag (or tag (gensym)))))))
             (apply math strs)))
-      '$$))))
+      (string->symbol (content->string (or plain strs)))))))
   
 (define $$=
-  (lambda [#:tag [tag #false] . strs]
+  (lambda [#:tag [tag #false] #:name [plain #false] . strs]
     (if (pair? strs)
         (make-traverse-element
          (procedure-rename
@@ -55,20 +57,22 @@
                                            (list (car strs) (cdr strs) "equation*" null)
                                            (list (car strs) (cdr strs) "equation" (texbook-command "label" (make-equation-tag tag)))))
                 (apply math strs)))
-          '$$=))
+          (string->symbol (content->string (or plain strs)))))
          strs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define eqref
   (lambda [tag #:label [label (tamer-default-equation-label)]]
+    (define body (make-equation-tag tag))
+    
     (make-traverse-element
      (procedure-rename
       (λ [get set!]
         (if (handbook-latex-renderer? get)
             (:stx:link (list (format "~a" label)
-                             (texbook-command "eqref" (make-equation-tag tag))))
+                             (texbook-command "eqref" body)))
             null))
-      'eqref))))
+      (string->symbol (string-append "eqref:" body))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; copied from the latex-render

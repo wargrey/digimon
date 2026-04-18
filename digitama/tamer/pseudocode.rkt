@@ -66,7 +66,7 @@
         
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
               (λ [type] (cond [(not line-name) null]
-                              [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (content->string line-name) >~)
+                              [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (algo-line-name line-name) >~)
                                                    (exec ~< line-name >~))]))
               sublines)))
 
@@ -134,9 +134,16 @@
      algo-pseudocode-index-type algo-tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define algo-line-name
+  (lambda [name]
+    (if (traverse-element? name)
+        (symbol->immutable-string (object-name (traverse-element-traverse name)))
+        (content->string name))))
+
 (define algo-label
   (lambda [line]
-    (format (if (exact-integer? line) "L~a" (string-append ~< "~a" >~)) line)))
+    (cond [(exact-integer? line) (format "L~a" line)]
+          [else (string-append ~< (algo-line-name line) >~)])))
 
 (define algo-format
   (lambda [line fmt . argv]
