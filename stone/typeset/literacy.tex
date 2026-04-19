@@ -27,6 +27,17 @@
    \newpage
 }
 
+\makeatletter
+\newcommand{\NoAutoSpace}[1]{
+  {% in group, it will auto restore
+    \@ifpackageloaded{xeCJK}{
+      \xeCJKsetup{CJKecglue={}}
+    }{}
+    #1
+  }
+}
+\makeatother
+
 % Math Notations
 \def\math#1{\ensuremath{#1}}
 \def\texMathInline#1{\ensuremath{#1}}

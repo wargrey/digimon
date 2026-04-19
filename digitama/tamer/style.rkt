@@ -19,6 +19,7 @@
 (define quote-style (make-style "quote" null))
 
 (define parbox-style (make-style "parbox" null)) ; for tabular to wrap line
+(define no-auto-space-style (make-style "NoAutoSpace" null))
 
 (define empty-block (make-paragraph plain null))
 

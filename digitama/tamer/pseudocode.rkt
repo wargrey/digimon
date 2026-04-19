@@ -4,6 +4,7 @@
 
 (require "tag.rkt")
 (require "misc.rkt")
+(require "style.rkt")
 (require "block.rkt")
 (require "theme.rkt")
 (require "texbook.rkt")
@@ -27,8 +28,8 @@
          (parameterize ([current-algorithm tag])
            (algorithm-pseudocode #:tag tag title lines ...))))]))
 
-(define ~< "«")
-(define >~ "»")
+(define ~< "⟨")
+(define >~ "⟩")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-pseudocode-index-type 'algorithm)
@@ -67,7 +68,7 @@
         (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
               (λ [type] (cond [(not line-name) null]
                               [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (algo-line-name line-name) >~)
-                                                   (exec ~< line-name >~))]))
+                                                   (elem #:style no-auto-space-style (list ~< (tt (smaller line-name)) >~)))]))
               sublines)))
 
     (make-tamer-indexed-traverse-block
@@ -97,27 +98,28 @@
   (lambda [#:elem [algo-element values] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
     (make-tamer-indexed-block-ref
      (λ [type chpt-idx maybe-index]
-       (if (pair? line)
-           (let-values ([(line0 linen) (values (car line) (cdr line))])
-             (if (not maybe-index)
-                 (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chpt-idx line0 linen)))
-                 (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
-                                                    (if (and hide-label? line0)
-                                                        (:mod:link (algo-label line0))
-                                                        (:mod:link (algo-format line0
-                                                                                "~a~a.~a" (tamer-default-algorithm-label)
-                                                                                chpt-idx maybe-index))))
-                                     (:pn "-")
-                                     (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
-                                                    (:mod:link (algo-label linen)))))))
-           (if (not maybe-index)
-               (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chpt-idx)))
-               (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                            (if (and hide-label? line)
-                                                (:mod:link (algo-label line))
-                                                (:mod:link (algo-format line
-                                                                        "~a~a.~a" (tamer-default-algorithm-label)
-                                                                        chpt-idx maybe-index))))))))
+       (elem #:style no-auto-space-style
+             (if (pair? line)
+                 (let-values ([(line0 linen) (values (car line) (cdr line))])
+                   (if (not maybe-index)
+                       (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chpt-idx line0 linen)))
+                       (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
+                                                          (if (and hide-label? line0)
+                                                              (:mod:link (algo-label line0))
+                                                              (:mod:link (algo-format line0
+                                                                                      "~a~a.~a" (tamer-default-algorithm-label)
+                                                                                      chpt-idx maybe-index))))
+                                           (:pn "-")
+                                           (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
+                                                          (:mod:link (algo-label linen)))))))
+                 (if (not maybe-index)
+                     (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chpt-idx)))
+                     (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
+                                                  (if (and hide-label? line)
+                                                      (:mod:link (algo-label line))
+                                                      (:mod:link (algo-format line
+                                                                              "~a~a.~a" (tamer-default-algorithm-label)
+                                                                              chpt-idx maybe-index)))))))))
      algo-pseudocode-index-type algo-tag)))
 
 (define algo-goto
@@ -129,8 +131,9 @@
 
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
-       (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                    (:mod:link (algo-label line)))))
+       (elem #:style no-auto-space-style
+             (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
+                                          (:mod:link (algo-label line))))))
      algo-pseudocode-index-type algo-tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
