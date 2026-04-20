@@ -21,12 +21,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-syntax (algo-pseudocode stx)
   (syntax-parse stx #:datum-literals []
-    [(_ (~alt (~optional (~seq #:tag maybe-tag) #:defaults ([maybe-tag #'#false]))) ...
+    [(_ (~alt (~optional (~seq #:tag maybe-tag) #:defaults ([maybe-tag #'#false]))
+              (~optional (~seq #:vspace maybe-vspace) #:defaults ([maybe-vspace #'8]))
+              (~optional (~seq #:side maybe-side) #:defaults ([maybe-side #'#false]))
+              (~optional (~seq #:side-properties maybe-properties) #:defaults ([maybe-properties #''(bottom)]))) ...
         title lines ...)
      (syntax/loc stx
        (let ([tag (or maybe-tag (symbol->immutable-string (gensym 'algo:)))])
          (parameterize ([current-algorithm tag])
-           (algorithm-pseudocode #:tag tag title lines ...))))]))
+           (algorithm-pseudocode #:tag tag #:vspace maybe-vspace
+                                 #:side maybe-side #:side-properties maybe-properties
+                                 title lines ...))))]))
 
 (define ~< "⟨")
 (define >~ "⟩")
@@ -54,7 +59,7 @@
     ($tex:newcounter algo-pseudocode-index-type)))
 
 (define algorithm-pseudocode
-  (lambda [#:tag [maybe-tag #false] #:vspace [vspace 8] title . lines]
+  (lambda [#:tag [maybe-tag #false] #:vspace [vspace 8] #:side [side #false] #:side-properties [side-properties '(bottom)] title . lines]
     (define algo-tag (or maybe-tag (gensym 'algo:)))
 
     (define pcode-frows
@@ -82,15 +87,18 @@
                                           algo-title-hspace title))
                               (list ($tex:vspace vspace))
                               ;;; NOTICE: row borders might also prevent page breaks
-                              (list (tabular #:style 'boxed
-                                             #:pad (list 1.0 0.0)
-                                             #:column-properties '(left right left)
-                                             #:row-properties (if (null? pcode-frows) null '(top))
-                                             (for/list ([λrows (in-list pcode-frows)])
-                                               (list ($tex:phantomsection)
-                                                     ((car λrows) type)
-                                                     ((cadr λrows) type)
-                                                     (caddr λrows)))))))))
+                              (let ([self (tabular #:style 'boxed
+                                                   #:pad (list 1.0 0.0)
+                                                   #:column-properties '(left right left)
+                                                   #:row-properties (if (null? pcode-frows) null '(top))
+                                                   (for/list ([λrows (in-list pcode-frows)])
+                                                     (list ($tex:phantomsection)
+                                                           ((car λrows) type)
+                                                           ((cadr λrows) type)
+                                                           (caddr λrows))))])
+                                (list (cond [(not side) self]
+                                            [else (tabular #:row-properties side-properties
+                                                           (list (list self side)))])))))))
      algo-pseudocode-index-type
      #false)))
 
