@@ -26,7 +26,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-command ;; \cmd[opt-args]{args}{body}{extra-args}
   (let ([cmd0base (make-weak-hash)])
-    (lambda [cmd #:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:opt-args [maybe-oargs #false] #:tex-only? [tex-only? #true] . body]
+    (lambda [#:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:opt-args [maybe-oargs #false]
+             #:tex-only? [tex-only? #true] #:exact-chars? [exact-chars? #false]
+             cmd . body]
       (define cmdname (~a cmd))
       (define cmd-args (and maybe-cargs (not (null? maybe-cargs)) (if (list? maybe-cargs) maybe-cargs (list maybe-cargs))))
       (define ext-args (and maybe-eargs (not (null? maybe-eargs)) (if (list? maybe-eargs) maybe-eargs (list maybe-eargs))))
@@ -34,7 +36,8 @@
 
       (define other-args
         (append (if ext-args (list (command-extras (map ~a ext-args))) null)
-                (if opt-args (list (command-optional (map texbook-datum->option-argument opt-args))) null)))
+                (if opt-args (list (command-optional (map texbook-datum->option-argument opt-args))) null)
+                (if exact-chars? (list 'exact-chars) null)))
 
       (define tex-style
         (cond [(null? other-args) cmdname]
@@ -46,13 +49,14 @@
                   [else (make-multiarg-element tex-style (map handbook-content-filter (append cmd-args body)))])
             (hash-ref! cmd0base tex-style (λ [] (make-element tex-style null)))))
 
-      (cond [(not tex-only?) tex-elem]
-            [else (make-traverse-element
-                   (procedure-rename
-                    (λ [get set!]
-                      (if (handbook-latex-renderer? get)
-                          tex-elem null))
-                    (string->symbol (format "\\~a" cmdname))))]))))
+      (if (and tex-only?)
+          (make-traverse-element
+           (procedure-rename
+            (λ [get set!]
+              (if (handbook-latex-renderer? get)
+                  tex-elem null))
+            (string->symbol (format "\\~a" cmdname))))
+          tex-elem))))
 
 (define texbook-command-block ;; \cmd{args}{body}{extra-args}
   (let ([cmd0base (make-weak-hash)])
@@ -193,14 +197,16 @@
 
 (define $tex:vspace
   (lambda [skip]
-    (texbook-command "vspace"
+    (texbook-command #:exact-chars? #true
+                     "vspace"
                      (if (real? skip)
                          (format "~apt" skip)
                          (format "~a" skip)))))
 
 (define $tex:hspace
   (lambda [skip]
-    (texbook-command "hspace"
+    (texbook-command #:exact-chars? #true
+                     "hspace"
                      (if (real? skip)
                          (format "~apt" skip)
                          (format "~a" skip)))))
