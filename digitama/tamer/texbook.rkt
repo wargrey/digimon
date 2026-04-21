@@ -25,7 +25,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define texbook-command ;; \cmd[opt-args]{args}{body}{extra-args}
-  (let ([cmd0base (make-hash)])
+  (let ([cmd0base (make-weak-hash)])
     (lambda [cmd #:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:opt-args [maybe-oargs #false] #:tex-only? [tex-only? #true] . body]
       (define cmdname (~a cmd))
       (define cmd-args (and maybe-cargs (not (null? maybe-cargs)) (if (list? maybe-cargs) maybe-cargs (list maybe-cargs))))
@@ -55,7 +55,7 @@
                     (string->symbol (format "\\~a" cmdname))))]))))
 
 (define texbook-command-block ;; \cmd{args}{body}{extra-args}
-  (let ([cmd0base (make-hash)])
+  (let ([cmd0base (make-weak-hash)])
     (lambda [cmd #:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:fallback-block [fallback-block #false] . body]
       (define cmdname (~a cmd))
       (define cmd-args (and maybe-cargs (not (null? maybe-cargs)) (if (list? maybe-cargs) maybe-cargs (list maybe-cargs))))
@@ -87,7 +87,7 @@
                     (string->symbol (format "\\~a" cmdname))))]))))
 
 (define texbook-environment ;; \begin{cmd}body\end{cmd}
-  (let ([cmd0base (make-hash)])
+  (let ([cmd0base (make-weak-hash)])
     (lambda [cmd . body]
       (define cmdname (~a cmd))
 
@@ -198,6 +198,19 @@
                          (format "~apt" skip)
                          (format "~a" skip)))))
 
+(define $tex:hspace
+  (lambda [skip]
+    (texbook-command "hspace"
+                     (if (real? skip)
+                         (format "~apt" skip)
+                         (format "~a" skip)))))
+
+(define $tex:nopagebreak
+  (let ([bases (make-weak-hasheq)])
+    (lambda [[level 4]] ; level <- [0, 4]
+      (hash-ref! bases level
+                 (λ [] (texbook-command "nopagebreak" #:opt-args level))))))
+
 (define $tex:\\
   (lambda [skip]
     (list ($tex:vspace skip)
@@ -265,4 +278,5 @@
    ($tex:phantomsection)
    ($tex:refstepcounter 'page)
    ($tex:setcounter 'page 1)
-   (texbook-environment "multicols" "2" "haw-haw")))
+   (texbook-environment "multicols" "2" "haw-haw")
+   ($tex:nopagebreak)))
