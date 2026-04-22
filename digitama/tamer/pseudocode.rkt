@@ -24,6 +24,7 @@
     [(_ (~alt (~optional (~seq #:tag maybe-tag) #:defaults ([maybe-tag #'#false]))
               (~optional (~seq #:nopagebreak? maybe-nopagebreak?) #:defaults ([maybe-nopagebreak? #'#false]))
               (~optional (~seq #:side maybe-side) #:defaults ([maybe-side #'#false]))
+              (~optional (~seq #:side-offset maybe-offset) #:defaults ([maybe-offset #'#false]))
               (~optional (~seq #:side-properties maybe-properties) #:defaults ([maybe-properties #'#false]))
               (~optional (~seq #:skip maybe-skip) #:defaults ([maybe-skip #'#false]))
               (~optional (~seq (~or #:code-pad #:code-pad:ex) maybe-code-pad) #:defaults ([maybe-code-pad #'#false]))) ...
@@ -32,7 +33,7 @@
        (let ([tag (or maybe-tag (symbol->immutable-string (gensym 'algo:)))])
          (parameterize ([current-algorithm tag])
            (algorithm-pseudocode #:tag tag #:nopagebreak? maybe-nopagebreak?
-                                 #:side maybe-side #:side-properties maybe-properties
+                                 #:side maybe-side #:side-offset maybe-offset #:side-properties maybe-properties
                                  #:skip maybe-skip #:code-pad:ex maybe-code-pad
                                  title lines ...))))]))
 
@@ -46,6 +47,7 @@
 
 (define tamer-default-algorithm-label (make-parameter "Algorithm"))
 (define current-algorithm (make-parameter #false))
+(define current-algorithm-element (make-parameter values))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-ref
@@ -64,9 +66,12 @@
 (define algorithm-pseudocode
   (lambda [#:tag [maybe-tag #false] #:nopagebreak? [nopagebreak? #false]
            #:skip [skip #false] #:code-pad:ex [pad #false]
-           #:side [side #false] #:side-properties [side-properties #false]
+           #:side [side #false] #:side-offset [offset #false]
+           #:side-properties [side-properties #false]
            title . lines]
     (define algo-tag (or maybe-tag (gensym 'algo:)))
+    (define algo-elem (or (current-algorithm-element) values))
+    (define tabular-line (λ [code] (list (algo-elem code))))
 
     (define pcode-frows
       (for/list ([line (in-list lines)]
@@ -74,12 +79,12 @@
         (define line-No. (number->string lNo.))
         (define line-name (and (pair? line) (car line) (handbook-content-filter (car line))))
         (define body (if (pair? line) (decode-content (cdr line)) null))
-        (define sublines (handbook-decode-lines body #:finalize tabular #:each-line list))
+        (define sublines (handbook-decode-lines body #:finalize tabular #:each-line tabular-line))
         
-        (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (envvar line-No.)))
+        (list (λ [type] (tamer-elemtag #:type type (format "~a#L~a" algo-tag line-No.) (algo-elem (onscreen line-No.))))
               (λ [type] (cond [(not line-name) null]
                               [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (algo-line-name line-name) >~)
-                                                   (elem #:style no-auto-space-style (list ~< (tt (smaller line-name)) >~)))]))
+                                                   (elem #:style no-auto-space-style (algo-elem (list ~< (tt (smaller line-name)) >~))))]))
               sublines)))
 
     (define code-pad
@@ -114,41 +119,45 @@
                               ;;; NOTICE: row borders might also prevent page breaks
                               (list (cond [(not side) self]
                                           [else (tabular #:row-properties (or side-properties '(bottom))
-                                                         (list (list self side)))]))))))
+                                                         (list (list self (cond [(not offset) side]
+                                                                                [else (list ($tex:hspace offset) side)]))))]))))))
      algo-pseudocode-index-type
      #false)))
 
 (define algo-pseudocode-ref
-  (lambda [#:elem [algo-element values] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
+  (lambda [#:elem [algo-element #false] #:line [line #false] #:hide-label? [hide-label? #false] algo-tag]
+    (define algo-elem (or algo-element values))
+    
     (make-tamer-indexed-block-ref
      (λ [type chpt-idx maybe-index]
        (elem #:style no-auto-space-style
              (if (pair? line)
                  (let-values ([(line0 linen) (values (car line) (cdr line))])
                    (if (not maybe-index)
-                       (racketerror (algo-element (format "~a~a:~a-~a" (tamer-default-algorithm-label) chpt-idx line0 linen)))
-                       (algo-element (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
-                                                          (if (and hide-label? line0)
-                                                              (:mod:link (algo-label line0))
-                                                              (:mod:link (algo-format line0
-                                                                                      "~a~a.~a" (tamer-default-algorithm-label)
-                                                                                      chpt-idx maybe-index))))
-                                           (:pn "-")
-                                           (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
-                                                          (:mod:link (algo-label linen)))))))
+                       (racketerror (algo-elem (format "~a~a:~a-~a" (tamer-default-algorithm-label) chpt-idx line0 linen)))
+                       (algo-elem (list (tamer-elemref #:type type (algo-format line0 "~a" algo-tag)
+                                                       (if (and hide-label? line0)
+                                                           (:mod:link (algo-label line0))
+                                                           (:mod:link (algo-format line0
+                                                                                   "~a~a.~a" (tamer-default-algorithm-label)
+                                                                                   chpt-idx maybe-index))))
+                                        (:pn "-")
+                                        (tamer-elemref #:type type (algo-format linen "~a" algo-tag)
+                                                       (:mod:link (algo-label linen)))))))
                  (if (not maybe-index)
-                     (racketerror (algo-element (algo-format line "~a~a" (tamer-default-algorithm-label) chpt-idx)))
-                     (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                                  (if (and hide-label? line)
-                                                      (:mod:link (algo-label line))
-                                                      (:mod:link (algo-format line
-                                                                              "~a~a.~a" (tamer-default-algorithm-label)
-                                                                              chpt-idx maybe-index)))))))))
+                     (racketerror (algo-elem (algo-format line "~a~a" (tamer-default-algorithm-label) chpt-idx)))
+                     (algo-elem (tamer-elemref #:type type (algo-format line "~a" algo-tag)
+                                               (if (and hide-label? line)
+                                                   (:mod:link (algo-label line))
+                                                   (:mod:link (algo-format line
+                                                                           "~a~a.~a" (tamer-default-algorithm-label)
+                                                                           chpt-idx maybe-index)))))))))
      algo-pseudocode-index-type algo-tag)))
 
 (define algo-goto
-  (lambda [#:elem [algo-element values] #:tag [tag #false] line]
+  (lambda [#:elem [goto-element values] #:tag [tag #false] line]
     (define algo-tag (or tag (current-algorithm)))
+    (define algo-elem (or (current-algorithm-element) values))
     
     (when (not algo-tag)
       (raise-user-error (object-name algo-goto) "should be used inside `algo-pseudocode`"))
@@ -156,8 +165,8 @@
     (make-tamer-indexed-block-ref
      (λ [type chapter-index maybe-index]
        (elem #:style no-auto-space-style
-             (algo-element (tamer-elemref #:type type (algo-format line "~a" algo-tag)
-                                          (:mod:link (algo-label line))))))
+             (goto-element (algo-elem (tamer-elemref #:type type (algo-format line "~a" algo-tag)
+                                                     (:mod:link (algo-label line)))))))
      algo-pseudocode-index-type algo-tag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

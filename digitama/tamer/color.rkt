@@ -60,12 +60,12 @@
     (bg-rgb bgc (fg-rgb fgc host))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define fg-property-database (make-hasheq))
-(define bg-property-database (make-hasheq))
-(define fg-style-database (make-hasheq))
-(define bg-style-database (make-hasheq))
-(define fg-rich-style-database (make-hash))
-(define bg-rich-style-database (make-hash))
+(define fg-property-database (make-weak-hasheq))
+(define bg-property-database (make-weak-hasheq))
+(define fg-style-database (make-weak-hasheq))
+(define bg-style-database (make-weak-hasheq))
+(define fg-rich-style-database (make-weak-hash))
+(define bg-rich-style-database (make-weak-hash))
 
 (define rgb-hex
   (lambda [c]

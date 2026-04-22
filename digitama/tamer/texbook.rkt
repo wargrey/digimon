@@ -195,6 +195,10 @@
   (lambda [counter value]
     (texbook-command "setcounter" #:args (list counter value))))
 
+(define $tex:color
+  (lambda [c . content]
+    (apply texbook-command #:args c "inColor" content)))
+
 (define $tex:vspace
   (lambda [skip]
     (texbook-command #:exact-chars? #true
@@ -285,4 +289,5 @@
    ($tex:refstepcounter 'page)
    ($tex:setcounter 'page 1)
    (texbook-environment "multicols" "2" "haw-haw")
-   ($tex:nopagebreak)))
+   ($tex:nopagebreak)
+   ($tex:color 'Orange "text")))
