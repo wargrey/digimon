@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require racket/list)
 (require racket/match)
 
 (require scribble/base)
@@ -12,7 +11,6 @@
 (require "tag.rkt")
 (require "block.rkt")
 (require "backend.rkt")
-(require "texbook.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-subfigure-index-format (make-parameter "(~a)"))
