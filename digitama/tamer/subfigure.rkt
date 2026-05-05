@@ -18,7 +18,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define subfigure-flows
-  (lambda [pre-flows legend-style [fmt (tamer-subfigure-index-format)] [pad:ex 0.0] [sub-align 'bottom] [sub-label-align 'top] [order values] [sub-tabular? #false]]
+  (lambda [pre-flows legend-style [fmt (tamer-subfigure-index-format)] [pad:ex 0.0] [sub-align 'bottom] [sub-label-align 'top] [order values] [sub-tabular? #true]]
     (define subfigures (decode-flow pre-flows))
     (define block-who (current-block-id))
     (define-values (hpad vpad)
