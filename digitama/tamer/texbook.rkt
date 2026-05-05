@@ -27,7 +27,7 @@
 (define texbook-command ;; \cmd[opt-args]{args}{body}{extra-args}
   (let ([cmd0base (make-weak-hash)])
     (lambda [#:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:opt-args [maybe-oargs #false]
-             #:tex-only? [tex-only? #true] #:exact-chars? [exact-chars? #false]
+             #:alt [alter #false] #:exact-chars? [exact-chars? #false]
              cmd . body]
       (define cmdname (~a cmd))
       (define cmd-args (and maybe-cargs (not (null? maybe-cargs)) (if (list? maybe-cargs) maybe-cargs (list maybe-cargs))))
@@ -49,18 +49,20 @@
                   [else (make-multiarg-element tex-style (map handbook-content-filter (append cmd-args body)))])
             (hash-ref! cmd0base tex-style (λ [] (make-element tex-style null)))))
 
-      (if (and tex-only?)
+      (if (or alter)
           (make-traverse-element
            (procedure-rename
             (λ [get set!]
-              (if (handbook-latex-renderer? get)
-                  tex-elem null))
+              (cond [(handbook-latex-renderer? get) tex-elem]
+                    [(procedure? alter) (alter tex-elem)]
+                    [(content? alter) alter]
+                    [else null]))
             (string->symbol (format "\\~a" cmdname))))
           tex-elem))))
 
 (define texbook-command-block ;; \cmd{args}{body}{extra-args}
   (let ([cmd0base (make-weak-hash)])
-    (lambda [cmd #:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:fallback-block [fallback-block #false] . body]
+    (lambda [cmd #:args [maybe-cargs #false] #:extra-args [maybe-eargs #false] #:alt [alter #false] . body]
       (define cmdname (~a cmd))
       (define cmd-args (and maybe-cargs (not (null? maybe-cargs)) (if (list? maybe-cargs) maybe-cargs (list maybe-cargs))))
       (define ext-args (and maybe-eargs (not (null? maybe-eargs)) (if (list? maybe-eargs) maybe-eargs (list maybe-eargs))))
@@ -81,14 +83,16 @@
                                                             (if (pair? ext-args) (map handbook-block-filter ext-args) null)))])
             (hash-ref! cmd0base cmdname (λ [] (make-paragraph (make-style cmdname null) null)))))
 
-      (cond [(not fallback-block) tex-block]
-            [else (make-traverse-block
-                   (procedure-rename
-                    (λ [get set!]
-                      (if (handbook-latex-renderer? get)
-                          tex-block
-                          fallback-block))
-                    (string->symbol (format "\\~a" cmdname))))]))))
+      (if (or alter)
+          (make-traverse-block
+           (procedure-rename
+            (λ [get set!]
+              (cond [(handbook-latex-renderer? get) tex-block]
+                    [(procedure? alter) (alter tex-block)]
+                    [(block? alter) alter]
+                    [else tex-block]))
+            (string->symbol (format "\\~a" cmdname))))
+          tex-block))))
 
 (define texbook-environment ;; \begin{cmd}body\end{cmd}
   (let ([cmd0base (make-weak-hash)])
@@ -288,6 +292,7 @@
    ($tex:phantomsection)
    ($tex:refstepcounter 'page)
    ($tex:setcounter 'page 1)
-   (texbook-environment "multicols" "2" "haw-haw")
    ($tex:nopagebreak)
-   ($tex:color 'Orange "text")))
+   ($tex:color 'Orange "text")
+   
+   (texbook-environment "multicols" "2" "haw-haw")))

@@ -100,6 +100,7 @@
      (syntax/loc stx
        (let ([modpath (quote-module-path)])
          (enter-digimon-zone!) ; Scribble modules are independent of each other
+         (default-theme-paths (list (digimon-path 'theme)))
 
          (tamer-story
           (cond [(path? modpath) (tamer-story->modpath modpath)]
@@ -163,6 +164,7 @@
        (let* ([ext-properties (let ([mkprop (#%handbook-properties)]) (if (procedure? mkprop) (mkprop) mkprop))]
               [tex-info (handbook-tex-config doclass options CJK? tex-load tex-style tex-extra-files)])
          (enter-digimon-zone!)
+         (default-theme-paths (list (digimon-path 'theme)))
          (tamer-index-story (cons 0 (tamer-story) #| meanwhile the tamer story is #false |#))
 
          (cons (λtitle #:tag (or tag handbook-title-tag)
@@ -505,7 +507,7 @@
                                 [else (style-merge-property bonus-style (part-style index-origin))])]
 
                    [blocks (list (let ([origin (car (part-blocks index-origin))])
-                                   (texbook-command-block #:args "2" #:fallback-block origin
+                                   (texbook-command-block #:args "2" #:alt origin
                                                           "multicols" origin)))]))
 
     (if (and title)
@@ -1090,12 +1092,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
-  [#:style [align-style tamer-center-block-style]
-   #:sub-gapex [subgap #false] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
-   #:sub-style [substyle tamer-figure-sublegend-style] #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top]]
+  [#:style [align-style tamer-center-block-style] #:sub-legend-style [substyle tamer-figure-sublegend-style]
+   #:sub-pad [subgap:ex '(0 1.2)] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
+   #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top] #;#;#:sub-tabular? [sub-tabular? #false]]
   #:with [legend pre-flows]
   #:λ (make-block-self legend align-style figureinside-style
-                       (subfigure-flows pre-flows substyle fmt subgap sub-align sub-label-align suborder)
+                       (subfigure-flows pre-flows substyle fmt (or subgap:ex 0.0) sub-align sub-label-align suborder #;sub-tabular?)
                        centeringtext-style))
 
 (define tamer-figure-ref*

@@ -213,3 +213,32 @@
         (let ([self-width (string-length col)])
           (cond [(>= width self-width) width]
                 [else self-width]))))))
+
+(define text-table-rows : (-> (Listof (Listof String)) (Listof String))
+  (lambda [entries]
+    (if (pair? entries)
+        (let ([widths (text-column-widths entries)]
+              [/dev/strout (open-output-bytes)])
+          (for/list : (Listof String) ([row (in-list entries)])
+            (for ([c (in-list row)]
+                  [w (in-list widths)]
+                  [i (in-naturals 0)])
+              (when (> i 0) (write-char #\space /dev/strout))
+              (write-string (~a c #:min-width w) /dev/strout))
+            (bytes->string/utf-8 (get-output-bytes /dev/strout #true))))
+        null)))
+
+(define text-table-string : (-> (Listof (Listof String)) String)
+  (lambda [entries]
+    (if (pair? entries)
+        (let ([widths (text-column-widths entries)]
+              [/dev/strout (open-output-bytes)])
+          (for ([row (in-list entries)])
+            (for ([c (in-list row)]
+                  [w (in-list widths)]
+                  [i (in-naturals 0)])
+              (when (> i 0) (write-char #\space /dev/strout))
+              (write-string (~a c #:min-width w) /dev/strout))
+            (newline /dev/strout))
+          (get-output-string /dev/strout))
+        "")))

@@ -12,6 +12,7 @@
 (require digimon/digitama/minimal/port)
 
 (require "wisemon/display.rkt")
+(require "wisemon/parameter.rkt")
 (require "wizarmon/parameter.rkt")
 (require "wizarmon/echo.rkt")
 (require "wizarmon/exec.rkt")
@@ -39,7 +40,11 @@
    ;   our task script has already run the program.
    ; Besides, in Windows, the debugger always starts another terminal
    ;   and causes the one running our task script hidden.
-   [(pretend)           #:=> cmdopt-string->byte status   #: Byte  "replace normal exit status with ~1"]])
+   [(pretend)           #:=> cmdopt-string->byte status   #: Byte  "replace normal exit status with ~1"]]
+
+  #:multi
+  [[(#\W new-file assume-new) #:=> cmdopt-string->path FILE #: Path      "Consider ~1 to be infinitely new"]
+   [(#\o old-file assume-old) #:=> cmdopt-string->path FILE #: Path      "Consider ~1 to be infinitely old and do not remaking them"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define exec-shell : (-> Path Byte)
@@ -72,6 +77,8 @@
     (let ([tracer (thread (make-wizarmon-log-trace (wizarmon-debug) (wizarmon-verbose)))])
       (parameterize ([current-logger /dev/dtrace]
                      [wizarmon-lang (wizarmon-flags-lang options)]
+                     [make-assumed-oldfiles (wizarmon-flags-old-file options)]
+                     [make-assumed-newfiles (wizarmon-flags-new-file options)]                   
                      [pretty-print-columns (or (wizarmon-flags-print-columns options) the-print-width)]
                      [current-command-line-arguments (list->vector argv)])  
         (define pretend-status : (Option Byte) (wizarmon-flags-pretend options))

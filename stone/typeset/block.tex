@@ -24,10 +24,27 @@
 \newenvironment{Marginblock}{\begin{Mblock}\item}{\end{Mblock}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% since worked with \centering for the legend,
-% an extra vspace before the `hrule` is required
-\newcommand{\JFPFigLegend}[1]{\vspace{8pt} \hrule width \hsize height .33pt \vspace{4pt} \legend{#1}}
-\newcommand{\SubFigLegend}[1]{\small#1}
+\newcommand{\SubFigLegend}[1]{\vspace{-\smallskipamount}\centering\sffamily\footnotesize{#1}}
+\newcommand{\JFPFigLegend}[1]{%
+  \par % ensure newline
+  \begingroup % temporarily disable cls's skips
+    \setlength{\abovecaptionskip}{0pt}
+    \setlength{\belowcaptionskip}{0pt}
+    \vspace{\bigskipamount}%
+    \hrule width \hsize height .33pt
+    \vspace{\medskipamount}%
+    \legend{#1}%
+  \endgroup
+}
+
+% TODO: figure out which magic variables are controlling the skips of the legend in margins 
+\newcommand{\MarginFigLegend}[1]{
+  \vspace{-\smallskipamount}%
+  \hrule width \hsize height .25pt
+  \vspace{-\smallskipamount}%
+  \vspace{-\medskipamount}%
+  \legend{\scriptsize#1}%
+}
 
 % Put this before the figure content, so that a hyperref goes to the start of the content:
 \newcommand{\FigureSetRef}{\refstepcounter{figure}}
@@ -37,19 +54,17 @@
 \newenvironment{HereFigure}{\begin{figure}[ht!]\FigureSetRef\centering}{\end{figure}}
 
 \newenvironment{LargeFigure}{%
-    \begin{figure}[p] % [p] forces a floating page
-    \FigureSetRef
-    \centering
-    \vspace*{\fill} 
-}{
-    \vspace*{\fill}
-    \end{figure}
+  \begin{figure}[p]% [p] forces a floating page
+  \FigureSetRef%
+  \centering%
+  \vspace*{\fill}%
+}{%
+  \vspace*{\fill}%
+  \end{figure}%
 }
 
 \newenvironment{FigureInside}{}{}
-
-% for margin figures
-\newcommand{\MarginFigLegend}[1]{\hrule width \hsize height .33pt \legend{\footnotesize#1}}
+\newenvironment{SubFigureInside}{\centering}{}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % since worked with \centering for the legend
@@ -64,4 +79,4 @@
 \newenvironment{TableInside}{}{}
 
 % for margin tables
-\newcommand{\MarginTabLegend}[1]{\legend{\footnotesize#1}}
+\newcommand{\MarginTabLegend}[1]{\legend{\scriptsize#1}}

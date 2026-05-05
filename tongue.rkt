@@ -54,7 +54,7 @@
   (lambda []
     (define all : (Listof Symbol)
       (for*/fold ([languages : (Listof Symbol) null])
-                 ([tongue-root (in-list (default-tongue-paths))]
+                 ([tongue-root (in-list (remove-duplicates (cons (collection-file-path "tongue" "digimon" "stone") (default-tongue-paths))))]
                   #:when (directory-exists? tongue-root)
                   [tongue.dir : Path (in-list (directory-list tongue-root #:build? #false))]
                   #:when (directory-exists? (build-path tongue-root tongue.dir)))

@@ -28,14 +28,8 @@
 }
 
 \makeatletter
-\newcommand{\NoAutoSpace}[1]{
-  {% in group, it will auto restore
-    \@ifpackageloaded{xeCJK}{
-      \xeCJKsetup{CJKecglue={}}
-    }{}
-    #1
-  }
-}
+% {} creates a group, settings changed inside it will be auto restored
+\newcommand{\NoAutoSpace}[1]{{\@ifpackageloaded{xeCJK}{\xeCJKsetup{CJKecglue={}}}{}#1}}
 \makeatother
 
 % Math Notations
@@ -50,150 +44,151 @@
 \newcommand{\Centeringtext}[1]{\centering#1}
 
 % Named Colors
-\definecolor{OrangeRed}{RGB}{255, 69, 0}
-\definecolor{Tomato}{RGB}{255, 99, 71}
-\definecolor{DarkRed}{RGB}{139, 0, 0}
-\definecolor{Red}{RGB}{255, 0, 0}
-\definecolor{Firebrick}{RGB}{178, 34, 34}
-\definecolor{Crimson}{RGB}{220, 20, 60}
-\definecolor{DeepPink}{RGB}{255, 20, 147}
-\definecolor{Maroon}{RGB}{176, 48, 96}
-\definecolor{IndianRed}{RGB}{205, 92, 92}
-\definecolor{MediumVioletRed}{RGB}{199, 21, 133}
-\definecolor{VioletRed}{RGB}{208, 32, 144}
-\definecolor{LightCoral}{RGB}{240, 128, 128}
-\definecolor{HotPink}{RGB}{255, 105, 180}
-\definecolor{PaleVioletRed}{RGB}{219, 112, 147}
-\definecolor{LightPink}{RGB}{255, 182, 193}
-\definecolor{RosyBrown}{RGB}{188, 143, 143}
-\definecolor{Pink}{RGB}{255, 192, 203}
-\definecolor{Orchid}{RGB}{218, 112, 214}
-\definecolor{LavenderBlush}{RGB}{255, 240, 245}
-\definecolor{Snow}{RGB}{255, 250, 250}
-\definecolor{Chocolate}{RGB}{210, 105, 30}
-\definecolor{SaddleBrown}{RGB}{139, 69, 19}
-\definecolor{Brown}{RGB}{132, 60, 36}
-\definecolor{DarkOrange}{RGB}{255, 140, 0}
-\definecolor{Coral}{RGB}{255, 127, 80}
-\definecolor{Sienna}{RGB}{160, 82, 45}
-\definecolor{Orange}{RGB}{255, 165, 0}
-\definecolor{Salmon}{RGB}{250, 128, 114}
-\definecolor{Peru}{RGB}{205, 133, 63}
-\definecolor{DarkGoldenrod}{RGB}{184, 134, 11}
-\definecolor{Goldenrod}{RGB}{218, 165, 32}
-\definecolor{SandyBrown}{RGB}{244, 164, 96}
-\definecolor{LightSalmon}{RGB}{255, 160, 122}
-\definecolor{DarkSalmon}{RGB}{233, 150, 122}
-\definecolor{Gold}{RGB}{255, 215, 0}
-\definecolor{Yellow}{RGB}{255, 255, 0}
-\definecolor{Olive}{RGB}{128, 128, 0}
-\definecolor{Burlywood}{RGB}{222, 184, 135}
-\definecolor{Tan}{RGB}{210, 180, 140}
-\definecolor{NavajoWhite}{RGB}{255, 222, 173}
-\definecolor{PeachPuff}{RGB}{255, 218, 185}
-\definecolor{Khaki}{RGB}{240, 230, 140}
-\definecolor{DarkKhaki}{RGB}{189, 183, 107}
-\definecolor{Moccasin}{RGB}{255, 228, 181}
-\definecolor{Wheat}{RGB}{245, 222, 179}
-\definecolor{Bisque}{RGB}{255, 228, 196}
-\definecolor{PaleGoldenrod}{RGB}{238, 232, 170}
-\definecolor{BlanchedAlmond}{RGB}{255, 235, 205}
-\definecolor{MediumGoldenrod}{RGB}{234, 234, 173}
-\definecolor{PapayaWhip}{RGB}{255, 239, 213}
-\definecolor{MistyRose}{RGB}{255, 228, 225}
-\definecolor{LemonChiffon}{RGB}{255, 250, 205}
-\definecolor{AntiqueWhite}{RGB}{250, 235, 215}
-\definecolor{Cornsilk}{RGB}{255, 248, 220}
-\definecolor{LightGoldenrodYellow}{RGB}{250, 250, 210}
-\definecolor{OldLace}{RGB}{253, 245, 230}
-\definecolor{Linen}{RGB}{250, 240, 230}
-\definecolor{LightYellow}{RGB}{255, 255, 224}
-\definecolor{SeaShell}{RGB}{255, 245, 238}
-\definecolor{Beige}{RGB}{245, 245, 220}
-\definecolor{FloralWhite}{RGB}{255, 250, 240}
-\definecolor{Ivory}{RGB}{255, 255, 240}
-\definecolor{Green}{RGB}{0, 255, 0}
-\definecolor{LawnGreen}{RGB}{124, 252, 0}
-\definecolor{Chartreuse}{RGB}{127, 255, 0}
-\definecolor{GreenYellow}{RGB}{173, 255, 47}
-\definecolor{YellowGreen}{RGB}{154, 205, 50}
-\definecolor{MediumForestGreen}{RGB}{107, 142, 35}
-\definecolor{OliveDrab}{RGB}{107, 142, 35}
-\definecolor{DarkOliveGreen}{RGB}{85, 107, 47}
-\definecolor{DarkSeaGreen}{RGB}{143, 188, 139}
-\definecolor{Lime}{RGB}{0, 255, 0}
-\definecolor{DarkGreen}{RGB}{0, 100, 0}
-\definecolor{LimeGreen}{RGB}{50, 205, 50}
-\definecolor{ForestGreen}{RGB}{34, 139, 34}
-\definecolor{SpringGreen}{RGB}{0, 255, 127}
-\definecolor{MediumSpringGreen}{RGB}{0, 250, 154}
-\definecolor{SeaGreen}{RGB}{46, 139, 87}
-\definecolor{MediumSeaGreen}{RGB}{60, 179, 113}
-\definecolor{Aquamarine}{RGB}{112, 216, 144}
-\definecolor{LightGreen}{RGB}{144, 238, 144}
-\definecolor{PaleGreen}{RGB}{152, 251, 152}
-\definecolor{MediumAquamarine}{RGB}{102, 205, 170}
-\definecolor{Turquoise}{RGB}{64, 224, 208}
-\definecolor{LightSeaGreen}{RGB}{32, 178, 170}
-\definecolor{MediumTurquoise}{RGB}{72, 209, 204}
-\definecolor{Honeydew}{RGB}{240, 255, 240}
-\definecolor{MintCream}{RGB}{245, 255, 250}
-\definecolor{RoyalBlue}{RGB}{65, 105, 225}
-\definecolor{DodgerBlue}{RGB}{30, 144, 255}
-\definecolor{DeepSkyBlue}{RGB}{0, 191, 255}
-\definecolor{CornflowerBlue}{RGB}{100, 149, 237}
-\definecolor{SteelBlue}{RGB}{70, 130, 180}
-\definecolor{LightSkyBlue}{RGB}{135, 206, 250}
-\definecolor{DarkTurquoise}{RGB}{0, 206, 209}
-\definecolor{Cyan}{RGB}{0, 255, 255}
-\definecolor{Aqua}{RGB}{0, 255, 255}
-\definecolor{DarkCyan}{RGB}{0, 139, 139}
-\definecolor{Teal}{RGB}{0, 128, 128}
-\definecolor{SkyBlue}{RGB}{135, 206, 235}
-\definecolor{CadetBlue}{RGB}{96, 160, 160}
-\definecolor{DarkSlateGray}{RGB}{47, 79, 79}
-\definecolor{LightSlateGray}{RGB}{119, 136, 153}
-\definecolor{SlateGray}{RGB}{112, 128, 144}
-\definecolor{LightSteelBlue}{RGB}{176, 196, 222}
-\definecolor{LightBlue}{RGB}{173, 216, 230}
-\definecolor{PowderBlue}{RGB}{176, 224, 230}
-\definecolor{PaleTurquoise}{RGB}{175, 238, 238}
-\definecolor{LightCyan}{RGB}{224, 255, 255}
-\definecolor{AliceBlue}{RGB}{240, 248, 255}
-\definecolor{Azure}{RGB}{240, 255, 255}
-\definecolor{MediumBlue}{RGB}{0, 0, 205}
-\definecolor{DarkBlue}{RGB}{0, 0, 139}
-\definecolor{MidnightBlue}{RGB}{25, 25, 112}
-\definecolor{Navy}{RGB}{36, 36, 140}
-\definecolor{Blue}{RGB}{0, 0, 255}
-\definecolor{Indigo}{RGB}{75, 0, 130}
-\definecolor{BlueViolet}{RGB}{138, 43, 226}
-\definecolor{MediumSlateBlue}{RGB}{123, 104, 238}
-\definecolor{SlateBlue}{RGB}{106, 90, 205}
-\definecolor{Purple}{RGB}{160, 32, 240}
-\definecolor{DarkSlateBlue}{RGB}{72, 61, 139}
-\definecolor{DarkViolet}{RGB}{148, 0, 211}
-\definecolor{DarkOrchid}{RGB}{153, 50, 204}
-\definecolor{MediumPurple}{RGB}{147, 112, 219}
-\definecolor{MediumOrchid}{RGB}{186, 85, 211}
-\definecolor{Magenta}{RGB}{255, 0, 255}
-\definecolor{Fuchsia}{RGB}{255, 0, 255}
-\definecolor{DarkMagenta}{RGB}{139, 0, 139}
-\definecolor{Violet}{RGB}{238, 130, 238}
-\definecolor{Plum}{RGB}{221, 160, 221}
-\definecolor{Lavender}{RGB}{230, 230, 250}
-\definecolor{Thistle}{RGB}{216, 191, 216}
-\definecolor{GhostWhite}{RGB}{248, 248, 255}
-\definecolor{White}{RGB}{255, 255, 255}
-\definecolor{WhiteSmoke}{RGB}{245, 245, 245}
-\definecolor{Gainsboro}{RGB}{220, 220, 220}
-\definecolor{LightGray}{RGB}{211, 211, 211}
-\definecolor{Silver}{RGB}{192, 192, 192}
-\definecolor{Gray}{RGB}{190, 190, 190}
-\definecolor{DarkGray}{RGB}{169, 169, 169}
-\definecolor{DimGray}{RGB}{105, 105, 105}
-\definecolor{Black}{RGB}{0, 0, 0}
+\definecolor{OrangeRed}{rgb}{1.0, 0.27058823529411763, 0.0}                                         % #FF4500(255 69 0)
+\definecolor{Tomato}{rgb}{1.0, 0.38823529411764707, 0.2784313725490196}                             % #FF6347(255 99 71)
+\definecolor{DarkRed}{rgb}{0.5450980392156862, 0.0, 0.0}                                            % #8B0000(139 0 0)
+\definecolor{Red}{rgb}{1.0, 0.0, 0.0}                                                               % #FF0000(255 0 0)
+\definecolor{Firebrick}{rgb}{0.6980392156862745, 0.13333333333333333, 0.13333333333333333}          % #B22222(178 34 34)
+\definecolor{Crimson}{rgb}{0.8627450980392157, 0.0784313725490196, 0.23529411764705882}             % #DC143C(220 20 60)
+\definecolor{DeepPink}{rgb}{1.0, 0.0784313725490196, 0.5764705882352941}                            % #FF1493(255 20 147)
+\definecolor{Maroon}{rgb}{0.5019607843137255, 0.0, 0.0}                                             % #800000(128 0 0)
+\definecolor{IndianRed}{rgb}{0.803921568627451, 0.3607843137254902, 0.3607843137254902}             % #CD5C5C(205 92 92)
+\definecolor{MediumVioletRed}{rgb}{0.7803921568627451, 0.08235294117647059, 0.5215686274509804}     % #C71585(199 21 133)
+\definecolor{VioletRed}{rgb}{0.7803921568627451, 0.08235294117647059, 0.5215686274509804}           % #C71585(199 21 133)
+\definecolor{LightCoral}{rgb}{0.9411764705882353, 0.5019607843137255, 0.5019607843137255}           % #F08080(240 128 128)
+\definecolor{HotPink}{rgb}{1.0, 0.4117647058823529, 0.7058823529411765}                             % #FF69B4(255 105 180)
+\definecolor{PaleVioletRed}{rgb}{0.8588235294117647, 0.4392156862745098, 0.5764705882352941}        % #DB7093(219 112 147)
+\definecolor{LightPink}{rgb}{1.0, 0.7137254901960784, 0.7568627450980392}                           % #FFB6C1(255 182 193)
+\definecolor{RosyBrown}{rgb}{0.7372549019607844, 0.5607843137254902, 0.5607843137254902}            % #BC8F8F(188 143 143)
+\definecolor{Pink}{rgb}{1.0, 0.7529411764705882, 0.796078431372549}                                 % #FFC0CB(255 192 203)
+\definecolor{Orchid}{rgb}{0.8549019607843137, 0.4392156862745098, 0.8392156862745098}               % #DA70D6(218 112 214)
+\definecolor{LavenderBlush}{rgb}{1.0, 0.9411764705882353, 0.9607843137254902}                       % #FFF0F5(255 240 245)
+\definecolor{Snow}{rgb}{1.0, 0.9803921568627451, 0.9803921568627451}                                % #FFFAFA(255 250 250)
+\definecolor{Chocolate}{rgb}{0.8235294117647058, 0.4117647058823529, 0.11764705882352941}           % #D2691E(210 105 30)
+\definecolor{SaddleBrown}{rgb}{0.5450980392156862, 0.27058823529411763, 0.07450980392156863}        % #8B4513(139 69 19)
+\definecolor{Brown}{rgb}{0.6470588235294118, 0.16470588235294117, 0.16470588235294117}              % #A52A2A(165 42 42)
+\definecolor{DarkOrange}{rgb}{1.0, 0.5490196078431373, 0.0}                                         % #FF8C00(255 140 0)
+\definecolor{Coral}{rgb}{1.0, 0.4980392156862745, 0.3137254901960784}                               % #FF7F50(255 127 80)
+\definecolor{Sienna}{rgb}{0.6274509803921569, 0.3215686274509804, 0.17647058823529413}              % #A0522D(160 82 45)
+\definecolor{Orange}{rgb}{1.0, 0.6470588235294118, 0.0}                                             % #FFA500(255 165 0)
+\definecolor{Salmon}{rgb}{0.9803921568627451, 0.5019607843137255, 0.4470588235294118}               % #FA8072(250 128 114)
+\definecolor{Peru}{rgb}{0.803921568627451, 0.5215686274509804, 0.24705882352941178}                 % #CD853F(205 133 63)
+\definecolor{DarkGoldenrod}{rgb}{0.7215686274509804, 0.5254901960784314, 0.043137254901960784}      % #B8860B(184 134 11)
+\definecolor{Goldenrod}{rgb}{0.8549019607843137, 0.6470588235294118, 0.12549019607843137}           % #DAA520(218 165 32)
+\definecolor{SandyBrown}{rgb}{0.9568627450980393, 0.6431372549019608, 0.3764705882352941}           % #F4A460(244 164 96)
+\definecolor{LightSalmon}{rgb}{1.0, 0.6274509803921569, 0.47843137254901963}                        % #FFA07A(255 160 122)
+\definecolor{DarkSalmon}{rgb}{0.9137254901960784, 0.5882352941176471, 0.47843137254901963}          % #E9967A(233 150 122)
+\definecolor{Gold}{rgb}{1.0, 0.8431372549019608, 0.0}                                               % #FFD700(255 215 0)
+\definecolor{Yellow}{rgb}{1.0, 1.0, 0.0}                                                            % #FFFF00(255 255 0)
+\definecolor{Olive}{rgb}{0.5019607843137255, 0.5019607843137255, 0.0}                               % #808000(128 128 0)
+\definecolor{Burlywood}{rgb}{0.8705882352941177, 0.7215686274509804, 0.5294117647058824}            % #DEB887(222 184 135)
+\definecolor{Tan}{rgb}{0.8235294117647058, 0.7058823529411765, 0.5490196078431373}                  % #D2B48C(210 180 140)
+\definecolor{NavajoWhite}{rgb}{1.0, 0.8705882352941177, 0.6784313725490196}                         % #FFDEAD(255 222 173)
+\definecolor{PeachPuff}{rgb}{1.0, 0.8549019607843137, 0.7254901960784313}                           % #FFDAB9(255 218 185)
+\definecolor{Khaki}{rgb}{0.9411764705882353, 0.9019607843137255, 0.5490196078431373}                % #F0E68C(240 230 140)
+\definecolor{DarkKhaki}{rgb}{0.7411764705882353, 0.7176470588235294, 0.4196078431372549}            % #BDB76B(189 183 107)
+\definecolor{Moccasin}{rgb}{1.0, 0.8941176470588236, 0.7098039215686275}                            % #FFE4B5(255 228 181)
+\definecolor{Wheat}{rgb}{0.9607843137254902, 0.8705882352941177, 0.7019607843137254}                % #F5DEB3(245 222 179)
+\definecolor{Bisque}{rgb}{1.0, 0.8941176470588236, 0.7686274509803922}                              % #FFE4C4(255 228 196)
+\definecolor{PaleGoldenrod}{rgb}{0.9333333333333333, 0.9098039215686274, 0.6666666666666666}        % #EEE8AA(238 232 170)
+\definecolor{BlanchedAlmond}{rgb}{1.0, 0.9215686274509803, 0.803921568627451}                       % #FFEBCD(255 235 205)
+\definecolor{MediumGoldenrod}{rgb}{0.0, 0.0, 0.0}                                                   % #000000(0 0 0)
+\definecolor{PapayaWhip}{rgb}{1.0, 0.9372549019607843, 0.8352941176470589}                          % #FFEFD5(255 239 213)
+\definecolor{MistyRose}{rgb}{1.0, 0.8941176470588236, 0.8823529411764706}                           % #FFE4E1(255 228 225)
+\definecolor{LemonChiffon}{rgb}{1.0, 0.9803921568627451, 0.803921568627451}                         % #FFFACD(255 250 205)
+\definecolor{AntiqueWhite}{rgb}{0.9803921568627451, 0.9215686274509803, 0.8431372549019608}         % #FAEBD7(250 235 215)
+\definecolor{Cornsilk}{rgb}{1.0, 0.9725490196078431, 0.8627450980392157}                            % #FFF8DC(255 248 220)
+\definecolor{LightGoldenrodYellow}{rgb}{0.9803921568627451, 0.9803921568627451, 0.8235294117647058} % #FAFAD2(250 250 210)
+\definecolor{OldLace}{rgb}{0.9921568627450981, 0.9607843137254902, 0.9019607843137255}              % #FDF5E6(253 245 230)
+\definecolor{Linen}{rgb}{0.9803921568627451, 0.9411764705882353, 0.9019607843137255}                % #FAF0E6(250 240 230)
+\definecolor{LightYellow}{rgb}{1.0, 1.0, 0.8784313725490196}                                        % #FFFFE0(255 255 224)
+\definecolor{SeaShell}{rgb}{1.0, 0.9607843137254902, 0.9333333333333333}                            % #FFF5EE(255 245 238)
+\definecolor{Beige}{rgb}{0.9607843137254902, 0.9607843137254902, 0.8627450980392157}                % #F5F5DC(245 245 220)
+\definecolor{FloralWhite}{rgb}{1.0, 0.9803921568627451, 0.9411764705882353}                         % #FFFAF0(255 250 240)
+\definecolor{Ivory}{rgb}{1.0, 1.0, 0.9411764705882353}                                              % #FFFFF0(255 255 240)
+\definecolor{Green}{rgb}{0.0, 0.5019607843137255, 0.0}                                              % #008000(0 128 0)
+\definecolor{LawnGreen}{rgb}{0.48627450980392156, 0.9882352941176471, 0.0}                          % #7CFC00(124 252 0)
+\definecolor{Chartreuse}{rgb}{0.4980392156862745, 1.0, 0.0}                                         % #7FFF00(127 255 0)
+\definecolor{GreenYellow}{rgb}{0.6784313725490196, 1.0, 0.1843137254901961}                         % #ADFF2F(173 255 47)
+\definecolor{YellowGreen}{rgb}{0.6039215686274509, 0.803921568627451, 0.19607843137254902}          % #9ACD32(154 205 50)
+\definecolor{MediumForestGreen}{rgb}{0.0, 0.0, 0.0}                                                 % #000000(0 0 0)
+\definecolor{OliveDrab}{rgb}{0.4196078431372549, 0.5568627450980392, 0.13725490196078433}           % #6B8E23(107 142 35)
+\definecolor{DarkOliveGreen}{rgb}{0.3333333333333333, 0.4196078431372549, 0.1843137254901961}       % #556B2F(85 107 47)
+\definecolor{DarkSeaGreen}{rgb}{0.5607843137254902, 0.7372549019607844, 0.5607843137254902}         % #8FBC8F(143 188 143)
+\definecolor{Lime}{rgb}{0.0, 1.0, 0.0}                                                              % #00FF00(0 255 0)
+\definecolor{DarkGreen}{rgb}{0.0, 0.39215686274509803, 0.0}                                         % #006400(0 100 0)
+\definecolor{LimeGreen}{rgb}{0.19607843137254902, 0.803921568627451, 0.19607843137254902}           % #32CD32(50 205 50)
+\definecolor{ForestGreen}{rgb}{0.13333333333333333, 0.5450980392156862, 0.13333333333333333}        % #228B22(34 139 34)
+\definecolor{SpringGreen}{rgb}{0.0, 1.0, 0.4980392156862745}                                        % #00FF7F(0 255 127)
+\definecolor{MediumSpringGreen}{rgb}{0.0, 0.9803921568627451, 0.6039215686274509}                   % #00FA9A(0 250 154)
+\definecolor{SeaGreen}{rgb}{0.1803921568627451, 0.5450980392156862, 0.3411764705882353}             % #2E8B57(46 139 87)
+\definecolor{MediumSeaGreen}{rgb}{0.23529411764705882, 0.7019607843137254, 0.44313725490196076}     % #3CB371(60 179 113)
+\definecolor{Aquamarine}{rgb}{0.4980392156862745, 1.0, 0.8313725490196079}                          % #7FFFD4(127 255 212)
+\definecolor{LightGreen}{rgb}{0.5647058823529412, 0.9333333333333333, 0.5647058823529412}           % #90EE90(144 238 144)
+\definecolor{PaleGreen}{rgb}{0.596078431372549, 0.984313725490196, 0.596078431372549}               % #98FB98(152 251 152)
+\definecolor{MediumAquamarine}{rgb}{0.4, 0.803921568627451, 0.6666666666666666}                     % #66CDAA(102 205 170)
+\definecolor{Turquoise}{rgb}{0.25098039215686274, 0.8784313725490196, 0.8156862745098039}           % #40E0D0(64 224 208)
+\definecolor{LightSeaGreen}{rgb}{0.12549019607843137, 0.6980392156862745, 0.6666666666666666}       % #20B2AA(32 178 170)
+\definecolor{MediumTurquoise}{rgb}{0.2823529411764706, 0.8196078431372549, 0.8}                     % #48D1CC(72 209 204)
+\definecolor{Honeydew}{rgb}{0.9411764705882353, 1.0, 0.9411764705882353}                            % #F0FFF0(240 255 240)
+\definecolor{MintCream}{rgb}{0.9607843137254902, 1.0, 0.9803921568627451}                           % #F5FFFA(245 255 250)
+\definecolor{RoyalBlue}{rgb}{0.2549019607843137, 0.4117647058823529, 0.8823529411764706}            % #4169E1(65 105 225)
+\definecolor{DodgerBlue}{rgb}{0.11764705882352941, 0.5647058823529412, 1.0}                         % #1E90FF(30 144 255)
+\definecolor{DeepSkyBlue}{rgb}{0.0, 0.7490196078431373, 1.0}                                        % #00BFFF(0 191 255)
+\definecolor{CornflowerBlue}{rgb}{0.39215686274509803, 0.5843137254901961, 0.9294117647058824}      % #6495ED(100 149 237)
+\definecolor{SteelBlue}{rgb}{0.27450980392156865, 0.5098039215686274, 0.7058823529411765}           % #4682B4(70 130 180)
+\definecolor{LightSkyBlue}{rgb}{0.5294117647058824, 0.807843137254902, 0.9803921568627451}          % #87CEFA(135 206 250)
+\definecolor{DarkTurquoise}{rgb}{0.0, 0.807843137254902, 0.8196078431372549}                        % #00CED1(0 206 209)
+\definecolor{Cyan}{rgb}{0.0, 1.0, 1.0}                                                              % #00FFFF(0 255 255)
+\definecolor{Aqua}{rgb}{0.0, 1.0, 1.0}                                                              % #00FFFF(0 255 255)
+\definecolor{DarkCyan}{rgb}{0.0, 0.5450980392156862, 0.5450980392156862}                            % #008B8B(0 139 139)
+\definecolor{Teal}{rgb}{0.0, 0.5019607843137255, 0.5019607843137255}                                % #008080(0 128 128)
+\definecolor{SkyBlue}{rgb}{0.5294117647058824, 0.807843137254902, 0.9215686274509803}               % #87CEEB(135 206 235)
+\definecolor{CadetBlue}{rgb}{0.37254901960784315, 0.6196078431372549, 0.6274509803921569}           % #5F9EA0(95 158 160)
+\definecolor{DarkSlateGray}{rgb}{0.1843137254901961, 0.30980392156862746, 0.30980392156862746}      % #2F4F4F(47 79 79)
+\definecolor{LightSlateGray}{rgb}{0.4666666666666667, 0.5333333333333333, 0.6}                      % #778899(119 136 153)
+\definecolor{SlateGray}{rgb}{0.4392156862745098, 0.5019607843137255, 0.5647058823529412}            % #708090(112 128 144)
+\definecolor{LightSteelBlue}{rgb}{0.6901960784313725, 0.7686274509803922, 0.8705882352941177}       % #B0C4DE(176 196 222)
+\definecolor{LightBlue}{rgb}{0.6784313725490196, 0.8470588235294118, 0.9019607843137255}            % #ADD8E6(173 216 230)
+\definecolor{PowderBlue}{rgb}{0.6901960784313725, 0.8784313725490196, 0.9019607843137255}           % #B0E0E6(176 224 230)
+\definecolor{PaleTurquoise}{rgb}{0.6862745098039216, 0.9333333333333333, 0.9333333333333333}        % #AFEEEE(175 238 238)
+\definecolor{LightCyan}{rgb}{0.8784313725490196, 1.0, 1.0}                                          % #E0FFFF(224 255 255)
+\definecolor{AliceBlue}{rgb}{0.9411764705882353, 0.9725490196078431, 1.0}                           % #F0F8FF(240 248 255)
+\definecolor{Azure}{rgb}{0.9411764705882353, 1.0, 1.0}                                              % #F0FFFF(240 255 255)
+\definecolor{MediumBlue}{rgb}{0.0, 0.0, 0.803921568627451}                                          % #0000CD(0 0 205)
+\definecolor{DarkBlue}{rgb}{0.0, 0.0, 0.5450980392156862}                                           % #00008B(0 0 139)
+\definecolor{MidnightBlue}{rgb}{0.09803921568627451, 0.09803921568627451, 0.4392156862745098}       % #191970(25 25 112)
+\definecolor{Navy}{rgb}{0.0, 0.0, 0.5019607843137255}                                               % #000080(0 0 128)
+\definecolor{Blue}{rgb}{0.0, 0.0, 1.0}                                                              % #0000FF(0 0 255)
+\definecolor{Indigo}{rgb}{0.29411764705882354, 0.0, 0.5098039215686274}                             % #4B0082(75 0 130)
+\definecolor{BlueViolet}{rgb}{0.5411764705882353, 0.16862745098039217, 0.8862745098039215}          % #8A2BE2(138 43 226)
+\definecolor{MediumSlateBlue}{rgb}{0.4823529411764706, 0.40784313725490196, 0.9333333333333333}     % #7B68EE(123 104 238)
+\definecolor{SlateBlue}{rgb}{0.41568627450980394, 0.35294117647058826, 0.803921568627451}           % #6A5ACD(106 90 205)
+\definecolor{Purple}{rgb}{0.5019607843137255, 0.0, 0.5019607843137255}                              % #800080(128 0 128)
+\definecolor{DarkSlateBlue}{rgb}{0.2823529411764706, 0.23921568627450981, 0.5450980392156862}       % #483D8B(72 61 139)
+\definecolor{DarkViolet}{rgb}{0.5803921568627451, 0.0, 0.8274509803921568}                          % #9400D3(148 0 211)
+\definecolor{DarkOrchid}{rgb}{0.6, 0.19607843137254902, 0.8}                                        % #9932CC(153 50 204)
+\definecolor{MediumPurple}{rgb}{0.5764705882352941, 0.4392156862745098, 0.8588235294117647}         % #9370DB(147 112 219)
+\definecolor{MediumOrchid}{rgb}{0.7294117647058823, 0.3333333333333333, 0.8274509803921568}         % #BA55D3(186 85 211)
+\definecolor{Magenta}{rgb}{1.0, 0.0, 1.0}                                                           % #FF00FF(255 0 255)
+\definecolor{Fuchsia}{rgb}{1.0, 0.0, 1.0}                                                           % #FF00FF(255 0 255)
+\definecolor{DarkMagenta}{rgb}{0.5450980392156862, 0.0, 0.5450980392156862}                         % #8B008B(139 0 139)
+\definecolor{Violet}{rgb}{0.9333333333333333, 0.5098039215686274, 0.9333333333333333}               % #EE82EE(238 130 238)
+\definecolor{Plum}{rgb}{0.8666666666666667, 0.6274509803921569, 0.8666666666666667}                 % #DDA0DD(221 160 221)
+\definecolor{Lavender}{rgb}{0.9019607843137255, 0.9019607843137255, 0.9803921568627451}             % #E6E6FA(230 230 250)
+\definecolor{Thistle}{rgb}{0.8470588235294118, 0.7490196078431373, 0.8470588235294118}              % #D8BFD8(216 191 216)
+\definecolor{GhostWhite}{rgb}{0.9725490196078431, 0.9725490196078431, 1.0}                          % #F8F8FF(248 248 255)
+\definecolor{White}{rgb}{1.0, 1.0, 1.0}                                                             % #FFFFFF(255 255 255)
+\definecolor{WhiteSmoke}{rgb}{0.9607843137254902, 0.9607843137254902, 0.9607843137254902}           % #F5F5F5(245 245 245)
+\definecolor{Gainsboro}{rgb}{0.8627450980392157, 0.8627450980392157, 0.8627450980392157}            % #DCDCDC(220 220 220)
+\definecolor{LightGray}{rgb}{0.8274509803921568, 0.8274509803921568, 0.8274509803921568}            % #D3D3D3(211 211 211)
+\definecolor{Silver}{rgb}{0.7529411764705882, 0.7529411764705882, 0.7529411764705882}               % #C0C0C0(192 192 192)
+\definecolor{Gray}{rgb}{0.5019607843137255, 0.5019607843137255, 0.5019607843137255}                 % #808080(128 128 128)
+\definecolor{DarkGray}{rgb}{0.6627450980392157, 0.6627450980392157, 0.6627450980392157}             % #A9A9A9(169 169 169)
+\definecolor{DimGray}{rgb}{0.4117647058823529, 0.4117647058823529, 0.4117647058823529}              % #696969(105 105 105)
+\definecolor{Black}{rgb}{0.0, 0.0, 0.0}                                                             % #000000(0 0 0)
 
+% tcolorbox configure
 \newcommand{\SharpBox}[4]{
    \begin{tcolorbox}
    [enhanced, breakable,
@@ -266,28 +261,98 @@
 \newcommand{\HandbookCompactOrderedItem}[1]{\item #1}
 
 % for my own extension, restore the fontsize if styled in the body of articles
-\newcommand{\bodyKw}[1]{{\SColorize{black}{\Scribtexttt{#1}}}}
-\newcommand{\bodyStxLink}[1]{\bodyKw{#1}}
-\newcommand{\bodyStxDef}[1]{\bodyStxLink{#1}}
-\newcommand{\bodyCmt}[1]{\inColor{CommentColor}{#1}}
-\newcommand{\bodyPn}[1]{\inColor{ParenColor}{#1}}
-\newcommand{\bodyInBG}[1]{\inColor{ParenColor}{#1}}
-\newcommand{\bodySym}[1]{\inColor{IdentifierColor}{#1}}
-\newcommand{\bodySymDef}[1]{\bodySym{#1}}
-\newcommand{\bodyVal}[1]{\inColor{ValueColor}{#1}}
-\newcommand{\bodyValLink}[1]{\inColor{blue}{#1}}
-\newcommand{\bodyValDef}[1]{\bodyValLink{#1}}
-\newcommand{\bodyModLink}[1]{\inColor{blue}{#1}}
-\newcommand{\bodyRes}[1]{\inColor{ResultColor}{#1}}
-\newcommand{\bodyOut}[1]{\inColor{OutputColor}{#1}}
-\newcommand{\bodyMeta}[1]{\inColor{IdentifierColor}{#1}}
-\newcommand{\bodyMod}[1]{\inColor{black}{#1}}
-\newcommand{\bodyRdr}[1]{\inColor{black}{#1}}
-\newcommand{\bodyVarCol}[1]{\inColor{IdentifierColor}{#1}}
-\newcommand{\bodyVar}[1]{{\bodyVarCol{\textsl{#1}}}}
-\newcommand{\bodyErrCol}[1]{\inColor{red}{#1}}
-\newcommand{\bodyErr}[1]{{\bodyErrCol{\textrm{\textit{#1}}}}}
-\newcommand{\bodyOpt}[1]{#1}
-\newcommand{\bodyIn}[1]{\incolorbox{LightGray}{\bodyInBG{#1}}}
-% \newcommand{\highlighted}[1]{\colorbox{PaleBlue}{\hspace{-0.5ex}\bodyInBG{#1}\hspace{-0.5ex}}}
-\newenvironment{bodyBlk}{}{}
+\newenvironment{tamerBlk}{}{} % Wrapper for multi-linked Racket code blocks
+
+\newcommand{\tamerKw}[1]{{\SColorize{black}{\Scribtexttt{#1}}}} % literal "keyword" (not for `#:`-keyword), rarely used, see `pn`
+\newcommand{\tamerCmt}[1]{{\inColor{CommentColor}{#1}}} % comments
+\newcommand{\tamerPn}[1]{{\inColor{ParenColor}{#1}}} % Parentheses, keywords, and similar delimiters in Racket code
+\newcommand{\tamerSym}[1]{{\inColor{IdentifierColor}{#1}}} % identifiers without `for-label` bindings
+\newcommand{\tamerVal}[1]{{\inColor{ValueColor}{#1}}} % literal values
+\newcommand{\tamerMeta}[1]{{\inColor{IdentifierColor}{#1}}} % unquoting commas
+\newcommand{\tamerRdr}[1]{{\inColor{black}{#1}}} % reader shorthands
+\newcommand{\tamerVar}[1]{{\inColor{IdentifierColor}{\textsl{#1}}}} % local variables or meta variables
+\newcommand{\tamerIn}[1]{{\incolorbox{LightGray}{\tamerInBG{#1}}}} % standard input, also used by `litchar`
+\newcommand{\tamerInBG}[1]{{\inColor{ParenColor}{#1}}}
+\newcommand{\tamerRes}[1]{{\inColor{ResultColor}{#1}}} % REPL results
+\newcommand{\tamerOut}[1]{{\inColor{OutputColor}{#1}}} % standard output
+\newcommand{\tamerErr}[1]{{\SColorize{red}{\textrm{\textit{#1}}}}} % standard error
+\newcommand{\tamerOpt}[1]{{\inColor{DimGray}{\textsl{#1}}}} % Brackets for optional arguments in function definitions
+
+\newcommand{\tamerValLink}[1]{\inColor{blue}{#1}} % identifiers with `for-label` binding to variable
+\newcommand{\tamerStxLink}[1]{\tamerKw{#1}} % identifiers with `for-label` binding to syntactic-form
+\newcommand{\tamerModLink}[1]{\inColor{blue}{#1}} % module names linked to their definitions
+
+\newcommand{\tamerValDef}[1]{\tamerValLink{#1}} % definition for a variable, combined with `val:link`
+\newcommand{\tamerStxDef}[1]{\tamerStxLink{#1}} % definition for a syntactic-form, combined with `stx:link`
+\newcommand{\tamerSymDef}[1]{\tamerSym{#1}} % definition for a unbinding identifier, combined with `sym` (maybe a mistake)
+
+% Solarized Light
+\definecolor{SLYellow}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                  % #B58900(181 137 0)
+\definecolor{SLOrange}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}  % #CB4B16(203 75 22)
+\definecolor{SLRed}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}     % #DC322F(220 50 47)
+\definecolor{SLMagenta}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274} % #D33682(211 54 130)
+\definecolor{SLViolet}{rgb}{0.4235294117647059, 0.44313725490196076, 0.7686274509803922}  % #6C71C4(108 113 196)
+\definecolor{SLBlue}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}    % #268BD2(38 139 210)
+\definecolor{SLCyan}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}     % #2AA198(42 161 152)
+\definecolor{SLGreen}{rgb}{0.5215686274509804, 0.6, 0.0}                                  % #859900(133 153 0)
+
+\definecolor{tamerCommentColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}              % #93A1A1(147 161 161) italic
+\definecolor{tamerStringColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}               % #2AA198(42 161 152)
+\definecolor{tamerRegexpColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}              % #DC322F(220 50 47)
+\definecolor{tamerNumberColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}              % #D33682(211 54 130)
+\definecolor{tamerVariableColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}            % #268BD2(38 139 210)
+\definecolor{tamerKeywordColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                            % #859900(133 153 0)
+\definecolor{tamerStorageColor}{rgb}{0.34509803921568627, 0.43137254901960786, 0.4588235294117647}            % #586E75(88 110 117)  bold
+\definecolor{tamerClassNameColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}           % #CB4B16(203 75 22)
+\definecolor{tamerFunctionNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}        % #268BD2(38 139 210)
+\definecolor{tamerVariableStartColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                      % #859900(133 153 0)
+\definecolor{tamerEmbeddedCodeMarkersColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961} % #DC322F(220 50 47)
+\definecolor{tamerBuiltInConstantColor}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                     % #B58900(181 137 0)
+\definecolor{tamerSupportConstructColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}    % #CB4B16(203 75 22)
+\definecolor{tamerUserDefinedConstantColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157} % #CB4B16(203 75 22)
+\definecolor{tamerInheritedClassColor}{rgb}{0.4235294117647059, 0.44313725490196076, 0.7686274509803922}      % #6C71C4(108 113 196)
+\definecolor{tamerTagNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}             % #268BD2(38 139 210)
+\definecolor{tamerTagStartEndColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}          % #93A1A1(147 161 161)
+\definecolor{tamerTagAttributeColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}         % #93A1A1(147 161 161)
+\definecolor{tamerLibraryFunctionColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}     % #268BD2(38 139 210)
+\definecolor{tamerContinuationColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}        % #DC322F(220 50 47)
+\definecolor{tamerLibraryClassTypeColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                   % #859900(133 153 0)
+\definecolor{tamerLibraryExceptionColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}    % #CB4B16(203 75 22)
+\definecolor{tamerInvalidColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}             % #DC322F(220 50 47)
+\definecolor{tamerDiffHeaderColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}          % #268BD2(38 139 210)  italic
+\definecolor{tamerDiffDeletedColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}         % #DC322F(220 50 47)
+\definecolor{tamerDiffChangedColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}         % #CB4B16(203 75 22)
+\definecolor{tamerDiffInsertedColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                       % #859900(133 153 0)
+\definecolor{tamerMarkupQuoteColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                        % #859900(133 153 0)
+\definecolor{tamerMarkupListsColor}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                         % #B58900(181 137 0)
+\definecolor{tamerMarkupStylingColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}       % #D33682(211 54 130)
+\definecolor{tamerMarkupInlineColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}         % #2AA198(42 161 152)
+\definecolor{tamerMarkupHeadingsColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}      % #268BD2(38 139 210)  bold
+\definecolor{tamerMarkupSetextHeaderColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}  % #268BD2(38 139 210)
+
+% https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide, with some tokens from vim
+\newcommand{\tamerKeyword}[1]{{\inColor{SLYellow}{#1}}} % For tokens that represent a language keyword.
+\newcommand{\tamerNamespace}[1]{{\inColor{Gray}{#1}}} % For identifiers that declare or reference a namespace, module, or package.
+\newcommand{\tamerInterface}[1]{{\inColor{SLOrange}{\textsl{#1}}}} % For identifiers that declare or reference an interface type.
+\newcommand{\tamerClass}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a class type.
+\newcommand{\tamerStruct}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a struct type.
+\newcommand{\tamerType}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a type that is not covered above.
+\newcommand{\tamerTypeParameter}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a type parameter.
+\newcommand{\tamerParameter}[1]{{\inColor{Gray}{#1}}} % For identifiers that declare or reference a function or method parameters.
+\newcommand{\tamerVariable}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference a local or global variable.
+\newcommand{\tamerProperty}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference a member property, member field, or member variable.
+\newcommand{\tamerEnum}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference an enumeration type.
+\newcommand{\tamerEnumMember}[1]{{\inColor{SLBlue}{#1}}} % For identifiers that declare or reference an enumeration property, constant, or member.
+\newcommand{\tamerDecorator}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference decorators and annotations.
+\newcommand{\tamerEvent}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare an event property.
+\newcommand{\tamerFunction}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare a function.
+\newcommand{\tamerMethod}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare a member function or method.
+\newcommand{\tamerMacro}[1]{{\inColor{SLYellow}{#1}}} % For identifiers that declare a macro.
+\newcommand{\tamerLabel}[1]{{\inColor{DarkGray}{#1}}} % For identifiers that declare a label.
+\newcommand{\tamerComment}[1]{{\inColor{DimGray}{#1}}} % For tokens that represent a comment.
+\newcommand{\tamerString}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a string literal.
+\newcommand{\tamerCharacter}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a character literal.
+\newcommand{\tamerBoolean}[1]{{\inColor{SLMagenta}{#1}}} % For tokens that represent a boolean literal.
+\newcommand{\tamerNumber}[1]{{\inColor{SLMagenta}{#1}}} % For tokens that represent a number literal.
+\newcommand{\tamerRegexp}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a regular expression literal.
+\newcommand{\tamerOperator}[1]{{\inColor{SLYellow}{#1}}} % For tokens that represent an operator.

@@ -45,12 +45,105 @@ ul.HBdigimon, li.HBdigimonItem {
 }
 
 /** for my own extension, restore the fontsize if used to style the body of articles */
-a.bodyValLink, a.bodyStxLink, a.bodyValDef, a.bodyStxDef,
-span.bodyValLink, span.bodyStxLink, span.bodySym, span.bodyVal, span.bodyPn {
+a.tamerValLink, a.tamerStxLink, a.tamerValDef, a.tamerStxDef,
+span.tamerValLink, span.tamerStxLink, span.tamerSym, span.tamerVal, span.tamerPn {
     font-size: medium;
 }
 
-a.bodyCmt, a.bodyOut, a.bodyErr, a.bodyRes,
-span.bodyCmt, span.bodyOut, span.bodyErr, span.bodyRes {
+a.tamerCmt, a.tamerOut, a.tamerErr, a.tamerRes,
+span.tamerCmt, span.tamerOut, span.tamerErr, span.tamerRes {
     font-size: medium;
+}
+
+/* https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide */
+.tamerNamespace { /* For identifiers that declare or reference a namespace, module, or package. */
+    color: #2B91AF;
+}
+
+.tamerInterface { /* For identifiers that declare or reference an interface type. */
+    color: #2B91AF;
+}
+
+.tamerClass { /* For identifiers that declare or reference a class type. */
+    color: #2B91AF;
+}
+
+.tamerStruct { /* For identifiers that declare or reference a struct type. */
+    color: #2B91AF;
+}
+
+.tamerType { /* For identifiers that declare or reference a type that is not covered above. */
+    color: #2B91AF;
+}
+
+.tamerTypeParameter { /* For identifiers that declare or reference a type parameter. */
+    color: #2B91AF;
+}
+
+.tamerParameter { /* For identifiers that declare or reference a function or method parameters. */
+    color: #2B91AF;
+}
+
+.tamerVariable { /* For identifiers that declare or reference a local or global variable. */
+    color: #2B91AF;
+}
+
+.tamerProperty { /* For identifiers that declare or reference a member property, member field, or member variable. */
+    color: #2B91AF;
+}
+
+.tamerEnum { /* For identifiers that declare or reference an enumeration type. */
+    color: #2B91AF;
+}
+
+.tamerEnumMember { /*	For identifiers that declare or reference an enumeration property, constant, or member. */
+    color: #2B91AF;
+}
+
+.tamerDecorator { /* For identifiers that declare or reference decorators and annotations. */
+    color: #2B91AF;
+}
+
+.tamerEvent { /* For identifiers that declare an event property. */
+    color: #2B91AF;
+}
+
+.tamerFunction { /* For identifiers that declare a function. */
+    color: #2B91AF;
+}
+
+.tamerMethod { /* For identifiers that declare a member function or method. */
+    color: #2B91AF;
+}
+
+.tamerMacro { /* For identifiers that declare a macro. */
+    color: #2B91AF;
+}
+
+.tamerLabel { /* For identifiers that declare a label. */
+    color: #2B91AF;
+}
+
+.tamerComment { /* For tokens that represent a comment. */
+    color: #2B91AF;
+}
+
+.tamerString { /* For tokens that represent a string literal. */
+    color: #2B91AF;
+}
+
+.tamerKeyword { /* For tokens that represent a language keyword. */
+    color: #2B91AF;
+}
+
+.tamerNumber { /* For tokens that represent a number literal. */
+    color: #2B91AF;
+}
+
+.tamerRegexp { /* For tokens that represent a regular expression literal. */
+    color: #2B91AF;
+}
+
+.tamerOperator { /* For tokens that represent an operator. */
+    color: #2B91AF;
 }

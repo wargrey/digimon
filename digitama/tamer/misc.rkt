@@ -32,7 +32,8 @@
                      'pretitle))))))
 
 (define handbook-decode-lines
-  (lambda [body #:each-line [line-wrap values] #:finalize [finalize values] #:nested? [nested? #false] #:filter [satisfy? #false]]
+  (lambda [body #:each-line [line-wrap values] #:finalize [finalize values]
+                #:nested? [nested? #false] #:filter [satisfy? #false]]
     (let partition ([senil null]
                     [enil null]
                     [rest body])

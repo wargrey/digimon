@@ -73,7 +73,7 @@
     (define algo-elem (or (current-algorithm-element) values))
     (define tabular-line (λ [code] (list (algo-elem code))))
 
-    (define pcode-frows
+    (define pcode-rows
       (for/list ([line (in-list lines)]
                  [lNo. (in-naturals 1)])
         (define line-No. (number->string lNo.))
@@ -86,9 +86,9 @@
                               [else (tamer-elemtag #:type type (format "~a#~a~a~a" algo-tag ~< (algo-line-name line-name) >~)
                                                    (elem #:style no-auto-space-style (algo-elem (list ~< (tt (smaller line-name)) >~))))]))
               sublines)))
-
+    
     (define code-pad
-      (cond [(not pad) (list 0.25 0.0)]
+      (cond [(not pad) (list 0.75 0.0)]
             [(real? pad) (list pad 0.0)]
             [else pad]))
 
@@ -99,8 +99,8 @@
          (tabular #:style 'boxed
                   #:pad code-pad
                   #:column-properties '(left right left)
-                  #:row-properties (if (null? pcode-frows) null '(top))
-                  (for/list ([λrows (in-list pcode-frows)])
+                  #:row-properties (if (null? pcode-rows) null '(top))
+                  (for/list ([λrows (in-list pcode-rows)])
                     (list ($tex:phantomsection)
                           ((car λrows) type)
                           ((cadr λrows) type)
@@ -172,9 +172,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define algo-line-name
   (lambda [name]
-    (if (traverse-element? name)
-        (symbol->immutable-string (object-name (traverse-element-traverse name)))
-        (content->string name))))
+    (cond [(traverse-element? name) (symbol->immutable-string (object-name (traverse-element-traverse name)))]
+          [(symbol? name) (symbol->immutable-string name)]
+          [(char? name) (string name)]
+          [else (content->string name)])))
 
 (define algo-label
   (lambda [line]

@@ -42,15 +42,16 @@
             [(not (eq? maybe-delim #\")) (json-error /dev/jsoin "invalid name in reading JSON object" (read /dev/jsoin))]
             [else (let extract-object ([object : (HashTable Symbol JSExpr) js-object])
                     (define str-name (read /dev/jsoin))
-                    (define delim (read /dev/jsoin))
+                    (define delim (syn-token-read-char /dev/jsoin))
 
-                    (cond [(not (eq? delim ':)) (json-error /dev/jsoin "invalid delimiter in reading JSON object" delim)]
-                          [else (let ([value (json-extract-value /dev/jsoin)]
-                                      [name (string->symbol (assert str-name string?))]
-                                      [sep (syn-token-read-char /dev/jsoin)])
-                                  (cond [(eq? sep #\,) (extract-object (hash-set object name value))]
-                                        [(eq? sep #\}) (hash-set object name value)]
-                                        [else (json-error /dev/jsoin "invalid separator in reading JSON object" sep)]))]))]))))
+                    (if (eq? delim #\:)
+                        (let ([value (json-extract-value /dev/jsoin)]
+                              [name (string->symbol (assert str-name string?))]
+                              [sep (syn-token-read-char /dev/jsoin)])
+                          (cond [(eq? sep #\,) (extract-object (hash-set object name value))]
+                                [(eq? sep #\}) (hash-set object name value)]
+                                [else (json-error /dev/jsoin "invalid separator in reading JSON object" sep)]))
+                        (json-error /dev/jsoin "invalid delimiter in reading JSON object" delim)))]))))
 
 (define json-extract-array : (-> Input-Port (Listof JSExpr))
   (lambda [/dev/jsoin]

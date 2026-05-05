@@ -116,7 +116,7 @@
             [else (values null "1")]))
 
     (values (paragraph code-block-style
-                       (texbook-command #:opt-args (list (append common-args range-args)) #:tex-only? #true
+                       (texbook-command #:opt-args (list (append common-args range-args))
                                         "lstinputlisting" src))
             range-start)))
 
