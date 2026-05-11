@@ -287,72 +287,63 @@
 \newcommand{\tamerSymDef}[1]{\tamerSym{#1}} % definition for a unbinding identifier, combined with `sym` (maybe a mistake)
 
 % Solarized Light
-\definecolor{SLYellow}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                  % #B58900(181 137 0)
-\definecolor{SLOrange}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}  % #CB4B16(203 75 22)
-\definecolor{SLRed}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}     % #DC322F(220 50 47)
-\definecolor{SLMagenta}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274} % #D33682(211 54 130)
-\definecolor{SLViolet}{rgb}{0.4235294117647059, 0.44313725490196076, 0.7686274509803922}  % #6C71C4(108 113 196)
-\definecolor{SLBlue}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}    % #268BD2(38 139 210)
-\definecolor{SLCyan}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}     % #2AA198(42 161 152)
-\definecolor{SLGreen}{rgb}{0.5215686274509804, 0.6, 0.0}                                  % #859900(133 153 0)
-
-\definecolor{tamerCommentColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}              % #93A1A1(147 161 161) italic
-\definecolor{tamerStringColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}               % #2AA198(42 161 152)
-\definecolor{tamerRegexpColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}              % #DC322F(220 50 47)
-\definecolor{tamerNumberColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}              % #D33682(211 54 130)
-\definecolor{tamerVariableColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}            % #268BD2(38 139 210)
-\definecolor{tamerKeywordColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                            % #859900(133 153 0)
-\definecolor{tamerStorageColor}{rgb}{0.34509803921568627, 0.43137254901960786, 0.4588235294117647}            % #586E75(88 110 117)  bold
-\definecolor{tamerClassNameColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}           % #CB4B16(203 75 22)
-\definecolor{tamerFunctionNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}        % #268BD2(38 139 210)
-\definecolor{tamerVariableStartColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                      % #859900(133 153 0)
-\definecolor{tamerEmbeddedCodeMarkersColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961} % #DC322F(220 50 47)
 \definecolor{tamerBuiltInConstantColor}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                     % #B58900(181 137 0)
-\definecolor{tamerSupportConstructColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}    % #CB4B16(203 75 22)
-\definecolor{tamerUserDefinedConstantColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157} % #CB4B16(203 75 22)
-\definecolor{tamerInheritedClassColor}{rgb}{0.4235294117647059, 0.44313725490196076, 0.7686274509803922}      % #6C71C4(108 113 196)
-\definecolor{tamerTagNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}             % #268BD2(38 139 210)
-\definecolor{tamerTagStartEndColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}          % #93A1A1(147 161 161)
-\definecolor{tamerTagAttributeColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}         % #93A1A1(147 161 161)
-\definecolor{tamerLibraryFunctionColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}     % #268BD2(38 139 210)
+\definecolor{tamerClassNameColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}           % #CB4B16(203 75 22)
+\definecolor{tamerCommentColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}              % #93A1A1(147 161 161) italic
 \definecolor{tamerContinuationColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}        % #DC322F(220 50 47)
+\definecolor{tamerDiffChangedColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}         % #CB4B16(203 75 22)
+\definecolor{tamerDiffDeletedColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}         % #DC322F(220 50 47)
+\definecolor{tamerDiffHeaderColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}          % #268BD2(38 139 210)  italic
+\definecolor{tamerDiffInsertedColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                       % #859900(133 153 0)
+\definecolor{tamerEmbeddedCodeMarkersColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961} % #DC322F(220 50 47)
+\definecolor{tamerFunctionNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}        % #268BD2(38 139 210)
+\definecolor{tamerInheritedClassColor}{rgb}{0.4235294117647059, 0.44313725490196076, 0.7686274509803922}      % #6C71C4(108 113 196)
+\definecolor{tamerInvalidColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}             % #DC322F(220 50 47)
+\definecolor{tamerKeywordColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                            % #859900(133 153 0)
 \definecolor{tamerLibraryClassTypeColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                   % #859900(133 153 0)
 \definecolor{tamerLibraryExceptionColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}    % #CB4B16(203 75 22)
-\definecolor{tamerInvalidColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}             % #DC322F(220 50 47)
-\definecolor{tamerDiffHeaderColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}          % #268BD2(38 139 210)  italic
-\definecolor{tamerDiffDeletedColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}         % #DC322F(220 50 47)
-\definecolor{tamerDiffChangedColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}         % #CB4B16(203 75 22)
-\definecolor{tamerDiffInsertedColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                       % #859900(133 153 0)
-\definecolor{tamerMarkupQuoteColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                        % #859900(133 153 0)
-\definecolor{tamerMarkupListsColor}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                         % #B58900(181 137 0)
-\definecolor{tamerMarkupStylingColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}       % #D33682(211 54 130)
-\definecolor{tamerMarkupInlineColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}         % #2AA198(42 161 152)
+\definecolor{tamerLibraryFunctionColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}     % #268BD2(38 139 210)
 \definecolor{tamerMarkupHeadingsColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}      % #268BD2(38 139 210)  bold
+\definecolor{tamerMarkupInlineColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}         % #2AA198(42 161 152)
+\definecolor{tamerMarkupListsColor}{rgb}{0.7098039215686275, 0.5372549019607843, 0.0}                         % #B58900(181 137 0)
+\definecolor{tamerMarkupQuoteColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                        % #859900(133 153 0)
 \definecolor{tamerMarkupSetextHeaderColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}  % #268BD2(38 139 210)
+\definecolor{tamerMarkupStylingColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}       % #D33682(211 54 130)
+\definecolor{tamerNumberColor}{rgb}{0.8274509803921568, 0.21176470588235294, 0.5098039215686274}              % #D33682(211 54 130)
+\definecolor{tamerRegexpColor}{rgb}{0.8627450980392157, 0.19607843137254902, 0.1843137254901961}              % #DC322F(220 50 47)
+\definecolor{tamerStorageColor}{rgb}{0.34509803921568627, 0.43137254901960786, 0.4588235294117647}            % #586E75(88 110 117)  bold
+\definecolor{tamerStringColor}{rgb}{0.16470588235294117, 0.6313725490196078, 0.596078431372549}               % #2AA198(42 161 152)
+\definecolor{tamerSupportConstructColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157}    % #CB4B16(203 75 22)
+\definecolor{tamerTagAttributeColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}         % #93A1A1(147 161 161)
+\definecolor{tamerTagNameColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}             % #268BD2(38 139 210)
+\definecolor{tamerTagStartEndColor}{rgb}{0.5764705882352941, 0.6313725490196078, 0.6313725490196078}          % #93A1A1(147 161 161)
+\definecolor{tamerUserDefinedConstantColor}{rgb}{0.796078431372549, 0.29411764705882354, 0.08627450980392157} % #CB4B16(203 75 22)
+\definecolor{tamerVariableColor}{rgb}{0.14901960784313725, 0.5450980392156862, 0.8235294117647058}            % #268BD2(38 139 210)
+\definecolor{tamerVariableStartColor}{rgb}{0.5215686274509804, 0.6, 0.0}                                      % #859900(133 153 0)
 
 % https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide, with some tokens from vim
-\newcommand{\tamerKeyword}[1]{{\inColor{SLYellow}{#1}}} % For tokens that represent a language keyword.
-\newcommand{\tamerNamespace}[1]{{\inColor{Gray}{#1}}} % For identifiers that declare or reference a namespace, module, or package.
-\newcommand{\tamerInterface}[1]{{\inColor{SLOrange}{\textsl{#1}}}} % For identifiers that declare or reference an interface type.
-\newcommand{\tamerClass}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a class type.
-\newcommand{\tamerStruct}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a struct type.
-\newcommand{\tamerType}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a type that is not covered above.
-\newcommand{\tamerTypeParameter}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference a type parameter.
-\newcommand{\tamerParameter}[1]{{\inColor{Gray}{#1}}} % For identifiers that declare or reference a function or method parameters.
-\newcommand{\tamerVariable}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference a local or global variable.
-\newcommand{\tamerProperty}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference a member property, member field, or member variable.
-\newcommand{\tamerEnum}[1]{{\inColor{SLOrange}{#1}}} % For identifiers that declare or reference an enumeration type.
-\newcommand{\tamerEnumMember}[1]{{\inColor{SLBlue}{#1}}} % For identifiers that declare or reference an enumeration property, constant, or member.
-\newcommand{\tamerDecorator}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare or reference decorators and annotations.
-\newcommand{\tamerEvent}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare an event property.
-\newcommand{\tamerFunction}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare a function.
-\newcommand{\tamerMethod}[1]{{\inColor{IdentifierColor}{#1}}} % For identifiers that declare a member function or method.
-\newcommand{\tamerMacro}[1]{{\inColor{SLYellow}{#1}}} % For identifiers that declare a macro.
-\newcommand{\tamerLabel}[1]{{\inColor{DarkGray}{#1}}} % For identifiers that declare a label.
-\newcommand{\tamerComment}[1]{{\inColor{DimGray}{#1}}} % For tokens that represent a comment.
-\newcommand{\tamerString}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a string literal.
-\newcommand{\tamerCharacter}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a character literal.
-\newcommand{\tamerBoolean}[1]{{\inColor{SLMagenta}{#1}}} % For tokens that represent a boolean literal.
-\newcommand{\tamerNumber}[1]{{\inColor{SLMagenta}{#1}}} % For tokens that represent a number literal.
-\newcommand{\tamerRegexp}[1]{{\inColor{SLCyan}{#1}}} % For tokens that represent a regular expression literal.
-\newcommand{\tamerOperator}[1]{{\inColor{SLYellow}{#1}}} % For tokens that represent an operator.
+\newcommand{\tamerKeyword}[1]{{\inColor{tamerKeywordColor}{#1}}} % For tokens that represent a language keyword.
+\newcommand{\tamerNamespace}[1]{{\inColor{tamerStorageColor}{#1}}} % For identifiers that declare or reference a namespace, module, or package.
+\newcommand{\tamerInterface}[1]{{\inColor{tamerClassNameColor}{\textsl{#1}}}} % For identifiers that declare or reference an interface type.
+\newcommand{\tamerClass}[1]{{\inColor{tamerClassNameColor}{#1}}} % For identifiers that declare or reference a class type.
+\newcommand{\tamerStruct}[1]{{\inColor{tamerClassNameColor}{#1}}} % For identifiers that declare or reference a struct type.
+\newcommand{\tamerType}[1]{{\inColor{tamerMarkupListsColor}{#1}}} % For identifiers that declare or reference a type that is not covered above.
+\newcommand{\tamerTypeParameter}[1]{{\inColor{tamerMarkupListsColor}{#1}}} % For identifiers that declare or reference a type parameter.
+\newcommand{\tamerParameter}[1]{{\inColor{tamerTagAttributeColor}{#1}}} % For identifiers that declare or reference a function or method parameters.
+\newcommand{\tamerVariable}[1]{{\inColor{tamerVariableColor}{#1}}} % For identifiers that declare or reference a local or global variable.
+\newcommand{\tamerProperty}[1]{{\inColor{tamerVariableColor}{#1}}} % For identifiers that declare or reference a member property, member field, or member variable.
+\newcommand{\tamerEnum}[1]{{\inColor{tamerMarkupListsColor}{#1}}} % For identifiers that declare or reference an enumeration type.
+\newcommand{\tamerEnumMember}[1]{{\inColor{tamerVariableColor}{#1}}} % For identifiers that declare or reference an enumeration property, constant, or member.
+\newcommand{\tamerDecorator}[1]{{\inColor{tamerSupportConstructColor}{#1}}} % For identifiers that declare or reference decorators and annotations.
+\newcommand{\tamerEvent}[1]{{\inColor{tamerVariableColor}{#1}}} % For identifiers that declare an event property.
+\newcommand{\tamerFunction}[1]{{\inColor{tamerFunctionNameColor}{#1}}} % For identifiers that declare a function.
+\newcommand{\tamerMethod}[1]{{\inColor{tamerFunctionNameColor}{#1}}} % For identifiers that declare a member function or method.
+\newcommand{\tamerMacro}[1]{{\inColor{tamerSupportConstructColor}{#1}}} % For identifiers that declare a macro.
+\newcommand{\tamerLabel}[1]{{\inColor{tamerStorageColor}{#1}}} % For identifiers that declare a label.
+\newcommand{\tamerComment}[1]{{\inColor{tamerCommentColor}{#1}}} % For tokens that represent a comment.
+\newcommand{\tamerString}[1]{{\inColor{tamerStringColor}{#1}}} % For tokens that represent a string literal.
+\newcommand{\tamerCharacter}[1]{{\inColor{tamerStringColor}{#1}}} % For tokens that represent a character literal.
+\newcommand{\tamerBoolean}[1]{{\inColor{tamerNumberColor}{#1}}} % For tokens that represent a boolean literal.
+\newcommand{\tamerNumber}[1]{{\inColor{tamerNumberColor}{#1}}} % For tokens that represent a number literal.
+\newcommand{\tamerRegexp}[1]{{\inColor{tamerRegexpColor}{#1}}} % For tokens that represent a regular expression literal.
+\newcommand{\tamerOperator}[1]{{\inColor{tamerMarkupQuoteColor}{#1}}} % For tokens that represent an operator.

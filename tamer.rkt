@@ -1093,7 +1093,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style] #:sub-legend-style [substyle tamer-figure-sublegend-style]
-   #:sub-pad [subgap:ex '(0 1.2)] #:sub-order [suborder values] #:sub-format [fmt (tamer-subfigure-index-format)]
+   #:sub-pad [subgap:ex '(0 2.5)] #:sub-order [suborder values] #:subfmt [fmt (tamer-subfigure-index-format)]
    #:sub-align [sub-align 'bottom] #:sub-label-align [sub-label-align 'top] #;#;#:sub-tabular? [sub-tabular? #false]]
   #:with [legend pre-flows]
   #:λ (make-block-self legend align-style figureinside-style
@@ -1101,7 +1101,7 @@
                        centeringtext-style))
 
 (define tamer-figure-ref*
-  (lambda [#:elem [ref-element values] #:subidx [subidx #false] #:sub-format [subfmt (tamer-subfigure-ref-format)] id]
+  (lambda [#:elem [ref-element values] #:subidx [subidx #false] #:subfmt [subfmt (tamer-subfigure-ref-format)] id]
     (cond [(not subidx) (tamer-figure-ref #:elem ref-element id)]
           [else (ref-element (list (tamer-figure-ref id)
                                    (tamer-elemref (tamer-subfigure-tag id subidx)

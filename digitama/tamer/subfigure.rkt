@@ -11,6 +11,7 @@
 (require "tag.rkt")
 (require "block.rkt")
 (require "backend.rkt")
+(require "texbook.rkt")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-subfigure-index-format (make-parameter "(~a)"))
@@ -85,7 +86,7 @@
                (let*-values ([(self rest) (values (car subfigures) (cdr subfigures))]
                              [(figure tag caption) (subfigure-extract self idx fmt)])
                  (cond [(and figure)
-                        (make-subfigures rest (add1 idx)
+                        (make-subfigures rest (+ idx (if (and caption) 1 0))
                                          (cons (para #:style subfigureinside-style figure) serugif)
                                          (cons (subfigure-legend legend-style tag caption) slebal))]
                        [else (make-subfigures rest idx (cons phantom-cell serugif) (cons phantom-cell slebal))]))]
@@ -108,9 +109,11 @@
     (if (pair? self)
         (let* ([subcap (cdr self)]
                [subidx (string (integer->char idx))]
-               [subtag (tamer-subfigure-tag (current-block-id) subidx)])
-          (values (car self)
-                  (tamer-elemtag subtag (format fmt subidx))
+               [subtag (tamer-subfigure-tag (current-block-id) subidx)]
+               [substr (format fmt subidx)])
+          (values (list ($tex:vspace 0.0) ; for top alignment, which based on the first element
+                        (car self))
+                  (tamer-elemtag subtag substr)
                   (and (pair? subcap) subcap)))
         (values #false #false #false))))
 

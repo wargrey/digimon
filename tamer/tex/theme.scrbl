@@ -71,7 +71,7 @@
                          @:comment{// @${0x0000FF} or @${0}})}
  @list['加色混合]{@(elem @hspace[4]@:type{RGBA}@~ @:var{color}@~ @:operator{=}@~ @:var{r}@~ @:operator{+}@~ @:var{g}@~ @:operator{+}@~ @:var{b}@:meta{;})}
  @list[]
- @list['设置子弹颜色]{@(elem @hspace[4]@:val{this}@:operator{->}@:var{bullet}@:operator{->}@:id{set_brush_color}@:pn{(}@:var{color}@:pn{)}@:meta{;})}
+ @list['设置子弹颜色]{@(elem @hspace[4]@:val{this}@:operator{->}@:var{bullet}@:operator{->}@:method{set_brush_color}@:pn{(}@:var{color}@:pn{)}@:meta{;})}
  @list[#false]{@(elem @:pn["}"])}
  ]
 
@@ -79,20 +79,22 @@
  #:tag 'scanline @list{用@tt{C++}描述“扫描线算法”}
  @list[#false]{@(elem @:macro{#include}@~ @:string{<iostream>})}
  @list[]
- @list[@${pos(n, L) = n - L + 1}]{@(elem @:type{int}@~ @:id{pos}@:pn{(}@:type{int}@~ @:var{n}@:meta[","]@~ @:type{int}@~ @:var{L}@:pn[") { "]
-                                         @:kw{return}@~ @:var{n}@~ @:operator{-}@~ @:var{L}@~ @:operator{+}@~ @:number{1}@:meta{;}@~ @:pn["}"])}
- @list[@${span(L) = 2L - 1}]{@(elem @:type{int}@~ @:id{span}@:pn{(}@:type{int}@~ @:var{L}@:pn[") { "]
-                                    @:kw{return}@~ @:number{2}@~ @:operator{*}@~ @:var{L}@~ @:operator{-}@~ @:number{1}@:meta{;}@~ @:pn["}"])}
- @list['定义桩函数]{@(elem @:type{void}@~ @:id{display_line}@:pn{(}@:type{int}@~ @:var{n}@:meta[","]@~ @:type{int}@~ @:var{L}@:pn[") { }"])}
+ @list[@${pos(n, L) = n - L + 1}]{@(elem @:type{int}@~ @:function{pos}@:pn{(}@:type{int}@~ @:var{n}@:meta[","]@~ @:type{int}@~ @:var{L}@:pn[") { "]
+                                         @:keyword{return}@~ @:var{n}@~ @:operator{-}@~ @:var{L}@~ @:operator{+}@~ @:number{1}@:meta{;}@~ @:pn["}"])}
+ @list[@${span(L) = 2L - 1}]{@(elem @:type{int}@~ @:function{span}@:pn{(}@:type{int}@~ @:var{L}@:pn[") { "]
+                                    @:keyword{return}@~ @:number{2}@~ @:operator{*}@~ @:var{L}@~ @:operator{-}@~ @:number{1}@:meta{;}@~ @:pn["}"])}
+ @list['定义桩函数]{@(elem @:type{void}@~ @:function{display_line}@:pn{(}@:type{int}@~ @:var{n}@:meta[","]@~ @:type{int}@~ @:var{L}@:pn[") { }"])}
  @list[]
- @list[#false]{@(elem @:type{int}@~ @:id{main}@:pn{(}@:type{int}@:meta[","]@~ @:type{char}@:operator{**}@:pn[") {"])}
+ @list[#false]{@(elem @:type{int}@~ @:function{main}@:pn{(}@:type{int}@:meta[","]@~ @:type{char}@:operator{**}@:pn[") {"])}
  @list['金字塔整数层高]{@(elem @hspace[4]@:type{int}@~ @:var{n}@:meta{;})}
  @list['读取层高]{@(elem @hspace[4]@:namespace{std}@:pn{::}@:sym{cin}@~ @:operator{>>}@~ @:var{n}@:meta{;})}
  @list[]
  @list['对于1至n的每一行L]{@(elem @hspace[4]@:keyword{for}@~ @:pn{(}@:type{int}@~ @:var{L}@~ @:operator{=}@~ @:number{1}@:meta{;}@~
                        @:var{L}@~ @:operator{<=}@~ @:var{n}@:meta{;}@~
                        @:var{L}@~ @:operator{++)}@~ @:pn["{"])}
- @list['输出该行字符]{@(elem @hspace[8]@:id{display_line}@:pn{(}@:var{n}@:meta{,}@~ @:var{L}@:pn{)}@:meta{;})}
+ @list['输出该行字符]{@(elem @hspace[8]@:function{display_line}@:pn{(}@:var{n}@:meta{,}@~ @:var{L}@:pn{)}@:meta{;})}
  @list[#false]{@(elem @hspace[4]@:pn["}"])}
+ @list[]
+ @list[#false]{@(elem @hspace[4]@:keyword{return}@~ @:number{0}@:meta{;})}
  @list[#false]{@(elem @:pn["}"])}
  ]
