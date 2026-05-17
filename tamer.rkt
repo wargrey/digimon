@@ -143,6 +143,7 @@
     [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
               (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
+              (~optional (~seq #:date date) #:defaults ([date #'#true]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:figure image) #:defaults ([image #'#false]))
@@ -169,6 +170,7 @@
 
          (cons (λtitle #:tag (or tag handbook-title-tag)
                        #:version (and (not noversion?) (~a (#%info 'version (const "Baby"))))
+                       #:date (cond [(string? date) date] [(and date) #false] [else ""])
                        #:style (handbook-title-style #false props ext-properties tamer-resource-files (quote-module-path)
                                                      (list* tex-info (handbook-bibtex-path)
                                                             (make-immutable-hasheq (list (cons 'hypersetup #true)
@@ -204,6 +206,7 @@
     [(_ (~alt (~optional (~seq #:tag tag) #:defaults ([tag #'#false]))
               (~optional (~seq #:properties props:expr) #:defaults ([props #'null]))
               (~optional (~seq #:author alt-author) #:defaults ([alt-author #'#false]))
+              (~optional (~seq #:date date) #:defaults ([date #'#true]))
               (~optional (~seq #:hide-version? noversion?) #:defaults ([noversion? #'#false]))
               (~optional (~seq #:subtitle subtitle) #:defaults ([subtitle #'#false]))
               (~optional (~seq #:λtitle λtitle) #:defaults ([λtitle #'title]))
@@ -221,7 +224,7 @@
               (~optional (~seq #:tex-extra-files tex-extra-files) #:defaults ([tex-extra-files #'null])))
         ...
         pre-contents ...)
-     (syntax/loc stx (handbook-title #:tag tag
+     (syntax/loc stx (handbook-title #:tag tag #:date date
                                      #:λtitle λtitle #:subtitle subtitle #:properties props
                                      #:figure image #:figure-vspace distance
                                      #:author alt-author #:hide-version? noversion?

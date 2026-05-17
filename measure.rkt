@@ -1,6 +1,7 @@
 #lang typed/racket/base
 
 (provide (all-defined-out) pi)
+(provide (rename-out [pi +pi] [2pi +2pi]))
 (provide (rename-out [pi/2 +pi/2] [3pi/2 +3pi/2] [pi/4 +pi/4] [3pi/4 +3pi/4]
                      [pi/5 +pi/5] [2pi/5 +2pi/5] [3pi/5 +3pi/5] [4pi/5 +4pi/5] [pi +pi]
                      [phi +phi] [1/phi +1/phi]))
