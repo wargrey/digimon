@@ -8,11 +8,10 @@
 (provide (rename-out [pi/3 +pi/3] [2pi/3 +2pi/3] [pi/6 +pi/6] [5pi/6 +5pi/6]
                      [pi/8 +pi/8] [3pi/8 +3pi/8] [5pi/8 +5pi/8] [7pi/8 +7pi/8]
                      [pi/12 +pi/12] [5pi/12 +5pi/12] [7pi/12 +7pi/12] [11pi/12 +11pi/12]))
+(provide (rename-out [pi/7 +pi/7] [2pi/7 +2pi/7] [3pi/7 +3pi/7] [4pi/7 +4pi/7] [5pi/7 +5pi/7] [6pi/7 +6pi/7]))
 
 (require racket/math)
 (require racket/case)
-
-(require (for-syntax racket/base))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-values (-pi/2 pi/2 -3pi/2 3pi/2 -2pi 2pi -pi/4 pi/4 -3pi/4 3pi/4 -pi/5 pi/5 -2pi/5 2pi/5 -3pi/5 3pi/5 -4pi/5 4pi/5 -pi)
@@ -25,6 +24,10 @@
   (values (* pi -1/3) (* pi 1/3) (* pi -2/3) (* pi +2/3)
           (* pi -1/6) (* pi 1/6) (* pi -5/6) (* pi +5/6)
           (* pi -1/8) (* pi 1/8) (* pi -3/8) (* pi +3/8) (* pi -5/8) (* pi 5/8) (* pi -7/8) (* pi +7/8)))
+
+(define-values (-pi/7 pi/7 -2pi/7 2pi/7 -3pi/7 3pi/7 -4pi/7 4pi/7 -5pi/7 5pi/7 -6pi/7 6pi/7)
+  (values (* pi -1/7) (* pi +1/7) (* pi -2/7) (* pi +2/7) (* pi -3/7) (* pi +3/7)
+          (* pi -4/7) (* pi +4/7) (* pi -5/7) (* pi +5/7) (* pi -6/7) (* pi +6/7)))
 
 (define-values (-pi/12 pi/12 -5pi/12 5pi/12 -7pi/12 7pi/12 -11pi/12 11pi/12)
   (values (* pi -1/12) (* pi +1/12) (* pi -5/12) (* pi +5/12)
