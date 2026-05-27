@@ -1107,8 +1107,11 @@
   (lambda [#:elem [ref-element values] #:subidx [subidx #false] #:subfmt [subfmt (tamer-subfigure-ref-format)] id]
     (cond [(not subidx) (tamer-figure-ref #:elem ref-element id)]
           [else (ref-element (list (tamer-figure-ref id)
-                                   (tamer-elemref (tamer-subfigure-tag id subidx)
-                                                  (format subfmt subidx))))])))
+                                   (if (pair? subidx)
+                                       (list (tamer-elemref (tamer-subfigure-tag id (car subidx)) (format subfmt (car subidx)))
+                                             -~-
+                                             (tamer-elemref (tamer-subfigure-tag id (cdr subidx)) (format subfmt (cdr subidx))))
+                                       (tamer-elemref (tamer-subfigure-tag id subidx) (format subfmt subidx)))))])))
 
 (define tamer-figure-margin
   (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style marginfigure-legend-style] . pre-flows]
