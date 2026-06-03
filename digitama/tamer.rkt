@@ -116,7 +116,7 @@
       (if (and tamer-module)
           (parameterize ([sandbox-namespace-specs (cons (thunk (module->namespace tamer-module)) null)])
             (make-base-eval #:pretty-print? #true))
-          (apply make-base-eval #:pretty-print? #true #:lang (car lang+modules)
+          (apply make-base-eval #:pretty-print? #true #:lang (tamer-story->module (car lang+modules) #false)
                  (map (λ [mod] `(require ,mod))
                       (append (cdr lang+modules) private-modules)))))))
 
