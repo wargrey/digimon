@@ -250,3 +250,17 @@
     (cond [(and (<= flstart fldatum) (< fldatum flend)) fldatum]
           [(< fldatum flstart) (let transform ([v (+ fldatum flrange)]) (if (>= v flstart) v (transform (+ v flrange))))]
           [else (let transform ([v (- fldatum flrange)]) (if (< v flend) v (transform (- v flrange))))])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; sigmoid functions
+(define ~logistic : (-> Flonum Flonum)
+  (lambda [x]
+    (/ 1.0 (+ 1.0 (exp (- x))))))
+
+(define ~tanh : (-> Flonum Flonum)
+  (lambda [x]
+    (* (+ (tanh x) 1.0) 0.5)))
+
+(define ~algebraic : (-> Flonum Flonum)
+  (lambda [x]
+    (* 0.5 (+ 1.0 (/ x (magnitude (make-rectangular 1.0 x)))))))
