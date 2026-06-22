@@ -24,7 +24,7 @@
 \newenvironment{Marginblock}{\begin{Mblock}\item}{\end{Mblock}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\newcommand{\SubFigLegend}[1]{\vspace{-\smallskipamount}\centering\sffamily\footnotesize{#1}}
+\newcommand{\SubFigLegend}[1]{\vspace{-\medskipamount}\centering\sffamily\footnotesize{#1}}
 \newcommand{\JFPFigLegend}[1]{%
   \par % ensure newline
   \begingroup % temporarily disable cls's skips
@@ -65,6 +65,7 @@
 
 \newenvironment{FigureInside}{}{}
 \newenvironment{SubFigureInside}{\centering}{}
+\newenvironment{SubFigureBlock}{}{\vspace{-\medskipamount}}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % since worked with \centering for the legend

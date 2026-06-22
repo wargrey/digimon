@@ -56,9 +56,10 @@
                      (subfigure rest idx++ (cons (list cell) swor)))]
                   [else (subfigure rest idx swor)]))
 
-          (tabular #:column-properties '(center)
-                   #:pad vpad
-                   (reverse swor))))))
+          (nested #:style subfigureblock-style
+                  (tabular #:column-properties '(center)
+                           #:pad vpad
+                           (reverse swor)))))))
 
 (define subfigure-single-column
   (lambda [self legend-style fmt order idx sub-align sub-label-align]
@@ -137,3 +138,4 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define phantom-cell (para #:style tamer-figure-sublegend-style ~))
 (define subfigureinside-style (make-style "SubFigureInside" block-style-extras))
+(define subfigureblock-style (make-style "SubFigureBlock" block-style-extras))

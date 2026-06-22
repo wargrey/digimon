@@ -18,8 +18,8 @@
       (list ($tex:phantomsection)
             (apply deftech #:key key #:normalize? normalize? #:style? #true body)))
 
-    (cond [(and origin abbr) (list term "(" (tamer-deftech abbr) "," ~ (tamer-deftech origin) ")")]
-          [(or origin abbr) (list term "(" (tamer-deftech (or origin abbr)) ")")]
+    (cond [(and origin abbr) (list term "(" (deftech abbr) "," ~ (deftech origin) ")")]
+          [(or origin abbr) (list term "(" (deftech (or origin abbr)) ")")]
           [else term])))
 
 
