@@ -23,6 +23,9 @@
           'png 'png-bytes
           'gif 'gif-bytes))
 
+(define mime-exts
+  (hasheq 'png2x "png"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define tamer-image
   (lambda [#:scale [scale 1.0] #:style [style #false] #:requests [requests null]
@@ -59,7 +62,7 @@
 
     (and (bytes? raw)
          (let ([temp-dir (or base-dir (build-path (find-system-path 'temp-dir) "tamer-handbook"))]
-               [suffix (string-append "." (symbol->immutable-string mime))])
+               [suffix (string-append "." (hash-ref mime-exts mime (λ [] (symbol->immutable-string mime))))])
            (make-directory* temp-dir)
            (call-with-output-file* #:exists 'truncate/replace
              (cond [(string? base-name) (build-path temp-dir (string-append base-name suffix))]

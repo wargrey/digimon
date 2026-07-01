@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(require "digitama/stdio.rkt")
+(require "digitama/stdio/port.rkt")
 
 (require "digitama/toolchain/out/image.rkt")
 

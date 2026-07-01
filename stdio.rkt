@@ -1,8 +1,13 @@
 #lang typed/racket/base
 
 (provide (all-defined-out) drop-bytes)
+(provide (all-from-out "digitama/ioexn.rkt"))
+(provide (all-from-out "digitama/predicate.rkt"))
+(provide (all-from-out "digitama/stdio/parser.rkt"))
+(provide (all-from-out "digitama/unsafe/ops.rkt"))
 (provide (rename-out [write-muintptr write-msize]
-                     [write-luintptr write-lsize]))
+                     [write-luintptr write-lsize]
+                     [port->bytes read-rest-bytes]))
 
 (require racket/list)
 (require racket/case)
@@ -12,7 +17,10 @@
 (require "character.rkt")
 
 (require "digitama/ioexn.rkt")
-(require "digitama/stdio.rkt")
+(require "digitama/predicate.rkt")
+
+(require "digitama/stdio/port.rkt")
+(require "digitama/stdio/parser.rkt")
 
 (require "digitama/unsafe/number.rkt")
 (require "digitama/unsafe/ops.rkt")
@@ -115,52 +123,52 @@
 
 (define-for-syntax (stdio-datum-type <DataType> <layout> <field>)
   (syntax-parse <DataType> #:datum-literals []
-    [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type)
-                                                         #:defaults ([Type #'Symbol]))
-                                              (~optional (~seq #:fallback enum)
-                                                         #:defaults ([enum #'throw-range-error*]))) ...)
+    [(#:enum type datum->raw raw->datum (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'Symbol]))
+                                              (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-enum-error]))) ...)
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type #'Type
                             #:datum->raw (list #'datum->raw #'enum)
                             #:raw->datum (list #'raw->datum #'enum))))]
-    [(#:enum type datum-identity (~optional (~seq #:fallback enum)
-                                            #:defaults ([enum #'throw-range-error*])))
+    [(#:enum type datum-identity (~optional (~seq #:fallback enum) #:defaults ([enum #'throw-enum-error])))
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:raw->datum (list #'datum->identity #'enum))))]
-    [(#:subint type subint? (~alt (~optional (~seq #:-> Type)
-                                             #:defaults ([Type #'#false]))
-                                  (~optional (~seq #:throw throw)
-                                             #:defaults ([throw #'throw-range-error]))) ...)
+    [(#:subint type subint? (~alt (~optional (~seq #:-> Type) #:defaults ([Type #'#false]))
+                                  (~optional (~seq #:throw throw) #:defaults ([throw #'throw-range-error]))) ...)
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type (and (syntax-e #'Type) #'Type)
-                    #:raw->datum (list (list #'subint?)
-                                       (format-id #'subint? "~a-~a" (syntax-e <layout>) (syntax-e <field>))
-                                       #'throw))))]
+                            #:raw->datum (list (list #'subint?)
+                                               (format-id #'subint? "~a-~a" (syntax-e <layout>) (syntax-e <field>))
+                                               #'throw))))]
     [(#:bitmask type datum->raw raw->datum (~optional (~seq #:-> Type)
                                                       #:defaults ([Type #'(Listof Symbol)])))
      (let ([maybe-bt (stdio-integer-type (syntax-e #'type))])
        (and (bintype? maybe-bt)
             (remake-bintype maybe-bt #:type #'Type
-                            #:datum->raw (list #'datum->raw) #:raw->datum (list #'raw->datum))))]
+                            #:datum->raw (list #'datum->raw)
+                            #:raw->datum (list #'raw->datum))))]
 
     [(#:-> Type size datum->raw raw->datum)
      (make-bintype #'Type (stdio-fixed-bytes-size #'size) #'read-nbytes #'write-nbytes #'stdio-zero-size
-                   (list #'datum->raw #'size) (list #'raw->datum #'size))]
+                   (list #'datum->raw #'size)
+                   (list #'raw->datum #'size))]
 
     [(#:raw size)
      (make-bintype #'Bytes (stdio-fixed-bytes-size #'size) #'read-nbytes #'pad-bytes #'stdio-zero-size
-                   (list #'values) (list #'values))]
+                   (list #'values)
+                   (list #'values))]
     
     [((~or #:unused #:reserved #:undefined) size)
      (make-bintype #'Any (stdio-fixed-bytes-size #'size) #'drop-bytes #'pad-bytes #'stdio-zero-size
-                   (list #'void) (list #'void))]
+                   (list #'void)
+                   (list #'void))]
     
     [(#:locale size)
      (make-bintype #'String (stdio-fixed-bytes-size #'size) #'read-nlcstring #'pad-nlcstring #'stdio-zero-size
-                   (list #'values) (list #'values))]
+                   (list #'values)
+                   (list #'values))]
     
     [_ #false]))
 
@@ -341,11 +349,12 @@
                       (unless (not posoff)
                         (port-seek /dev/stdin posoff))
 
-                      (let* ([field (call-datum-reader*
-                                     [signature? omittable? peek-field /dev/stdin read-layout defval ...]
-                                     [raw->datum ...]
-                                     read-field fixed-size fixed-offset /dev/stdin 'field sizes auto?)] ...)
-                        (constructor field ...)))))
+                      (parameterize ([current-ioexn-input-port /dev/stdin])
+                        (let* ([field (call-datum-reader*
+                                       [signature? omittable? peek-field /dev/stdin read-layout defval ...]
+                                       [raw->datum ...]
+                                       read-field fixed-size fixed-offset /dev/stdin 'field sizes auto?)] ...)
+                          (constructor field ...))))))
 
                 (define write-layout : (->* (Layout) (Output-Port (Option Natural)) Natural)
                   (lambda [src [/dev/stdout (current-output-port)] [posoff #false]]
@@ -442,6 +451,17 @@
       (apply throw-signature-error /dev/stdin who errmsg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(define skip-mn:bytes : (-> Input-Port Natural Void)
+  (lambda [/dev/stdin size]
+    (define n (read-msize /dev/stdin size))
+    (skip-nbytes /dev/stdin n)))
+
+(define skip-nbytes : (-> Input-Port Natural Void)
+  (lambda [/dev/stdin size]
+    (if (port-random-access? /dev/stdin)
+        (file-position /dev/stdin (+ (file-position /dev/stdin) size))
+        (drop-bytes /dev/stdin size))))
+
 (define read-mn:bytes : (-> Input-Port Natural Bytes)
   (lambda [/dev/stdin size]
     (read-nbytes /dev/stdin (read-msize /dev/stdin size))))

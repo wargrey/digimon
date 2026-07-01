@@ -8,9 +8,9 @@
 (require racket/string)
 (require racket/symbol)
 
-(require "../debug.rkt")
-(require "ioexn.rkt")
-(require "unsafe/ops.rkt")
+(require "../../debug.rkt")
+(require "../ioexn.rkt")
+(require "../unsafe/ops.rkt")
 
 (require (for-syntax typed/racket/base))
 (require (for-syntax syntax/parse))
@@ -21,9 +21,9 @@
     [(_ read-integer do-bytes->integer #:-> Integer_t)
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port Natural -> Integer_t]
-                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
-                                               [Input-Port Natural (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
+                                               [Input-Port Natural (-> Any Boolean : #:+ (∩ Integer_t a)) -> (∩ Integer_t a)]
+                                               [Input-Port Natural (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                                               [Input-Port Natural (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin size) (do-bytes->integer (read-integer-bytes! /dev/stdin size) 0 size)]
            [(/dev/stdin size subinteger?) (assert (read-integer /dev/stdin size) subinteger?)]
@@ -32,9 +32,9 @@
     [(_ read-integer do-bytes->integer signed? bsize #:-> Integer_t)
      (syntax/loc stx
        (define read-integer : (All (a) (case-> [Input-Port -> Integer_t]
-                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
-                                               [Input-Port (-> Any Boolean : (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
+                                               [Input-Port (-> Any Boolean : #:+ (∩ Integer_t a)) -> (∩ Integer_t a)]
+                                               [Input-Port (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                                               [Input-Port (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) Throw-Range-Error -> (∩ Integer_t a)]))
          (case-lambda
            [(/dev/stdin) (do-bytes->integer (read-integer-bytes! /dev/stdin bsize) 0 signed?)]
            [(/dev/stdin subinteger?) (assert (read-integer /dev/stdin) subinteger?)]

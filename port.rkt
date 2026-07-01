@@ -8,7 +8,8 @@
 (provide Output-Gate output-gate? make-output-gate output-gate-snapshot)
 (provide Output-Gate<%> output-gate<%>? make-output-gate<%>)
 (provide Output-Gate-Write Output-Gate-Flush Output-Gate-Close Output-Gate-Position0)
-(provide (rename-out [output-gate-port open-output-gate]))
+(provide (rename-out [output-gate-port open-output-gate]
+                     [port-random-access? port-seekable?]))
 
 (require racket/port)
 
@@ -482,8 +483,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define port-random-access? : (-> (U Input-Port Output-Port) Boolean)
-  (lambda [/dev/stdio]
-    (or (string-port? /dev/stdio)
-        (with-handlers ([exn:fail? (λ [[e : exn]] #false)])
-          (file-position /dev/stdio (file-position /dev/stdio))
-          #true))))
+  (let ([ans : (HashTable Port Boolean) ((inst make-weak-hasheq Port Boolean))])
+    (lambda [/dev/stdio]
+      (or (file-stream-port? /dev/stdio)
+          (string-port? /dev/stdio)
+          (hash-ref! ans /dev/stdio
+                     (λ [] (with-handlers ([exn:fail? (λ [[e : exn]] #false)])
+                             (file-position /dev/stdio (file-position /dev/stdio))
+                             #true)))))))

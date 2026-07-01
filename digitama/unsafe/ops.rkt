@@ -1,8 +1,10 @@
 #lang typed/racket/base
 
 (provide (all-defined-out))
-(provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder unsafe-fx< unsafe-fx>)
-(provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift unsafe-fxmax unsafe-fxmin)
+(provide unsafe-fx+ unsafe-fx- unsafe-fx* unsafe-fxquotient unsafe-fxremainder)
+(provide unsafe-fxand unsafe-fxior unsafe-fxlshift unsafe-fxrshift)
+(provide unsafe-fxabs unsafe-fxmax unsafe-fxmin)
+(provide unsafe-fx< unsafe-fx> unsafe-fx<= unsafe-fx>= unsafe-fx=)
 (provide unsafe-fl->fx unsafe-fx->fl unsafe-flfloor unsafe-flceiling unsafe-flround unsafe-fltruncate)
 
 (require typed/racket/unsafe)

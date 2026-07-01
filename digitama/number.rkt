@@ -2,7 +2,6 @@
 
 (provide (all-defined-out))
 
-(require "../debug.rkt")
 (require "ioexn.rkt")
 
 (require (for-syntax racket/base))
@@ -12,26 +11,44 @@
   (syntax-case stx [:]
     [(_ bytes->integer do-bytes->integer [argl : Argl] ... #:-> Integer_t)
      (syntax/loc stx
-       (define bytes->integer : (All (a) (case-> [Bytes Integer Argl ... -> Integer_t]
-                                                 [Bytes Integer Argl ... (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                                 [Bytes Integer Argl ... (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
-                                                 [Bytes Integer Argl ... (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error* -> (∩ Integer_t a)]))
+       (define bytes->integer
+         : (All (a) (case-> [Bytes Integer Argl ... -> Integer_t]
+                            [Bytes Integer Argl ... (-> Any Boolean : #:+ (∩ Integer_t a)) -> (∩ Integer_t a)]
+                            [Bytes Integer Argl ... (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                            [Bytes Integer Argl ... (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) (-> Symbol String Any Nothing) -> (∩ Integer_t a)]))
          (case-lambda
-           [(src start argl ...) (do-bytes->integer src start argl ...)]
-           [(src start argl ... subinteger?) (assert (do-bytes->integer src start argl ...) subinteger?)]
-           [(src start argl ... subinteger? op) (assert* (do-bytes->integer src start argl ...) subinteger? throw-range-error* op)]
-           [(src start argl ... subinteger? op throw) (assert* (do-bytes->integer src start argl ...) subinteger? throw op)])))]
+           [(src start argl ...)
+            (do-bytes->integer src start argl ...)]
+           [(src start argl ... subinteger?)
+            (assert (do-bytes->integer src start argl ...) subinteger?)]
+           [(src start argl ... subinteger? op)
+            (let ([v (do-bytes->integer src start argl ...)])
+              (cond [(subinteger? v) v]
+                    [else (throw-range-error (current-ioexn-input-port) op subinteger? v)]))]
+           [(src start argl ... subinteger? op throw)
+            (let ([v (do-bytes->integer src start argl ...)])
+              (cond [(subinteger? v) v]
+                    [else (throw (if (symbol? op) op (assert (object-name op) symbol?))
+                                 (exn-constraint->string subinteger?) v)]))])))]
     [(_ bytes->integer do-bytes->integer signed? #:-> Integer_t)
      (syntax/loc stx
-       (define bytes->integer : (All (a) (case-> [Bytes Integer -> Integer_t]
-                                                 [Bytes Integer (-> Any Boolean : (∩ Integer_t a)) -> (∩ Integer_t a)]
-                                                 [Bytes Integer (-> Any Boolean : (∩ Integer_t a)) Symbol -> (∩ Integer_t a)]
-                                                 [Bytes Integer (-> Any Boolean : (∩ Integer_t a)) Symbol Throw-Range-Error* -> (∩ Integer_t a)]))
+       (define bytes->integer
+         : (All (a) (case-> [Bytes Integer -> Integer_t]
+                            [Bytes Integer (-> Any Boolean : #:+ (∩ Integer_t a)) -> (∩ Integer_t a)]
+                            [Bytes Integer (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) -> (∩ Integer_t a)]
+                            [Bytes Integer (-> Any Boolean : #:+ (∩ Integer_t a)) (U Symbol Procedure) (-> Symbol String Any Nothing) -> (∩ Integer_t a)]))
          (case-lambda
            [(src start) (do-bytes->integer src start signed?)]
            [(src start subinteger?) (assert (do-bytes->integer src start signed?) subinteger?)]
-           [(src start subinteger? op) (assert* (do-bytes->integer src start signed?) subinteger? throw-range-error* op)]
-           [(src start subinteger? op throw) (assert* (do-bytes->integer src start signed?) subinteger? throw op)])))]))
+           [(src start subinteger? op)
+            (let ([v (do-bytes->integer src start signed?)])
+              (cond [(subinteger? v) v]
+                    [else (throw-range-error (current-ioexn-input-port) op subinteger? v)]))]
+           [(src start subinteger? op throw)
+            (let ([v (do-bytes->integer src start signed?)])
+              (cond [(subinteger? v) v]
+                    [else (throw (if (symbol? op) op (assert (object-name op) symbol?))
+                                 (exn-constraint->string subinteger?) v)]))])))]))
 
 (define-syntax (define-bytes->integer* stx)
   (syntax-case stx [:]
