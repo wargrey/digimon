@@ -25,6 +25,8 @@
                      [msb-bytes->double parse-mdouble]
                      [lsb-bytes->double parse-ldouble]))
 
+(require racket/unsafe/ops)
+
 (require "../../number.rkt")
 
 (require "../unsafe/number.rkt")
@@ -35,21 +37,20 @@
   (lambda [src start]
     (> (bytes-ref src start) 0)))
 
-(define parse-nsizes-list : (-> Bytes Integer Integer Integer (Listof Index))
+(define parse-mnsizes-list : (-> Bytes Fixnum Index Index (Listof Index))
   (lambda [src start size count]
-    (with-asserts ([start index?]
-                   [size index?]
-                   [count index?])
-      (let parse ([idx : Index (unsafe-idx+ (unsafe-idx* (unsafe-idx- count 1) size) start)]
-                  [dest : (Listof Index) null])
-        (cond [(< idx start) dest]
-              [else (let ([n (msb-bytes->size src idx size)])
-                      (parse (unsafe-idx- idx size)
-                             (cons n dest)))])))))
+    (define idxn (assert (unsafe-fx+ (unsafe-fx* (unsafe-fx- count 1) size) start) index?))
 
-(define parse-nbytes : (-> Bytes Fixnum Fixnum Bytes)
+    (let parse ([idx : Index idxn]
+                [dest : (Listof Index) null])
+      (cond [(< idx start) dest]
+            [else (let ([n (msb-bytes->size src idx size)])
+                    (parse (unsafe-idx- idx size)
+                           (cons n dest)))]))))
+
+(define parse-nbytes : (-> Bytes Fixnum Index Bytes)
   (lambda [src start bsize]
-    (subbytes src start (+ start bsize))))
+    (subbytes src start (unsafe-fx+ start bsize))))
 
 (define parse-nbytes-list : (-> Bytes Fixnum (Listof Index) (Listof Bytes))
   (lambda [src start bsizes]
