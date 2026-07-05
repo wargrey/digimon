@@ -21,9 +21,9 @@
                      [msb-bytes->size parse-msize]
                      [lsb-bytes->size parse-lsize]))
 
-(provide (rename-out [msb-bytes->double parse-double]
-                     [msb-bytes->double parse-mdouble]
-                     [lsb-bytes->double parse-ldouble]))
+(provide (rename-out [msb-bytes->float parse-float]  [msb-bytes->double parse-double]
+                     [msb-bytes->float parse-mfloat] [msb-bytes->double parse-mdouble]
+                     [lsb-bytes->float parse-lfloat] [lsb-bytes->double parse-ldouble]))
 
 (require racket/unsafe/ops)
 
