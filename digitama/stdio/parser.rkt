@@ -37,32 +37,49 @@
   (lambda [src start]
     (> (bytes-ref src start) 0)))
 
-(define parse-mnsizes-list : (-> Bytes Fixnum Index Index (Listof Index))
+(define parse-mnsize-list : (-> Bytes Fixnum Index Index (Listof Index))
   (lambda [src start size count]
-    (define idxn (assert (unsafe-fx+ (unsafe-fx* (unsafe-fx- count 1) size) start) index?))
+    (if (> count 0)
+        (let ([idxn (unsafe-idx+ (unsafe-idx* (- count 1) size) (assert start index?))])
+          (let parse ([idx : Index idxn]
+                      [dest : (Listof Index) null])
+            (cond [(< idx start) dest]
+                  [else (let ([n (msb-bytes->size src idx size)])
+                          (parse (unsafe-idx- idx size)
+                                 (cons n dest)))])))
+        null)))
+    
+(define parse-nbytes : (case-> [Bytes Fixnum Index -> Bytes]
+                               [Bytes Fixnum Index (-> Bytes Fixnum Fixnum Bytes) -> Bytes])
+  (case-lambda
+    [(src start bsize) (subbytes src start (unsafe-fx+ start bsize))]
+    [(src start bsize subbytes) (subbytes src start (unsafe-fx+ start bsize))]))
 
-    (let parse ([idx : Index idxn]
-                [dest : (Listof Index) null])
-      (cond [(< idx start) dest]
-            [else (let ([n (msb-bytes->size src idx size)])
-                    (parse (unsafe-idx- idx size)
-                           (cons n dest)))]))))
+(define parse-nbytes-list : (case-> [Bytes Fixnum (Listof Index) -> (Listof Bytes)]
+                                    [Bytes Fixnum (Listof Index) (-> Bytes Fixnum Fixnum Bytes) -> (Listof Bytes)])
+  (case-lambda
+    [(src start bsizes) (parse-nbytes-list src start bsizes subbytes)]
+    [(src start bsizes subbytes)
+     (let parse ([last-end : Index (assert start index?)]
+                 [sizes : (Listof Index) bsizes]
+                 [dest : (Listof Bytes) null])
+      (if (pair? sizes)
+          (let ([next-end (unsafe-idx+ last-end (car sizes))])
+            (parse next-end (cdr sizes)
+                   (cons (subbytes src last-end next-end) dest)))
+          (reverse dest)))]))
 
-(define parse-nbytes : (-> Bytes Fixnum Index Bytes)
-  (lambda [src start bsize]
-    (subbytes src start (unsafe-fx+ start bsize))))
-
-(define parse-nbytes-list : (-> Bytes Fixnum (Listof Index) (Listof Bytes))
-  (lambda [src start bsizes]
-    (for/list : (Listof Bytes) ([interval (in-list (nbytes-pairs start bsizes))])
-      (subbytes src (car interval) (cdr interval)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define nbytes-pairs : (-> Fixnum (Listof Index) (Listof (Pairof Integer Integer)))
-  (lambda [start bsizes]
-    (let parse ([last-end : Index (assert start index?)]
-                [sizes : (Listof Index) bsizes]
-                [dest : (Listof (Pairof Integer Integer)) null])
-      (cond [(null? sizes) (reverse dest)]
-            [else (let ([next-end (unsafe-idx+ last-end (car sizes))])
-                    (parse next-end (cdr sizes) (cons (cons last-end next-end) dest)))]))))
+(define parse-nbytes-vector : (case-> [Bytes Fixnum (Listof Index) -> (Vectorof Bytes)]
+                                      [Bytes Fixnum (Listof Index) (-> Bytes Fixnum Fixnum Bytes) -> (Vectorof Bytes)])
+  (case-lambda
+    [(src start bsizes) (parse-nbytes-vector src start bsizes subbytes)]
+    [(src start bsizes subbytes)
+     (define dest : (Vectorof Bytes) (make-vector (length bsizes) #""))
+     (let parse ([last-end : Index (assert start index?)]
+                 [sizes : (Listof Index) bsizes]
+                 [idx : Index 0])
+      (if (pair? sizes)
+          (let ([next-end (unsafe-idx+ last-end (car sizes))])
+            (unsafe-vector*-set! dest idx (subbytes src last-end next-end))
+            (parse next-end (cdr sizes) (unsafe-idx+ idx 1)))
+          dest))]))
