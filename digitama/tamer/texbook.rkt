@@ -230,6 +230,9 @@
     (list ($tex:vspace skip)
           (linebreak))))
 
+(define $tex:hfill
+  (lambda []
+    (texbook-command "hfill")))
 
 (define $tex:drop-folio
   (lambda []
