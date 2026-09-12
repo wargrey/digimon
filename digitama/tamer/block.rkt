@@ -71,8 +71,7 @@
               (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
         ...
         [args ...] #:with [legend pre-flows] #:λ make-block ...)
-     (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
-                    [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
+     (with-syntax* ([tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))]
                     [tamer-id= (format-id #'id "tamer-~a=" (syntax->datum #'id))])
@@ -92,8 +91,7 @@
               (~optional (~seq #:target-style target-style) #:defaults ([target-style #'#false])))
         ...
         [args ...] #:with [legend pre-flows] #:λ make-block ...)
-     (with-syntax* ([tamer-id-raw (format-id #'id "tamer-~a-raw" (syntax->datum #'id))]
-                    [tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
+     (with-syntax* ([tamer-id (format-id #'id "tamer-~a" (syntax->datum #'id))]
                     [tamer-id* (format-id #'id "tamer-~a*" (syntax->datum #'id))]
                     [tamer-id! (format-id #'id "tamer-~a!" (syntax->datum #'id))])
        (syntax/loc stx

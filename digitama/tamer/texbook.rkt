@@ -234,6 +234,18 @@
   (lambda []
     (texbook-command "hfill")))
 
+(define $tex:newpage
+  (lambda []
+    (texbook-command "newpage")))
+
+(define $tex:clearpage
+  (lambda []
+    (texbook-command "clearpage")))
+
+(define $tex:pagebreak
+  (lambda []
+    (texbook-command "pagebreak")))
+
 (define $tex:drop-folio
   (lambda []
     (texbook-command "thispagestyle" "empty")))
