@@ -1093,6 +1093,10 @@
                                  (for/list ([p (in-list blocks)])
                                    (handbook-indent-para p spaces))))))
 
+(define tamer-cell
+  (lambda [body]
+    (tabular (list (list body)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define-tamer-indexed-figure figure #:anchor #false
   [#:style [align-style tamer-center-block-style] #:sub-legend-style [substyle tamer-figure-sublegend-style]
