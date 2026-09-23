@@ -204,9 +204,17 @@
     (apply texbook-command #:args c "inColor" content)))
 
 (define $tex:vspace
-  (lambda [skip]
+  (lambda [skip #:* [star? #false]]
     (texbook-command #:exact-chars? #true
                      "vspace"
+                     (if (real? skip)
+                         (format "~apt" skip)
+                         (format "~a" skip)))))
+
+(define $tex:vspace*
+  (lambda [skip]
+    (texbook-command #:exact-chars? #true
+                     "vspace*"
                      (if (real? skip)
                          (format "~apt" skip)
                          (format "~a" skip)))))
