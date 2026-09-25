@@ -86,6 +86,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (define ~px : (case-> [&L -> Flonum]
+                      [Nonnegative-Real (U Length-Unit Font-Relative-Length-Unit) -> Nonnegative-Flonum]
                       [Real (U Length-Unit Font-Relative-Length-Unit) -> Flonum]
                       [Real+% (U Length-Unit Font-Relative-Length-Unit) Nonnegative-Flonum -> Flonum])
   (case-lambda
@@ -142,7 +143,8 @@
     [(ang unit ratio-to) (~deg (~distance ang ratio-to) unit)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(define ~distance : (case-> [Real-Length -> Flonum]
+(define ~distance : (case-> [Nonnegative-Real -> Nonnegative-Flonum]
+                            [Real-Length -> Flonum]
                             [Length+% Flonum -> Flonum])
   (case-lambda
     [(fl) (if (&L? fl) (~distance (~px fl)) (real->double-flonum fl))]
