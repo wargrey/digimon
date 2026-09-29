@@ -1088,7 +1088,7 @@
     (define spaces (hspace space))
       
     (if (and (pair? blocks) (null? (cdr blocks)))
-        (handbook-indent-para (car blocks) spaces)        
+        (handbook-indent-para (car blocks) spaces)
         (make-compound-paragraph plain
                                  (for/list ([p (in-list blocks)])
                                    (handbook-indent-para p spaces))))))

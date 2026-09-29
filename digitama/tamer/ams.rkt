@@ -39,9 +39,7 @@
             (if (not tag)
                 (make-element math-display-style strs)
                 (make-multiarg-element math-eqnarray-style
-                                       (list strs
-                                             (texbook-command "label"
-                                                              (make-equation-tag (or tag (gensym)))))))
+                                       (list strs ($tex:label (make-equation-tag tag)))))
             (apply math strs)))
       (string->symbol (content->string (or plain strs)))))))
   
@@ -55,7 +53,7 @@
                 (make-multiarg-element math-equation-style
                                        (if (not tag)
                                            (list (car strs) (cdr strs) "equation*" null)
-                                           (list (car strs) (cdr strs) "equation" (texbook-command "label" (make-equation-tag tag)))))
+                                           (list (car strs) (cdr strs) "equation" ($tex:label (make-equation-tag tag)))))
                 (apply math strs)))
           (string->symbol (content->string (or plain strs)))))
          strs)))

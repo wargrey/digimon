@@ -199,6 +199,10 @@
   (lambda [counter value]
     (texbook-command "setcounter" #:args (list counter value))))
 
+(define $tex:label
+  (lambda [lbl]
+    (texbook-command "label" lbl)))
+
 (define $tex:color
   (lambda [c . content]
     (apply texbook-command #:args c "inColor" content)))
