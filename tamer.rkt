@@ -441,7 +441,9 @@
                    [else (literal (speak 'acknowledgment #:dialect 'tamer))]))))
 
 (define handbook-word-count
-  (lambda [#:make-content [make-content #false] #:make-element [make-element handbook-sidenote*] #:include-section? [inc-sec? #false]]
+  (lambda [#:make-content [make-content #false]
+           #:make-element [make-element handbook-sidenote*]
+           #:include-section? [inc-sec? #false]]
     (make-delayed-element
      (λ [render% pthis _]
        (cond [(handbook-stat-renderer? render%) null]
@@ -1131,18 +1133,20 @@
                                        (tamer-default-figure-label-separator))))
 
 (define-tamer-indexed-table table #:anchor #false
-  [#:style [align-style tamer-center-block-style]] #:with [legend pre-flows]
+  [#:style [align-style tamer-center-block-style] #:pad [pad 0]]
+  #:with [legend pre-flows]
   #:λ (make-block-self legend align-style tableinside-style
-                       (table-flows pre-flows)
+                       (table-flows pre-flows pad)
                        centeringtext-style reverse))
 
 (define tamer-table-margin
-  (lambda [id caption #:style [align-style tamer-center-block-style] #:legend-style [legend-style margintable-legend-style] . pre-flows]
+  (lambda [#:style [align-style tamer-center-block-style] #:legend-style [legend-style margintable-legend-style] #:pad [pad 0]
+           id caption . pre-flows]
     (tamer-indexed-block id tamer-table-type
                          (tamer-default-table-label) (tamer-default-table-label-separator) (tamer-default-table-label-tail) caption
                          margintable-style legend-style (tamer-default-table-label-style) (tamer-default-table-caption-style) #false
                          (λ [legend] (make-block-self legend align-style tableinside-style
-                                                      (table-flows pre-flows)
+                                                      (table-flows pre-flows pad)
                                                       centeringtext-style reverse))
                          #true)))
 

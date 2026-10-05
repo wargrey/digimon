@@ -73,7 +73,7 @@
     (if (paragraph? p)
         (make-paragraph (paragraph-style p)
                         (cons spaces (paragraph-content p)))
-         p)))
+        p)))
 
 (define handbook-element-style-name=?
   (lambda [e name [=? string=?]]
