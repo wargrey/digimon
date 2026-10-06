@@ -21,10 +21,14 @@
 (define-phantom-struct rich:phantom:style : Rich:Phantom:Style #:as rich-phantom #:for style
   ([opacity : Real 0.8])
   #:metadata
-  ([tag : Symbol 'Class]))
+  ([tag : Symbol 'class]))
 
 (default-phantom:style)
 (make-phantom:style #:tag 'derived #:opacity 1.0)
+(remake-phantom:style #:tag 'interface)
+(remake-phantom:style #:opacity 1.0)
 
 (default-rich:phantom:style)
 (make-rich:phantom:style #:tag 'alias #:opacity 1.0)
+(remake-rich:phantom:style #:tag 'interface)
+(remake-rich:phantom:style #:opacity 0.0)

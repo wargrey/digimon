@@ -33,3 +33,4 @@
 
 (default-phantom:style)
 (make-phantom:style #:opacity 1.0)
+(remake-phantom:style #:opacity 0.0)

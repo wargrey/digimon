@@ -4,6 +4,8 @@
 
 (require "syntax.rkt")
 
+(require racket/unsafe/ops)
+
 (require (for-syntax syntax/parse))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -259,23 +261,35 @@
         ([phantom-field : PhantomType phantom-defval ...] ...)
         options ...)
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [default-id (format-id #'id "default-~a" (syntax-e #'id))]
-                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
-                    [(phantom-args ...) (make-keyword-make-arguments #'(phantom-field ...) #'(PhantomType ...) #'([phantom-defval ...] ...))])
+                    [(field-ref ...) (make-identifiers #'target #'(field ...))]
+                    [(pfield-ref ...) (make-identifiers #'id #'(phantom-field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
+                    [([phantom-args ...] [phantom-reargs ...]) (make-keyword-arguments #'(phantom-field ...)
+                                                                                       #'(PhantomType ...)
+                                                                                       #'([phantom-defval ...] ...))])
        (syntax/loc stx
          (begin (define-type ID id)
                 (struct id ([phantom-field : PhantomType] ...) #:transparent options ...)
 
                 (define (make-id phantom-args ... kw-args ...) : (Target ID)
                   (target (id phantom-field ...) field ...))
+
+                (define (remake-id [self : (Target ID) (default-id)] phantom-reargs ... kw-reargs ...) : (Target ID)
+                  (let ([phantom-self (unsafe-struct*-ref self 0)])
+                    (target (id (if (undefined? phantom-field) (pfield-ref phantom-self) phantom-field) ...)
+                            (if (undefined? field) (field-ref self) field) ...)))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
     [(_ id : ID #:for target (~optional (~seq : Target:expr) #:defaults ([Target #'target]))
         ([field : FieldType defval ...] ...) options ...)
      (with-syntax* ([the-id (format-id #'id "the-~a" (syntax-e #'id))]
                     [make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [default-id (format-id #'id "default-~a" (syntax-e #'id))]
-                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+                    [(field-ref ...) (make-identifiers #'target #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
        (syntax/loc stx
          (begin (define-type ID id)
                 (struct id () options ...)
@@ -283,6 +297,9 @@
 
                 (define (make-id kw-args ...) : (Target ID)
                   (target the-id field ...))
+                
+                (define (remake-id [self : (Target ID) (default-id)] kw-reargs ...) : (Target ID)
+                  (target the-id (if (undefined? field) (field-ref self) field) ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
 
@@ -294,15 +311,25 @@
         ([phantom-field : PhantomType phantom-defval ...] ...)
         options ...)
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [default-id (format-id #'id "default-~a" (syntax-e #'id))]
-                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
-                    [(phantom-args ...) (make-keyword-make-arguments #'(phantom-field ...) #'(PhantomType ...) #'([phantom-defval ...] ...))])
+                    [(field-ref ...) (make-identifiers #'target #'(field ...))]
+                    [(pfield-ref ...) (make-identifiers #'id #'(phantom-field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
+                    [([phantom-args ...] [phantom-reargs ...]) (make-keyword-arguments #'(phantom-field ...)
+                                                                                       #'(PhantomType ...)
+                                                                                       #'([phantom-defval ...] ...))])
        (syntax/loc stx
          (begin (define-type ID id)
                 (struct id super ([phantom-field : PhantomType] ...) #:transparent options ...)
 
                 (define (make-id phantom-args ... kw-args ...) : (Target ID)
                   (target (id phantom-field ...) field ...))
+
+                (define (remake-id [self : (Target ID) (default-id)] phantom-reargs ... kw-reargs ...) : (Target ID)
+                  (let ([phantom-self (unsafe-struct*-ref self 0)])
+                    (target (id (if (undefined? phantom-field) (pfield-ref phantom-self) phantom-field) ...)
+                            (if (undefined? field) (field-ref self) field) ...)))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
 
@@ -314,15 +341,25 @@
         ([phantom-field : PhantomType phantom-defval ...] ...)
         options ...)
      (with-syntax* ([make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [default-id (format-id #'id "default-~a" (syntax-e #'id))]
-                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
-                    [(phantom-args ...) (make-keyword-make-arguments #'(phantom-field ...) #'(PhantomType ...) #'([phantom-defval ...] ...))])
+                    [(field-ref ...) (make-identifiers #'target #'(field ...))]
+                    [(pfield-ref ...) (make-identifiers #'super #'(phantom-field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))]
+                    [([phantom-args ...] [phantom-reargs ...]) (make-keyword-arguments #'(phantom-field ...)
+                                                                                       #'(PhantomType ...)
+                                                                                       #'([phantom-defval ...] ...))])
        (syntax/loc stx
          (begin (define-type ID id)
                 (struct id super () #:transparent options ...)
 
                 (define (make-id phantom-args ... kw-args ...) : (Target ID)
                   (target (id phantom-field ...) field ...))
+
+                (define (remake-id [self : (Target ID) (default-id)] phantom-reargs ... kw-reargs ...) : (Target ID)
+                  (let ([phantom-self (unsafe-struct*-ref self 0)])
+                    (target (id (if (undefined? phantom-field) (pfield-ref phantom-self) phantom-field) ...)
+                            (if (undefined? field) (field-ref self) field) ...)))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]
 
@@ -332,8 +369,10 @@
         options ...)
      (with-syntax* ([the-id (format-id #'id "the-~a" (syntax-e #'id))]
                     [make-id (format-id #'id "make-~a" (syntax-e #'id))]
+                    [remake-id (format-id #'id "remake-~a" (syntax-e #'id))]
                     [default-id (format-id #'id "default-~a" (syntax-e #'id))]
-                    [(kw-args ...) (make-keyword-make-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
+                    [(field-ref ...) (make-identifiers #'target #'(field ...))]
+                    [([kw-args ...] [kw-reargs ...]) (make-keyword-arguments #'(field ...) #'(FieldType ...) #'([defval ...] ...))])
        (syntax/loc stx
          (begin (define-type ID id)
                 (struct id super () options ...)
@@ -341,6 +380,9 @@
 
                 (define (make-id kw-args ...) : (Target ID)
                   (target the-id field ...))
+
+                (define (remake-id [self : (Target ID) (default-id)] kw-reargs ...) : (Target ID)
+                  (target the-id (if (undefined? field) (field-ref self) field) ...))
                 
                 (define default-id : (Parameterof (Target ID)) (make-parameter (make-id))))))]))
 
